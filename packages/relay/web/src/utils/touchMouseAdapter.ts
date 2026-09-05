@@ -8,8 +8,9 @@
  *  - a tap is replayed as a mousedown/mouseup pair through xterm's mouse
  *    service when an application has mouse reporting on, then focuses xterm;
  *    this is the explicit terminal-input gesture that may open the soft keyboard;
- *  - a vertical drag always scrolls the terminal scrollback, even when the
- *    foreground application has enabled mouse reporting;
+ *  - a vertical drag scrolls xterm's normal-buffer scrollback, or becomes an
+ *    application wheel/arrow gesture when the foreground app owns an
+ *    alternate-screen buffer;
  *  - a long press is consumed rather than becoming an accidental text
  *    selection/copy gesture. Keyboard input is an explicit UI action on touch
  *    devices.
@@ -47,6 +48,12 @@ export interface TouchMouseOptions {
     scrollHeight: number | null;
     clientHeight: number | null;
     moved: boolean;
+    bufferType: 'normal' | 'alternate' | null;
+    baseY: number | null;
+    cursorY: number | null;
+    hasScrollback: boolean | null;
+    mouseTracking: boolean;
+    scrollMode: 'buffer' | 'application-mouse' | 'application-keys' | 'none';
   }) => void;
   longPressDelayMs?: number;
   dragThresholdPx?: number;
@@ -85,6 +92,21 @@ interface CoreMouseEvent {
 interface CoreMouseService {
   triggerMouseEvent: (event: CoreMouseEvent) => boolean;
 }
+
+interface CoreService {
+  triggerDataEvent: (data: string, wasUserInput?: boolean) => void;
+  decPrivateModes?: { applicationCursorKeys?: boolean };
+}
+
+type ScrollMode = 'buffer' | 'application-mouse' | 'application-keys' | 'none';
+
+type ActiveBuffer = {
+  type?: 'normal' | 'alternate';
+  baseY?: number;
+  cursorY?: number;
+  viewportY?: number;
+  hasScrollback?: boolean;
+};
 
 /**
  * Check whether xterm terminal has mouse tracking enabled by a running program (e.g. htop, tmux, vim)
@@ -189,13 +211,17 @@ export class TerminalPointerController {
     this.options.onGestureStateChange?.(state);
   }
 
-  private getViewportY(term: Terminal): number | null {
+  private getActiveBuffer(term: Terminal): ActiveBuffer | null {
     try {
-      const viewportY = term.buffer?.active?.viewportY;
-      return typeof viewportY === 'number' && Number.isFinite(viewportY) ? viewportY : null;
+      return ((term as unknown as { buffer?: { active?: ActiveBuffer } }).buffer?.active || null);
     } catch {
       return null;
     }
+  }
+
+  private getViewportY(term: Terminal): number | null {
+    const viewportY = this.getActiveBuffer(term)?.viewportY;
+    return typeof viewportY === 'number' && Number.isFinite(viewportY) ? viewportY : null;
   }
 
   private blurTerminal(term: Terminal): void {
@@ -328,7 +354,11 @@ export class TerminalPointerController {
     const rect = screen.getBoundingClientRect();
     const logical = this.getLogicalCoordinates(point.clientX, point.clientY);
     const cell = measureCellDimensions(term);
-    if (!cell.measured || cell.cellWidth <= 0 || cell.cellHeight <= 0) return null;
+    // The renderer normally has measured the cell by the time a user can
+    // touch the terminal. Keep the fallback usable during the first paint as
+    // well; an approximate wheel coordinate is still safer than dropping the
+    // application's scroll gesture altogether.
+    if (cell.cellWidth <= 0 || cell.cellHeight <= 0) return null;
 
     const width = Math.max(1, rect.width || term.cols * cell.cellWidth);
     const height = Math.max(1, rect.height || term.rows * cell.cellHeight);
@@ -362,6 +392,70 @@ export class TerminalPointerController {
       candidate._core?._coreMouseService ||
       null
     );
+  }
+
+  private getCoreService(term: Terminal): CoreService | null {
+    const candidate = term as unknown as {
+      coreService?: CoreService;
+      _core?: { coreService?: CoreService };
+    };
+    return candidate.coreService || candidate._core?.coreService || null;
+  }
+
+  /**
+   * Deliver one wheel tick to an alternate-screen application without creating
+   * a DOM WheelEvent. xterm's own wheel path uses button 4 with UP/DOWN
+   * actions, which is what Herdr/vim/tmux expect when mouse reporting is on.
+   */
+  private emitWheel(
+    point: GesturePoint,
+    deltaY: number,
+    term: Terminal,
+    event?: CancellableEvent
+  ): boolean {
+    const service = this.getCoreMouseService(term);
+    if (!service?.triggerMouseEvent) return false;
+
+    const report = this.getMouseReport(point, term);
+    if (!report) return false;
+    report.button = 4; // CoreMouseButton.WHEEL
+    report.action = deltaY < 0 ? 0 : 1; // CoreMouseAction.UP/DOWN
+    report.ctrl = Boolean(event?.ctrlKey);
+    report.alt = Boolean(event?.altKey);
+    report.shift = Boolean(event?.shiftKey);
+    return service.triggerMouseEvent(report);
+  }
+
+  /**
+   * Alternate-screen buffers have no xterm scrollback. Match xterm's native
+   * wheel behavior there: mouse-enabled apps receive wheel reports; otherwise
+   * they receive application cursor-key sequences. Both paths keep scrolling
+   * inside the agent rather than pretending an empty xterm viewport moved.
+   */
+  private scrollAlternateBuffer(
+    point: GesturePoint,
+    lines: number,
+    deltaY: number,
+    term: Terminal,
+    event?: CancellableEvent
+  ): ScrollMode {
+    if (lines === 0 || !this.options.getIsController()) return 'none';
+
+    if (isMouseTrackingActive(term)) {
+      let sent = 0;
+      for (let index = 0; index < Math.abs(lines); index += 1) {
+        if (this.emitWheel(point, deltaY, term, event)) sent += 1;
+      }
+      return sent > 0 ? 'application-mouse' : 'none';
+    }
+
+    const service = this.getCoreService(term);
+    if (!service?.triggerDataEvent) return 'none';
+
+    const applicationCursorKeys = Boolean(service.decPrivateModes?.applicationCursorKeys);
+    const sequence = `\u001b${applicationCursorKeys ? 'O' : '['}${lines < 0 ? 'A' : 'B'}`;
+    service.triggerDataEvent(sequence.repeat(Math.abs(lines)), true);
+    return 'application-keys';
   }
 
   /** Send a mouse report directly when xterm exposes its core mouse service. */
@@ -495,12 +589,8 @@ export class TerminalPointerController {
     this.lastX = point.clientX;
     this.lastY = point.clientY;
 
-    // Use xterm's public scroll API for every device. Directly assigning the
-    // nested viewport's scrollTop is unreliable on Android because that
-    // absolutely-positioned scroller can be visually moved without updating
-    // xterm's buffer viewport. Keep sub-cell movement until a whole row is
-    // available; a finger swipe upward therefore produces negative rows and
-    // reveals older output.
+    // Keep sub-cell movement until a whole row is available; a finger swipe
+    // upward therefore produces negative rows and reveals older output.
     const measuredCell = measureCellDimensions(term);
     const step = measuredCell.measured
       ? measuredCell.cellHeight
@@ -508,10 +598,28 @@ export class TerminalPointerController {
     this.scrollRemainderY += deltaY;
     const lines = Math.trunc(this.scrollRemainderY / step);
     let moved = false;
+    let scrollMode: ScrollMode = 'none';
+    const active = this.getActiveBuffer(term);
+    const mouseTracking = isMouseTrackingActive(term);
+
     if (lines !== 0) {
-      term.scrollLines(lines);
+      if (active?.type === 'alternate') {
+        // A TUI/agent in the alternate screen has no xterm scrollback. Its
+        // visible history is owned by the application, so route a finger
+        // swipe through the same wheel protocol xterm uses for mouse input.
+        scrollMode = this.scrollAlternateBuffer(point, lines, deltaY, term, event);
+        moved = scrollMode !== 'none';
+      } else {
+        const beforeViewportY = this.getViewportY(term);
+        term.scrollLines(lines);
+        const afterViewportY = this.getViewportY(term);
+        scrollMode = 'buffer';
+        moved =
+          beforeViewportY === null ||
+          afterViewportY === null ||
+          beforeViewportY !== afterViewportY;
+      }
       this.scrollRemainderY -= lines * step;
-      moved = true;
     }
 
     const viewport = this.getViewportElement(term);
@@ -523,6 +631,12 @@ export class TerminalPointerController {
       scrollHeight: viewport?.scrollHeight ?? null,
       clientHeight: viewport?.clientHeight ?? null,
       moved,
+      bufferType: active?.type || null,
+      baseY: typeof active?.baseY === 'number' ? active.baseY : null,
+      cursorY: typeof active?.cursorY === 'number' ? active.cursorY : null,
+      hasScrollback: typeof active?.hasScrollback === 'boolean' ? active.hasScrollback : null,
+      mouseTracking,
+      scrollMode,
     });
     if (event?.cancelable) event.preventDefault?.();
   }

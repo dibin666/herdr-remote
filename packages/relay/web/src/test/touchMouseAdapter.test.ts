@@ -298,6 +298,73 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       expect(mockTerm.scrollLines).toHaveBeenCalledWith(-3);
     });
 
+    it('sends wheel reports to an alternate-screen app for a finger swipe', () => {
+      const triggerMouseEvent = vi.fn(() => true);
+      const active = { ...mockTerm.buffer.active, type: 'alternate' as const };
+      const altTerm = {
+        ...mockTerm,
+        cols: 20,
+        rows: 10,
+        buffer: { active },
+        coreMouseService: { triggerMouseEvent },
+        _core: {
+          _renderService: {
+            dimensions: { css: { cell: { width: 10, height: 10 } } },
+          },
+        },
+      } as unknown as Terminal;
+      Object.defineProperty(mockScreen, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: 0, top: 0, width: 200, height: 200 }),
+      });
+
+      const controller = new TerminalPointerController({
+        getTerminal: () => altTerm,
+        getIsController: () => true,
+        getSurfaceElement: () => mockContainer,
+        scrollLineHeightPx: 10,
+      });
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer
+      );
+      controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
+
+      const reports = triggerMouseEvent.mock.calls as unknown as Array<[{ button: number; action: number }]>;
+      expect(reports).toHaveLength(3);
+      expect(reports.every(([event]) => event.button === 4 && event.action === 0)).toBe(true);
+      expect(mockTerm.scrollLines).not.toHaveBeenCalled();
+    });
+
+    it('sends cursor-key scroll input to an alternate-screen app without mouse reporting', () => {
+      const triggerDataEvent = vi.fn();
+      const active = { ...mockTerm.buffer.active, type: 'alternate' as const };
+      const altTerm = {
+        ...mockTerm,
+        buffer: { active },
+        coreService: {
+          triggerDataEvent,
+          decPrivateModes: { applicationCursorKeys: false },
+        },
+        modes: { mouseTrackingMode: 'none' },
+      } as unknown as Terminal;
+
+      const controller = new TerminalPointerController({
+        getTerminal: () => altTerm,
+        getIsController: () => true,
+        getSurfaceElement: () => mockContainer,
+        scrollLineHeightPx: 10,
+      });
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer
+      );
+      controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
+
+      expect(triggerDataEvent).toHaveBeenCalledWith('\u001b[A\u001b[A\u001b[A', true);
+      expect(mockTerm.scrollLines).not.toHaveBeenCalled();
+    });
+
     it('uses xterm scrollLines even when the viewport has measurable overflow', () => {
       const surface = document.createElement('div');
       const viewport = document.createElement('div');

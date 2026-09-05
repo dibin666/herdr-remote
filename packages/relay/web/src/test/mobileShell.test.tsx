@@ -195,8 +195,13 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
 
     // The whole main area is the terminal, and it is visible and interactive.
     const layer = screen.getByTestId('terminal-layer');
-    expect(layer.className).toContain('inset-0');
+    expect(layer.className).toContain('top-12');
+    expect(layer.className).toContain('bottom-0');
     expect(layer.style.visibility).toBe('visible');
+
+    const topbar = screen.getByTestId('mobile-topbar');
+    expect(topbar.className).toContain('h-12');
+    expect(topbar).toContainElement(screen.getByTestId('mobile-chrome-trigger'));
     expect(layer.style.pointerEvents).toBe('auto');
 
     // The only chrome is a collapsed pill; the sheet starts closed.

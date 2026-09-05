@@ -56,6 +56,15 @@ interface TouchDebugState {
   clientHeight: number | null;
   moved: boolean;
   focused: boolean;
+  bufferType: 'normal' | 'alternate' | null;
+  baseY: number | null;
+  cursorY: number | null;
+  hasScrollback: boolean | null;
+  mouseTracking: boolean;
+  scrollMode: 'buffer' | 'application-mouse' | 'application-keys' | 'none';
+  scrollCalls: number;
+  lastScrollLines: number | null;
+  lastInputEvent: string;
   pointerEvents: number;
   touchEvents: number;
 }
@@ -82,6 +91,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const lastBoxRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const lastZoomSnapshotRef = useRef<VisualZoomSnapshot | null>(null);
   const isTouchDevice = isCoarsePointerDevice();
+  const touchInputCapable =
+    isTouchDevice ||
+    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+    (typeof window !== 'undefined' && 'ontouchstart' in window);
   const touchDebugEnabled =
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('debug') === '1';
@@ -95,6 +108,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     clientHeight: null,
     moved: false,
     focused: false,
+    bufferType: null,
+    baseY: null,
+    cursorY: null,
+    hasScrollback: null,
+    mouseTracking: false,
+    scrollMode: 'none',
+    scrollCalls: 0,
+    lastScrollLines: null,
+    lastInputEvent: '',
     pointerEvents: 0,
     touchEvents: 0,
   });
@@ -489,6 +511,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         scrollHeight,
         clientHeight,
         moved,
+        bufferType,
+        baseY,
+        cursorY,
+        hasScrollback,
+        mouseTracking,
+        scrollMode,
       }) => {
         if (!touchDebugEnabled) return;
         setTouchDebug((previous) => ({
@@ -501,6 +529,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           clientHeight,
           moved,
           focused: document.activeElement === term.textarea,
+          bufferType,
+          baseY,
+          cursorY,
+          hasScrollback,
+          mouseTracking,
+          scrollMode,
+          scrollCalls: previous.scrollCalls + (lines !== 0 ? 1 : 0),
+          lastScrollLines: lines,
         }));
       },
       longPressDelayMs: 500,
@@ -509,89 +545,119 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     });
 
     // Real touchscreens get the touch path even when they also expose
-    // PointerEvent. Some mobile WebKit/Chromium versions deliver a captured
-    // pointer stream without allowing the nested xterm viewport to update;
-    // the capture-phase touch path gives us one authoritative stream for the
-    // finger and leaves pointer events for mouse/pen or test/legacy fallbacks.
+    // PointerEvent. Some mobile WebKit/Chromium versions deliver touch events
+    // only reliably during the document capture phase, especially when the
+    // target is xterm's nested absolutely-positioned viewport. Keep one
+    // authoritative touch/pointer stream and never let it reach xterm's native
+    // focus handler before the gesture has been classified.
+    // `ontouchstart in window` is present in some desktop/jsdom environments
+    // even when the browser is delivering the gesture as PointerEvent. Use
+    // maxTouchPoints for selecting the native touch stream; the pointer path
+    // remains the compatibility path when that signal is unavailable.
     const hasTouchInput =
-      isTouchDevice &&
       typeof TouchEvent !== 'undefined' &&
       typeof navigator !== 'undefined' &&
       navigator.maxTouchPoints > 0;
     const usePointerEvents =
       !hasTouchInput && typeof window !== 'undefined' && 'PointerEvent' in window;
     const detachInput: Array<() => void> = [];
+    const eventIsInTerminal = (event: Event, allowActiveOutside = false): boolean => {
+      const target = event.target;
+      const inside = target instanceof Node && container.contains(target);
+      return inside || (allowActiveOutside && pointerController.getState() !== 'idle');
+    };
 
     if (usePointerEvents) {
-      const markPointerEvent = () => {
+      const pointerListenerOptions = { passive: false, capture: true } as const;
+      const markPointerEvent = (name: string) => {
         if (touchDebugEnabled) {
-          setTouchDebug((previous) => ({ ...previous, pointerEvents: previous.pointerEvents + 1 }));
+          setTouchDebug((previous) => ({
+            ...previous,
+            pointerEvents: previous.pointerEvents + 1,
+            lastInputEvent: name,
+          }));
         }
       };
       const onPointerDown = (e: PointerEvent) => {
-        markPointerEvent();
-        return pointerController.handlePointerDown(e, container);
+        if (!eventIsInTerminal(e)) return;
+        markPointerEvent('pointerdown');
+        const handled = pointerController.handlePointerDown(e, container);
+        if (handled) e.stopPropagation();
       };
       const onPointerMove = (e: PointerEvent) => {
-        markPointerEvent();
+        if (!eventIsInTerminal(e, true)) return;
+        markPointerEvent('pointermove');
         pointerController.handlePointerMove(e);
+        if (e.pointerType !== 'mouse') e.stopPropagation();
       };
       const onPointerUp = (e: PointerEvent) => {
-        markPointerEvent();
+        if (!eventIsInTerminal(e, true)) return;
+        markPointerEvent('pointerup');
         pointerController.handlePointerUp(e);
+        if (e.pointerType !== 'mouse') e.stopPropagation();
       };
       const onPointerCancel = (e: PointerEvent) => {
-        markPointerEvent();
+        if (!eventIsInTerminal(e, true)) return;
+        markPointerEvent('pointercancel');
         pointerController.handlePointerCancel(e);
+        if (e.pointerType !== 'mouse') e.stopPropagation();
       };
 
-      container.addEventListener('pointerdown', onPointerDown);
-      container.addEventListener('pointermove', onPointerMove, { passive: false });
-      container.addEventListener('pointerup', onPointerUp);
-      container.addEventListener('pointercancel', onPointerCancel);
+      document.addEventListener('pointerdown', onPointerDown, pointerListenerOptions);
+      document.addEventListener('pointermove', onPointerMove, pointerListenerOptions);
+      document.addEventListener('pointerup', onPointerUp, pointerListenerOptions);
+      document.addEventListener('pointercancel', onPointerCancel, pointerListenerOptions);
       detachInput.push(() => {
-        container.removeEventListener('pointerdown', onPointerDown);
-        container.removeEventListener('pointermove', onPointerMove);
-        container.removeEventListener('pointerup', onPointerUp);
-        container.removeEventListener('pointercancel', onPointerCancel);
+        document.removeEventListener('pointerdown', onPointerDown, pointerListenerOptions);
+        document.removeEventListener('pointermove', onPointerMove, pointerListenerOptions);
+        document.removeEventListener('pointerup', onPointerUp, pointerListenerOptions);
+        document.removeEventListener('pointercancel', onPointerCancel, pointerListenerOptions);
       });
     } else {
       const touchListenerOptions = { passive: false, capture: true } as const;
-      const markTouchEvent = () => {
+      const markTouchEvent = (name: string) => {
         if (touchDebugEnabled) {
-          setTouchDebug((previous) => ({ ...previous, touchEvents: previous.touchEvents + 1 }));
+          setTouchDebug((previous) => ({
+            ...previous,
+            touchEvents: previous.touchEvents + 1,
+            lastInputEvent: name,
+          }));
         }
       };
       const onTouchStart = (e: TouchEvent) => {
-        markTouchEvent();
+        if (!eventIsInTerminal(e)) return;
+        markTouchEvent('touchstart');
         if (e.touches.length === 1) e.stopPropagation();
         pointerController.handleTouchStart(e, container);
       };
       const onTouchMove = (e: TouchEvent) => {
-        markTouchEvent();
+        if (!eventIsInTerminal(e, true)) return;
+        markTouchEvent('touchmove');
         if (e.touches.length === 1) e.stopPropagation();
         pointerController.handleTouchMove(e);
       };
       const onTouchEnd = (e: TouchEvent) => {
-        markTouchEvent();
+        if (!eventIsInTerminal(e, true)) return;
+        markTouchEvent('touchend');
         e.stopPropagation();
         pointerController.handleTouchEnd(e);
       };
       const onTouchCancel = (e: TouchEvent) => {
-        markTouchEvent();
+        if (!eventIsInTerminal(e, true)) return;
+        markTouchEvent('touchcancel');
         e.stopPropagation();
         pointerController.handleTouchCancel();
       };
 
-      container.addEventListener('touchstart', onTouchStart, touchListenerOptions);
-      container.addEventListener('touchmove', onTouchMove, touchListenerOptions);
-      container.addEventListener('touchend', onTouchEnd, touchListenerOptions);
-      container.addEventListener('touchcancel', onTouchCancel, touchListenerOptions);
+      document.addEventListener('touchstart', onTouchStart, touchListenerOptions);
+      document.addEventListener('touchmove', onTouchMove, touchListenerOptions);
+      document.addEventListener('touchend', onTouchEnd, touchListenerOptions);
+      document.addEventListener('touchcancel', onTouchCancel, touchListenerOptions);
       detachInput.push(() => {
-        container.removeEventListener('touchstart', onTouchStart, touchListenerOptions);
-        container.removeEventListener('touchmove', onTouchMove, touchListenerOptions);
-        container.removeEventListener('touchend', onTouchEnd, touchListenerOptions);
-        container.removeEventListener('touchcancel', onTouchCancel, touchListenerOptions);
+        document.removeEventListener('touchstart', onTouchStart, touchListenerOptions);
+        document.removeEventListener('touchmove', onTouchMove, touchListenerOptions);
+        document.removeEventListener('touchend', onTouchEnd, touchListenerOptions);
+        document.removeEventListener('touchcancel', onTouchCancel, touchListenerOptions);
       });
     }
 
@@ -797,7 +863,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         style={{
           // The controller owns mobile scrolling so Android cannot leave the
           // nested absolute xterm viewport at a fixed scroll position.
-          touchAction: isTouchDevice ? 'none' : 'auto',
+          touchAction: touchInputCapable ? 'none' : 'auto',
           backgroundColor: themeBackground,
         }}
         tabIndex={0}
@@ -837,8 +903,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           {`gesture: ${touchDebug.state}\n`}
           {`deltaY: ${touchDebug.deltaY}  lines: ${touchDebug.lines}\n`}
           {`viewportY: ${touchDebug.viewportY ?? '-'}  focus: ${touchDebug.focused}\n`}
+          {`buffer: ${touchDebug.bufferType ?? '-'} base: ${touchDebug.baseY ?? '-'} cursor: ${touchDebug.cursorY ?? '-'} scrollback: ${touchDebug.hasScrollback ?? '-'}\n`}
           {`scroll: ${touchDebug.scrollTop ?? '-'} / ${touchDebug.scrollHeight ?? '-'} (h ${touchDebug.clientHeight ?? '-'}) moved: ${touchDebug.moved}\n`}
-          {`pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}`}
+          {`mode: ${touchDebug.scrollMode} calls: ${touchDebug.scrollCalls} lines: ${touchDebug.lastScrollLines ?? '-'} mouse: ${touchDebug.mouseTracking}\n`}
+          {`event: ${touchDebug.lastInputEvent || '-'}  pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}`}
         </pre>
       )}
     </main>
