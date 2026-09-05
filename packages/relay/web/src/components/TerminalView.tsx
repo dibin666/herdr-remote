@@ -1,0 +1,846 @@
+import React, { useEffect, useRef, useCallback, useState } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
+import '@xterm/xterm/css/xterm.css';
+import { useTerminal } from '../context/TerminalContext';
+import { resolveTerminalTheme, terminalMinimumContrastRatio } from '../utils/theme';
+import { encodeStringToBytes } from '../protocol/keyEncoder';
+import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
+import { attachTerminalRenderer } from '../utils/terminalRenderer';
+import {
+  computeContainerGridFit,
+  measureCellDimensions,
+  measureElementBox,
+  measureScrollbarWidth,
+  DEFAULT_BASE_FONT_SIZE,
+} from '../utils/terminalFit';
+import {
+  getVisualZoomSnapshot,
+  evaluateResizeEvent,
+  VisualZoomSnapshot,
+} from '../utils/visualZoom';
+import {
+  getEffectiveTerminalFontSize,
+  getViewportWidth,
+  getViewportHeight,
+  isCoarsePointerDevice,
+  MOBILE_BREAKPOINT_PX,
+} from '../utils/terminalLayout';
+
+export { MOBILE_BREAKPOINT_PX };
+
+/**
+ * Resize notifications to the PTY are coalesced over this window. The mobile
+ * keyboard animation drives visualViewport through dozens of intermediate
+ * heights; without this the host would receive a stream of throwaway grids.
+ */
+export const RESIZE_NOTIFY_DEBOUNCE_MS = 250;
+
+interface TerminalViewProps {
+  onTerminalFocus?: () => void;
+  /**
+   * False while another view (e.g. Admin) is on top. The terminal stays mounted
+   * and measurable — only PTY resize notifications and focus are suppressed —
+   * so no xterm state, buffer or WebSocket session is torn down.
+   */
+  isActive?: boolean;
+}
+
+interface TouchDebugState {
+  state: TouchGestureState;
+  deltaY: number;
+  lines: number;
+  viewportY: number | null;
+  scrollTop: number | null;
+  scrollHeight: number | null;
+  clientHeight: number | null;
+  moved: boolean;
+  focused: boolean;
+  pointerEvents: number;
+  touchEvents: number;
+}
+
+export const TerminalView: React.FC<TerminalViewProps> = ({
+  onTerminalFocus,
+  isActive = true,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
+  /**
+   * The surface is never transformed, so this stays 1. It exists because the
+   * pointer layer routes every coordinate through the same inverse transform,
+   * and that has to keep working if a scale is ever reintroduced.
+   */
+  const currentScaleRef = useRef<number>(1.0);
+  const lastSentDimensionsRef = useRef<{ cols: number; rows: number }>({ cols: 0, rows: 0 });
+  const pendingResizeRef = useRef<{ cols: number; rows: number } | null>(null);
+  const resizeNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fitFrameRef = useRef<number | null>(null);
+  const boundedFitRafRef = useRef<number | null>(null);
+  const lastBoxRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const lastZoomSnapshotRef = useRef<VisualZoomSnapshot | null>(null);
+  const isTouchDevice = isCoarsePointerDevice();
+  const touchDebugEnabled =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('debug') === '1';
+  const [touchDebug, setTouchDebug] = useState<TouchDebugState>({
+    state: 'idle',
+    deltaY: 0,
+    lines: 0,
+    viewportY: null,
+    scrollTop: null,
+    scrollHeight: null,
+    clientHeight: null,
+    moved: false,
+    focused: false,
+    pointerEvents: 0,
+    touchEvents: 0,
+  });
+
+  const {
+    isController,
+    connectionState,
+    settings,
+    sendResize,
+    sendBinary,
+    addToast,
+    connect,
+    subscribeToOutput,
+    t,
+    effectiveColorMode,
+  } = useTerminal();
+
+  // Fresh mutable refs to avoid stale React closure bugs in event listeners
+  const isControllerRef = useRef(isController);
+  isControllerRef.current = isController;
+
+  const sendBinaryRef = useRef(sendBinary);
+  sendBinaryRef.current = sendBinary;
+
+  const addToastRef = useRef(addToast);
+  addToastRef.current = addToast;
+
+  const sendResizeRef = useRef(sendResize);
+  sendResizeRef.current = sendResize;
+
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  const { background: themeBackground } = resolveTerminalTheme(
+    settings.theme,
+    effectiveColorMode,
+    settings.colorMode
+  );
+  const themeBackgroundRef = useRef(themeBackground);
+  themeBackgroundRef.current = themeBackground;
+
+  /** Debounced, change-gated PTY resize notification. */
+  const notifyResize = useCallback((cols: number, rows: number) => {
+    if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) return;
+    if (
+      cols === lastSentDimensionsRef.current.cols &&
+      rows === lastSentDimensionsRef.current.rows
+    ) {
+      return;
+    }
+
+    pendingResizeRef.current = { cols, rows };
+    if (resizeNotifyTimerRef.current) return;
+
+    resizeNotifyTimerRef.current = setTimeout(() => {
+      resizeNotifyTimerRef.current = null;
+      const pending = pendingResizeRef.current;
+      pendingResizeRef.current = null;
+      if (!pending) return;
+      if (
+        pending.cols === lastSentDimensionsRef.current.cols &&
+        pending.rows === lastSentDimensionsRef.current.rows
+      ) {
+        return;
+      }
+      lastSentDimensionsRef.current = pending;
+      sendResizeRef.current(pending.cols, pending.rows);
+    }, RESIZE_NOTIFY_DEBOUNCE_MS);
+  }, []);
+
+  /**
+   * visual-only vs PTY geometry:
+   * - The PTY grid (cols x rows) is strictly governed by the physical container dimensions
+   *   (window/layout viewport) and a stable baseline geometry (DEFAULT_BASE_FONT_SIZE = 13).
+   * - Changing local font size / font family / theme in settings is a purely visual renderer adjustment:
+   *   it updates xterm options and refreshes the canvas/DOM without recalculating PTY columns/rows
+   *   or dispatching PTY resize frames.
+   */
+  const handleFit = useCallback(
+    (force = false) => {
+      const term = termRef.current;
+      const container = containerRef.current;
+      const surface = surfaceRef.current;
+      const frame = frameRef.current;
+      if (!term || !container || !surface || !frame) return;
+
+      const box = measureElementBox(container, getViewportWidth(), getViewportHeight());
+      if (box.width <= 0 || box.height <= 0) return;
+
+      // Full-bleed visual geometry
+      container.style.backgroundColor = themeBackgroundRef.current;
+      frame.style.width = '100%';
+      frame.style.height = '100%';
+      frame.style.backgroundColor = themeBackgroundRef.current;
+      surface.style.width = '100%';
+      surface.style.height = '100%';
+      surface.style.transform = 'none';
+      surface.style.transformOrigin = 'top left';
+      currentScaleRef.current = 1.0;
+
+      const currentSnapshot = getVisualZoomSnapshot(box);
+      const decision = evaluateResizeEvent({
+        lastSnapshot: lastZoomSnapshotRef.current,
+        currentSnapshot,
+      });
+
+      // Visual zoom (DPR change or visualViewport pinch scale): update snapshot and refresh visual renderer,
+      // but do NOT recalculate/resize PTY columns/rows and do NOT dispatch resize frames to Herdr backend!
+      if (decision.isVisualZoom && !force) {
+        lastZoomSnapshotRef.current = currentSnapshot;
+        try {
+          term.refresh(0, Math.max(0, term.rows - 1));
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      if (decision.shouldIgnore && !force) {
+        return;
+      }
+
+      lastZoomSnapshotRef.current = currentSnapshot;
+
+      // The grid comes from the cell the renderer actually draws, not from an
+      // estimate: a grid sized for a different cell either overflows the frame
+      // and gets clipped, or leaves a dead strip of background down the side.
+      const ptyCell = measureCellDimensions(term, DEFAULT_BASE_FONT_SIZE);
+      const fit = computeContainerGridFit({
+        width: box.width - measureScrollbarWidth(surface),
+        height: box.height,
+        cellWidth: ptyCell.cellWidth,
+        cellHeight: ptyCell.cellHeight,
+      });
+
+      const boxChanged =
+        Math.abs(box.width - lastBoxRef.current.width) > 1 ||
+        Math.abs(box.height - lastBoxRef.current.height) > 1;
+
+      if (term.cols !== fit.cols || term.rows !== fit.rows) {
+        try {
+          term.resize(fit.cols, fit.rows);
+        } catch (err) {
+          console.debug('Error resizing terminal grid:', err);
+        }
+      }
+
+      // The very first fits run against the estimate, because the renderer has
+      // not measured its font yet. Comparing against what was last announced —
+      // rather than only against the box — is what lets the corrected grid
+      // reach the host once the real metrics land.
+      const gridChanged =
+        fit.cols !== lastSentDimensionsRef.current.cols ||
+        fit.rows !== lastSentDimensionsRef.current.rows;
+
+      if (isActiveRef.current && (boxChanged || force || gridChanged)) {
+        lastBoxRef.current = { width: box.width, height: box.height };
+        notifyResize(fit.cols, fit.rows);
+      }
+
+      try {
+        term.refresh(0, Math.max(0, term.rows - 1));
+      } catch {
+        // ignore
+      }
+    },
+    [notifyResize]
+  );
+
+  // Listeners capture this ref, never a specific `handleFit` identity
+  const handleFitRef = useRef(handleFit);
+  handleFitRef.current = handleFit;
+
+  /** Coalesce burst events (resize) into one frame. */
+  const requestFit = useCallback(() => {
+    if (fitFrameRef.current !== null) return;
+    if (typeof requestAnimationFrame !== 'function') {
+      handleFitRef.current();
+      return;
+    }
+    fitFrameRef.current = requestAnimationFrame(() => {
+      fitFrameRef.current = null;
+      handleFitRef.current();
+    });
+  }, []);
+
+  /**
+   * Retries across animation frames and applies the fit geometry once.
+   * Cancels any pending frame chain to ensure strictly a single RAF chain runs.
+   */
+  const scheduleBoundedFit = useCallback((maxFrames = 30) => {
+    if (boundedFitRafRef.current !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(boundedFitRafRef.current);
+      boundedFitRafRef.current = null;
+    }
+
+    let frame = 0;
+    const step = () => {
+      boundedFitRafRef.current = null;
+      frame++;
+      const exhausted = frame >= maxFrames;
+
+      handleFitRef.current(true);
+
+      if (!exhausted && frame < 2 && typeof requestAnimationFrame === 'function') {
+        boundedFitRafRef.current = requestAnimationFrame(step);
+      }
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      boundedFitRafRef.current = requestAnimationFrame(step);
+    } else {
+      step();
+    }
+  }, []);
+
+  // Initialize Terminal instance
+  useEffect(() => {
+    if (!containerRef.current || !surfaceRef.current) return;
+
+    const container = containerRef.current;
+    const { theme: termTheme, resolvedThemeName } = resolveTerminalTheme(
+      settings.theme,
+      effectiveColorMode,
+      settings.colorMode
+    );
+    const initialBox = measureElementBox(container, getViewportWidth(), getViewportHeight());
+
+    // PTY geometry baseline is fixed and independent of client-local fontSize
+    const ptyCell = measureCellDimensions(null, DEFAULT_BASE_FONT_SIZE);
+    const initialGrid = computeContainerGridFit({
+      width: initialBox.width,
+      height: initialBox.height,
+      cellWidth: ptyCell.cellWidth,
+      cellHeight: ptyCell.cellHeight,
+    });
+
+    // Seed the session dimensions before the auto-connect effect below runs
+    sendResizeRef.current(initialGrid.cols, initialGrid.rows);
+    lastBoxRef.current = { width: initialBox.width, height: initialBox.height };
+    lastZoomSnapshotRef.current = getVisualZoomSnapshot(initialBox);
+
+    const initialVisualFontSize = getEffectiveTerminalFontSize(settings.fontSize, initialBox.width);
+
+    const term = new Terminal({
+      cursorBlink: settings.cursorBlink,
+      cursorStyle: settings.cursorStyle,
+      fontSize: initialVisualFontSize,
+      fontFamily: settings.fontFamily,
+      lineHeight: 1.15,
+      theme: termTheme,
+      minimumContrastRatio: terminalMinimumContrastRatio(resolvedThemeName),
+      allowProposedApi: true,
+      convertEol: true,
+      scrollback: 5000,
+      drawBoldTextInBrightColors: true,
+      cols: initialGrid.cols,
+      rows: initialGrid.rows,
+      screenReaderMode: false,
+    });
+
+    try {
+      const unicode11Addon = new Unicode11Addon();
+      term.loadAddon(unicode11Addon);
+      term.unicode.activeVersion = '11';
+    } catch (e) {
+      console.debug('Unicode11 addon unavailable, using default width table:', e);
+    }
+
+    // Open xterm in the surface element
+    term.open(surfaceRef.current);
+    termRef.current = term;
+
+    // The xterm helper is the real terminal input on touch devices. Make its
+    // mobile keyboard intent explicit; it is focused only after the gesture
+    // controller has classified a terminal touch as a tap.
+    if (isTouchDevice && term.textarea) {
+      term.textarea.readOnly = false;
+      term.textarea.tabIndex = 0;
+      term.textarea.inputMode = 'text';
+    }
+
+    let removeTouchDebugFocusListeners = () => {};
+    if (touchDebugEnabled && term.textarea) {
+      const syncFocusState = () => {
+        setTouchDebug((previous) => ({
+          ...previous,
+          focused: document.activeElement === term.textarea,
+        }));
+      };
+      term.textarea.addEventListener('focus', syncFocusState);
+      term.textarea.addEventListener('blur', syncFocusState);
+      removeTouchDebugFocusListeners = () => {
+        term.textarea?.removeEventListener('focus', syncFocusState);
+        term.textarea?.removeEventListener('blur', syncFocusState);
+      };
+      syncFocusState();
+    }
+
+    const renderer = attachTerminalRenderer(term, {
+      coarsePointer: isTouchDevice,
+      onRendererSwapped: () => {
+        try {
+          term.refresh(0, Math.max(0, term.rows - 1));
+        } catch {
+          // ignore
+        }
+      },
+    });
+    if (container) {
+      container.dataset.renderer = renderer.kind;
+    }
+
+    // Initial banner text
+    const bannerTitle = tRef.current('terminal.bannerTitle');
+    const bannerSubtitle = tRef.current('terminal.bannerSubtitle');
+    term.writeln(`\x1b[38;2;217;100;58m  ___ ___               .___      \x1b[0m`);
+    term.writeln(`\x1b[38;2;217;100;58m /   |   \\  ____ _______| _/______\x1b[0m   \x1b[1m${bannerTitle}\x1b[0m`);
+    term.writeln(`\x1b[38;2;217;100;58m/    ~    \\/ __ \\\\_  __ \\ __/  ___/\x1b[0m   \x1b[2m${bannerSubtitle}\x1b[0m`);
+    term.writeln(`\x1b[38;2;217;100;58m\\    Y    /  ___/ |  | \\/|_ \\___ \\ \x1b[0m`);
+    term.writeln(`\x1b[38;2;217;100;58m \\___|_  / \\___  >|__|  /___/____  >\x1b[0m`);
+    term.writeln(`\x1b[38;2;217;100;58m       \\/      \\/                \\/ \x1b[0m`);
+    term.writeln('');
+
+    if (!isTouchDevice) {
+      try {
+        term.focus();
+      } catch {
+        // ignore
+      }
+    }
+
+    // Handle user keyboard & mouse reporting input from xterm
+    const dataDispose = term.onData((data) => {
+      if (!isControllerRef.current) {
+        addToastRef.current('warning', tRef.current('toasts.viewerModeWarning'));
+        return;
+      }
+      const bytes = encodeStringToBytes(data);
+      sendBinaryRef.current(bytes);
+    });
+
+    const binaryDispose = term.onBinary((data) => {
+      if (!isControllerRef.current) return;
+      const bytes = new Uint8Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        bytes[i] = data.charCodeAt(i) & 255;
+      }
+      sendBinaryRef.current(bytes);
+    });
+
+    const pointerController = new TerminalPointerController({
+      getTerminal: () => termRef.current,
+      getIsController: () => isControllerRef.current,
+      getScale: () => currentScaleRef.current,
+      getSurfaceElement: () => surfaceRef.current,
+      // Never synthesize DOM mousedown events from this controller. xterm's
+      // native mousedown handler focuses its hidden textarea for every row;
+      // the core mouse service reports terminal clicks without opening the
+      // IME before the gesture has been classified. Keeping this disabled for
+      // the lifetime of the mounted terminal also covers a desktop-to-phone
+      // rotation without rebuilding the xterm instance.
+      allowSyntheticMouseFallback: false,
+      onFocus: () => {
+        // A tap is the explicit terminal-input gesture. Vertical drags never
+        // reach this callback, so scrolling history cannot summon the IME.
+        try {
+          term.focus();
+        } catch {
+          // ignore
+        }
+        if (touchDebugEnabled) {
+          setTouchDebug((previous) => ({
+            ...previous,
+            focused: document.activeElement === term.textarea,
+          }));
+        }
+        onTerminalFocus?.();
+      },
+      onGestureStateChange: (state) => {
+        if (!touchDebugEnabled) return;
+        setTouchDebug((previous) => ({ ...previous, state }));
+      },
+      onGestureScroll: ({
+        deltaY,
+        lines,
+        viewportY,
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+        moved,
+      }) => {
+        if (!touchDebugEnabled) return;
+        setTouchDebug((previous) => ({
+          ...previous,
+          deltaY,
+          lines,
+          viewportY,
+          scrollTop,
+          scrollHeight,
+          clientHeight,
+          moved,
+          focused: document.activeElement === term.textarea,
+        }));
+      },
+      longPressDelayMs: 500,
+      dragThresholdPx: 8,
+      scrollLineHeightPx: 18,
+    });
+
+    // Real touchscreens get the touch path even when they also expose
+    // PointerEvent. Some mobile WebKit/Chromium versions deliver a captured
+    // pointer stream without allowing the nested xterm viewport to update;
+    // the capture-phase touch path gives us one authoritative stream for the
+    // finger and leaves pointer events for mouse/pen or test/legacy fallbacks.
+    const hasTouchInput =
+      isTouchDevice &&
+      typeof TouchEvent !== 'undefined' &&
+      typeof navigator !== 'undefined' &&
+      navigator.maxTouchPoints > 0;
+    const usePointerEvents =
+      !hasTouchInput && typeof window !== 'undefined' && 'PointerEvent' in window;
+    const detachInput: Array<() => void> = [];
+
+    if (usePointerEvents) {
+      const markPointerEvent = () => {
+        if (touchDebugEnabled) {
+          setTouchDebug((previous) => ({ ...previous, pointerEvents: previous.pointerEvents + 1 }));
+        }
+      };
+      const onPointerDown = (e: PointerEvent) => {
+        markPointerEvent();
+        return pointerController.handlePointerDown(e, container);
+      };
+      const onPointerMove = (e: PointerEvent) => {
+        markPointerEvent();
+        pointerController.handlePointerMove(e);
+      };
+      const onPointerUp = (e: PointerEvent) => {
+        markPointerEvent();
+        pointerController.handlePointerUp(e);
+      };
+      const onPointerCancel = (e: PointerEvent) => {
+        markPointerEvent();
+        pointerController.handlePointerCancel(e);
+      };
+
+      container.addEventListener('pointerdown', onPointerDown);
+      container.addEventListener('pointermove', onPointerMove, { passive: false });
+      container.addEventListener('pointerup', onPointerUp);
+      container.addEventListener('pointercancel', onPointerCancel);
+      detachInput.push(() => {
+        container.removeEventListener('pointerdown', onPointerDown);
+        container.removeEventListener('pointermove', onPointerMove);
+        container.removeEventListener('pointerup', onPointerUp);
+        container.removeEventListener('pointercancel', onPointerCancel);
+      });
+    } else {
+      const touchListenerOptions = { passive: false, capture: true } as const;
+      const markTouchEvent = () => {
+        if (touchDebugEnabled) {
+          setTouchDebug((previous) => ({ ...previous, touchEvents: previous.touchEvents + 1 }));
+        }
+      };
+      const onTouchStart = (e: TouchEvent) => {
+        markTouchEvent();
+        if (e.touches.length === 1) e.stopPropagation();
+        pointerController.handleTouchStart(e, container);
+      };
+      const onTouchMove = (e: TouchEvent) => {
+        markTouchEvent();
+        if (e.touches.length === 1) e.stopPropagation();
+        pointerController.handleTouchMove(e);
+      };
+      const onTouchEnd = (e: TouchEvent) => {
+        markTouchEvent();
+        e.stopPropagation();
+        pointerController.handleTouchEnd(e);
+      };
+      const onTouchCancel = (e: TouchEvent) => {
+        markTouchEvent();
+        e.stopPropagation();
+        pointerController.handleTouchCancel();
+      };
+
+      container.addEventListener('touchstart', onTouchStart, touchListenerOptions);
+      container.addEventListener('touchmove', onTouchMove, touchListenerOptions);
+      container.addEventListener('touchend', onTouchEnd, touchListenerOptions);
+      container.addEventListener('touchcancel', onTouchCancel, touchListenerOptions);
+      detachInput.push(() => {
+        container.removeEventListener('touchstart', onTouchStart, touchListenerOptions);
+        container.removeEventListener('touchmove', onTouchMove, touchListenerOptions);
+        container.removeEventListener('touchend', onTouchEnd, touchListenerOptions);
+        container.removeEventListener('touchcancel', onTouchCancel, touchListenerOptions);
+      });
+    }
+
+    // Right-click belongs to whatever is running in the terminal: Herdr draws
+    // its own menu when it receives the button-2 report, so xterm's mouse
+    // tracking is left to forward it. Only the browser's own menu is
+    // suppressed, and preventDefault on `contextmenu` alone does that without
+    // touching the button press xterm reports from.
+    const onContextMenuNative = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    container.addEventListener('contextmenu', onContextMenuNative);
+    detachInput.push(() => {
+      container.removeEventListener('contextmenu', onContextMenuNative);
+    });
+
+    // Resize observer on terminal container — this is the valid source of container physical size changes
+    const resizeObserver = new ResizeObserver(() => {
+      requestFit();
+    });
+    resizeObserver.observe(container);
+
+    const handleWindowResize = () => {
+      requestFit();
+    };
+
+    // Page visibility change recovery: re-measure and repaint after backgrounding
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleBoundedFit(10);
+        try {
+          termRef.current?.refresh(0, Math.max(0, (termRef.current?.rows || 1) - 1));
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    window.addEventListener('orientationchange', handleWindowResize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handleVisibilityChange);
+
+    // Visual viewport pinch scale / zoom listener for renderer refresh
+    const handleVisualViewport = () => {
+      requestFit();
+    };
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewport);
+      window.visualViewport.addEventListener('scroll', handleVisualViewport);
+    }
+
+    return () => {
+      dataDispose.dispose();
+      binaryDispose.dispose();
+      pointerController.handlePointerCancel();
+      for (const detach of detachInput) detach();
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener('orientationchange', handleWindowResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisibilityChange);
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewport);
+        window.visualViewport.removeEventListener('scroll', handleVisualViewport);
+      }
+      if (resizeNotifyTimerRef.current) {
+        clearTimeout(resizeNotifyTimerRef.current);
+        resizeNotifyTimerRef.current = null;
+      }
+      if (fitFrameRef.current !== null) {
+        cancelAnimationFrame(fitFrameRef.current);
+        fitFrameRef.current = null;
+      }
+      if (boundedFitRafRef.current !== null) {
+        cancelAnimationFrame(boundedFitRafRef.current);
+        boundedFitRafRef.current = null;
+      }
+      removeTouchDebugFocusListeners();
+      renderer.dispose();
+      term.dispose();
+      termRef.current = null;
+    };
+  }, []); // Run once on mount
+
+  // Sync visual-only settings changes (fontSize, fontFamily, theme, cursor) with live terminal instance
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+
+    const box = measureElementBox(containerRef.current, getViewportWidth(), getViewportHeight());
+    term.options.fontSize = getEffectiveTerminalFontSize(settings.fontSize, box.width);
+    term.options.fontFamily = settings.fontFamily;
+    term.options.cursorBlink = settings.cursorBlink;
+    term.options.cursorStyle = settings.cursorStyle;
+
+    const { theme: activeTheme, background: activeBg, resolvedThemeName } = resolveTerminalTheme(
+      settings.theme,
+      effectiveColorMode,
+      settings.colorMode
+    );
+    term.options.theme = { ...activeTheme };
+    term.options.minimumContrastRatio = terminalMinimumContrastRatio(resolvedThemeName);
+    themeBackgroundRef.current = activeBg;
+
+    if (containerRef.current) {
+      containerRef.current.style.backgroundColor = activeBg;
+    }
+    if (frameRef.current) {
+      frameRef.current.style.backgroundColor = activeBg;
+    }
+
+    try {
+      term.refresh(0, Math.max(0, term.rows - 1));
+    } catch {
+      // ignore
+    }
+
+    // A different font means a different cell, and the grid is measured from
+    // the cell. Refitting keeps the terminal full-bleed after a zoom instead of
+    // leaving the frame half-painted; the renderer needs a frame to re-measure,
+    // which is what the bounded chain waits for.
+    scheduleBoundedFit(10);
+  }, [
+    settings.fontSize,
+    settings.fontFamily,
+    settings.cursorBlink,
+    settings.cursorStyle,
+    settings.theme,
+    settings.colorMode,
+    effectiveColorMode,
+  ]);
+
+  /**
+   * Attach the live terminal as the raw output sink.
+   */
+  useEffect(() => {
+    const unsubscribe = subscribeToOutput((data: Uint8Array) => {
+      const term = termRef.current;
+      if (!term) {
+        throw new Error('terminal not ready');
+      }
+      term.write(data);
+    });
+
+    return unsubscribe;
+  }, [subscribeToOutput]);
+
+  /**
+   * Restore path when the view becomes active again (e.g. back from Admin).
+   */
+  useEffect(() => {
+    if (!isActive) return;
+
+    scheduleBoundedFit(10);
+
+    const term = termRef.current;
+    if (term) {
+      try {
+        term.refresh(0, Math.max(0, term.rows - 1));
+      } catch {
+        // ignore
+      }
+
+      if (!isTouchDevice) {
+        try {
+          term.focus();
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [isActive, isTouchDevice, scheduleBoundedFit]);
+
+  // Auto-connect on mount if disconnected
+  useEffect(() => {
+    if (connectionState === 'disconnected') {
+      connect();
+    }
+  }, []);
+
+  /**
+   * The browser's own menu is all that is suppressed here. The right-click
+   * itself stays with xterm, which reports it to Herdr — that report is what
+   * makes Herdr's own menu appear, at the cell the user actually clicked.
+   */
+  const suppressBrowserMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
+
+  return (
+    <main
+      className="flex-1 w-full min-w-0 min-h-0 overflow-hidden relative flex flex-col"
+      style={{ backgroundColor: themeBackground }}
+      onContextMenu={suppressBrowserMenu}
+      aria-label={t('terminal.windowAriaLabel')}
+    >
+      <div
+        id="terminal-container"
+        ref={containerRef}
+        className="absolute inset-0 overflow-hidden cursor-text"
+        style={{
+          // The controller owns mobile scrolling so Android cannot leave the
+          // nested absolute xterm viewport at a fixed scroll position.
+          touchAction: isTouchDevice ? 'none' : 'auto',
+          backgroundColor: themeBackground,
+        }}
+        tabIndex={0}
+        onContextMenu={suppressBrowserMenu}
+        aria-label={t('terminal.bufferAriaLabel')}
+        role="region"
+      >
+        <div
+          id="terminal-frame"
+          ref={frameRef}
+          className="relative overflow-hidden"
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: themeBackground,
+          }}
+        >
+          <div
+            id="terminal-surface"
+            ref={surfaceRef}
+            className="absolute top-0 left-0"
+            style={{
+              transformOrigin: 'top left',
+              width: '100%',
+              height: '100%',
+            }}
+          />
+        </div>
+      </div>
+
+      {touchDebugEnabled && (
+        <pre
+          data-testid="terminal-touch-debug"
+          className="pointer-events-none absolute left-1 top-1 z-50 rounded bg-black/75 px-2 py-1 font-mono text-[10px] leading-relaxed text-white"
+          aria-hidden="true"
+        >
+          {`gesture: ${touchDebug.state}\n`}
+          {`deltaY: ${touchDebug.deltaY}  lines: ${touchDebug.lines}\n`}
+          {`viewportY: ${touchDebug.viewportY ?? '-'}  focus: ${touchDebug.focused}\n`}
+          {`scroll: ${touchDebug.scrollTop ?? '-'} / ${touchDebug.scrollHeight ?? '-'} (h ${touchDebug.clientHeight ?? '-'}) moved: ${touchDebug.moved}\n`}
+          {`pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}`}
+        </pre>
+      )}
+    </main>
+  );
+};

@@ -1,0 +1,14 @@
+node_modules/
+
+# Local Android SDK, emulator image, AVD and test state.
+.android/
+
+# Build artifacts. Both are produced by `npm run build` and shipped in the npm
+# tarballs, so they are published but not committed.
+packages/cli/dist/
+packages/relay/web/dist/
+
+.env
+.state/
+*.log
+*.tgz
