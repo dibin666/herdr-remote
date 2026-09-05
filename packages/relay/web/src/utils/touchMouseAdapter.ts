@@ -403,27 +403,84 @@ export class TerminalPointerController {
   }
 
   /**
-   * Deliver one wheel tick to an alternate-screen application without creating
-   * a DOM WheelEvent. xterm's own wheel path uses button 4 with UP/DOWN
-   * actions, which is what Herdr/vim/tmux expect when mouse reporting is on.
+   * Find xterm's root so a synthetic wheel follows the exact same native path
+   * as a real mouse wheel. It is important that this is *not* a mousedown:
+   * xterm's mousedown handler focuses its hidden textarea, which would summon
+   * the mobile IME for an output/history touch.
    */
-  private emitWheel(
+  private getWheelDispatchTarget(term: Terminal): HTMLElement | null {
+    const surface = this.options.getSurfaceElement ? this.options.getSurfaceElement() : null;
+    return (surface?.querySelector('.xterm') || term.element || null) as HTMLElement | null;
+  }
+
+  /**
+   * Deliver a line-quantized wheel gesture through xterm's native wheel
+   * handler. xterm then chooses the right protocol itself: mouse reports for
+   * mouse-enabled TUIs, cursor-key input for an alternate buffer without
+   * mouse reporting, or normal-buffer scrollback. A canceled wheel is still a
+   * successful delivery — xterm cancels it after forwarding it to the PTY.
+   */
+  private dispatchWheel(
     point: GesturePoint,
-    deltaY: number,
+    lines: number,
     term: Terminal,
     event?: CancellableEvent
   ): boolean {
+    const target = this.getWheelDispatchTarget(term);
+    if (!target || typeof WheelEvent === 'undefined') return false;
+
+    const logical = this.getLogicalCoordinates(point.clientX, point.clientY);
+    try {
+      const wheel = new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: logical.clientX,
+        clientY: logical.clientY,
+        deltaX: 0,
+        // Line mode makes the gesture deterministic and avoids depending on
+        // the browser's pixel-to-line conversion or xterm's partial-wheel
+        // accumulator. One event carries the whole row delta.
+        deltaY: lines,
+        deltaMode: 1, // WheelEvent.DOM_DELTA_LINE
+        ctrlKey: Boolean(event?.ctrlKey),
+        altKey: Boolean(event?.altKey),
+        shiftKey: Boolean(event?.shiftKey),
+      });
+      target.dispatchEvent(wheel);
+      return true;
+    } catch {
+      // Older embedded browsers may expose WheelEvent but reject its
+      // constructor. The core-service fallback below keeps those builds
+      // usable without ever dispatching a focus-causing mousedown.
+      return false;
+    }
+  }
+
+  /** Direct core fallback for xterm builds that expose no DOM wheel target. */
+  private emitWheel(
+    point: GesturePoint,
+    lines: number,
+    term: Terminal,
+    event?: CancellableEvent
+  ): boolean {
+    if (lines === 0) return false;
+    if (this.dispatchWheel(point, lines, term, event)) return true;
+
     const service = this.getCoreMouseService(term);
     if (!service?.triggerMouseEvent) return false;
 
-    const report = this.getMouseReport(point, term);
-    if (!report) return false;
-    report.button = 4; // CoreMouseButton.WHEEL
-    report.action = deltaY < 0 ? 0 : 1; // CoreMouseAction.UP/DOWN
-    report.ctrl = Boolean(event?.ctrlKey);
-    report.alt = Boolean(event?.altKey);
-    report.shift = Boolean(event?.shiftKey);
-    return service.triggerMouseEvent(report);
+    let sent = 0;
+    for (let index = 0; index < Math.abs(lines); index += 1) {
+      const report = this.getMouseReport(point, term);
+      if (!report) continue;
+      report.button = 4; // CoreMouseButton.WHEEL
+      report.action = lines < 0 ? 0 : 1; // CoreMouseAction.UP/DOWN
+      report.ctrl = Boolean(event?.ctrlKey);
+      report.alt = Boolean(event?.altKey);
+      report.shift = Boolean(event?.shiftKey);
+      if (service.triggerMouseEvent(report)) sent += 1;
+    }
+    return sent > 0;
   }
 
   /**
@@ -435,27 +492,29 @@ export class TerminalPointerController {
   private scrollAlternateBuffer(
     point: GesturePoint,
     lines: number,
-    deltaY: number,
     term: Terminal,
     event?: CancellableEvent
   ): ScrollMode {
     if (lines === 0 || !this.options.getIsController()) return 'none';
 
-    if (isMouseTrackingActive(term)) {
-      let sent = 0;
-      for (let index = 0; index < Math.abs(lines); index += 1) {
-        if (this.emitWheel(point, deltaY, term, event)) sent += 1;
-      }
-      return sent > 0 ? 'application-mouse' : 'none';
+    const mouseTracking = isMouseTrackingActive(term);
+    if (this.emitWheel(point, lines, term, event)) {
+      return mouseTracking ? 'application-mouse' : 'application-keys';
     }
 
-    const service = this.getCoreService(term);
-    if (!service?.triggerDataEvent) return 'none';
+    // Keep a protocol-level fallback for a test double or an older xterm build
+    // that has neither a DOM root nor a core mouse service.
+    if (!mouseTracking) {
+      const service = this.getCoreService(term);
+      if (!service?.triggerDataEvent) return 'none';
 
-    const applicationCursorKeys = Boolean(service.decPrivateModes?.applicationCursorKeys);
-    const sequence = `\u001b${applicationCursorKeys ? 'O' : '['}${lines < 0 ? 'A' : 'B'}`;
-    service.triggerDataEvent(sequence.repeat(Math.abs(lines)), true);
-    return 'application-keys';
+      const applicationCursorKeys = Boolean(service.decPrivateModes?.applicationCursorKeys);
+      const sequence = `\u001b${applicationCursorKeys ? 'O' : '['}${lines < 0 ? 'A' : 'B'}`;
+      service.triggerDataEvent(sequence.repeat(Math.abs(lines)), true);
+      return 'application-keys';
+    }
+
+    return 'none';
   }
 
   /** Send a mouse report directly when xterm exposes its core mouse service. */
@@ -607,7 +666,7 @@ export class TerminalPointerController {
         // A TUI/agent in the alternate screen has no xterm scrollback. Its
         // visible history is owned by the application, so route a finger
         // swipe through the same wheel protocol xterm uses for mouse input.
-        scrollMode = this.scrollAlternateBuffer(point, lines, deltaY, term, event);
+        scrollMode = this.scrollAlternateBuffer(point, lines, term, event);
         moved = scrollMode !== 'none';
       } else {
         const beforeViewportY = this.getViewportY(term);

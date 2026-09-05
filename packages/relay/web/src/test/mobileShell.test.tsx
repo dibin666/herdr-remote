@@ -204,7 +204,7 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect(topbar).toContainElement(screen.getByTestId('mobile-chrome-trigger'));
     expect(layer.style.pointerEvents).toBe('auto');
 
-    // The only chrome is a collapsed pill; the sheet starts closed.
+    // The only chrome is the compact top bar; the sheet starts closed.
     expect(screen.getByTestId('mobile-chrome-trigger')).toBeInTheDocument();
     expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
   });

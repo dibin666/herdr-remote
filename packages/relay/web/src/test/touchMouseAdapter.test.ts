@@ -298,6 +298,44 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       expect(mockTerm.scrollLines).toHaveBeenCalledWith(-3);
     });
 
+    it('replays an alternate-screen swipe as one line-mode wheel event on xterm', () => {
+      const xtermRoot = document.createElement('div');
+      xtermRoot.className = 'xterm';
+      mockContainer.replaceChildren(xtermRoot);
+      xtermRoot.appendChild(mockScreen);
+      const wheelEvents: WheelEvent[] = [];
+      xtermRoot.addEventListener('wheel', (event) => wheelEvents.push(event as WheelEvent));
+
+      const active = { ...mockTerm.buffer.active, type: 'alternate' as const };
+      const altTerm = {
+        ...mockTerm,
+        cols: 20,
+        rows: 10,
+        buffer: { active },
+        _core: {
+          _renderService: {
+            dimensions: { css: { cell: { width: 10, height: 10 } } },
+          },
+        },
+      } as unknown as Terminal;
+
+      const controller = new TerminalPointerController({
+        getTerminal: () => altTerm,
+        getIsController: () => true,
+        getSurfaceElement: () => mockContainer,
+        scrollLineHeightPx: 10,
+      });
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer
+      );
+      controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
+
+      expect(wheelEvents).toHaveLength(1);
+      expect(wheelEvents[0]).toMatchObject({ deltaY: -3, deltaMode: 1 });
+      expect(mockTerm.scrollLines).not.toHaveBeenCalled();
+    });
+
     it('sends wheel reports to an alternate-screen app for a finger swipe', () => {
       const triggerMouseEvent = vi.fn(() => true);
       const active = { ...mockTerm.buffer.active, type: 'alternate' as const };

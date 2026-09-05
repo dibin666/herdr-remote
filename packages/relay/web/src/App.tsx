@@ -237,7 +237,7 @@ function AppContent() {
           </div>
         )}
 
-        {/* Phone chrome: a floating pill plus an overlaid sheet */}
+        {/* Phone chrome: a reserved top bar plus an overlaid control sheet */}
         {isMobileShell && isTerminalActive && (
           <MobileTerminalShell
             onNavigateAdmin={() => handleNavigate('admin')}
