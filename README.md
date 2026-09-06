@@ -16,6 +16,7 @@ herdr-remote
 
 Running `herdr-remote` launches the setup wizard and starts background services.
 
+<img width="1237" height="665" alt="image" src="https://github.com/user-attachments/assets/cb57f108-d313-44b5-ac64-91a7ac95290a" />
 ---
 
 ## Packages
