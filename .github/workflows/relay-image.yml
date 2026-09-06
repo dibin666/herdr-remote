@@ -19,8 +19,14 @@ on:
     # corresponds to a real change in what the image runs.
     paths:
       - 'packages/relay/**'
-      - 'package-lock.json'
+      - 'packages/relay/Dockerfile'
+      - '.dockerignore'
       - '.github/workflows/relay-image.yml'
+      # package-lock.json is deliberately absent. It moves whenever any
+      # workspace version changes, so a CLI-only release would rebuild an image
+      # whose contents are identical. A dependency change that does reach the
+      # image also changes packages/relay/package.json or the web manifest
+      # underneath it, both of which are already matched above.
   workflow_dispatch:
     inputs:
       version:
