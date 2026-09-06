@@ -21,11 +21,18 @@ import {
 
 export type StepId = 'language' | 'access' | 'address' | 'relayUrl' | 'password' | 'finish';
 
-/** The questions worth asking for a given access mode, in order. */
-export function stepsFor(mode: AccessMode): StepId[] {
+/**
+ * The questions worth asking for a given access mode, in order.
+ *
+ * `remoteUrl` matters because the official relay is a remote relay whose
+ * address and credentials are already known, so it asks neither question. The
+ * step counter is derived from this list, so it has to agree with the route
+ * actually taken or the wizard reports "step 5 of 5" on its third screen.
+ */
+export function stepsFor(mode: AccessMode, remoteUrl?: string): StepId[] {
   const steps: StepId[] = ['language', 'access'];
   if (mode === 'lan') steps.push('address');
-  if (mode === 'remote') steps.push('relayUrl', 'password');
+  if (mode === 'remote' && remoteUrl !== OFFICIAL_RELAY_URL) steps.push('relayUrl', 'password');
   steps.push('finish');
   return steps;
 }
@@ -51,16 +58,30 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
     [],
   );
 
-  const steps: StepId[] = useMemo(() => stepsFor(draft.relay.mode), [draft.relay.mode]);
+  const steps: StepId[] = useMemo(
+    () => stepsFor(draft.relay.mode, draft.relay.remoteUrl),
+    [draft.relay.mode, draft.relay.remoteUrl],
+  );
   const stepIndex = Math.max(0, steps.indexOf(step));
 
-  const apply = (id: string, value: string) => {
-    const result = setField(draft, id, value);
-    if (result.errorKey) { ctx.notify(t(result.errorKey), 'error'); return false; }
-    ctx.updateDraft(result.draft);
+  /**
+   * Apply several fields as one edit. Each `setField` builds on the previous
+   * result: `draft` is the value captured when this render began, so applying
+   * two fields through two separate calls committed the second over the first.
+   */
+  const applyAll = (updates: Array<[string, string]>) => {
+    let next = draft;
+    for (const [id, value] of updates) {
+      const result = setField(next, id, value);
+      if (result.errorKey) { ctx.notify(t(result.errorKey), 'error'); return false; }
+      next = result.draft;
+    }
+    ctx.updateDraft(next);
     ctx.notify('', 'info');
     return true;
   };
+
+  const apply = (id: string, value: string) => applyAll([[id, value]]);
 
   /**
    * Move to the next step.
@@ -171,13 +192,14 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
               // The official relay is "remote" with the address already known,
               // so the URL question is answered and skipped. It is a public
               // relay, so there is no join password to ask for either.
-              if (!apply('mode', 'remote')) return;
-              if (!apply('remoteUrl', OFFICIAL_RELAY_URL)) return;
+              if (!applyAll([['mode', 'remote'], ['remoteUrl', OFFICIAL_RELAY_URL]])) return;
               setRelayPassword('');
-              advance('access', ['language', 'access', 'finish']);
+              advance('access', stepsFor('remote', OFFICIAL_RELAY_URL));
               return;
             }
-            if (apply('mode', choice)) advance('access', stepsFor(choice as AccessMode));
+            if (apply('mode', choice)) {
+              advance('access', stepsFor(choice as AccessMode, draft.relay.remoteUrl));
+            }
           }}
           onCancel={back}
         />

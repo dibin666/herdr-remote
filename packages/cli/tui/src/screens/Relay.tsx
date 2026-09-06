@@ -62,16 +62,30 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
 
   const addresses: NetworkAddress[] = useMemo(() => listReachableAddresses({ includeLoopback: false }), []);
 
-  const applyField = (id: string, value: string) => {
-    const result = setField(draft, id, value);
-    if (result.errorKey) {
-      ctx.notify(t(result.errorKey), 'error');
-      return false;
+  /**
+   * Apply several fields as one edit.
+   *
+   * Each `setField` has to build on the previous result rather than on `draft`,
+   * which is the value captured when this render began. Calling a single-field
+   * helper twice in a row silently dropped the first change: the second call
+   * started from the stale draft and committed it back over the first.
+   */
+  const applyFields = (updates: Array<[string, string]>) => {
+    let next = draft;
+    for (const [id, value] of updates) {
+      const result = setField(next, id, value);
+      if (result.errorKey) {
+        ctx.notify(t(result.errorKey), 'error');
+        return false;
+      }
+      next = result.draft;
     }
-    ctx.updateDraft(result.draft);
+    ctx.updateDraft(next);
     ctx.notify('', 'info');
     return true;
   };
+
+  const applyField = (id: string, value: string) => applyFields([[id, value]]);
 
   const save = () => {
     try {
@@ -145,8 +159,9 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
           onPick={(choice) => {
             if (choice === 'official') {
               // Fills in the address the same way the first-run wizard does, so
-              // switching over here needs no second trip to the URL field.
-              if (applyField('mode', 'remote')) applyField('remoteUrl', OFFICIAL_RELAY_URL);
+              // switching over here needs no second trip to the URL field. Both
+              // fields move together — a mode with no URL is not a valid state.
+              applyFields([['mode', 'remote'], ['remoteUrl', OFFICIAL_RELAY_URL]]);
               ctx.setEditing(null);
               return;
             }

@@ -335,6 +335,8 @@ test('the official relay is offered during setup and needs no further answers', 
   await settle();
   const frame = instance.lastFrame();
   assert.doesNotMatch(frame, /Relay URL/, 'the official relay URL is already known');
+  // Three screens, and the counter has to say so: the official relay is a
+  // remote relay, but it asks neither the URL nor the password question.
   assert.match(frame, /Step 3 of 3/);
 
   // The wizard commits the draft only on the final confirmation, which would
@@ -343,4 +345,39 @@ test('the official relay is offered during setup and needs no further answers', 
   const { OFFICIAL_RELAY_URL } = await import('../src/config.js');
   assert.equal(OFFICIAL_RELAY_URL, 'wss://herdr-remote.564616.xyz');
   assert.match(OFFICIAL_RELAY_URL, /^wss:\/\//, 'the official relay must be reached over TLS');
+});
+
+// Picking the official relay sets two fields at once. Each was applied through
+// its own helper call, and because both started from the draft captured at the
+// beginning of the render, the second committed the stale copy back over the
+// first: the URL landed but the access mode silently stayed put.
+test('choosing the official relay sets both the mode and the URL', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  t.after(() => instance.unmount());
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+  instance.stdin.write('4'); // Relay tab
+  await settle();
+  instance.stdin.write('\r'); // open the access-mode chooser
+  await settle();
+  assert.match(instance.lastFrame(), /Official relay/);
+
+  instance.stdin.write('[B'); // local network
+  instance.stdin.write('[B'); // official relay
+  await settle();
+  instance.stdin.write('\r');
+  await settle();
+  instance.stdin.write('s'); // save
+  await settle();
+
+  const { loadConfig } = require('../src/config');
+  const saved = loadConfig();
+  assert.equal(saved.relay.mode, 'remote', 'the access mode must survive the second field write');
+  assert.equal(saved.relay.remoteUrl, 'wss://herdr-remote.564616.xyz');
 });

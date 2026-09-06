@@ -1,6 +1,6 @@
 id = "herdr.remote.web"
 name = "Herdr Remote Web"
-version = "0.2.2"
+version = "0.2.3"
 min_herdr_version = "0.8.2"
 description = "Mobile-first remote access to the native Herdr TUI through a local or self-hosted relay"
 platforms = ["linux", "macos"]
