@@ -45,5 +45,14 @@ if [ -n "$published" ]; then
 fi
 
 echo "Publishing $name@$version"
-npm publish -w "$name" --access public
+# `--tag latest` is npm's default, stated here so it stays true: this is the
+# version `npm install <name>` resolves to, and a silent default is easy to
+# lose to a future edit.
+npm publish -w "$name" --access public --tag latest
 echo "published=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+
+# Confirm the registry agrees, rather than trusting the exit code alone.
+resolved="$(npm view "$name" dist-tags.latest 2>/dev/null || true)"
+if [ "$resolved" != "$version" ]; then
+  echo "::warning::$name dist-tag latest is '$resolved', expected '$version'"
+fi
