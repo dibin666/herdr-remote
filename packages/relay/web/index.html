@@ -2,12 +2,15 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237dd3fc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='20' height='14' x='2' y='3' rx='2'/><line x1='8' x2='16' y1='21' y2='21'/><line x1='12' x2='12' y1='17' y2='21'/><polyline points='7 8 10 11 7 14'/><line x1='13' x2='17' y1='14' y2='14'/></svg>" />
+    <!-- A square-cornered prompt on Herdr's own base colour: the favicon is the
+         first thing this interface shows, so it is drawn to the same rules as
+         everything after it. -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' fill='%231e1e2e'/><rect x='1.5' y='1.5' width='21' height='21' fill='none' stroke='%2345475a'/><path d='M6 8l3.5 4L6 16' fill='none' stroke='%2389b4fa' stroke-width='2' stroke-linecap='square'/><path d='M12.5 16h5.5' stroke='%23a6e3a1' stroke-width='2' stroke-linecap='square'/></svg>" />
     <!-- `interactive-widget=resizes-content` makes the soft keyboard shrink the
          layout viewport on Android, matching what the visualViewport-driven
          --app-height does for iOS, so the key toolbar stays above it on both. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#0b1120" />
+    <meta name="theme-color" content="#11111b" />
     <!-- `apple-mobile-web-app-capable` is the iOS spelling; the unprefixed name
          is the standard one every other engine reads, and Chrome warns when it
          is missing. Both are needed for a full-screen install. -->
@@ -22,12 +25,12 @@
         document.documentElement.classList.add('dark');
         document.documentElement.classList.remove('light');
         document.documentElement.style.colorScheme = 'dark';
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0b1120');
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#11111b');
       })();
     </script>
     <title>Herdr Remote WebUI</title>
   </head>
-  <body class="bg-term-bg text-term-text font-sans antialiased overflow-hidden select-none m-0 p-0 h-[100dvh] w-screen">
+  <body class="bg-tui-crust text-tui-text font-mono antialiased overflow-hidden select-none m-0 p-0 h-[100dvh] w-screen">
     <div id="root" class="h-full w-full flex flex-col overflow-hidden"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

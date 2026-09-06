@@ -37,7 +37,6 @@ export default defineConfig({
             '@xterm/addon-canvas',
             '@xterm/addon-unicode11',
           ],
-          'vendor-icons': ['lucide-react'],
         },
       },
     },

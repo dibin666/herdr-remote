@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Herdr's own theme, as CSS variables.
+ *
+ * `tailwind.config.js` owns the same numbers for class names; these exist for
+ * the places that cannot use a class: the document shell, xterm's container,
+ * scrollbars, and the box-drawing pseudo-elements below.
+ */
 :root {
   color-scheme: dark;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -9,22 +16,35 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
-  /* Herdr Midnight: one dark shell with cyan/light-blue interaction states. */
-  --color-bg: #0b1120;
-  --color-surface: #111827;
-  --color-card: #172033;
-  --color-border: #334155;
-  --color-border-subtle: #1e293b;
-  --color-text: #e2e8f0;
-  --color-text-muted: #94a3b8;
-  --color-accent: #7dd3fc;
-  --color-accent-hover: #38bdf8;
-  --color-accent-light: #082f49;
-  --color-accent-border: #075985;
+  --tui-crust: #11111b;
+  --tui-mantle: #181825;
+  --tui-base: #1e1e2e;
+  --tui-selection: #313244;
+  --tui-border: #45475a;
+  --tui-border-bright: #585b70;
+  --tui-text: #cdd6f4;
+  --tui-muted: #a6adc8;
+  --tui-faint: #6c7086;
+  --tui-accent: #89b4fa;
+  --tui-ok: #a6e3a1;
+  --tui-warn: #f9e2af;
+  --tui-bad: #f38ba8;
+
+  /* One terminal row. Chrome heights are multiples of it so the UI reads as a
+     grid of character cells rather than a stack of floating cards. */
+  --tui-row: 20px;
+
+  /* The CJK monospace faces are named ahead of the generic fallback so a Han
+     character lands on a face whose advance is a whole number of Latin cells.
+     Reaching a proportional CJK face instead is what made mixed lines look
+     like two type sizes. */
+  --tui-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC',
+    'Noto Sans Mono CJK TC', 'Microsoft YaHei Mono', 'PingFang SC', monospace;
 }
 
-/* Keep the class required by Tailwind's dark variant, but never expose a light
-   token set: the interface is intentionally dark-only. */
+/* Tailwind's dark variant is kept only so `dark:` selectors still resolve; the
+   interface has exactly one appearance and never exposes a light token set. */
 html.dark {
   color-scheme: dark;
 }
@@ -42,12 +62,18 @@ html, body {
   height: var(--app-height, 100dvh);
   overflow: hidden;
   overscroll-behavior: none;
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  background-color: var(--tui-crust);
+  color: var(--tui-text);
+  font-family: var(--tui-font);
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-ligatures: none;
+  /* A terminal cell is a fixed box; nothing is ever tracked out. Killing this
+     globally stops any stray `tracking-*` from tearing a CJK run apart. */
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   touch-action: manipulation;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
@@ -58,10 +84,151 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: var(--color-bg);
+  background-color: var(--tui-crust);
 }
 
-/* xterm.js custom container tuning */
+/*
+ * ── Panels ───────────────────────────────────────────────────────────────
+ *
+ * A framed box with its title sitting *in* the top rule, the way a TUI draws
+ * `┌─ TITLE ─────┐`. `fieldset`/`legend` is the only pair of elements a browser
+ * cuts that notch for natively, so the frame stays one unbroken border instead
+ * of four separately positioned lines.
+ */
+fieldset.tui-panel {
+  /* A fieldset's default `min-inline-size: min-content` refuses to shrink and
+     would push wide content (a token, a long URL) out of every flex parent. */
+  min-inline-size: 0;
+}
+
+.tui-panel > legend {
+  /* Browsers reserve the notch from the legend's own width, so its padding is
+     what separates the label text from the two border stubs beside it. */
+  padding-inline: 0.375rem;
+  margin-inline-start: 0.25rem;
+}
+
+/*
+ * ── Box-drawing corners ──────────────────────────────────────────────────
+ *
+ * A 1px CSS border is a rule, not a character. These pseudo-elements put real
+ * corner glyphs over the ends of a frame so a panel reads as terminal output
+ * rather than as a web card. Purely decorative: they carry no text to a
+ * screen reader.
+ */
+.tui-corners {
+  position: relative;
+}
+
+.tui-corners::before,
+.tui-corners::after {
+  position: absolute;
+  color: var(--tui-border);
+  font-size: inherit;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.tui-corners::before {
+  content: '┌';
+  top: -1px;
+  left: -1px;
+}
+
+.tui-corners::after {
+  content: '┘';
+  bottom: -1px;
+  right: -1px;
+  transform: translate(0.03em, 0.08em);
+}
+
+/*
+ * ── The caret ────────────────────────────────────────────────────────────
+ * A block cursor for prompts and empty states, blinking on the terminal's own
+ * one-second step so it never looks like a web spinner.
+ */
+.tui-caret::after {
+  content: '█';
+  color: var(--tui-accent);
+  animation: tui-caret-blink 1s step-end infinite;
+}
+
+@keyframes tui-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tui-caret::after {
+    animation: none;
+  }
+}
+
+/*
+ * ── Form controls ────────────────────────────────────────────────────────
+ * Native widgets are the one place a browser insists on its own rounded,
+ * shaded look. Strip it so an input is a bordered cell like everything else.
+ */
+.tui-input {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 0;
+  background-color: var(--tui-mantle);
+  color: var(--tui-text);
+  border: 1px solid var(--tui-border);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: 0;
+  caret-color: var(--tui-accent);
+}
+
+/* iOS zooms the whole page when a focused field is under 16px. Only touch
+   devices pay the size; a desktop keeps the interface on one type size. */
+@media screen and (pointer: coarse) {
+  .tui-input {
+    font-size: 16px;
+  }
+}
+
+.tui-input::placeholder {
+  color: var(--tui-faint);
+}
+
+.tui-input:focus {
+  outline: none;
+  border-color: var(--tui-accent);
+  background-color: var(--tui-selection);
+}
+
+.tui-input:disabled {
+  color: var(--tui-faint);
+  cursor: not-allowed;
+}
+
+/* A `<select>` keeps a native dropdown list, which is drawn by the OS and
+   cannot be styled; the closed control at least matches the rest. */
+select.tui-input {
+  background-image: none;
+  padding-right: 1.75rem;
+}
+
+select.tui-input option {
+  background-color: var(--tui-base);
+  color: var(--tui-text);
+}
+
+/*
+ * ── Focus ────────────────────────────────────────────────────────────────
+ * A TUI shows focus by moving its cursor, not by drawing a halo. Keyboard
+ * focus gets a hard 1px accent frame with no offset and no blur.
+ */
+.tui-focusable:focus-visible {
+  outline: 1px solid var(--tui-accent);
+  outline-offset: -1px;
+}
+
+/* xterm.js container tuning */
 .xterm {
   height: 100%;
   width: 100%;
@@ -160,9 +327,8 @@ html, body {
   }
 }
 
-/* Phone control sheet. Written here rather than as an `animate-in` utility
-   because this build has no animation plugin, so those class names generate
-   nothing. */
+/* Phone control sheet. A TUI panel does not slide or fade; it is drawn. The
+   sheet only travels the distance it needs to stop looking like a page jump. */
 @keyframes herdr-sheet-in {
   from {
     transform: translateY(100%);
@@ -173,7 +339,7 @@ html, body {
 }
 
 .herdr-sheet {
-  animation: herdr-sheet-in 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  animation: herdr-sheet-in 140ms steps(6, end);
   /* The sheet scrolls itself; a flick inside it must not chain to the page. */
   overscroll-behavior: contain;
 }
@@ -184,23 +350,28 @@ html, body {
   }
 }
 
-/* Custom scrollbars */
+/* Scrollbars: a narrow gutter drawn in the frame colour, like a TUI's own. */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--tui-mantle);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
+  background: var(--tui-border);
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: var(--tui-border-bright);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tui-border) var(--tui-mantle);
 }
 
 /* Utility to hide scrollbar */
@@ -210,4 +381,10 @@ html, body {
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Text selection reads as the TUI's own inverse-video selection. */
+::selection {
+  background: var(--tui-accent);
+  color: var(--tui-crust);
 }

@@ -3,6 +3,7 @@ export type Language = 'en' | 'zh';
 export interface TranslationSchema {
   header: {
     appName: string;
+    tagline: string;
     terminalTab: string;
     adminTab: string;
     rttMs: string;
@@ -210,6 +211,8 @@ export interface TranslationSchema {
     pairingAria: string;
     keybarAria: string;
     quickInputAria: string;
+    /** Legend over the sheet's action list. */
+    menu: string;
   };
   terminal: {
     bannerTitle: string;
@@ -374,6 +377,9 @@ export interface TranslationSchema {
     localWorkstationBadge: string;
     modeLocal: string;
     modeRemote: string;
+    hintTabs: string;
+    hintRefresh: string;
+    hintBack: string;
   };
   toasts: {
     connected: string;

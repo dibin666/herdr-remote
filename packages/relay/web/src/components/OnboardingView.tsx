@@ -1,23 +1,30 @@
 import React, { useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
+import { cn } from '../utils/cn';
 import {
-  Zap,
-  Copy,
-  Check,
-  ShieldCheck,
-  Terminal as TerminalIcon,
-  ChevronDown,
-  ChevronUp,
-  Key,
-  Server,
-  Sparkles,
-  RefreshCw,
-} from 'lucide-react';
+  Button,
+  FieldLabel,
+  GLYPH,
+  Input,
+  Notice,
+  Panel,
+  Rule,
+  Spinner,
+} from './tui';
 
 interface OnboardingViewProps {
   onPairedSuccess?: () => void;
 }
 
+/**
+ * The first screen: a device that has never paired.
+ *
+ * Written as a terminal walkthrough rather than a signup card. The command you
+ * are asked to run is shown at a `$` prompt because that is where it will be
+ * typed, the steps are numbered `[1]` `[2]` the way a TUI wizard numbers them,
+ * and the advanced fields are folded behind a `▸`/`▾` disclosure instead of a
+ * second screen.
+ */
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess }) => {
   const { settings, updateSettings, connect, connectionState, stateDetail, addToast, t } =
     useTerminal();
@@ -33,7 +40,8 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
 
   const PAIR_COMMAND = 'node bin/service.js pair';
   const CONFIG_TUI_COMMAND = 'node bin/config-tui.js';
-  const HERDR_PANE_COMMAND = 'herdr plugin pane open --plugin herdr.remote.web --entrypoint config --placement zoomed --focus';
+  const HERDR_PANE_COMMAND =
+    'herdr plugin pane open --plugin herdr.remote.web --entrypoint config --placement zoomed --focus';
 
   const handleCopyCommand = (cmd: string) => {
     navigator.clipboard.writeText(cmd).then(() => {
@@ -78,224 +86,180 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
 
   const isConnecting = connectionState === 'connecting' || connectionState === 'reconnecting';
 
-  return (
-    <div className="flex-1 w-full h-full overflow-y-auto bg-sand-100 dark:bg-charcoal-950 p-4 sm:p-6 md:p-8 flex items-center justify-center">
-      <div className="max-w-lg w-full bg-paper dark:bg-charcoal-850 rounded-2xl border border-sand-300 dark:border-charcoal-700 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        {/* Header Badge & Title */}
-        <div className="p-6 sm:p-8 border-b border-sand-200 dark:border-charcoal-750 bg-sand-50/70 dark:bg-charcoal-900/60">
-          <div className="flex items-center gap-3.5 mb-3">
-            <div className="w-11 h-11 rounded-xl bg-herdr-100 dark:bg-herdr-950 border border-herdr-300 dark:border-herdr-700 flex items-center justify-center text-herdr-600 dark:text-herdr-400 shadow-sm">
-              <TerminalIcon className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold text-charcoal-900 dark:text-charcoal-100 tracking-tight">
-                  {t('onboarding.title')}
-                </h1>
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-herdr-100 dark:bg-herdr-900/50 text-herdr-700 dark:text-herdr-300 border border-herdr-200 dark:border-herdr-700">
-                  {t('onboarding.firstTimeSetup')}
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-charcoal-500 dark:text-charcoal-400 mt-0.5">
-                {t('onboarding.description')}
-              </p>
-            </div>
-          </div>
+  const StepNumber: React.FC<{ n: number }> = ({ n }) => (
+    <span aria-hidden="true" className="shrink-0 font-bold text-tui-accent">
+      [{n}]
+    </span>
+  );
 
-          {/* Connection Error Banner if 401 / auth required */}
-          {connectionState === 'error' && (
-            <div className="mt-4 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-start justify-between gap-3 shadow-sm">
-              <div className="flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold block">{t('onboarding.authRequired')}</span>
-                  <span className="opacity-90">
-                    {stateDetail || t('onboarding.authRequiredDesc')}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => connect()}
-                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>{t('common.retry')}</span>
-              </button>
-            </div>
-          )}
+  return (
+    <div className="flex h-full w-full flex-1 items-start justify-start overflow-y-auto bg-tui-crust p-2 sm:p-4">
+      <div className="w-full max-w-5xl space-y-3">
+        {/* Banner: the program announcing itself, as a terminal program does. */}
+        <div className="border border-tui-border bg-tui-base px-3 py-2">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span aria-hidden="true" className="font-bold text-tui-accent">
+              herdr-remote
+            </span>
+            <h1 className="text-tui font-bold text-tui-text">{t('onboarding.title')}</h1>
+            <span className="text-tui uppercase text-tui-warn">
+              {t('onboarding.firstTimeSetup')}
+            </span>
+          </div>
+          <p className="mt-0.5 text-tui leading-snug text-tui-muted">
+            {t('onboarding.description')}
+          </p>
         </div>
 
-        {/* Step-by-Step Pairing Form */}
-        <form onSubmit={handlePairSubmit} className="p-6 sm:p-8 space-y-6">
-          {/* Step 1: Generate Code */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wider text-charcoal-700 dark:text-charcoal-300 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-sand-200 dark:bg-charcoal-700 text-charcoal-800 dark:text-charcoal-200 text-xs flex items-center justify-center font-bold">
-                  1
+        {connectionState === 'error' && (
+          <Notice
+            tone="warn"
+            action={
+              <Button variant="warn" onClick={() => connect()}>
+                {t('common.retry')}
+              </Button>
+            }
+          >
+            <span className="block font-bold">{t('onboarding.authRequired')}</span>
+            <span className="block text-tui-muted">
+              {stateDetail || t('onboarding.authRequiredDesc')}
+            </span>
+          </Notice>
+        )}
+
+        <form onSubmit={handlePairSubmit} className="grid gap-3 md:grid-cols-2">
+          {/* Step 1 — run this on the workstation */}
+          <Panel title={t('onboarding.step1Title')} className="min-w-0">
+            <div className="space-y-2">
+              <p className="flex items-start gap-2 text-tui text-tui-muted">
+                <StepNumber n={1} />
+                <span className="leading-snug">{t('onboarding.step1Desc')}</span>
+              </p>
+
+              <div className="flex items-center gap-2 border border-tui-border bg-tui-mantle px-2 py-1">
+                <span aria-hidden="true" className="shrink-0 select-none text-tui-ok">
+                  $
                 </span>
-                {t('onboarding.step1Title')}
-              </label>
-            </div>
-            <p className="text-xs text-charcoal-500 dark:text-charcoal-400">
-              {t('onboarding.step1Desc')}
-            </p>
-
-            <div className="flex items-center gap-2 bg-sand-50 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl p-2.5">
-              <code className="flex-1 font-mono text-xs sm:text-sm text-charcoal-900 dark:text-charcoal-100 font-semibold px-2 truncate">
-                {PAIR_COMMAND}
-              </code>
-              <button
-                type="button"
-                onClick={() => handleCopyCommand(PAIR_COMMAND)}
-                className="px-3 py-1.5 rounded-lg bg-paper dark:bg-charcoal-800 hover:bg-sand-200 dark:hover:bg-charcoal-700 text-charcoal-700 dark:text-charcoal-200 border border-sand-300 dark:border-charcoal-600 text-xs font-medium flex items-center gap-1.5 transition-colors shrink-0 shadow-sm"
-              >
-                {copiedCommand === PAIR_COMMAND ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-emerald-700 dark:text-emerald-300">{t('common.copied')}</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>{t('common.copy')}</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Alternative TUI commands */}
-            <div className="space-y-1 text-[11px] text-charcoal-500 dark:text-charcoal-400 pt-1">
-              <div className="flex items-center justify-between">
-                <span>{t('onboarding.step1CopyPlugin')}</span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyCommand(HERDR_PANE_COMMAND)}
-                  className="text-herdr-700 dark:text-herdr-400 font-medium hover:underline text-[11px]"
-                >
-                  {copiedCommand === HERDR_PANE_COMMAND ? t('common.copied') : t('onboarding.step1CopyCli')}
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>{t('onboarding.step1TuiNote')}</span>
-                <code
-                  onClick={() => handleCopyCommand(CONFIG_TUI_COMMAND)}
-                  className="font-mono bg-sand-200 dark:bg-charcoal-700 px-1.5 py-0.5 rounded cursor-pointer hover:underline text-charcoal-800 dark:text-charcoal-200"
-                  title={t('common.clickToCopy')}
-                >
-                  {CONFIG_TUI_COMMAND}
+                <code className="min-w-0 flex-1 truncate text-tui text-tui-text">
+                  {PAIR_COMMAND}
                 </code>
+                <Button
+                  onClick={() => handleCopyCommand(PAIR_COMMAND)}
+                  glyph={copiedCommand === PAIR_COMMAND ? GLYPH.check : '⧉'}
+                  className={cn('shrink-0', copiedCommand === PAIR_COMMAND && 'border-tui-ok text-tui-ok')}
+                >
+                  {copiedCommand === PAIR_COMMAND ? t('common.copied') : t('common.copy')}
+                </Button>
+              </div>
+
+              <div className="space-y-0.5 text-tui-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-tui-faint">{t('onboarding.step1CopyPlugin')}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCommand(HERDR_PANE_COMMAND)}
+                    className="tui-focusable shrink-0 text-tui-accent underline-offset-2 hover:underline"
+                  >
+                    {copiedCommand === HERDR_PANE_COMMAND
+                      ? t('common.copied')
+                      : t('onboarding.step1CopyCli')}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-tui-faint">{t('onboarding.step1TuiNote')}</span>
+                  <code
+                    onClick={() => handleCopyCommand(CONFIG_TUI_COMMAND)}
+                    className="shrink-0 cursor-pointer border border-tui-border-dim px-1 text-tui-muted hover:border-tui-accent hover:text-tui-accent"
+                    title={t('common.clickToCopy')}
+                  >
+                    {CONFIG_TUI_COMMAND}
+                  </code>
+                </div>
               </div>
             </div>
-          </div>
+          </Panel>
 
-          {/* Step 2: Enter Code */}
-          <div className="space-y-2.5 pt-2 border-t border-sand-200 dark:border-charcoal-750">
-            <label className="text-xs font-semibold uppercase tracking-wider text-charcoal-700 dark:text-charcoal-300 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-herdr-100 dark:bg-herdr-950 text-herdr-700 dark:text-herdr-400 text-xs flex items-center justify-center font-bold">
-                2
-              </span>
-              {t('onboarding.step2Title')}
-            </label>
-
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400">
-                <Zap className="w-5 h-5 text-herdr-500" />
+          {/* Step 2 — type the code it printed */}
+          <Panel title={t('onboarding.step2Title')} className="min-w-0">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <StepNumber n={2} />
+                <Input
+                  type="text"
+                  value={pairCodeInput}
+                  onChange={(e) => setPairCodeInput(e.target.value.toUpperCase())}
+                  placeholder={t('onboarding.step2Placeholder')}
+                  maxLength={12}
+                  autoFocus
+                  aria-label={t('onboarding.step2Title')}
+                  className="font-bold uppercase"
+                />
               </div>
-              <input
-                type="text"
-                value={pairCodeInput}
-                onChange={(e) => setPairCodeInput(e.target.value.toUpperCase())}
-                placeholder={t('onboarding.step2Placeholder')}
-                maxLength={12}
-                autoFocus
-                className="w-full bg-sand-50 dark:bg-charcoal-900 border-2 border-sand-300 dark:border-charcoal-600 rounded-xl pl-11 pr-4 py-3 text-lg font-mono font-bold tracking-widest text-charcoal-900 dark:text-white uppercase placeholder:text-charcoal-400 dark:placeholder:text-charcoal-600 focus:outline-none focus:border-herdr-500 focus:ring-2 focus:ring-herdr-500/20 transition-all shadow-inner"
-              />
+              <p className="text-tui-sm leading-snug text-tui-faint">{t('onboarding.step2Note')}</p>
             </div>
-            <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400">
-              {t('onboarding.step2Note')}
-            </p>
-          </div>
+          </Panel>
 
-          {/* Primary Action Button */}
-          <div>
-            <button
-              type="submit"
-              disabled={isConnecting}
-              className="w-full py-3.5 px-5 rounded-xl bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {isConnecting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>{t('onboarding.connectingAndPairing')}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>{t('onboarding.connectAndPair')}</span>
-                </>
-              )}
-            </button>
-          </div>
+          <Button variant="primary" type="submit" block disabled={isConnecting} className="py-1.5 md:col-span-2">
+            {isConnecting ? (
+              <Spinner label={t('onboarding.connectingAndPairing')} />
+            ) : (
+              t('onboarding.connectAndPair')
+            )}
+          </Button>
 
-          {/* Advanced Connection Options (Accordion) */}
-          <div className="pt-2 border-t border-sand-200 dark:border-charcoal-750">
+          {/* Advanced — folded away, the way a TUI folds a rarely-used section */}
+          <div className="border border-tui-border bg-tui-base md:col-span-2">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full py-1.5 flex items-center justify-between text-xs font-medium text-charcoal-500 hover:text-charcoal-800 dark:text-charcoal-400 dark:hover:text-charcoal-200 transition-colors"
+              aria-expanded={showAdvanced}
+              className="tui-focusable flex w-full items-center gap-2 px-2 py-1 text-left text-tui text-tui-muted transition-colors hover:text-tui-accent"
             >
-              <span>{t('onboarding.advancedTitle')}</span>
-              {showAdvanced ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
+              <span aria-hidden="true" className="text-tui-accent">
+                {showAdvanced ? GLYPH.chevronDown : GLYPH.chevronRight}
+              </span>
+              <span className="uppercase">{t('onboarding.advancedTitle')}</span>
             </button>
 
             {showAdvanced && (
-              <div className="mt-3 space-y-3.5 bg-sand-50 dark:bg-charcoal-900/60 p-4 rounded-xl border border-sand-200 dark:border-charcoal-750 text-xs">
-                {/* Manual Auth Token */}
-                <div>
-                  <label className="block text-charcoal-700 dark:text-charcoal-300 font-medium mb-1 flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-charcoal-500" />
-                    <span>{t('onboarding.manualTokenLabel')}</span>
-                  </label>
-                  <input
+              <div className="space-y-2.5 border-t border-tui-border-dim px-2 py-2">
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="onboarding-token">
+                    {t('onboarding.manualTokenLabel')}
+                  </FieldLabel>
+                  <Input
+                    id="onboarding-token"
                     type="password"
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
                     placeholder={t('onboarding.manualTokenPlaceholder')}
-                    className="w-full bg-paper dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-lg px-3 py-2 text-charcoal-800 dark:text-charcoal-100 font-mono focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
                   />
                 </div>
 
-                {/* WebSocket URL */}
-                <div>
-                  <label className="block text-charcoal-700 dark:text-charcoal-300 font-medium mb-1 flex items-center gap-1.5">
-                    <Server className="w-3.5 h-3.5 text-charcoal-500" />
-                    <span>{t('onboarding.wsEndpointLabel')}</span>
-                  </label>
-                  <input
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="onboarding-ws">
+                    {t('onboarding.wsEndpointLabel')}
+                  </FieldLabel>
+                  <Input
+                    id="onboarding-ws"
                     type="text"
                     value={wsUrl}
                     onChange={(e) => setWsUrl(e.target.value)}
                     placeholder={t('onboarding.wsEndpointPlaceholder')}
-                    className="w-full bg-paper dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-lg px-3 py-2 text-charcoal-800 dark:text-charcoal-100 font-mono focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
                   />
                 </div>
 
-                {/* Client ID */}
-                <div>
-                  <label className="block text-charcoal-700 dark:text-charcoal-300 font-medium mb-1">
+                <Rule />
+
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="onboarding-client-id">
                     {t('onboarding.clientIdLabel')}
-                  </label>
-                  <input
+                  </FieldLabel>
+                  <Input
+                    id="onboarding-client-id"
                     type="text"
                     value={clientId}
                     onChange={(e) => setClientId(e.target.value)}
-                    className="w-full bg-paper dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-lg px-3 py-2 text-charcoal-800 dark:text-charcoal-100 font-mono focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
                   />
                 </div>
               </div>

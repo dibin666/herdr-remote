@@ -3,31 +3,39 @@ import { useTerminal } from '../context/TerminalContext';
 import { getDefaultSettings } from '../utils/storage';
 import { FONT_PRESETS } from '../utils/theme';
 import {
-  X,
-  Settings,
-  Type,
-  RotateCcw,
-  Check,
-  Globe,
-  Keyboard,
-  ArrowUp,
-  ArrowDown,
-  Plus,
-  Trash2,
-} from 'lucide-react';
-import {
   ToolbarKeyDef,
   ALL_AVAILABLE_KEYS,
   getDefaultVirtualKeys,
   getLocalizedKeyTitle,
 } from '../utils/virtualKeys';
 import { cn } from '../utils/cn';
+import {
+  Button,
+  Checkbox,
+  FieldLabel,
+  GLYPH,
+  KeyCap,
+  Meter,
+  Modal,
+  Radio,
+  Rule,
+  Select,
+  Tabs,
+} from './tui';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+/**
+ * Preferences, as a TUI settings screen.
+ *
+ * Numbered tabs across the top, a label column down the left, bracketed
+ * checkboxes for booleans and a `█░` meter for the one continuous value. The
+ * only thing here that paints a colour is the terminal font preview, and that
+ * colour belongs to the host.
+ */
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings, addToast, language, setLanguage, t } = useTerminal();
   const [activeTab, setActiveTab] = useState<'appearance' | 'virtualKeys'>('appearance');
@@ -101,377 +109,277 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     addToast('info', t('toasts.keyLayoutReset'));
   };
 
+  const FONT_MIN = 10;
+  const FONT_MAX = 24;
+
   return (
-    // Sized from the visual viewport, not `vh`. On a phone `vh` is the tall
-    // viewport behind the browser's own chrome, so a dialog measured in it
-    // reaches below the visible area and the browser scrolls to compensate —
-    // which is the jump users saw the moment this panel opened.
-    <div
-      className="fixed inset-x-0 top-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
-      style={{ height: 'var(--app-height, 100dvh)' }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="settings-modal-title"
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={t('settings.title')}
+      subtitle={t('settings.subtitle')}
+      closeLabel={t('common.closeDialog')}
+      size="lg"
+      hints={[{ keys: 'esc', action: t('common.close') }]}
+      footer={
+        <>
+          <Button variant="ghost" onClick={handleResetDefaults}>
+            {t('settings.resetDefaults')}
+          </Button>
+          <Button variant="primary" onClick={onClose}>
+            {t('common.done')}
+          </Button>
+        </>
+      }
     >
-      <div
-        className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col"
-        style={{ maxHeight: 'calc(var(--app-height, 100dvh) - 2rem)' }}
-      >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-sand-200 dark:border-charcoal-750 flex items-center justify-between bg-sand-50 dark:bg-charcoal-900">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-herdr-100 dark:bg-herdr-950 border border-herdr-300 dark:border-herdr-700 flex items-center justify-center text-herdr-600 dark:text-herdr-400 shadow-sm">
-              <Settings className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 id="settings-modal-title" className="font-semibold text-sm sm:text-base text-charcoal-900 dark:text-charcoal-100">
-                {t('settings.title')}
-              </h2>
-              <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400">
-                {t('settings.subtitle')}
-              </p>
+      <Tabs
+        tabs={[
+          { id: 'appearance', label: t('settings.tabAppearance'), index: 1 },
+          { id: 'virtualKeys', label: t('settings.tabVirtualKeys'), index: 2 },
+        ]}
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as 'appearance' | 'virtualKeys')}
+        className="mb-3 border-b border-tui-border-dim pb-1"
+      />
+
+      {activeTab === 'appearance' && (
+        <div className="space-y-4">
+          {/* Language — a radio group, because it is one of two. */}
+          <div className="space-y-1">
+            <FieldLabel>{t('settings.languageLabel')}</FieldLabel>
+            <div className="grid gap-0.5 sm:grid-cols-2">
+              <Radio
+                name="ui-language"
+                checked={language === 'zh'}
+                onChange={() => setLanguage('zh')}
+                label="简体中文"
+              />
+              <Radio
+                name="ui-language"
+                checked={language === 'en'}
+                onChange={() => setLanguage('en')}
+                label="English"
+              />
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-charcoal-400 hover:text-charcoal-700 dark:hover:text-charcoal-200 p-1.5 rounded-lg hover:bg-sand-200 dark:hover:bg-charcoal-800 transition-colors"
-            aria-label={t('common.closeDialog')}
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          {/* Terminal font */}
+          <div className="space-y-1">
+            <FieldLabel htmlFor="terminal-font-select">
+              {t('settings.fontFamilyLabel')}
+            </FieldLabel>
+            <Select
+              id="terminal-font-select"
+              value={settings.fontFamily}
+              onChange={(e) => updateSettings({ fontFamily: e.target.value })}
+              aria-label={t('settings.fontFamilyLabel')}
+            >
+              {!activeFontPreset && (
+                <option value={settings.fontFamily}>{settings.fontFamily}</option>
+              )}
+              {FONT_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.font}>
+                  {t(`fontPresets.${preset.id}` as any) || preset.name}
+                </option>
+              ))}
+            </Select>
+
+            {/* Live preview, rendered as a shell prompt in the chosen face. */}
+            <div
+              className="overflow-x-auto whitespace-nowrap border border-tui-border bg-tui-mantle px-2 py-1.5 leading-snug text-tui-text"
+              style={{ fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}
+            >
+              <span className="text-tui-ok">$</span> echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt;
+              !=&quot;
+            </div>
+          </div>
+
+          {/* Font size, with the meter a terminal would draw. */}
+          <div className="space-y-1">
+            <FieldLabel htmlFor="terminal-font-size">
+              {t('settings.fontSizeLabel', { size: settings.fontSize })}
+            </FieldLabel>
+            <div className="flex items-center gap-2">
+              <Meter
+                value={(settings.fontSize - FONT_MIN) / (FONT_MAX - FONT_MIN)}
+                width={24}
+                className="hidden shrink-0 sm:inline-flex"
+              />
+              <input
+                id="terminal-font-size"
+                type="range"
+                min={FONT_MIN}
+                max={FONT_MAX}
+                step={1}
+                value={settings.fontSize}
+                onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })}
+                className="h-1 w-full cursor-pointer appearance-none bg-tui-border accent-tui-accent"
+              />
+            </div>
+            <div className="flex justify-between text-tui-sm text-tui-faint">
+              <span>{t('settings.fontSizeCompact')}</span>
+              <span>{t('settings.fontSizeDefault')}</span>
+              <span>{t('settings.fontSizeLarge')}</span>
+            </div>
+            <p className="text-tui-sm leading-snug text-tui-faint">{t('settings.mobileFontNote')}</p>
+            <p className="text-tui-sm leading-snug text-tui-faint">
+              {t('settings.windowZoomSharedNote')}
+            </p>
+          </div>
+
+          <Rule />
+
+          <div className="space-y-1">
+            <Checkbox
+              checked={settings.toolbarVisible}
+              onChange={(checked) => updateSettings({ toolbarVisible: checked })}
+              label={t('settings.touchKeyToolbar')}
+              description={t('settings.touchKeyToolbarDesc')}
+            />
+            <Checkbox
+              checked={settings.vibrateOnKeyPress}
+              onChange={(checked) => updateSettings({ vibrateOnKeyPress: checked })}
+              label={t('settings.touchHaptics')}
+              description={t('settings.touchHapticsDesc')}
+            />
+          </div>
+
+          <Rule />
+
+          <p className="text-tui-sm leading-snug text-tui-faint">
+            <span aria-hidden="true" className="mr-1">
+              {GLYPH.arrowRight}
+            </span>
+            {t('settings.colorPassthroughNote')}
+          </p>
         </div>
+      )}
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 px-5 pt-3 pb-1 border-b border-sand-200 dark:border-charcoal-750 bg-sand-50/50 dark:bg-charcoal-900/50 text-xs">
-          <button
-            type="button"
-            onClick={() => setActiveTab('appearance')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
-              activeTab === 'appearance'
-                ? 'bg-herdr-700 text-white shadow-sm'
-                : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
-            )}
-          >
-            <Type className="w-3.5 h-3.5" />
-            <span>{t('settings.tabAppearance')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('virtualKeys')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
-              activeTab === 'virtualKeys'
-                ? 'bg-herdr-700 text-white shadow-sm'
-                : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
-            )}
-          >
-            <Keyboard className="w-3.5 h-3.5" />
-            <span>{t('settings.tabVirtualKeys')}</span>
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-5 flex-1 overflow-y-auto space-y-5 text-xs">
-          {activeTab === 'appearance' && (
-            <>
-              {/* Language Selection */}
-              <div>
-                <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold mb-2">
-                  <Globe className="w-3.5 h-3.5 text-herdr-500" />
-                  <span>{t('settings.languageLabel')}</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setLanguage('zh')}
-                    className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
-                      language === 'zh'
-                        ? 'border-herdr-500 ring-2 ring-herdr-500/30 bg-herdr-50 dark:bg-herdr-950/40 text-herdr-900 dark:text-herdr-200 font-bold'
-                        : 'border-sand-300 dark:border-charcoal-700 bg-sand-50 dark:bg-charcoal-900 text-charcoal-700 dark:text-charcoal-300'
-                    }`}
-                  >
-                    <span>简体中文</span>
-                    {language === 'zh' && <span className="w-2 h-2 rounded-full bg-herdr-700" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLanguage('en')}
-                    className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
-                      language === 'en'
-                        ? 'border-herdr-500 ring-2 ring-herdr-500/30 bg-herdr-50 dark:bg-herdr-950/40 text-herdr-900 dark:text-herdr-200 font-bold'
-                        : 'border-sand-300 dark:border-charcoal-700 bg-sand-50 dark:bg-charcoal-900 text-charcoal-700 dark:text-charcoal-300'
-                    }`}
-                  >
-                    <span>English</span>
-                    {language === 'en' && <span className="w-2 h-2 rounded-full bg-herdr-700" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Terminal Font Family */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="terminal-font-select"
-                  className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold"
-                >
-                  <Type className="w-3.5 h-3.5 text-herdr-500" />
-                  <span>{t('settings.fontFamilyLabel')}</span>
-                </label>
-
-                <select
-                  id="terminal-font-select"
-                  value={settings.fontFamily}
-                  onChange={(e) => updateSettings({ fontFamily: e.target.value })}
-                  className="w-full bg-sand-50 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl px-3 py-2 text-xs text-charcoal-900 dark:text-charcoal-100 focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
-                  aria-label={t('settings.fontFamilyLabel')}
-                >
-                  {!activeFontPreset && (
-                    <option value={settings.fontFamily}>{settings.fontFamily}</option>
-                  )}
-                  {FONT_PRESETS.map((preset) => (
-                    <option key={preset.id} value={preset.font}>
-                      {t(`fontPresets.${preset.id}` as any) || preset.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Live monospace preview in the selected font */}
-                <div
-                  className="px-3 py-2 bg-sand-100 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl text-charcoal-800 dark:text-charcoal-200 leading-snug overflow-x-auto whitespace-nowrap"
-                  style={{ fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}
-                >
-                  $ echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt; !=&quot;
-                </div>
-              </div>
-
-              {/* Font Size Slider */}
-              <div>
-                <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold mb-1.5">
-                  <Type className="w-3.5 h-3.5 text-herdr-500" />
-                  <span>{t('settings.fontSizeLabel', { size: settings.fontSize })}</span>
-                </label>
-                <input
-                  type="range"
-                  min={10}
-                  max={24}
-                  step={1}
-                  value={settings.fontSize}
-                  onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })}
-                  className="w-full h-1.5 bg-sand-300 dark:bg-charcoal-700 rounded-lg appearance-none cursor-pointer accent-herdr-600"
-                />
-                <div className="flex justify-between text-[10px] text-charcoal-500 dark:text-charcoal-400 mt-1 font-mono">
-                  <span>{t('settings.fontSizeCompact')}</span>
-                  <span>{t('settings.fontSizeDefault')}</span>
-                  <span>{t('settings.fontSizeLarge')}</span>
-                </div>
-                <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 mt-1.5 leading-relaxed">
-                  {t('settings.mobileFontNote')}
-                </p>
-                <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 mt-1 leading-relaxed">
-                  {t('settings.windowZoomSharedNote')}
-                </p>
-              </div>
-
-              {/* Toggle Options */}
-              <div className="space-y-3 pt-2 border-t border-sand-200 dark:border-charcoal-750">
-                {/* Key Toolbar */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-charcoal-800 dark:text-charcoal-200 font-medium block">{t('settings.touchKeyToolbar')}</span>
-                    <span className="text-[11px] text-charcoal-500 dark:text-charcoal-400">{t('settings.touchKeyToolbarDesc')}</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.toolbarVisible}
-                      onChange={(e) => updateSettings({ toolbarVisible: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-sand-300 dark:bg-charcoal-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-herdr-700"></div>
-                  </label>
-                </div>
-
-                {/* Haptic vibration */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-charcoal-800 dark:text-charcoal-200 font-medium block">{t('settings.touchHaptics')}</span>
-                    <span className="text-[11px] text-charcoal-500 dark:text-charcoal-400">{t('settings.touchHapticsDesc')}</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.vibrateOnKeyPress}
-                      onChange={(e) => updateSettings({ vibrateOnKeyPress: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-sand-300 dark:bg-charcoal-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-herdr-700"></div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Colors are the host's, not ours */}
-              <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 leading-relaxed pt-2 border-t border-sand-200 dark:border-charcoal-750">
-                {t('settings.colorPassthroughNote')}
+      {activeTab === 'virtualKeys' && (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="text-tui font-bold uppercase text-tui-accent">
+                {t('virtualKeyboard.customizeTitle')}
+              </h3>
+              <p className="text-tui-sm leading-snug text-tui-faint">
+                {t('virtualKeyboard.customizeDesc')}
               </p>
-            </>
-          )}
+            </div>
+            <Button variant="ghost" onClick={handleResetVirtualKeys} className="shrink-0">
+              {t('virtualKeyboard.resetLayout')}
+            </Button>
+          </div>
 
-          {activeTab === 'virtualKeys' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-charcoal-900 dark:text-charcoal-100">
-                    {t('virtualKeyboard.customizeTitle')}
-                  </h3>
-                  <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400">
-                    {t('virtualKeyboard.customizeDesc')}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleResetVirtualKeys}
-                  className="text-herdr-700 dark:text-herdr-400 hover:underline text-[11px] font-medium flex items-center gap-1"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>{t('virtualKeyboard.resetLayout')}</span>
-                </button>
-              </div>
-
-              {/* Active / Configured Keys List */}
-              <div className="bg-sand-50 dark:bg-charcoal-900 rounded-xl p-2 border border-sand-200 dark:border-charcoal-750 divide-y divide-sand-200 dark:divide-charcoal-800 max-h-72 overflow-y-auto">
-                {currentVirtualKeys.map((keyItem, index) => (
-                  <div
-                    key={keyItem.id}
-                    className="flex items-center justify-between py-2 px-2 hover:bg-sand-100/80 dark:hover:bg-charcoal-800/80 rounded-lg transition-colors"
+          {/* Configured layout: one row per key, in send order. */}
+          <div className="max-h-72 overflow-y-auto border border-tui-border bg-tui-mantle">
+            {currentVirtualKeys.map((keyItem, index) => (
+              <div
+                key={keyItem.id}
+                className="flex items-center justify-between gap-2 border-b border-tui-border-dim px-2 py-1 last:border-b-0 hover:bg-tui-selection"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={keyItem.enabled}
+                    onChange={() => handleToggleKey(keyItem.id)}
+                    className="sr-only"
+                    id={`toggle-${keyItem.id}`}
+                  />
+                  <label
+                    htmlFor={`toggle-${keyItem.id}`}
+                    className={cn(
+                      'shrink-0 cursor-pointer select-none font-bold',
+                      keyItem.enabled ? 'text-tui-ok' : 'text-tui-faint'
+                    )}
+                    aria-hidden="true"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={keyItem.enabled}
-                        onChange={() => handleToggleKey(keyItem.id)}
-                        className="rounded border-sand-300 dark:border-charcoal-700 text-herdr-600 focus:ring-herdr-500 w-4 h-4 cursor-pointer"
-                        id={`toggle-${keyItem.id}`}
-                      />
-                      <label
-                        htmlFor={`toggle-${keyItem.id}`}
-                        className={cn(
-                          'font-mono text-xs font-semibold px-2 py-0.5 rounded border cursor-pointer select-none',
-                          keyItem.enabled
-                            ? 'bg-paper dark:bg-charcoal-800 text-charcoal-900 dark:text-charcoal-100 border-sand-300 dark:border-charcoal-700'
-                            : 'bg-sand-200 dark:bg-charcoal-950 text-charcoal-400 dark:text-charcoal-600 border-transparent'
-                        )}
-                      >
-                        {keyItem.label}
-                      </label>
-                      <span className="text-[11px] text-charcoal-500 dark:text-charcoal-400 truncate">
-                        {getLocalizedKeyTitle(keyItem, t)}
-                      </span>
-                    </div>
+                    {keyItem.enabled ? '[x]' : '[ ]'}
+                  </label>
+                  <KeyCap className={cn(!keyItem.enabled && 'opacity-50')}>{keyItem.label}</KeyCap>
+                  <span className="truncate text-tui-sm text-tui-muted">
+                    {getLocalizedKeyTitle(keyItem, t)}
+                  </span>
+                </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        disabled={index === 0}
-                        onClick={() => handleMoveKey(index, 'up')}
-                        className="p-1 text-charcoal-400 hover:text-charcoal-700 dark:hover:text-charcoal-200 disabled:opacity-30 rounded"
-                        title={t('virtualKeyboard.moveUp')}
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === currentVirtualKeys.length - 1}
-                        onClick={() => handleMoveKey(index, 'down')}
-                        className="p-1 text-charcoal-400 hover:text-charcoal-700 dark:hover:text-charcoal-200 disabled:opacity-30 rounded"
-                        title={t('virtualKeyboard.moveDown')}
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveKey(keyItem.id)}
-                        className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300 rounded"
-                        title={t('virtualKeyboard.deleteKeyTitle')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    brackets={false}
+                    disabled={index === 0}
+                    onClick={() => handleMoveKey(index, 'up')}
+                    title={t('virtualKeyboard.moveUp')}
+                    aria-label={t('virtualKeyboard.moveUp')}
+                    className="px-1"
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    brackets={false}
+                    disabled={index === currentVirtualKeys.length - 1}
+                    onClick={() => handleMoveKey(index, 'down')}
+                    title={t('virtualKeyboard.moveDown')}
+                    aria-label={t('virtualKeyboard.moveDown')}
+                    className="px-1"
+                  >
+                    ↓
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    brackets={false}
+                    onClick={() => handleRemoveKey(keyItem.id)}
+                    title={t('virtualKeyboard.deleteKeyTitle')}
+                    aria-label={t('virtualKeyboard.deleteKeyTitle')}
+                    className="px-1 text-tui-bad hover:text-tui-bad"
+                  >
+                    {GLYPH.cross}
+                  </Button>
+                </div>
               </div>
+            ))}
+          </div>
 
-              {/* Add More Keys Button & Palette */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddKeyPalette(!showAddKeyPalette)}
-                  className="w-full py-2 px-3 rounded-xl border border-dashed border-sand-300 dark:border-charcoal-700 hover:border-herdr-500 text-charcoal-700 dark:text-charcoal-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <Plus className="w-4 h-4 text-herdr-600" />
-                  <span>{t('virtualKeyboard.addKey')}</span>
-                </button>
+          <Button
+            block
+            glyph="+"
+            onClick={() => setShowAddKeyPalette(!showAddKeyPalette)}
+            className="border-dashed"
+          >
+            {t('virtualKeyboard.addKey')}
+          </Button>
 
-                {showAddKeyPalette && (
-                  <div className="mt-3 p-3 bg-sand-50 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl space-y-3 animate-in fade-in">
-                    <span className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 block">
-                      {t('virtualKeyboard.availableKeys')}
-                    </span>
-
-                    {/* Palette grid */}
-                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1">
-                      {ALL_AVAILABLE_KEYS.map((availableKey) => {
-                        const isAlreadyAdded = currentVirtualKeys.some((k) => k.id === availableKey.id);
-                        return (
-                          <button
-                            key={availableKey.id}
-                            type="button"
-                            onClick={() => handleAddKey(availableKey)}
-                            title={getLocalizedKeyTitle(availableKey, t)}
-                            className={cn(
-                              'px-2 py-1 rounded-lg text-xs font-mono font-medium border transition-colors flex items-center gap-1',
-                              isAlreadyAdded
-                                ? 'bg-sand-200 dark:bg-charcoal-800 text-charcoal-400 border-sand-300 dark:border-charcoal-700 opacity-60'
-                                : 'bg-paper dark:bg-charcoal-800 hover:bg-herdr-50 dark:hover:bg-herdr-950/60 border-sand-300 dark:border-charcoal-700 text-charcoal-800 dark:text-charcoal-200 hover:border-herdr-400'
-                            )}
-                          >
-                            <span>{availableKey.label}</span>
-                            {isAlreadyAdded ? (
-                              <Check className="w-3 h-3 text-emerald-600" />
-                            ) : (
-                              <Plus className="w-3 h-3 text-herdr-600" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+          {showAddKeyPalette && (
+            <div className="space-y-2 border border-tui-border bg-tui-mantle p-2">
+              <Rule label={t('virtualKeyboard.availableKeys')} />
+              <div className="flex max-h-48 flex-wrap gap-1 overflow-y-auto">
+                {ALL_AVAILABLE_KEYS.map((availableKey) => {
+                  const isAlreadyAdded = currentVirtualKeys.some((k) => k.id === availableKey.id);
+                  return (
+                    <button
+                      key={availableKey.id}
+                      type="button"
+                      onClick={() => handleAddKey(availableKey)}
+                      title={getLocalizedKeyTitle(availableKey, t)}
+                      className={cn(
+                        'tui-focusable flex select-none items-center gap-1 border px-1.5 py-0.5 text-tui-sm transition-colors',
+                        isAlreadyAdded
+                          ? 'border-tui-border-dim text-tui-faint'
+                          : 'border-tui-border text-tui-text hover:border-tui-accent hover:text-tui-accent'
+                      )}
+                    >
+                      <span>{availableKey.label}</span>
+                      <span aria-hidden="true" className={isAlreadyAdded ? 'text-tui-ok' : 'text-tui-accent'}>
+                        {isAlreadyAdded ? GLYPH.check : '+'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-sand-200 dark:border-charcoal-750 flex items-center justify-between bg-sand-50 dark:bg-charcoal-900">
-          <button
-            type="button"
-            onClick={handleResetDefaults}
-            className="text-charcoal-500 hover:text-charcoal-800 dark:text-charcoal-400 dark:hover:text-charcoal-200 flex items-center gap-1 text-xs transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>{t('settings.resetDefaults')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white rounded-xl font-semibold text-xs transition-colors shadow-sm"
-          >
-            {t('common.done')}
-          </button>
-        </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 };

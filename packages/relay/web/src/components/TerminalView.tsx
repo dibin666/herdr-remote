@@ -130,6 +130,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     sendResize,
     sendBinary,
     addToast,
+    warnViewerMode,
     connect,
     subscribeToOutput,
     t,
@@ -154,6 +155,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   const addToastRef = useRef(addToast);
   addToastRef.current = addToast;
+
+  const warnViewerModeRef = useRef(warnViewerMode);
+  warnViewerModeRef.current = warnViewerMode;
 
   const sendResizeRef = useRef(sendResize);
   sendResizeRef.current = sendResize;
@@ -459,7 +463,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       // session is not. Without this split every wheel notch raised a
       // read-only warning, which buried the terminal under toasts.
       if (!isControllerRef.current && !isWheelOnlyInput(bytes)) {
-        addToastRef.current('warning', tRef.current('toasts.viewerModeWarning'));
+        warnViewerModeRef.current();
         return;
       }
       sendBinaryRef.current(bytes);
@@ -907,7 +911,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       {touchDebugEnabled && (
         <pre
           data-testid="terminal-touch-debug"
-          className="pointer-events-none absolute left-1 top-1 z-50 rounded bg-black/75 px-2 py-1 font-mono text-[10px] leading-relaxed text-white"
+          className="pointer-events-none absolute left-1 top-1 z-50 border border-tui-border bg-tui-crust/90 px-2 py-1 font-mono text-tui-sm leading-relaxed text-tui-muted"
           aria-hidden="true"
         >
           {`gesture: ${touchDebug.state}\n`}

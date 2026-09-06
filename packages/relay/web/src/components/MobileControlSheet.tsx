@@ -2,18 +2,9 @@ import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { RoleControlBadge } from './RoleControlBadge';
 import { describeConnection } from '../utils/connectionStatus';
-import {
-  Activity,
-  Check,
-  Copy,
-  Link2,
-  Settings,
-  Sliders,
-  X,
-  Globe,
-} from 'lucide-react';
 import { cn } from '../utils/cn';
 import { translate } from '../i18n';
+import { Button, GLYPH, Panel, Row, StatusDot } from './tui';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
@@ -24,24 +15,32 @@ export interface MobileControlSheetProps {
 }
 
 /**
- * Actions read as rows, not as a wall of stacked icon tiles: a label beside its
- * icon stays legible at any translation length, and a 48px row is a target a
- * thumb hits without aiming.
+ * Everything the phone shell hides, as three framed panels.
+ *
+ * Actions are full-width rows with the cursor glyph in front, the way a TUI
+ * menu is navigated: a `▸` and a word, at a height a thumb hits without aiming.
+ * They are not a grid of icon tiles — an icon has to be learnt, a word does not,
+ * and a translated word never overflows a 48px square.
  */
-const actionButtonClass =
-  'flex items-center gap-2.5 h-12 px-3 rounded-xl border text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-herdr-500 [&>svg]:shrink-0 [&>span]:truncate';
+const actionRowClass =
+  'tui-focusable group flex h-11 w-full select-none items-center gap-2 border px-2 text-left text-tui transition-colors';
 
-const idleActionClass =
-  'bg-paper dark:bg-charcoal-800 border-sand-300 dark:border-charcoal-700 text-charcoal-700 dark:text-charcoal-200 active:bg-sand-200 dark:active:bg-charcoal-700';
+const idleRowClass =
+  'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
 
-const activeActionClass =
-  'bg-herdr-100 dark:bg-herdr-950 border-herdr-400 text-herdr-700 dark:text-herdr-300';
+const activeRowClass = 'border-tui-accent bg-tui-selection text-tui-accent';
 
-const sectionClass =
-  'rounded-2xl border border-sand-300 bg-sand-200/70 p-3 dark:border-charcoal-700 dark:bg-charcoal-850/80';
-
-const sectionLabelClass =
-  'mb-2 text-[11px] font-semibold uppercase tracking-wide text-charcoal-500 dark:text-charcoal-400';
+const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
+  <span
+    aria-hidden="true"
+    className={cn(
+      'shrink-0',
+      active ? 'text-tui-accent' : 'text-tui-faint group-hover:text-tui-accent'
+    )}
+  >
+    {GLYPH.cursor}
+  </span>
+);
 
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
@@ -100,149 +99,138 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-2">
-      {/* Grab handle + title */}
-      <div className="flex flex-col items-center gap-2.5 pt-2.5">
-        <span
-          className="h-1 w-10 rounded-full bg-sand-400 dark:bg-charcoal-600"
-          aria-hidden="true"
-        />
-        <div className="flex w-full items-center justify-between">
-          <h2 className="text-sm font-bold tracking-tight text-charcoal-900 dark:text-charcoal-100">
-            {t('mobile.sessionControls')}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-sand-300 bg-sand-100 text-charcoal-600 transition-colors active:bg-sand-200 dark:border-charcoal-700 dark:bg-charcoal-800 dark:text-charcoal-300"
-            aria-label={t('mobile.closeSessionControls')}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <div className="flex flex-col gap-3 px-3 pb-2 pt-2">
+      <div className="flex items-center justify-between gap-2 border-b border-tui-border pb-1.5">
+        <h2 className="text-tui font-bold uppercase text-tui-accent">
+          {t('mobile.sessionControls')}
+        </h2>
+        <Button
+          variant="ghost"
+          onClick={onClose}
+          aria-label={t('mobile.closeSessionControls')}
+        >
+          esc
+        </Button>
       </div>
 
       {/* Connection */}
-      <section className={sectionClass} aria-label={t('mobile.connectionStatusAria')}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', status.dotClass)} />
-            <span className="text-xs font-semibold text-charcoal-800 dark:text-charcoal-100">
+      <Panel
+        title={t('common.status')}
+        tone={status.level === 'ok' ? 'ok' : status.level === 'bad' ? 'bad' : 'warn'}
+        bodyClassName="space-y-1.5"
+      >
+        <div className="flex items-center justify-between gap-2" aria-label={t('mobile.connectionStatusAria')}>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <StatusDot level={status.level} />
+            <span className="truncate text-tui uppercase text-tui-text">
               {status.label}
             </span>
             {connectionState === 'connected' && rttMs !== null && (
-              <span className="font-mono text-[11px] text-charcoal-500 dark:text-charcoal-400">
-                {rttMs}ms
-              </span>
+              <span className="text-tui-sm text-tui-muted">{rttMs}ms</span>
             )}
           </div>
           {status.actionLabel && (
-            <button
-              type="button"
-              onClick={() => connect()}
-              className="shrink-0 rounded-lg bg-herdr-700 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors active:bg-herdr-900"
-            >
+            <Button variant="primary" onClick={() => connect()} className="shrink-0">
               {status.actionLabel}
-            </button>
+            </Button>
           )}
         </div>
 
         {status.needsAttention && stateDetail && (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-charcoal-600 dark:text-charcoal-300">
-            {stateDetail}
-          </p>
+          <p className="text-tui-sm leading-snug text-tui-muted">{stateDetail}</p>
         )}
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {hostId && (
-            <span className="truncate rounded border border-sand-300 bg-paper px-2 py-0.5 font-mono text-[11px] text-charcoal-600 dark:border-charcoal-700 dark:bg-charcoal-900 dark:text-charcoal-300">
-              {t('common.host')}:{' '}
-              <span className="font-semibold text-herdr-700 dark:text-herdr-400">
-                {hostId}
-              </span>
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={copyClientId}
-            className="flex items-center gap-1 rounded border border-sand-300 bg-paper px-2 py-0.5 font-mono text-[11px] text-charcoal-600 transition-colors active:bg-sand-200 dark:border-charcoal-700 dark:bg-charcoal-900 dark:text-charcoal-300"
-            title={t('header.copyClientIdTitle')}
+        {hostId && <Row label={t('common.host')} labelWidth={9}>{hostId}</Row>}
+
+        <button
+          type="button"
+          onClick={copyClientId}
+          className="tui-focusable flex w-full items-baseline gap-2 text-left text-tui"
+          title={t('header.copyClientIdTitle')}
+        >
+          <span className="shrink-0 text-tui-muted" style={{ width: '9ch' }}>
+            {t('header.clientIdLabel')}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-tui-text">{settings.clientId}</span>
+          <span
+            aria-hidden="true"
+            className={cn('shrink-0', copiedClientId ? 'text-tui-ok' : 'text-tui-faint')}
           >
-            <span>{t('header.clientIdLabel')} {settings.clientId}</span>
-            {copiedClientId ? (
-              <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <Copy className="h-3 w-3 text-charcoal-400" />
-            )}
-          </button>
-        </div>
-      </section>
+            {copiedClientId ? GLYPH.check : '⧉'}
+          </span>
+        </button>
+      </Panel>
 
       {/* Control lease — the switch between viewer and full input */}
-      <section className={sectionClass} aria-label={t('mobile.terminalControlAria')}>
-        <p className={sectionLabelClass}>{t('mobile.inputControl')}</p>
+      <Panel
+        title={t('mobile.inputControl')}
+        tone="accent"
+        aria-label={t('mobile.terminalControlAria')}
+      >
         <RoleControlBadge />
-      </section>
+      </Panel>
 
-      {/* Action Grid */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* Menu */}
+      <Panel title={t('mobile.menu')} tone="accent" bodyClassName="flex flex-col gap-1">
         <button
           type="button"
           onClick={toggleLanguage}
-          className={cn(actionButtonClass, idleActionClass)}
+          className={cn(actionRowClass, idleRowClass)}
           aria-label={t('header.languageToggleTitle')}
         >
-          <Globe className="h-4 w-4 text-herdr-600 dark:text-herdr-400" />
-          <span>{language === 'zh' ? 'English' : '中文'}</span>
+          <Cursor />
+          <span className="truncate">{language === 'zh' ? 'English' : '中文'}</span>
         </button>
 
         <button
           type="button"
           onClick={withoutFocusScroll(onOpenSettings)}
-          className={cn(actionButtonClass, idleActionClass)}
+          className={cn(actionRowClass, idleRowClass)}
           aria-label={t('mobile.settingsAria')}
         >
-          <Settings className="h-4 w-4" />
-          <span>{t('common.settings')}</span>
+          <Cursor />
+          <span className="truncate">{t('common.settings')}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={withoutFocusScroll(onOpenPairing)}
+          className={cn(actionRowClass, idleRowClass)}
+          aria-label={t('mobile.pairingAria')}
+        >
+          <Cursor />
+          <span className="truncate">{t('common.pairing')}</span>
         </button>
 
         {showAdminEntry && (
           <button
             type="button"
             onClick={withoutFocusScroll(onNavigateAdmin)}
-            className={cn(actionButtonClass, idleActionClass)}
+            className={cn(actionRowClass, idleRowClass)}
             aria-label={t('mobile.adminAria')}
           >
-            <Activity className="h-4 w-4" />
-            <span>{t('common.admin')}</span>
+            <Cursor />
+            <span className="truncate">{t('common.admin')}</span>
           </button>
         )}
 
         <button
           type="button"
-          onClick={withoutFocusScroll(onOpenPairing)}
-          className={cn(actionButtonClass, idleActionClass)}
-          aria-label={t('mobile.pairingAria')}
-        >
-          <Link2 className="h-4 w-4" />
-          <span>{t('common.pairing')}</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => updateSettings({ toolbarVisible: !settings.toolbarVisible })}
           className={cn(
-            actionButtonClass,
-            settings.toolbarVisible ? activeActionClass : idleActionClass
+            actionRowClass,
+            settings.toolbarVisible ? activeRowClass : idleRowClass
           )}
           aria-label={t('mobile.keybarAria')}
           aria-pressed={settings.toolbarVisible}
         >
-          <Sliders className="h-4 w-4" />
-          <span>{t('common.keyBar')}</span>
+          <Cursor active={settings.toolbarVisible} />
+          <span className="truncate">{t('common.keyBar')}</span>
+          <span aria-hidden="true" className="ml-auto shrink-0 text-tui-sm">
+            {settings.toolbarVisible ? '[x]' : '[ ]'}
+          </span>
         </button>
-
-      </div>
+      </Panel>
     </div>
   );
 };

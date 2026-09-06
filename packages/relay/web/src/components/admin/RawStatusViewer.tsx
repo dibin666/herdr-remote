@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Copy, Check, Code } from 'lucide-react';
 import { useTerminal } from '../../context/TerminalContext';
+import { Button, GLYPH } from '../tui';
 
 interface RawStatusViewerProps {
   data: unknown;
 }
 
+/**
+ * The response, unformatted, behind a disclosure.
+ *
+ * This is the `cat` at the bottom of a status screen: everything the dashboard
+ * summarised, in the form the relay actually sent it, for when a summary is not
+ * what you need.
+ */
 export const RawStatusViewer: React.FC<RawStatusViewerProps> = ({ data }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -22,39 +29,36 @@ export const RawStatusViewer: React.FC<RawStatusViewerProps> = ({ data }) => {
   };
 
   return (
-    <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl overflow-hidden shadow-sm">
+    <div className="border border-tui-border bg-tui-base">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-sand-50 dark:bg-charcoal-900 flex items-center justify-between text-left hover:bg-sand-100 dark:hover:bg-charcoal-800 transition-colors"
+        aria-expanded={isOpen}
+        className="tui-focusable flex w-full items-center justify-between gap-2 bg-tui-mantle px-2 py-1 text-left transition-colors hover:bg-tui-selection"
       >
-        <div className="flex items-center gap-2">
-          {isOpen ? (
-            <ChevronDown className="w-4 h-4 text-herdr-500" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-charcoal-400" />
-          )}
-          <span className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 uppercase tracking-wider flex items-center gap-1.5">
-            <Code className="w-3.5 h-3.5 text-herdr-500" />
-            <span>{t('admin.rawPayloadTitle')}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className="text-tui-accent">
+            {isOpen ? GLYPH.chevronDown : GLYPH.chevronRight}
           </span>
-        </div>
-        <span className="text-[11px] text-charcoal-500 dark:text-charcoal-400 font-mono">
-          {jsonString.length} bytes
+          <span className="truncate text-tui font-bold uppercase text-tui-muted">
+            {t('admin.rawPayloadTitle')}
+          </span>
         </span>
+        <span className="shrink-0 text-tui-sm text-tui-faint">{jsonString.length} bytes</span>
       </button>
 
       {isOpen && (
-        <div className="p-4 bg-sand-50 dark:bg-charcoal-900 border-t border-sand-200 dark:border-charcoal-750 relative animate-in slide-in-from-top-1">
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="absolute top-6 right-6 px-2.5 py-1 rounded-lg bg-paper dark:bg-charcoal-800 hover:bg-sand-200 dark:hover:bg-charcoal-700 text-charcoal-700 dark:text-charcoal-200 text-xs flex items-center gap-1 border border-sand-300 dark:border-charcoal-700 transition-colors shadow-sm"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? t('admin.copiedJson') : t('admin.copyJson')}</span>
-          </button>
-          <pre className="text-charcoal-800 dark:text-charcoal-200 font-mono text-[11px] overflow-x-auto p-2 leading-relaxed max-h-96">
+        <div className="relative border-t border-tui-border-dim">
+          <div className="flex items-center justify-end border-b border-tui-border-dim bg-tui-mantle px-2 py-1">
+            <Button
+              onClick={handleCopy}
+              glyph={copied ? GLYPH.check : '⧉'}
+              className={copied ? 'border-tui-ok text-tui-ok' : undefined}
+            >
+              {copied ? t('admin.copiedJson') : t('admin.copyJson')}
+            </Button>
+          </div>
+          <pre className="max-h-96 overflow-auto bg-tui-crust px-2 py-1.5 text-tui-sm leading-relaxed text-tui-muted">
             <code>{jsonString}</code>
           </pre>
         </div>

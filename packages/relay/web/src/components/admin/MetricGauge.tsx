@@ -1,60 +1,53 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
+import { Meter, StatusLevel, TONE } from '../tui';
 
 interface MetricGaugeProps {
   label: string;
   value: number; // 0 to 100
   displayValue: string;
   detail?: string;
-  color?: 'herdr' | 'emerald' | 'amber' | 'red';
+  /** Colour while the reading is unremarkable; pressure overrides it. */
+  tone?: StatusLevel;
 }
 
-const COLOR_CLASSES = {
-  herdr: {
-    bar: 'bg-herdr-700',
-    text: 'text-herdr-700 dark:text-herdr-400',
-  },
-  emerald: {
-    bar: 'bg-emerald-600',
-    text: 'text-emerald-700 dark:text-emerald-400',
-  },
-  amber: {
-    bar: 'bg-amber-500',
-    text: 'text-amber-700 dark:text-amber-400',
-  },
-  red: {
-    bar: 'bg-red-500',
-    text: 'text-red-700 dark:text-red-400',
-  },
-};
-
+/**
+ * A utilisation reading, drawn as `████████░░░░` across the full width.
+ *
+ * The bar is real characters rather than a coloured div, so it belongs to the
+ * same grid as the numbers beside it — and it stays readable when the figure is
+ * what matters and the bar is only there for shape.
+ *
+ * Colour is not decoration: it is the reading. Past 65% the bar turns yellow and
+ * past 85% red, whatever tone the caller asked for, because at that point the
+ * value means something the caller does not get to soften.
+ */
 export const MetricGauge: React.FC<MetricGaugeProps> = ({
   label,
   value,
   displayValue,
   detail,
-  color = 'herdr',
+  tone = 'accent',
 }) => {
   const clampedValue = Math.min(100, Math.max(0, value));
-  const autoColor =
-    clampedValue > 85 ? 'red' : clampedValue > 65 ? 'amber' : color;
-  const classes = COLOR_CLASSES[autoColor];
+  const effectiveTone: StatusLevel =
+    clampedValue > 85 ? 'bad' : clampedValue > 65 ? 'warn' : tone;
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-charcoal-700 dark:text-charcoal-300 font-medium">{label}</span>
-        <span className={cn('font-mono font-bold', classes.text)}>{displayValue}</span>
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-tui">
+        <span className="min-w-0 truncate text-tui-muted">{label}</span>
+        <span className={cn('shrink-0 font-bold', TONE[effectiveTone].text)}>{displayValue}</span>
       </div>
 
-      <div className="w-full h-2 bg-sand-200 dark:bg-charcoal-700 rounded-full overflow-hidden">
-        <div
-          className={cn('h-full rounded-full transition-all duration-500', classes.bar)}
-          style={{ width: `${clampedValue}%` }}
-        />
-      </div>
+      <Meter
+        value={clampedValue / 100}
+        width={28}
+        tone={effectiveTone}
+        className="w-full overflow-hidden text-tui-sm"
+      />
 
-      {detail && <div className="text-[10px] text-charcoal-500 dark:text-charcoal-400">{detail}</div>}
+      {detail && <div className="text-tui-sm text-tui-faint">{detail}</div>}
     </div>
   );
 };

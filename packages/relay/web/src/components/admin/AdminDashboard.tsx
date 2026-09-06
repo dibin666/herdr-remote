@@ -7,31 +7,21 @@ import { ClientsTable } from './ClientsTable';
 import { PtysTable } from './PtysTable';
 import { DevicesTable } from './DevicesTable';
 import { RawStatusViewer } from './RawStatusViewer';
-import {
-  Users,
-  ShieldAlert,
-  Terminal,
-  Activity,
-  Cpu,
-  Database,
-  Timer,
-  RefreshCw,
-  Clock,
-  ArrowUpDown,
-  CheckCircle2,
-  AlertCircle,
-  Trash2,
-  ChevronLeft,
-  KeyRound,
-  Lock,
-  Copy,
-  Check,
-  ExternalLink,
-  Radio,
-  Server,
-  ShieldCheck,
-} from 'lucide-react';
 import { cn } from '../../utils/cn';
+import {
+  AppFrame,
+  Badge,
+  Button,
+  FieldLabel,
+  GLYPH,
+  Input,
+  Notice,
+  Panel,
+  Row,
+  Rule,
+  Select,
+  Spinner,
+} from '../tui';
 
 interface AdminDashboardProps {
   onBackToTerminal?: () => void;
@@ -330,441 +320,340 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     window.open(remoteUrl, '_blank', 'noopener,noreferrer');
   };
 
+  /** A small figure with its caption underneath, for the metric grids. */
+  const Cell: React.FC<{ label: string; value: React.ReactNode; tone?: string }> = ({
+    label,
+    value,
+    tone = 'text-tui-text',
+  }) => (
+    <div className="border border-tui-border-dim bg-tui-mantle px-2 py-1">
+      <span className="block truncate text-tui-sm uppercase text-tui-faint">
+        {label}
+      </span>
+      <span className={cn('block font-bold', tone)}>{value}</span>
+    </div>
+  );
+
+  const tabs = data
+    ? [
+        { id: 'overview', label: t('admin.tabOverview'), index: 1 },
+        { id: 'clients', label: t('admin.tabClients', { count: data.clients?.length || 0 }), index: 2 },
+        { id: 'ptys', label: t('admin.tabPtys', { count: data.ptys?.length || 0 }), index: 3 },
+        // The roster only exists in the operator response, so the tab only
+        // exists once this dashboard is authenticated as the operator.
+        ...(data.devices
+          ? [{ id: 'devices', label: t('admin.tabDevices', { count: data.devices.length }), index: 4 }]
+          : []),
+      ]
+    : [];
+
+  // Admin is a real TUI screen, not just a clickable dashboard. Number keys
+  // select its tabs, `r` refreshes the status line, and Escape returns to the
+  // terminal. Ignore those keys while an input/select or a modal owns focus.
+  const tabIds = tabs.map((tab) => tab.id);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable ||
+        document.querySelector('[role="dialog"]')
+      ) {
+        return;
+      }
+
+      if (event.key === 'Escape' && onBackToTerminal) {
+        event.preventDefault();
+        onBackToTerminal();
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        fetchStatus();
+        return;
+      }
+
+      const index = Number.parseInt(event.key, 10) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < tabIds.length) {
+        event.preventDefault();
+        setActiveTab(tabIds[index] as typeof activeTab);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fetchStatus, tabIds.join('|')]);
+
+  const frameAside = (
+    <div className="flex shrink-0 items-center gap-2">
+      {onBackToTerminal && (
+        <Button
+          variant="ghost"
+          onClick={onBackToTerminal}
+          title={t('admin.returnToTerminal')}
+          aria-label={t('admin.returnToTerminal')}
+          glyph={GLYPH.arrowLeft}
+          brackets={false}
+          className="shrink-0"
+        >
+          <span className="sr-only">{t('admin.returnToTerminal')}</span>
+        </Button>
+      )}
+      <span className="hidden text-tui-sm text-tui-accent sm:inline">
+        v{relayInfo?.version || data?.version || '0.1.0'}
+      </span>
+      <Badge tone={isRemoteRelay ? 'alt' : 'ok'}>
+        {isRemoteRelay ? t('admin.modeRemote') : t('admin.localWorkstationBadge')}
+      </Badge>
+      <label className="hidden items-center gap-1.5 text-tui-sm text-tui-muted md:flex">
+        <span>{t('admin.autoRefresh')}</span>
+        <Select
+          value={refreshInterval}
+          onChange={(e) => setRefreshInterval(Number(e.target.value))}
+          aria-label={t('admin.autoRefresh')}
+          className="w-auto"
+        >
+          <option value={0}>{t('admin.paused')}</option>
+          <option value={1000}>1s</option>
+          <option value={3000}>3s</option>
+          <option value={5000}>5s</option>
+          <option value={10000}>10s</option>
+        </Select>
+      </label>
+      <Button
+        variant="primary"
+        onClick={fetchStatus}
+        disabled={loading}
+        title={t('admin.refreshNow')}
+      >
+        {loading ? <Spinner /> : t('admin.refreshNow')}
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="flex-1 w-full overflow-y-auto bg-sand-100 dark:bg-charcoal-950 p-3 sm:p-6 space-y-6 pb-20">
-      {/* Top Header & Refresh Control */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          {onBackToTerminal && (
-            <button
-              type="button"
-              onClick={onBackToTerminal}
-              className="p-2 rounded-xl bg-sand-100 hover:bg-sand-200 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 text-charcoal-700 dark:text-charcoal-200 border border-sand-300 dark:border-charcoal-700 transition-colors"
-              title={t('admin.returnToTerminal')}
-              aria-label={t('admin.returnToTerminal')}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          )}
-          <div className="w-10 h-10 rounded-xl bg-herdr-100 dark:bg-herdr-950 border border-herdr-300 dark:border-herdr-700 flex items-center justify-center text-herdr-600 dark:text-herdr-400 shadow-sm">
-            <Activity className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold text-charcoal-900 dark:text-charcoal-100 flex items-center gap-2">
-              {t('admin.title')}
-              <span className="text-xs font-mono font-normal px-2 py-0.5 rounded-full bg-sand-100 dark:bg-charcoal-800 text-herdr-700 dark:text-herdr-300 border border-sand-300 dark:border-charcoal-700">
-                v{relayInfo?.version || data?.version || '0.1.0'}
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-sand-200 dark:bg-charcoal-800 text-charcoal-700 dark:text-charcoal-300 border border-sand-300 dark:border-charcoal-700 font-sans">
-                {isRemoteRelay ? t('admin.modeRemote') : t('admin.localWorkstationBadge')}
-              </span>
-            </h1>
-            <p className="text-xs text-charcoal-500 dark:text-charcoal-400 flex items-center gap-2 mt-0.5">
-              <span>{t('admin.subtitle')}</span>
-              {lastUpdated && (
-                <span className="text-charcoal-400 dark:text-charcoal-500 font-mono text-[11px]">
-                  • {t('admin.updatedAt', { time: lastUpdated.toLocaleTimeString() })}
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Refresh interval selector */}
-          <div className="flex items-center bg-sand-50 dark:bg-charcoal-900 rounded-xl border border-sand-300 dark:border-charcoal-700 p-1 text-xs">
-            <span className="text-charcoal-500 dark:text-charcoal-400 px-2 font-medium">{t('admin.autoRefresh')}</span>
-            <select
-              value={refreshInterval}
-              onChange={(e) => setRefreshInterval(Number(e.target.value))}
-              className="bg-paper dark:bg-charcoal-800 text-charcoal-800 dark:text-charcoal-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-herdr-500 text-xs cursor-pointer border border-sand-200 dark:border-charcoal-700"
-            >
-              <option value={0}>{t('admin.paused')}</option>
-              <option value={1000}>1s</option>
-              <option value={3000}>3s</option>
-              <option value={5000}>5s</option>
-              <option value={10000}>10s</option>
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={fetchStatus}
-            disabled={loading}
-            className="p-2.5 rounded-xl bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white font-medium transition-colors disabled:opacity-50 shadow-sm flex items-center gap-1.5 text-xs cursor-pointer"
-            title={t('admin.refreshNow')}
-          >
-            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-            <span className="hidden sm:inline">{t('admin.refreshNow')}</span>
-          </button>
-        </div>
-      </div>
-
+    <AppFrame
+      name={t('admin.title')}
+      tagline={t('admin.subtitle')}
+      aside={frameAside}
+      tabs={tabs}
+      activeTabId={activeTab}
+      onSelectTab={(id) => setActiveTab(id as typeof activeTab)}
+      tabsAriaLabel={t('header.mainNavigationAria')}
+      hints={[
+        { keys: '1–4', action: t('admin.hintTabs') },
+        { keys: 'r', action: t('admin.hintRefresh') },
+        ...(onBackToTerminal ? [{ keys: 'esc', action: t('admin.hintBack') }] : []),
+      ]}
+      footerAside={
+        lastUpdated ? (
+          <span className="text-tui-faint">
+            {t('admin.updatedAt', { time: lastUpdated.toLocaleTimeString() })}
+          </span>
+        ) : null
+      }
+      bodyClassName="space-y-3 pb-2"
+    >
       {/* Loading state before info is determined */}
       {!infoLoaded && (
-        <div className="p-12 text-center text-charcoal-500 dark:text-charcoal-400 text-xs flex flex-col items-center justify-center gap-2 bg-paper dark:bg-charcoal-850 rounded-2xl border border-sand-300 dark:border-charcoal-700 shadow-sm">
-          <RefreshCw className="w-6 h-6 animate-spin text-herdr-600 dark:text-herdr-400" />
-          <span>{t('admin.loadingStatus')}</span>
+        <div className="flex items-center justify-center gap-2 border border-tui-border bg-tui-base px-3 py-8 text-tui text-tui-muted">
+          <Spinner label={t('admin.loadingStatus')} />
         </div>
       )}
 
-      {/* Remote Relay Connected Guidance View (when in client view, not operator mode) */}
+      {/* Remote relay, seen from a client: this is not your dashboard. */}
       {infoLoaded && isRemoteRelay && !isOperatorView && (
-        <div className="bg-paper dark:bg-charcoal-850 border-2 border-herdr-200 dark:border-herdr-900/60 rounded-2xl p-6 text-xs text-charcoal-800 dark:text-charcoal-200 shadow-md space-y-4 animate-in fade-in">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 rounded-xl bg-herdr-50 dark:bg-herdr-950/80 border border-herdr-200 dark:border-herdr-800 text-herdr-600 dark:text-herdr-400 shadow-sm">
-              <Radio className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm sm:text-base text-charcoal-900 dark:text-charcoal-100">
-                  {t('admin.remoteRelayTitle')}
-                </h3>
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-herdr-100 dark:bg-herdr-900/50 text-herdr-700 dark:text-herdr-300 border border-herdr-200 dark:border-herdr-700">
-                  {t('admin.remoteRelayBadge')}
-                </span>
-              </div>
-              <p className="mt-1.5 text-charcoal-600 dark:text-charcoal-300 leading-relaxed">
-                {t('admin.remoteRelayNotice')}
-              </p>
-            </div>
+        <Panel
+          title={t('admin.remoteRelayTitle')}
+          aside={t('admin.remoteRelayBadge')}
+          bodyClassName="space-y-2"
+        >
+          <p className="text-tui leading-snug text-tui-muted">{t('admin.remoteRelayNotice')}</p>
+
+          <div className="space-y-0.5 border border-tui-border-dim bg-tui-mantle px-2 py-1.5">
+            <Row label={t('admin.remoteRelayEndpoint')} labelWidth={18}>
+              <code className="break-all text-tui-accent">{settings.wsUrl}</code>
+            </Row>
+            <Row label={t('admin.remoteRelayAdminUrl')} labelWidth={18}>
+              <code className="break-all text-tui-ok">{getRemoteAdminUrl()}</code>
+            </Row>
           </div>
 
-          <div className="bg-sand-50 dark:bg-charcoal-900 rounded-xl p-4 border border-sand-200 dark:border-charcoal-750 space-y-2 text-xs font-mono">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-charcoal-700 dark:text-charcoal-300">
-              <span className="font-semibold text-charcoal-500 font-sans">{t('admin.remoteRelayEndpoint')}</span>
-              <code className="text-herdr-700 dark:text-herdr-400">{settings.wsUrl}</code>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-charcoal-700 dark:text-charcoal-300">
-              <span className="font-semibold text-charcoal-500 font-sans">{t('admin.remoteRelayAdminUrl')}</span>
-              <code className="text-emerald-700 dark:text-emerald-400">{getRemoteAdminUrl()}</code>
-            </div>
-          </div>
+          <Rule />
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-sand-200 dark:border-charcoal-750">
-            <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 leading-relaxed">
-              {t('admin.remoteRelayHelp')}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsOperatorView(true)}
-                className="px-3.5 py-2 bg-sand-200 hover:bg-sand-300 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 text-charcoal-800 dark:text-charcoal-200 rounded-xl text-xs font-medium transition-colors"
-              >
+          <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+            <p className="text-tui-sm leading-snug text-tui-faint">{t('admin.remoteRelayHelp')}</p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button onClick={() => setIsOperatorView(true)}>
                 {t('admin.relayAdminLoginBtn')}
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenRemoteAdmin}
-                className="px-4 py-2.5 bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-sm shrink-0"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>{t('admin.openRemoteAdminBtn')}</span>
-              </button>
+              </Button>
+              <Button variant="primary" onClick={handleOpenRemoteAdmin} glyph={GLYPH.arrowRight}>
+                {t('admin.openRemoteAdminBtn')}
+              </Button>
             </div>
           </div>
-        </div>
+        </Panel>
       )}
 
-      {/* Operator Relay Admin Token Authentication Card (when in operator view and unauthenticated) */}
+      {/* Operator sign-in for the relay-wide dashboard. */}
       {infoLoaded && isRemoteRelay && isOperatorView && !data && (
-        <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-6 text-xs text-charcoal-800 dark:text-charcoal-200 shadow-md space-y-4">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 rounded-xl bg-herdr-50 dark:bg-herdr-950/80 border border-herdr-200 dark:border-herdr-800 text-herdr-600 dark:text-herdr-400 shadow-sm">
-              <Server className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-sm sm:text-base text-charcoal-900 dark:text-charcoal-100">
-                {t('admin.relayAdminTitle')}
-              </h3>
-              <p className="mt-1 text-charcoal-600 dark:text-charcoal-300 leading-relaxed">
-                {relayInfo?.adminConfigured === false
-                  ? t('admin.relayAdminNotConfigured')
-                  : t('admin.relayAdminAuthError')}
-              </p>
-            </div>
-          </div>
+        <Panel title={t('admin.relayAdminTitle')} bodyClassName="space-y-2">
+          <Notice tone={relayInfo?.adminConfigured === false ? 'warn' : 'bad'}>
+            {relayInfo?.adminConfigured === false
+              ? t('admin.relayAdminNotConfigured')
+              : t('admin.relayAdminAuthError')}
+          </Notice>
 
-          <form onSubmit={handleSaveAdminToken} className="space-y-3 pt-2">
-            <div>
-              <label className="block text-charcoal-700 dark:text-charcoal-300 font-semibold mb-1">
+          <form onSubmit={handleSaveAdminToken} className="space-y-2">
+            <div className="space-y-1">
+              <FieldLabel htmlFor="relay-admin-token">
                 {t('admin.relayAdminTokenLabel')}
-              </label>
-              <input
+              </FieldLabel>
+              <Input
+                id="relay-admin-token"
                 type="password"
                 value={adminTokenInput}
                 onChange={(e) => setAdminTokenInput(e.target.value)}
                 placeholder={t('admin.relayAdminTokenPlaceholder')}
-                className="w-full bg-sand-50 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl px-3.5 py-2.5 text-charcoal-900 dark:text-charcoal-100 font-mono text-xs focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
               />
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>{t('admin.relayAdminLoginBtn')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsOperatorView(false)}
-                className="px-3.5 py-2 bg-sand-200 hover:bg-sand-300 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 text-charcoal-700 dark:text-charcoal-300 rounded-xl text-xs transition-colors"
-              >
+            <div className="flex items-center gap-2">
+              <Button variant="primary" type="submit">
+                {t('admin.relayAdminLoginBtn')}
+              </Button>
+              <Button variant="ghost" onClick={() => setIsOperatorView(false)}>
                 {t('common.cancel')}
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </Panel>
       )}
 
-      {/* Authentication Error / First-Run Guidance Card (for local host device token) */}
+      {/* Local relay refusing this device's token. */}
       {infoLoaded && !isRemoteRelay && isAuthError && (
-        <div className="bg-paper dark:bg-charcoal-850 border-2 border-red-200 dark:border-red-900/60 rounded-2xl p-6 text-xs text-charcoal-800 dark:text-charcoal-200 shadow-lg space-y-4">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/80 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 shadow-sm">
-              <Lock className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-sm sm:text-base text-charcoal-900 dark:text-red-200">
-                {t('admin.unauthorizedTitle')}
-              </h3>
-              <p className="mt-1 text-charcoal-600 dark:text-charcoal-300 leading-relaxed">
-                {t('admin.unauthorizedDesc')}
-              </p>
-            </div>
-          </div>
+        <Panel title={t('admin.unauthorizedTitle')} tone="bad" bodyClassName="space-y-2">
+          <Notice tone="bad">{t('admin.unauthorizedDesc')}</Notice>
 
-          {/* Actionable Pairing Steps Box */}
-          <div className="bg-sand-50 dark:bg-charcoal-900 rounded-xl p-4 border border-sand-200 dark:border-charcoal-750 space-y-2.5">
-            <span className="font-semibold text-charcoal-700 dark:text-charcoal-200 block">
+          <div className="space-y-1.5 border border-tui-border-dim bg-tui-mantle px-2 py-1.5">
+            <span className="block text-tui-sm uppercase text-tui-muted">
               {t('admin.pairingStepsTitle')}
             </span>
-            <div className="flex items-center gap-2 bg-paper dark:bg-charcoal-950 border border-sand-300 dark:border-charcoal-700 rounded-lg p-2 font-mono text-xs">
-              <code className="flex-1 text-charcoal-800 dark:text-charcoal-200 truncate">
-                {PAIR_COMMAND}
-              </code>
-              <button
-                type="button"
+            <div className="flex items-center gap-2 border border-tui-border bg-tui-crust px-2 py-1">
+              <span aria-hidden="true" className="shrink-0 select-none text-tui-ok">
+                $
+              </span>
+              <code className="min-w-0 flex-1 truncate text-tui-text">{PAIR_COMMAND}</code>
+              <Button
                 onClick={handleCopyPairCmd}
-                className="px-2.5 py-1 rounded bg-sand-100 hover:bg-sand-200 dark:bg-charcoal-800 text-charcoal-700 dark:text-charcoal-200 text-xs flex items-center gap-1 border border-sand-300 dark:border-charcoal-700 shrink-0 font-sans"
+                glyph={copiedPairCmd ? GLYPH.check : '⧉'}
+                className={cn('shrink-0', copiedPairCmd && 'border-tui-ok text-tui-ok')}
               >
-                {copiedPairCmd ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{t('admin.copiedJson')}</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>{t('common.copy')}</span>
-                  </>
-                )}
-              </button>
+                {copiedPairCmd ? t('admin.copiedJson') : t('common.copy')}
+              </Button>
             </div>
-            <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400">
-              {t('admin.pairingStepsHelp')}
-            </p>
+            <p className="text-tui-sm text-tui-faint">{t('admin.pairingStepsHelp')}</p>
           </div>
 
-          <div className="flex items-center gap-2 pt-2 border-t border-sand-200 dark:border-charcoal-750">
+          <div className="flex items-center gap-2">
             {onOpenPairing && (
-              <button
-                type="button"
-                onClick={onOpenPairing}
-                className="px-4 py-2 bg-herdr-700 hover:bg-herdr-800 rounded-xl text-xs font-semibold text-white flex items-center gap-1.5 transition-colors shadow-sm"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>{t('admin.enterPairCodeBtn')}</span>
-              </button>
+              <Button variant="primary" onClick={onOpenPairing}>
+                {t('admin.enterPairCodeBtn')}
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={fetchStatus}
-              className="px-3.5 py-2 bg-sand-200 hover:bg-sand-300 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 rounded-xl text-xs font-medium text-charcoal-700 dark:text-charcoal-200 transition-colors"
-            >
-              {t('admin.retryFetchBtn')}
-            </button>
+            <Button onClick={fetchStatus}>{t('admin.retryFetchBtn')}</Button>
           </div>
-        </div>
+        </Panel>
       )}
 
-      {/* General Error Banner (non-auth, when not in remote guidance) */}
+      {/* Anything else that went wrong on the wire. */}
       {infoLoaded && error && !isAuthError && !(!isRemoteRelay && isAuthError) && (
-        <div className="bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 rounded-2xl p-4 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <span>
-              {t('admin.errorConnecting', { error })}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={fetchStatus}
-            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 rounded-lg text-xs font-semibold text-white transition-colors flex-shrink-0 ml-3"
-          >
-            {t('common.retry')}
-          </button>
-        </div>
+        <Notice
+          tone="warn"
+          action={
+            <Button variant="warn" onClick={fetchStatus}>
+              {t('common.retry')}
+            </Button>
+          }
+        >
+          {t('admin.errorConnecting', { error })}
+        </Notice>
       )}
 
       {/* Display Live Dashboard Data when Available */}
       {data && (
         <>
-          {/* Top High-level Metric Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Headline figures */}
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <StatCard
               title={t('admin.activeClients')}
               value={data.clients?.length || 0}
               subtitle={`${data.clients?.filter((c) => c.role === 'controller').length || 0} ${t('common.role')}`}
-              icon={<Users className="w-5 h-5" />}
               trend={t('admin.liveTrend')}
-              trendType="positive"
+              trendTone="ok"
             />
 
             <StatCard
               title={t('admin.activePtys')}
               value={data.ptys?.length || 0}
               subtitle={t('admin.terminalShells')}
-              icon={<Terminal className="w-5 h-5" />}
             />
 
             <StatCard
               title={t('admin.activeController')}
               value={data.activeControllerId || t('admin.none')}
-              subtitle={data.activeHostId ? `${t('common.host')}: ${data.activeHostId}` : t('admin.noHost')}
-              icon={<ShieldAlert className="w-5 h-5" />}
-              className={data.activeControllerId ? 'border-emerald-500/40' : undefined}
+              subtitle={
+                data.activeHostId
+                  ? `${t('common.host')}: ${data.activeHostId}`
+                  : t('admin.noHost')
+              }
+              tone={data.activeControllerId ? 'ok' : 'idle'}
             />
 
             <StatCard
               title={t('admin.uptime')}
               value={formatUptime(data.uptimeSeconds || 0)}
-              subtitle={data.startTime ? t('admin.startedAt', { time: new Date(data.startTime).toLocaleTimeString() }) : t('admin.startedRecently')}
-              icon={<Clock className="w-5 h-5" />}
+              subtitle={
+                data.startTime
+                  ? t('admin.startedAt', { time: new Date(data.startTime).toLocaleTimeString() })
+                  : t('admin.startedRecently')
+              }
             />
-          </div>
-
-          {/* Navigation tabs for admin sections */}
-          <div className="flex items-center gap-2 border-b border-sand-300 dark:border-charcoal-700 pb-1 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('overview')}
-              className={cn(
-                'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
-                activeTab === 'overview'
-                  ? 'bg-herdr-700 text-white shadow-sm'
-                  : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
-              )}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              <span>{t('admin.tabOverview')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('clients')}
-              className={cn(
-                'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
-                activeTab === 'clients'
-                  ? 'bg-herdr-700 text-white shadow-sm'
-                  : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
-              )}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>{t('admin.tabClients', { count: data.clients?.length || 0 })}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('ptys')}
-              className={cn(
-                'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
-                activeTab === 'ptys'
-                  ? 'bg-herdr-700 text-white shadow-sm'
-                  : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
-              )}
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>{t('admin.tabPtys', { count: data.ptys?.length || 0 })}</span>
-            </button>
-            {/* The roster only exists in the operator response, so the tab only
-                exists once this dashboard is authenticated as the operator. */}
-            {data.devices && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('devices')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
-                  activeTab === 'devices'
-                    ? 'bg-herdr-700 text-white shadow-sm'
-                    : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
-                )}
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>{t('admin.tabDevices', { count: data.devices.length })}</span>
-              </button>
-            )}
           </div>
 
           {/* Tab: Overview */}
           {activeTab === 'overview' && (
-            <div className="space-y-6">
-              {/* Detailed Resource Metrics Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {/* CPU & Load */}
-                <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-sand-200 dark:border-charcoal-750 pb-2">
-                    <span className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Cpu className="w-4 h-4 text-herdr-500" />
-                      <span>{t('admin.cpuAndLoad')}</span>
-                    </span>
-                    <span className="text-[11px] font-mono text-charcoal-500 dark:text-charcoal-400">
-                      {t('admin.cores', { count: data.cpu?.cores || 1 })}
-                    </span>
-                  </div>
-
+                <Panel
+                  title={t('admin.cpuAndLoad')}
+                  aside={t('admin.cores', { count: data.cpu?.cores || 1 })}
+                  bodyClassName="space-y-2"
+                >
                   <MetricGauge
                     label={t('admin.cpuUtilization')}
                     value={data.cpu?.cpuPercent || 0}
                     displayValue={`${(data.cpu?.cpuPercent || 0).toFixed(1)}%`}
-                    color="herdr"
                   />
 
-                  <div className="pt-2 border-t border-sand-200 dark:border-charcoal-750 grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-sand-50 dark:bg-charcoal-900 p-2 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                      <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 block uppercase">{t('admin.load1m')}</span>
-                      <span className="font-mono font-semibold text-xs text-charcoal-800 dark:text-charcoal-200">
-                        {(data.cpu?.load1m || 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="bg-sand-50 dark:bg-charcoal-900 p-2 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                      <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 block uppercase">{t('admin.load5m')}</span>
-                      <span className="font-mono font-semibold text-xs text-charcoal-800 dark:text-charcoal-200">
-                        {(data.cpu?.load5m || 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="bg-sand-50 dark:bg-charcoal-900 p-2 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                      <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 block uppercase">{t('admin.load15m')}</span>
-                      <span className="font-mono font-semibold text-xs text-charcoal-800 dark:text-charcoal-200">
-                        {(data.cpu?.load15m || 0).toFixed(2)}
-                      </span>
-                    </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <Cell label={t('admin.load1m')} value={(data.cpu?.load1m || 0).toFixed(2)} />
+                    <Cell label={t('admin.load5m')} value={(data.cpu?.load5m || 0).toFixed(2)} />
+                    <Cell label={t('admin.load15m')} value={(data.cpu?.load15m || 0).toFixed(2)} />
                   </div>
-                </div>
+                </Panel>
 
-                {/* Memory Utilization */}
-                <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-sand-200 dark:border-charcoal-750 pb-2">
-                    <span className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      <span>{t('admin.memory')}</span>
-                    </span>
-                    <span className="text-[11px] font-mono text-charcoal-500 dark:text-charcoal-400">
-                      RSS: {formatBytes(data.memory?.rssBytes || 0)}
-                    </span>
-                  </div>
-
+                {/* Memory */}
+                <Panel
+                  title={t('admin.memory')}
+                  aside={`RSS ${formatBytes(data.memory?.rssBytes || 0)}`}
+                  bodyClassName="space-y-2"
+                >
                   {(() => {
                     const used = data.memory?.heapUsedBytes || 0;
                     const total = data.memory?.heapTotalBytes || 1;
@@ -775,173 +664,124 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         value={pct}
                         displayValue={`${formatBytes(used)} / ${formatBytes(total)}`}
                         detail={`Process RSS: ${formatBytes(data.memory?.rssBytes || 0)}`}
-                        color="emerald"
+                        tone="ok"
                       />
                     );
                   })()}
 
-                  <div className="pt-2 border-t border-sand-200 dark:border-charcoal-750 flex items-center justify-between text-[11px] text-charcoal-500 dark:text-charcoal-400 font-mono">
-                    <span>{t('admin.external')}</span>
-                    <span className="text-charcoal-800 dark:text-charcoal-200 font-semibold">
-                      {formatBytes(data.memory?.externalBytes || 0)}
-                    </span>
-                  </div>
-                </div>
+                  <Rule />
 
-                {/* Event Loop Delay */}
-                <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-sand-200 dark:border-charcoal-750 pb-2">
-                    <span className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Timer className="w-4 h-4 text-amber-500" />
-                      <span>{t('admin.eventLoopDelay')}</span>
-                    </span>
-                    <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
-                      <CheckCircle2 className="w-3 h-3" /> {t('admin.liveTrend')}
-                    </span>
-                  </div>
+                  <Row label={t('admin.external')} labelWidth={12}>
+                    <span className="font-bold">{formatBytes(data.memory?.externalBytes || 0)}</span>
+                  </Row>
+                </Panel>
 
-                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                    <div className="bg-sand-50 dark:bg-charcoal-900 p-2 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                      <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 block uppercase">{t('admin.metricP50')}</span>
-                      <span className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
-                        {(data.eventLoopDelay?.p50Ms || 0).toFixed(1)}ms
-                      </span>
-                    </div>
-                    <div className="bg-sand-50 dark:bg-charcoal-900 p-2 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                      <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 block uppercase">{t('admin.metricP99')}</span>
-                      <span className="font-mono font-bold text-xs text-amber-600 dark:text-amber-400">
-                        {(data.eventLoopDelay?.p99Ms || 0).toFixed(1)}ms
-                      </span>
-                    </div>
-                    <div className="bg-sand-50 dark:bg-charcoal-900 p-2 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                      <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 block uppercase">{t('admin.metricMax')}</span>
-                      <span className="font-mono font-bold text-xs text-herdr-600 dark:text-herdr-400">
-                        {(data.eventLoopDelay?.maxMs || 0).toFixed(1)}ms
-                      </span>
-                    </div>
+                {/* Event loop */}
+                <Panel
+                  title={t('admin.eventLoopDelay')}
+                  aside={t('admin.liveTrend')}
+                  bodyClassName="space-y-2"
+                >
+                  <div className="grid grid-cols-3 gap-1">
+                    <Cell
+                      label={t('admin.metricP50')}
+                      value={`${(data.eventLoopDelay?.p50Ms || 0).toFixed(1)}ms`}
+                      tone="text-tui-ok"
+                    />
+                    <Cell
+                      label={t('admin.metricP99')}
+                      value={`${(data.eventLoopDelay?.p99Ms || 0).toFixed(1)}ms`}
+                      tone="text-tui-warn"
+                    />
+                    <Cell
+                      label={t('admin.metricMax')}
+                      value={`${(data.eventLoopDelay?.maxMs || 0).toFixed(1)}ms`}
+                      tone="text-tui-accent"
+                    />
                   </div>
 
-                  <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 leading-relaxed">
+                  <p className="text-tui-sm leading-snug text-tui-faint">
                     {t('admin.eventLoopDesc')}
                   </p>
-                </div>
+                </Panel>
 
-                {/* Network Throughput */}
-                <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-sand-200 dark:border-charcoal-750 pb-2">
-                    <span className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <ArrowUpDown className="w-4 h-4 text-herdr-500" />
-                      <span>{t('admin.throughput')}</span>
+                {/* Throughput */}
+                <Panel
+                  title={t('admin.throughput')}
+                  aside={`${formatBytes(data.throughput?.bytesOutPerSec || 0)}/s`}
+                  bodyClassName="space-y-0.5"
+                >
+                  <Row label={t('admin.bytesInTotal')} labelWidth={14}>
+                    <span className="font-bold text-tui-accent">
+                      {formatBytes(data.throughput?.bytesIn || 0)}
                     </span>
-                    <span className="text-[11px] font-mono text-herdr-700 dark:text-herdr-400 font-semibold">
-                      {formatBytes(data.throughput?.bytesOutPerSec || 0)}/s
+                  </Row>
+                  <Row label={t('admin.bytesOutTotal')} labelWidth={14}>
+                    <span className="font-bold text-tui-ok">
+                      {formatBytes(data.throughput?.bytesOut || 0)}
                     </span>
-                  </div>
-
-                  <div className="space-y-2 text-xs font-mono">
-                    <div className="flex justify-between text-charcoal-700 dark:text-charcoal-300">
-                      <span>{t('admin.bytesInTotal')}</span>
-                      <span className="text-herdr-700 dark:text-herdr-300 font-semibold">
-                        {formatBytes(data.throughput?.bytesIn || 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-charcoal-700 dark:text-charcoal-300">
-                      <span>{t('admin.bytesOutTotal')}</span>
-                      <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
-                        {formatBytes(data.throughput?.bytesOut || 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-charcoal-700 dark:text-charcoal-300">
-                      <span>{t('admin.frameRate')}</span>
-                      <span className="text-charcoal-900 dark:text-charcoal-100 font-semibold">
-                        {(data.throughput?.framesOutPerSec || 0).toFixed(0)} fps
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  </Row>
+                  <Row label={t('admin.frameRate')} labelWidth={14}>
+                    <span className="font-bold">
+                      {(data.throughput?.framesOutPerSec || 0).toFixed(0)} fps
+                    </span>
+                  </Row>
+                </Panel>
               </div>
 
-              {/* Cleanup Counters & Maintenance */}
-              <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-4 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between border-b border-sand-200 dark:border-charcoal-750 pb-3 mb-3">
-                  <h3 className="font-semibold text-xs text-charcoal-800 dark:text-charcoal-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <Trash2 className="w-3.5 h-3.5 text-amber-500" />
-                    <span>{t('admin.gcCleanup')}</span>
-                  </h3>
-                  {data.cleanup?.lastCleanupAt && (
-                    <span className="text-[11px] font-mono text-charcoal-500">
-                      Last: {new Date(data.cleanup.lastCleanupAt).toLocaleTimeString()}
-                    </span>
-                  )}
+              {/* Housekeeping counters */}
+              <Panel
+                title={t('admin.gcCleanup')}
+                aside={
+                  data.cleanup?.lastCleanupAt
+                    ? new Date(data.cleanup.lastCleanupAt).toLocaleTimeString()
+                    : undefined
+                }
+              >
+                <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                  <Cell
+                    label={t('admin.staleClientsPurged')}
+                    value={data.cleanup?.staleClientsPurged || 0}
+                  />
+                  <Cell
+                    label={t('admin.closedPtysCleaned')}
+                    value={data.cleanup?.closedPtysCleaned || 0}
+                  />
+                  <Cell
+                    label={t('admin.deadConnections')}
+                    value={data.cleanup?.deadConnectionsClosed || 0}
+                  />
+                  <Cell
+                    label={t('admin.idleHostsTerminated')}
+                    value={data.cleanup?.idleHostsTerminated || 0}
+                  />
                 </div>
+              </Panel>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                  <div className="bg-sand-50 dark:bg-charcoal-900 p-3 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                    <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 uppercase block">{t('admin.staleClientsPurged')}</span>
-                    <span className="font-mono text-base font-bold text-charcoal-900 dark:text-charcoal-100 mt-1 block">
-                      {data.cleanup?.staleClientsPurged || 0}
-                    </span>
-                  </div>
-                  <div className="bg-sand-50 dark:bg-charcoal-900 p-3 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                    <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 uppercase block">{t('admin.closedPtysCleaned')}</span>
-                    <span className="font-mono text-base font-bold text-charcoal-900 dark:text-charcoal-100 mt-1 block">
-                      {data.cleanup?.closedPtysCleaned || 0}
-                    </span>
-                  </div>
-                  <div className="bg-sand-50 dark:bg-charcoal-900 p-3 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                    <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 uppercase block">{t('admin.deadConnections')}</span>
-                    <span className="font-mono text-base font-bold text-charcoal-900 dark:text-charcoal-100 mt-1 block">
-                      {data.cleanup?.deadConnectionsClosed || 0}
-                    </span>
-                  </div>
-                  <div className="bg-sand-50 dark:bg-charcoal-900 p-3 rounded-xl border border-sand-200 dark:border-charcoal-750">
-                    <span className="text-[10px] text-charcoal-500 dark:text-charcoal-400 uppercase block">{t('admin.idleHostsTerminated')}</span>
-                    <span className="font-mono text-base font-bold text-charcoal-900 dark:text-charcoal-100 mt-1 block">
-                      {data.cleanup?.idleHostsTerminated || 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Clients and PTYs Tables */}
-              <div className="grid grid-cols-1 gap-6">
-                <ClientsTable
-                  clients={data.clients || []}
-                  activeControllerId={data.activeControllerId}
-                />
-                <PtysTable ptys={data.ptys || []} />
-              </div>
-
-              {/* Raw JSON viewer */}
-              <RawStatusViewer data={data} />
-            </div>
-          )}
-
-          {/* Tab: Clients */}
-          {activeTab === 'clients' && (
-            <div className="space-y-4">
               <ClientsTable
                 clients={data.clients || []}
                 activeControllerId={data.activeControllerId}
               />
-            </div>
-          )}
-
-          {/* Tab: PTYs */}
-          {activeTab === 'ptys' && (
-            <div className="space-y-4">
               <PtysTable ptys={data.ptys || []} />
+
+              <RawStatusViewer data={data} />
             </div>
           )}
 
-          {/* Tab: paired devices */}
+          {activeTab === 'clients' && (
+            <ClientsTable
+              clients={data.clients || []}
+              activeControllerId={data.activeControllerId}
+            />
+          )}
+
+          {activeTab === 'ptys' && <PtysTable ptys={data.ptys || []} />}
+
           {activeTab === 'devices' && (
-            <div className="space-y-4">
-              <DevicesTable devices={data.devices || []} onRevoke={revokeDevice} />
-            </div>
+            <DevicesTable devices={data.devices || []} onRevoke={revokeDevice} />
           )}
         </>
       )}
-    </div>
+    </AppFrame>
   );
 };

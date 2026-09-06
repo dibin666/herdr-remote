@@ -3,6 +3,7 @@ import { TranslationSchema } from './types';
 export const en: TranslationSchema = {
   header: {
     appName: 'Herdr',
+    tagline: 'remote terminal client',
     terminalTab: 'Terminal',
     adminTab: 'Admin',
     rttMs: '{rtt}ms',
@@ -210,6 +211,7 @@ export const en: TranslationSchema = {
     pairingAria: 'Connection and Pairing Settings',
     keybarAria: 'Toggle touch key toolbar',
     quickInputAria: 'Toggle virtual keyboard helper',
+    menu: 'Menu',
   },
   terminal: {
     bannerTitle: 'Herdr Remote WebUI',
@@ -374,6 +376,9 @@ export const en: TranslationSchema = {
     localWorkstationBadge: 'Local Workstation Relay',
     modeLocal: 'Local Mode',
     modeRemote: 'Remote Mode',
+    hintTabs: 'switch tabs',
+    hintRefresh: 'refresh status',
+    hintBack: 'return to terminal',
   },
   toasts: {
     connected: 'Connected to Herdr remote relay',

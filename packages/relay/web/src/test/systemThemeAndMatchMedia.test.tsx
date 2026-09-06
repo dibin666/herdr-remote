@@ -33,7 +33,8 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
     expect(document.body.classList.contains('dark')).toBe(true);
     expect(document.body.classList.contains('light')).toBe(false);
     expect(document.documentElement.style.colorScheme).toBe('dark');
-    expect(document.body.style.backgroundColor).toBe('rgb(11, 17, 32)');
+    // Catppuccin Mocha `crust` (#11111b) — the base Herdr's own TUI paints on.
+    expect(document.body.style.backgroundColor).toBe('rgb(17, 17, 27)');
     expect(meta.getAttribute('content')).toBe(HERDR_DARK_BACKGROUND);
 
     meta.remove();
