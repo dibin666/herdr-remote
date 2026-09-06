@@ -17,6 +17,7 @@ on:
       - 'packages/cli/package.json'
       - 'packages/relay/package.json'
       - '.github/workflows/npm-publish.yml'
+      - '.github/scripts/**'
   workflow_dispatch:
 
 concurrency:
