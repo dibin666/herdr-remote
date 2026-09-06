@@ -42,6 +42,12 @@ import {
 import { fullStatus, restartAll, startAll, stopAll } from '../../src/lifecycle.js';
 import * as keepalive from '../../src/keepalive.js';
 import * as herdrPlugin from '../../src/herdr-plugin.js';
+import {
+  canSelfUpdate,
+  checkForUpdate,
+  installKind,
+  performUpdate,
+} from '../../src/updater.js';
 
 export type AccessMode = 'local' | 'lan' | 'remote';
 export type Locale = 'en' | 'zh';
@@ -122,6 +128,10 @@ export function listReachableAddresses(options: { includeLoopback?: boolean; inc
 export {
   ACCESS_MODES,
   OFFICIAL_RELAY_URL,
+  canSelfUpdate,
+  checkForUpdate,
+  installKind,
+  performUpdate,
   bindAddress,
   FIELDS,
   configExists,
