@@ -235,6 +235,7 @@ export const zh: TranslationSchema = {
     keybarAria: '切换触控按键条',
     quickInputAria: '切换快捷命令',
     menu: '菜单',
+    statusBarAria: '会话状态栏',
   },
   terminal: {
     bannerTitle: 'Herdr Remote WebUI',

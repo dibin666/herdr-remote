@@ -242,6 +242,7 @@ export interface TranslationSchema {
     quickInputAria: string;
     /** Legend over the sheet's action list. */
     menu: string;
+    statusBarAria: string;
   };
   terminal: {
     bannerTitle: string;

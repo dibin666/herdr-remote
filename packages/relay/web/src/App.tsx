@@ -254,7 +254,7 @@ function AppContent() {
         {isTerminalMounted && (
           <div
             data-testid="terminal-layer"
-            className={`absolute ${isMobileShell ? 'inset-x-0 top-12 bottom-0' : 'inset-0'} flex flex-col min-h-0 w-full overflow-hidden`}
+            className={`absolute ${isMobileShell ? 'inset-x-0 top-12 bottom-11' : 'inset-0'} flex flex-col min-h-0 w-full overflow-hidden`}
             style={layerVisibilityStyle(isTerminalActive)}
             aria-hidden={!isTerminalActive}
           >
@@ -305,8 +305,8 @@ function AppContent() {
       </div>
 
       {/* Desktop status area: one TUI line for the live session facts. Mobile
-          keeps those facts in its reserved top row and control sheet, so this
-          does not take terminal height away from a phone. */}
+          uses its own compact bottom bar for switching and latency, while the
+          remaining controls stay in the sheet. */}
       {!isMobileShell && currentView !== 'admin' && <SessionStatusLine onAddProfile={() => openPairing(true)} />}
 
       {/* Modals & Floating Overlays */}

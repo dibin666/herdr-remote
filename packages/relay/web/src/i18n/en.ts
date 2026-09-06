@@ -235,6 +235,7 @@ export const en: TranslationSchema = {
     keybarAria: 'Toggle key toolbar',
     quickInputAria: 'Toggle quick commands',
     menu: 'Menu',
+    statusBarAria: 'Session status bar',
   },
   terminal: {
     bannerTitle: 'Herdr Remote WebUI',

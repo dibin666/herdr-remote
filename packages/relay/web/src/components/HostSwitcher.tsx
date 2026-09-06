@@ -6,6 +6,8 @@ import { Button, GLYPH, StatusDot } from './tui';
 interface HostSwitcherProps {
   onAddProfile: () => void;
   mobile?: boolean;
+  /** Render the compact, touch-sized picker used by the phone status bar. */
+  statusBar?: boolean;
 }
 
 /**
@@ -13,7 +15,11 @@ interface HostSwitcherProps {
  * it contains only pairings this browser explicitly saved, which is important
  * on a shared relay where enumerating hosts would be a tenant leak.
  */
-export const HostSwitcher: React.FC<HostSwitcherProps> = ({ onAddProfile, mobile = false }) => {
+export const HostSwitcher: React.FC<HostSwitcherProps> = ({
+  onAddProfile,
+  mobile = false,
+  statusBar = false,
+}) => {
   const {
     profiles,
     activeProfileId,
@@ -65,7 +71,7 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({ onAddProfile, mobile
         : 'idle';
 
   return (
-    <div ref={rootRef} className={cn('relative min-w-0', mobile && 'w-full')}>
+    <div ref={rootRef} className={cn('relative min-w-0', mobile && 'w-full', statusBar && 'flex-1')}>
       <button
         type="button"
         aria-haspopup="menu"
@@ -74,11 +80,15 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({ onAddProfile, mobile
         onClick={() => setOpen((value) => !value)}
         className={cn(
           'tui-focusable flex min-w-0 items-center gap-1.5 border border-transparent text-left text-tui-muted transition-colors hover:border-tui-border hover:text-tui-accent',
-          mobile ? 'min-h-11 w-full px-2' : 'min-h-[24px] max-w-[18rem] px-1',
+          statusBar
+            ? 'min-h-11 w-full max-w-none px-2'
+            : mobile
+              ? 'min-h-11 w-full px-2'
+              : 'min-h-[24px] max-w-[18rem] px-1',
         )}
       >
         <StatusDot level={statusLevel} />
-        <span className="truncate text-tui-text">{label}</span>
+        <span className={cn('truncate text-tui-text', statusBar && 'min-w-0 flex-1')}>{label}</span>
         <span aria-hidden="true" className="shrink-0 text-tui-faint">{open ? GLYPH.chevronDown : GLYPH.chevronRight}</span>
       </button>
 
@@ -88,7 +98,11 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({ onAddProfile, mobile
           aria-label={t('profiles.switcherLabel')}
           className={cn(
             'absolute bottom-full left-0 z-[100] mb-1 max-h-[min(70vh,24rem)] overflow-y-auto border border-tui-border bg-tui-base p-1 shadow-lg',
-            mobile ? 'inset-x-0 bottom-auto top-full mt-1 mb-0 w-full' : 'w-80 max-w-[calc(100vw-1rem)]',
+            statusBar
+              ? 'w-80 max-w-[calc(100vw-1rem)]'
+              : mobile
+                ? 'inset-x-0 bottom-auto top-full mt-1 mb-0 w-full'
+                : 'w-80 max-w-[calc(100vw-1rem)]',
           )}
         >
           <div className="border-b border-tui-border-dim px-2 py-1 text-tui-sm uppercase text-tui-faint">

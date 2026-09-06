@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react';
 import { App } from '../App';
-import { saveSettings } from '../utils/storage';
+import { saveSettings, createConnectionProfile } from '../utils/storage';
 import { isMobileShellViewport, MOBILE_SHELL_MAX_WIDTH_PX } from '../utils/mobileShell';
 import { computeContainerGridFit, measureCellDimensions, DEFAULT_BASE_FONT_SIZE } from '../utils/terminalFit';
 import { APP_HEIGHT_VAR } from '../utils/viewportMetrics';
@@ -186,7 +186,7 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     setVisualViewport(null);
   });
 
-  it('renders no header, no status banner and no view switcher by default', async () => {
+  it('renders compact bottom switching and latency status on phones', async () => {
     await renderPhoneApp();
 
     expect(screen.queryByRole('banner')).toBeNull();
@@ -196,7 +196,7 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     // The whole main area is the terminal, and it is visible and interactive.
     const layer = screen.getByTestId('terminal-layer');
     expect(layer.className).toContain('top-12');
-    expect(layer.className).toContain('bottom-0');
+    expect(layer.className).toContain('bottom-11');
     expect(layer.style.visibility).toBe('visible');
 
     const topbar = screen.getByTestId('mobile-topbar');
@@ -204,9 +204,50 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect(topbar).toContainElement(screen.getByTestId('mobile-chrome-trigger'));
     expect(layer.style.pointerEvents).toBe('auto');
 
-    // The only chrome is the compact top bar; the sheet starts closed.
-    expect(screen.getByTestId('mobile-chrome-trigger')).toBeInTheDocument();
+    const statusBar = screen.getByTestId('mobile-status-bar');
+    expect(statusBar).toContainElement(screen.getByRole('button', { name: 'Switch Herdr instance' }));
+    expect(statusBar).toHaveTextContent('RTT');
+    expect(statusBar).toHaveTextContent('—');
+
+    // The status bar stays visible while the larger control sheet is closed.
     expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
+  });
+
+  it('switches saved Herdr profiles from the persistent bottom bar', async () => {
+    const office = createConnectionProfile({
+      id: 'profile-office',
+      displayName: 'Office',
+      wsUrl: '/ws/client',
+      token: 'office-token-123456789',
+      hostId: 'host-office',
+    });
+    const home = createConnectionProfile({
+      id: 'profile-home',
+      displayName: 'Home',
+      wsUrl: '/ws/client',
+      token: 'home-token-123456789',
+      hostId: 'host-home',
+    });
+    saveSettings({
+      profiles: [office, home],
+      activeProfileId: office.id,
+      wsUrl: office.wsUrl,
+      token: office.token,
+    });
+
+    await renderPhoneApp();
+
+    const statusBar = screen.getByTestId('mobile-status-bar');
+    const switcher = within(statusBar).getByRole('button', { name: 'Switch Herdr instance' });
+    expect(switcher).toHaveTextContent('Office');
+    fireEvent.click(switcher);
+
+    const menu = screen.getByRole('menu');
+    expect(menu.className).toContain('bottom-full');
+    expect(menu.className).not.toContain('top-full');
+    expect(menu).toHaveTextContent('Home');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Home/ }));
+    await waitFor(() => expect(within(statusBar).getByRole('button', { name: 'Switch Herdr instance' })).toHaveTextContent('Home'));
   });
 
   it('folds the desktop header on a narrow fine-pointer window too', async () => {

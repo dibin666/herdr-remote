@@ -4,6 +4,7 @@ import { MobileControlSheet } from './MobileControlSheet';
 import { describeConnection } from '../utils/connectionStatus';
 import { cn } from '../utils/cn';
 import { GLYPH, Sep, StatusDot } from './tui';
+import { MobileStatusBar } from './MobileStatusBar';
 
 export interface MobileTerminalShellProps {
   onNavigateAdmin: () => void;
@@ -15,11 +16,11 @@ export interface MobileTerminalShellProps {
 }
 
 /**
- * The phone shell: one status row and a sheet holding everything else.
+ * The phone shell: a top status row, a compact persistent bottom bar, and a
+ * sheet holding everything else.
  *
- * The row is a TUI status line, not a floating pill — flat, square, the full
- * width of the screen, sitting on its own reserved terminal row so it can never
- * cover the first line of output the way an overlay did.
+ * The rows are TUI status lines, not floating pills — flat, square, full width,
+ * and sitting on reserved terminal rows so they can never cover output.
  */
 export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   onNavigateAdmin,
@@ -157,6 +158,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           </div>
         </>
       )}
+      <MobileStatusBar onAddProfile={onAddProfile} />
     </>
   );
 };
