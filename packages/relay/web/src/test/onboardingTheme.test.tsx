@@ -10,10 +10,10 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     localStorage.clear();
   });
 
-  it('defaults to the Herdr dark theme', () => {
+  it('ships no terminal color defaults, because the host owns them', () => {
     const defaults = getDefaultSettings();
-    expect(defaults.theme).toBe('dark');
-    expect(defaults.colorMode).toBe('dark');
+    expect('theme' in defaults).toBe(false);
+    expect('colorMode' in defaults).toBe(false);
   });
 
   it('renders OnboardingView on first run when no token exists', () => {
@@ -78,6 +78,6 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     );
 
     expect(screen.queryByLabelText(/Toggle theme/i)).not.toBeInTheDocument();
-    expect(loadSettings().colorMode).toBe('dark');
+    expect('colorMode' in loadSettings()).toBe(false);
   });
 });

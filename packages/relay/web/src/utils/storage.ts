@@ -2,9 +2,6 @@ import { clampFontSize, DEFAULT_DESKTOP_FONT_SIZE, DEFAULT_MOBILE_FONT_SIZE } fr
 import { Language } from '../i18n/types';
 import { ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
 
-export type AppTheme = 'claude' | 'light' | 'dark' | 'tokyonight' | 'monokai' | 'matrix';
-export type ColorMode = 'light' | 'dark' | 'system';
-
 export const DEFAULT_TERMINAL_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
@@ -23,11 +20,6 @@ export interface StoredSettings {
   // Per-window / session view states (stored in sessionStorage)
   fontSize: number;
   fontFamily: string;
-  theme: AppTheme;
-  /** Legacy persisted field; the web shell is always dark. */
-  colorMode: ColorMode;
-  cursorBlink: boolean;
-  cursorStyle: 'block' | 'underline' | 'bar';
   toolbarVisible: boolean;
   toolbarPosition: 'bottom' | 'top';
   vibrateOnKeyPress: boolean;
@@ -97,12 +89,6 @@ export function getDefaultSettings(): StoredSettings {
     autoReconnect: true,
     fontSize: isMobile ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE,
     fontFamily: DEFAULT_TERMINAL_FONT,
-    // The web shell is intentionally dark-only. `theme` controls the terminal
-    // ANSI palette, while the chrome always uses the Herdr dark palette.
-    theme: 'dark',
-    colorMode: 'dark',
-    cursorBlink: true,
-    cursorStyle: 'block',
     toolbarVisible: true,
     toolbarPosition: 'bottom',
     vibrateOnKeyPress: true,
@@ -124,10 +110,6 @@ const GLOBAL_KEYS: Array<keyof StoredSettings> = [
 const SESSION_KEYS: Array<keyof StoredSettings> = [
   'fontSize',
   'fontFamily',
-  'theme',
-  'colorMode',
-  'cursorBlink',
-  'cursorStyle',
   'toolbarVisible',
   'toolbarPosition',
   'vibrateOnKeyPress',
@@ -136,9 +118,25 @@ const SESSION_KEYS: Array<keyof StoredSettings> = [
 ];
 
 /**
+ * Terminal colors used to be a client setting. They are the host's now, so any
+ * palette an older build persisted is stripped on read and never written back.
+ */
+const LEGACY_COLOR_KEYS = ['theme', 'colorMode'] as const;
+
+function stripLegacyColorFields<T extends object>(data: T): { data: T; changed: boolean } {
+  const record = data as Record<string, unknown>;
+  const changed = LEGACY_COLOR_KEYS.some((key) => record[key] !== undefined);
+  if (!changed) return { data, changed: false };
+
+  const next: Record<string, unknown> = { ...record };
+  for (const key of LEGACY_COLOR_KEYS) delete next[key];
+  return { data: next as T, changed: true };
+}
+
+/**
  * Load merged settings:
  * 1. Global credentials come from localStorage
- * 2. View/zoom/theme settings come from sessionStorage (per-window isolation)
+ * 2. View/zoom/font settings come from sessionStorage (per-window isolation)
  * 3. Fallback: If sessionStorage is empty, seed from localStorage (or defaults),
  *    after which sessionStorage strictly takes precedence over any legacy localStorage data.
  */
@@ -155,6 +153,12 @@ export function loadSettings(): StoredSettings {
     } catch (err) {
       console.warn('Failed to parse localStorage settings:', err);
     }
+  }
+
+  const strippedLocal = stripLegacyColorFields(localData);
+  if (strippedLocal.changed) {
+    localData = strippedLocal.data;
+    safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localData));
   }
 
   // 2. Read per-window view settings from sessionStorage
@@ -198,27 +202,12 @@ export function loadSettings(): StoredSettings {
   const rawLang = localData.language ?? defaults.language;
   const language: Language = rawLang === 'zh' || rawLang === 'en' ? rawLang : detectDefaultLanguage();
 
-  const rawTheme = sessionData.theme ?? localData.theme ?? defaults.theme;
-  // Before the dark-only redesign, `claude` was the implicit light default.
-  // Migrate that legacy default, but preserve an explicit palette selected in
-  // the current UI (whose colorMode is already dark).
-  const legacyThemeWasDefault =
-    rawTheme === 'claude' &&
-    (sessionData.colorMode ?? localData.colorMode) !== 'dark';
-  const theme: AppTheme = legacyThemeWasDefault ? 'dark' : rawTheme;
-  // Interface color mode is no longer user-configurable. Always normalize old
-  // light/system values so a previous session can never re-enable a light shell.
-  const colorMode: ColorMode = 'dark';
-  if (sessionData.colorMode !== 'dark' || legacyThemeWasDefault) {
-    sessionData = {
-      ...sessionData,
-      colorMode,
-      ...(legacyThemeWasDefault ? { theme } : {}),
-    };
+  const strippedSession = stripLegacyColorFields(sessionData);
+  if (strippedSession.changed) {
+    sessionData = strippedSession.data;
     safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionData));
   }
-  const cursorBlink = sessionData.cursorBlink ?? localData.cursorBlink ?? defaults.cursorBlink;
-  const cursorStyle = sessionData.cursorStyle ?? localData.cursorStyle ?? defaults.cursorStyle;
+
   const toolbarVisible = sessionData.toolbarVisible ?? localData.toolbarVisible ?? defaults.toolbarVisible;
   const toolbarPosition = sessionData.toolbarPosition ?? localData.toolbarPosition ?? defaults.toolbarPosition;
   const vibrateOnKeyPress = sessionData.vibrateOnKeyPress ?? localData.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress;
@@ -231,10 +220,6 @@ export function loadSettings(): StoredSettings {
     clientId: localData.clientId || defaults.clientId,
     fontFamily,
     fontSize,
-    theme,
-    colorMode,
-    cursorBlink,
-    cursorStyle,
     toolbarVisible,
     toolbarPosition,
     vibrateOnKeyPress,
@@ -255,13 +240,11 @@ export function loadSettings(): StoredSettings {
 /**
  * Save settings with strict per-window isolation:
  * - Credentials & global keys persist to localStorage
- * - View / zoom / font / theme / virtual-key states persist only to this window's sessionStorage
+ * - View / zoom / font / virtual-key states persist only to this window's sessionStorage
  */
 export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const current = loadSettings();
-  // Keep the legacy field for storage compatibility, but never allow callers
-  // (including stale UI code) to turn the web shell back to light/system mode.
-  const next: StoredSettings = { ...current, ...updates, colorMode: 'dark' };
+  const next: StoredSettings = { ...current, ...updates };
 
   if (updates.fontSize !== undefined) {
     next.fontSize = clampFontSize(updates.fontSize);
@@ -275,6 +258,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
       localObj = JSON.parse(rawLocal);
     } catch {}
   }
+  localObj = stripLegacyColorFields(localObj).data;
   for (const k of GLOBAL_KEYS) {
     if (next[k] !== undefined) {
       localObj[k] = next[k];

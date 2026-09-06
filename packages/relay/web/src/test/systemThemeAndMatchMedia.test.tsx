@@ -2,16 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TerminalProvider } from '../context/TerminalContext';
 import { SettingsModal } from '../components/SettingsModal';
-import {
-  resolveEffectiveColorMode,
-  resolveTerminalTheme,
-  applyDocumentTheme,
-  HERDR_DARK_BACKGROUND,
-  TERMINAL_THEMES,
-} from '../utils/theme';
-import { saveSettings, loadSettings, SESSION_STORAGE_KEY } from '../utils/storage';
+import { applyDocumentTheme, HERDR_DARK_BACKGROUND } from '../utils/theme';
+import { loadSettings, saveSettings, LOCAL_STORAGE_KEY, SESSION_STORAGE_KEY } from '../utils/storage';
 
-describe('Dark-only Herdr appearance', () => {
+describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -19,7 +13,7 @@ describe('Dark-only Herdr appearance', () => {
     document.body.className = '';
   });
 
-  it('always resolves dark without consulting the operating-system theme', () => {
+  it('applies the dark shell without ever consulting the operating-system theme', () => {
     const matchMedia = window.matchMedia;
     let queried = false;
     window.matchMedia = (() => {
@@ -27,22 +21,13 @@ describe('Dark-only Herdr appearance', () => {
       throw new Error('dark-only appearance must not query matchMedia');
     }) as typeof window.matchMedia;
 
-    expect(resolveEffectiveColorMode('light')).toBe('dark');
-    expect(resolveEffectiveColorMode('dark')).toBe('dark');
-    expect(resolveEffectiveColorMode('system')).toBe('dark');
-    expect(queried).toBe(false);
-
-    window.matchMedia = matchMedia;
-  });
-
-  it('applies dark classes and the Herdr midnight background for every input mode', () => {
     const meta = document.createElement('meta');
     meta.setAttribute('name', 'theme-color');
     document.head.appendChild(meta);
 
-    applyDocumentTheme('dark');
-    applyDocumentTheme('light');
+    applyDocumentTheme();
 
+    expect(queried).toBe(false);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(document.documentElement.classList.contains('light')).toBe(false);
     expect(document.body.classList.contains('dark')).toBe(true);
@@ -52,50 +37,49 @@ describe('Dark-only Herdr appearance', () => {
     expect(meta.getAttribute('content')).toBe(HERDR_DARK_BACKGROUND);
 
     meta.remove();
+    window.matchMedia = matchMedia;
   });
 
-  it('migrates legacy light/system storage to the dark-only defaults', () => {
+  it('drops legacy theme / colorMode values from storage instead of honoring them', () => {
     sessionStorage.setItem(
       SESSION_STORAGE_KEY,
-      JSON.stringify({ theme: 'claude', colorMode: 'light' })
+      JSON.stringify({ theme: 'claude', colorMode: 'light', fontSize: 17 })
     );
 
     const settings = loadSettings();
-    expect(settings.theme).toBe('dark');
-    expect(settings.colorMode).toBe('dark');
-    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) || '{}')).toMatchObject({
-      theme: 'dark',
-      colorMode: 'dark',
-    });
+    expect(settings.fontSize).toBe(17);
+    expect('theme' in settings).toBe(false);
+    expect('colorMode' in settings).toBe(false);
+
+    const stored = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) || '{}');
+    expect(stored.theme).toBeUndefined();
+    expect(stored.colorMode).toBeUndefined();
+    expect(stored.fontSize).toBe(17);
   });
 
-  it('uses the Herdr dark terminal palette by default', () => {
-    const resolved = resolveTerminalTheme('dark', 'dark', 'dark');
+  it('drops legacy theme / colorMode from localStorage and never writes them back', () => {
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ token: 'legacy-token', theme: 'matrix', colorMode: 'light' })
+    );
 
-    expect(resolved.resolvedThemeName).toBe('dark');
-    expect(resolved.theme).toEqual(TERMINAL_THEMES.dark);
-    expect(resolved.theme).not.toBe(TERMINAL_THEMES.dark);
-    expect(resolved.background).toBe(HERDR_DARK_BACKGROUND);
-    expect(resolved.theme.cursor).toBe('#7dd3fc');
+    const settings = loadSettings();
+    expect(settings.token).toBe('legacy-token');
+    expect('theme' in settings).toBe(false);
+    expect('colorMode' in settings).toBe(false);
+
+    const storedAfterLoad = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+    expect(storedAfterLoad.theme).toBeUndefined();
+    expect(storedAfterLoad.colorMode).toBeUndefined();
+
+    saveSettings({ fontSize: 16 });
+    const storedAfterSave = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+    expect(storedAfterSave.theme).toBeUndefined();
+    expect(storedAfterSave.colorMode).toBeUndefined();
+    expect(storedAfterSave.token).toBe('legacy-token');
   });
 
-  it('keeps explicit terminal palettes available independently of shell appearance', () => {
-    const legacyLightPalette = resolveTerminalTheme('claude', 'dark', 'dark');
-    expect(legacyLightPalette.resolvedThemeName).toBe('claude');
-    expect(legacyLightPalette.theme).toEqual(TERMINAL_THEMES.claude);
-
-    const tokyoResolved = resolveTerminalTheme('tokyonight', 'dark', 'dark');
-    expect(tokyoResolved.resolvedThemeName).toBe('tokyonight');
-    expect(tokyoResolved.theme).toEqual(TERMINAL_THEMES.tokyonight);
-
-    const lightResolved = resolveTerminalTheme('light', 'dark', 'dark');
-    expect(lightResolved.resolvedThemeName).toBe('light');
-    expect(lightResolved.theme).toEqual(TERMINAL_THEMES.light);
-  });
-
-  it('removes interface appearance controls and normalizes legacy settings to dark', () => {
-    saveSettings({ colorMode: 'light', theme: 'claude' });
-
+  it('exposes no appearance or palette controls in settings', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
@@ -105,7 +89,6 @@ describe('Dark-only Herdr appearance', () => {
     expect(screen.queryByText(/^Light$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^System$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Appearance Mode/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Terminal Palette/i).length).toBeGreaterThan(0);
-    expect(loadSettings().colorMode).toBe('dark');
+    expect(screen.queryByText(/Terminal Palette/i)).not.toBeInTheDocument();
   });
 });

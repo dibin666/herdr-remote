@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { App } from '../App';
@@ -6,9 +8,9 @@ import { SettingsModal } from '../components/SettingsModal';
 import { PairingModal } from '../components/PairingModal';
 import { ToastContainer } from '../components/ToastContainer';
 import { saveSettings } from '../utils/storage';
-import { ANSI_COLOR_KEYS, contrastRatio, TERMINAL_THEMES, terminalMinimumContrastRatio } from '../utils/theme';
+import * as themeModule from '../utils/theme';
 
-describe('Herdr dark theme contrast', () => {
+describe('Herdr dark chrome with host-owned terminal colors', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -16,7 +18,7 @@ describe('Herdr dark theme contrast', () => {
   });
 
   it('keeps the app dark and removes the interface theme toggle', () => {
-    saveSettings({ colorMode: 'light', token: 'theme-test-token' });
+    saveSettings({ token: 'theme-test-token' });
 
     render(<App />);
 
@@ -72,28 +74,69 @@ describe('Herdr dark theme contrast', () => {
     }
   });
 
-  it('defines a complete readable ANSI palette for every built-in theme', () => {
-    for (const [name, theme] of Object.entries(TERMINAL_THEMES)) {
-      for (const key of ANSI_COLOR_KEYS) {
-        const color = theme[key];
-        expect(color, `${name}.${key}`).toMatch(/^#[0-9a-f]{6}$/i);
-      }
-
-      if (name === 'claude' || name === 'light') {
-        for (const key of ANSI_COLOR_KEYS.slice(0, 8)) {
-          expect(contrastRatio(theme[key]!, theme.background!), `${name}.${key}`).toBeGreaterThanOrEqual(4.5);
-        }
-        for (const key of ANSI_COLOR_KEYS.slice(8)) {
-          expect(contrastRatio(theme[key]!, theme.background!), `${name}.${key}`).toBeGreaterThanOrEqual(3);
-        }
-      }
-    }
+  it('ships no client-side ANSI palette or contrast remapping at all', () => {
+    // Every removed export is a color decision the client is no longer making.
+    expect('TERMINAL_THEMES' in themeModule).toBe(false);
+    expect('ANSI_COLOR_KEYS' in themeModule).toBe(false);
+    expect('resolveTerminalTheme' in themeModule).toBe(false);
+    expect('terminalMinimumContrastRatio' in themeModule).toBe(false);
+    expect('contrastRatio' in themeModule).toBe(false);
   });
 
-  it('uses xterm contrast protection only for light terminal palettes', () => {
-    expect(terminalMinimumContrastRatio('claude')).toBe(3);
-    expect(terminalMinimumContrastRatio('light')).toBe(3);
-    expect(terminalMinimumContrastRatio('dark')).toBe(1);
-    expect(terminalMinimumContrastRatio('tokyonight')).toBe(1);
+  it('never invents colors or contrast floors of its own', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../components/TerminalView.tsx'),
+      'utf-8'
+    );
+
+    expect(source).not.toMatch(/minimumContrastRatio\s*[:=]/);
+    // Not even the frame around the grid paints a color of its own.
+    expect(source).not.toMatch(/backgroundColor/);
+    // No literal color anywhere: the only palette is the one the host sent.
+    expect(source).not.toMatch(/#[0-9a-fA-F]{6}/);
+  });
+
+  it('carries the host palette to xterm verbatim, and nothing when there is none', () => {
+    expect(themeModule.hostPaletteToTheme(null)).toBeNull();
+    expect(themeModule.hostPaletteToTheme(undefined)).toBeNull();
+    expect(themeModule.hostPaletteToTheme({})).toBeNull();
+
+    const hostPalette = {
+      background: '#222226',
+      foreground: '#ffffff',
+      cursor: '#ffffff',
+      ansi: {
+        black: '#2e3436',
+        red: '#cc0000',
+        green: '#4e9a06',
+        yellow: '#c4a000',
+        blue: '#3465a4',
+        magenta: '#75507b',
+        cyan: '#06989a',
+        white: '#d3d7cf',
+        brightBlack: '#555753',
+        brightRed: '#ef2929',
+        brightGreen: '#8ae234',
+        brightYellow: '#fce94f',
+        brightBlue: '#729fcf',
+        brightMagenta: '#ad7fa8',
+        brightCyan: '#34e2e2',
+        brightWhite: '#eeeeec',
+      },
+    };
+
+    const theme = themeModule.hostPaletteToTheme(hostPalette)!;
+    expect(theme.background).toBe('#222226');
+    expect(theme.foreground).toBe('#ffffff');
+    expect(theme.cursor).toBe('#ffffff');
+    // The cursor glyph is drawn in the canvas color, as on the host.
+    expect(theme.cursorAccent).toBe('#222226');
+    expect(theme.red).toBe('#cc0000');
+    expect(theme.brightCyan).toBe('#34e2e2');
+
+    // A host that only knows its background must not gain sixteen invented colors.
+    const partial = themeModule.hostPaletteToTheme({ background: '#101014' })!;
+    expect(partial.background).toBe('#101014');
+    expect(partial.red).toBeUndefined();
   });
 });

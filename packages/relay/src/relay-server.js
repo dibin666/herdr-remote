@@ -10,7 +10,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } = require('./relay-config');
 const { AuthStore } = require('./auth-store');
 const { RelayMetrics } = require('./metrics');
-const { unpackStreamFrame, packStreamFrame } = require('./stream-frame');
+const { unpackStreamFrame, packStreamFrame, sanitizeTerminalPalette } = require('./stream-frame');
 const { isWheelOnlyInput } = require('./scroll-input');
 const { ensureDir } = require('./state');
 
@@ -412,6 +412,9 @@ class RelayServer {
           arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
           connectedAt: new Date(pending.connectedAt).toISOString(),
           connectedAtMs: pending.connectedAt,
+          // Colors are the workstation's to declare, but only in the one shape
+          // a browser renderer accepts.
+          terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
           lastSeenAt: Date.now(),
           clients: new Set(),
           controllerId: null,
@@ -534,7 +537,16 @@ class RelayServer {
         // Expose the relay-assigned connection id so clients can distinguish
         // their own controller lease from another device's lease. The browser
         // supplied clientId identifies a device, not this live WebSocket.
-        jsonSend(ws, { type: 'ready', role: client.role, controllerId: host.controllerId, hostId: host.id, clientId: client.id });
+        jsonSend(ws, {
+          type: 'ready',
+          role: client.role,
+          controllerId: host.controllerId,
+          hostId: host.id,
+          clientId: client.id,
+          // Delivered with `ready`, before the first PTY byte, so the terminal
+          // is painted in the host's colors from its very first frame.
+          terminalPalette: host.terminalPalette || null,
+        });
         jsonSend(host.ws, { type: 'session_start', clientId: client.id, streamId: client.id, cols: client.cols, rows: client.rows, role: client.role });
         this.broadcastControlState(host);
         return;

@@ -1,0 +1,168 @@
+name: relay image
+
+# Builds the herdr-remote-relay container image and publishes it to the GitHub
+# Container Registry attached to this repository. Because the repository is
+# private, the published package is private too: pulling it needs a token with
+# `read:packages`.
+#
+# Versioning: image versions are tracked with `relay-v*` git tags, not with the
+# workflow run number, so the sequence survives re-runs, workflow edits and
+# repository transfers. The first successful publish is 0.1.0; every later run
+# bumps the patch component.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Explicit version to publish (e.g. 0.2.0). Leave empty to auto-increment the patch."
+        required: false
+        type: string
+
+# Two concurrent runs would compute the same next version and race to push the
+# same tag. Queue them instead, and never cancel a run that may already have
+# pushed an image.
+concurrency:
+  group: relay-image
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/herdr-remote-relay
+
+jobs:
+  test:
+    name: relay tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # --ignore-scripts keeps the CLI workspace's native node-pty dependency
+      # from being compiled: the relay test suite does not need it.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Relay unit tests
+        run: npm test -w herdr-remote-relay
+
+      - name: Web unit tests
+        run: npm test -w herdr-remote-web
+
+  publish:
+    name: build and publish
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the relay-v* version tag
+      packages: write # push the image to ghcr.io
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # version history lives in the tags
+          fetch-tags: true
+
+      - name: Resolve next version
+        id: version
+        run: |
+          set -euo pipefail
+
+          requested="${{ inputs.version }}"
+          if [ -n "$requested" ]; then
+            if ! printf '%s' "$requested" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::requested version '$requested' is not MAJOR.MINOR.PATCH"
+              exit 1
+            fi
+            if git rev-parse -q --verify "refs/tags/relay-v$requested" >/dev/null; then
+              echo "::error::relay-v$requested already exists"
+              exit 1
+            fi
+            version="$requested"
+          else
+            # sort -V orders 0.1.9 before 0.1.10, which plain sort does not.
+            latest="$(git tag --list 'relay-v*' | sed 's/^relay-v//' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+            if [ -z "$latest" ]; then
+              version="0.1.0"
+            else
+              major="${latest%%.*}"
+              rest="${latest#*.}"
+              minor="${rest%%.*}"
+              patch="${rest#*.}"
+              version="$major.$minor.$((patch + 1))"
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          echo "Publishing relay image version $version"
+
+      # Lowercase the owner: GHCR rejects uppercase characters in image names,
+      # while GitHub usernames may contain them.
+      - name: Normalise image name
+        id: image
+        run: echo "name=$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/relay/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false # keep the package listing to real image manifests
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.version.outputs.minor }}
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=herdr-remote-relay
+            org.opencontainers.image.description=Standalone relay server for Herdr Remote
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Only tag once the image is actually in the registry, so a failed build
+      # does not burn a version number.
+      - name: Tag the published version
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "relay-v$version" -m "relay image $version"
+          git push origin "relay-v$version"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Relay image published"
+            echo
+            echo "\`${REGISTRY}/${{ steps.image.outputs.name }}:${{ steps.version.outputs.version }}\`"
+            echo
+            echo "- platforms: linux/amd64, linux/arm64"
+            echo "- also tagged: \`${{ steps.version.outputs.minor }}\`, \`latest\`, \`sha-${{ github.sha }}\`"
+            echo "- digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

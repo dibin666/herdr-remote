@@ -93,13 +93,19 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
   };
 
   return (
+    // Measured against the visible viewport, so a phone never has to scroll to
+    // reveal a dialog that `vh` sized behind the browser's own chrome.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-x-0 top-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
+      style={{ height: 'var(--app-height, 100dvh)' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="pairing-modal-title"
     >
-      <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden max-h-[90vh] flex flex-col">
+      <div
+        className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col"
+        style={{ maxHeight: 'calc(var(--app-height, 100dvh) - 2rem)' }}
+      >
         {/* Header */}
         <div className="px-5 py-4 border-b border-sand-200 dark:border-charcoal-750 flex items-center justify-between bg-sand-50 dark:bg-charcoal-900">
           <div className="flex items-center gap-2.5">

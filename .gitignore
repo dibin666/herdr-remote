@@ -12,3 +12,9 @@ packages/relay/web/dist/
 .state/
 *.log
 *.tgz
+
+# TypeScript incremental build state.
+*.tsbuildinfo
+
+# Local agent tooling caches (skill packs), not project sources.
+.agents/

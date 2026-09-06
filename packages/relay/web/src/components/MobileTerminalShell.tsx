@@ -48,7 +48,10 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   }, [isOpen, close]);
 
   useEffect(() => {
-    if (isOpen) sheetRef.current?.focus();
+    // `preventScroll`, because focusing a sheet pinned to the bottom of a phone
+    // screen otherwise asks the browser to scroll it into view — and the page
+    // visibly jumps to satisfy a request nothing needed.
+    if (isOpen) sheetRef.current?.focus({ preventScroll: true });
   }, [isOpen]);
 
   const status = describeConnection(connectionState, t);

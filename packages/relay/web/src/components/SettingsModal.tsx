@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
-import { AppTheme, DEFAULT_TERMINAL_FONT, getDefaultSettings } from '../utils/storage';
-import { FONT_PRESETS, HERDR_DARK_BACKGROUND, HERDR_LIGHT_BLUE } from '../utils/theme';
+import { getDefaultSettings } from '../utils/storage';
+import { FONT_PRESETS } from '../utils/theme';
 import {
   X,
   Settings,
   Type,
-  Palette,
-  Eye,
   RotateCcw,
   Check,
   Globe,
@@ -33,10 +31,12 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings, addToast, language, setLanguage, t } = useTerminal();
   const [activeTab, setActiveTab] = useState<'appearance' | 'virtualKeys'>('appearance');
-  const [customFont, setCustomFont] = useState(settings.fontFamily);
   const [showAddKeyPalette, setShowAddKeyPalette] = useState(false);
 
   if (!isOpen) return null;
+
+  /** A legacy/custom stack keeps its own option so the select never lies. */
+  const activeFontPreset = FONT_PRESETS.find((preset) => preset.font === settings.fontFamily);
 
   const currentVirtualKeys: ToolbarKeyDef[] =
     settings.virtualKeys && settings.virtualKeys.length > 0
@@ -48,28 +48,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     updateSettings({
       fontSize: defaults.fontSize,
       fontFamily: defaults.fontFamily,
-      theme: defaults.theme,
-      colorMode: defaults.colorMode,
-      cursorBlink: defaults.cursorBlink,
-      cursorStyle: defaults.cursorStyle,
       toolbarVisible: defaults.toolbarVisible,
       vibrateOnKeyPress: defaults.vibrateOnKeyPress,
       language: defaults.language,
       virtualKeys: defaults.virtualKeys,
     });
-    setCustomFont(defaults.fontFamily);
     addToast('info', t('settings.resetDefaultsToast'));
-  };
-
-  const handleSelectFontPreset = (font: string) => {
-    setCustomFont(font);
-    updateSettings({ fontFamily: font });
-  };
-
-  const handleResetFont = () => {
-    setCustomFont(DEFAULT_TERMINAL_FONT);
-    updateSettings({ fontFamily: DEFAULT_TERMINAL_FONT });
-    addToast('info', t('settings.fontResetToast'));
   };
 
   // Virtual keys reordering and management
@@ -118,13 +102,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   return (
+    // Sized from the visual viewport, not `vh`. On a phone `vh` is the tall
+    // viewport behind the browser's own chrome, so a dialog measured in it
+    // reaches below the visible area and the browser scrolls to compensate —
+    // which is the jump users saw the moment this panel opened.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-x-0 top-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
+      style={{ height: 'var(--app-height, 100dvh)' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-modal-title"
     >
-      <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col">
+      <div
+        className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col"
+        style={{ maxHeight: 'calc(var(--app-height, 100dvh) - 2rem)' }}
+      >
         {/* Header */}
         <div className="px-5 py-4 border-b border-sand-200 dark:border-charcoal-750 flex items-center justify-between bg-sand-50 dark:bg-charcoal-900">
           <div className="flex items-center gap-2.5">
@@ -162,7 +154,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
             )}
           >
-            <Palette className="w-3.5 h-3.5" />
+            <Type className="w-3.5 h-3.5" />
             <span>{t('settings.tabAppearance')}</span>
           </button>
           <button
@@ -218,120 +210,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Terminal ANSI Palette Themes */}
-              <div>
-                <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold mb-2">
-                  <Palette className="w-3.5 h-3.5 text-herdr-500" />
-                  <span>{t('settings.terminalPalette')}</span>
+              {/* Terminal Font Family */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="terminal-font-select"
+                  className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold"
+                >
+                  <Type className="w-3.5 h-3.5 text-herdr-500" />
+                  <span>{t('settings.fontFamilyLabel')}</span>
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {(
-                    [
-                      { id: 'claude', bg: '#faf8f5', text: '#d9643a' },
-                      { id: 'light', bg: '#ffffff', text: '#1e293b' },
-                      { id: 'dark', bg: HERDR_DARK_BACKGROUND, text: HERDR_LIGHT_BLUE },
-                      { id: 'tokyonight', bg: '#1a1b26', text: '#7aa2f7' },
-                      { id: 'monokai', bg: '#272822', text: '#a6e22e' },
-                      { id: 'matrix', bg: '#030a04', text: '#00ff41' },
-                    ] as const
-                  ).map((themeItem) => (
-                    <button
-                      key={themeItem.id}
-                      type="button"
-                      onClick={() => updateSettings({ theme: themeItem.id as AppTheme })}
-                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between h-16 ${
-                        settings.theme === themeItem.id
-                          ? 'border-herdr-500 ring-2 ring-herdr-500/40 shadow-sm'
-                          : 'border-sand-300 dark:border-charcoal-700 hover:border-sand-400'
-                      }`}
-                      style={{ backgroundColor: themeItem.bg }}
-                    >
-                      <span className="font-semibold text-[11px]" style={{ color: themeItem.text }}>
-                        {t(`themes.${themeItem.id}` as any)}
-                      </span>
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: themeItem.text }} />
-                        <span className="w-2 h-2 rounded-full bg-sand-400" />
-                      </div>
-                    </button>
+
+                <select
+                  id="terminal-font-select"
+                  value={settings.fontFamily}
+                  onChange={(e) => updateSettings({ fontFamily: e.target.value })}
+                  className="w-full bg-sand-50 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl px-3 py-2 text-xs text-charcoal-900 dark:text-charcoal-100 focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
+                  aria-label={t('settings.fontFamilyLabel')}
+                >
+                  {!activeFontPreset && (
+                    <option value={settings.fontFamily}>{settings.fontFamily}</option>
+                  )}
+                  {FONT_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.font}>
+                      {t(`fontPresets.${preset.id}` as any) || preset.name}
+                    </option>
                   ))}
-                </div>
-              </div>
+                </select>
 
-              {/* Terminal Font Family & Presets */}
-              <div className="space-y-2.5 pt-2 border-t border-sand-200 dark:border-charcoal-750">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold">
-                    <Type className="w-3.5 h-3.5 text-herdr-500" />
-                    <span>{t('settings.fontFamilyLabel')}</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleResetFont}
-                    className="text-herdr-700 dark:text-herdr-400 hover:underline text-[11px] font-medium"
-                  >
-                    {t('settings.resetFontDefault')}
-                  </button>
-                </div>
-
-                {/* Font Presets grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {FONT_PRESETS.map((preset) => {
-                    const isSelected = settings.fontFamily === preset.font;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => handleSelectFontPreset(preset.font)}
-                        className={`p-2 rounded-lg border text-left flex items-center justify-between text-xs transition-colors ${
-                          isSelected
-                            ? 'border-herdr-500 bg-herdr-50 dark:bg-herdr-950/40 text-herdr-900 dark:text-herdr-200 font-bold'
-                            : 'border-sand-300 dark:border-charcoal-700 hover:bg-sand-100 dark:hover:bg-charcoal-800 text-charcoal-700 dark:text-charcoal-300'
-                        }`}
-                      >
-                        <span className="truncate">{t(`fontPresets.${preset.id}` as any) || preset.name}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-herdr-600 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Custom Font Input */}
-                <div className="pt-1">
-                  <input
-                    type="text"
-                    value={customFont}
-                    onChange={(e) => {
-                      setCustomFont(e.target.value);
-                      updateSettings({ fontFamily: e.target.value });
-                    }}
-                    placeholder={t('settings.customFontPlaceholder')}
-                    className="w-full bg-sand-50 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl px-3 py-2 text-xs font-mono text-charcoal-900 dark:text-charcoal-100 placeholder:text-charcoal-400 focus:outline-none focus:border-herdr-500 focus:ring-1 focus:ring-herdr-500"
-                  />
-                </div>
-
-                {/* Real-time Monospace Font Preview Card */}
+                {/* Live monospace preview in the selected font */}
                 <div
-                  className="p-3 bg-sand-100 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl space-y-1"
+                  className="px-3 py-2 bg-sand-100 dark:bg-charcoal-900 border border-sand-300 dark:border-charcoal-700 rounded-xl text-charcoal-800 dark:text-charcoal-200 leading-snug overflow-x-auto whitespace-nowrap"
                   style={{ fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}
                 >
-                  <div className="text-[11px] text-charcoal-500 dark:text-charcoal-400 font-sans">
-                    {t('settings.fontPreviewLabel', { size: settings.fontSize })}
-                  </div>
-                  <div className="text-charcoal-800 dark:text-charcoal-200 leading-snug">
-                    $ echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt; !=&quot;
-                  </div>
+                  $ echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt; !=&quot;
                 </div>
               </div>
 
               {/* Font Size Slider */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold">
-                    <Type className="w-3.5 h-3.5 text-herdr-500" />
-                    <span>{t('settings.fontSizeLabel', { size: settings.fontSize })}</span>
-                  </label>
-                </div>
+                <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold mb-1.5">
+                  <Type className="w-3.5 h-3.5 text-herdr-500" />
+                  <span>{t('settings.fontSizeLabel', { size: settings.fontSize })}</span>
+                </label>
                 <input
                   type="range"
                   min={10}
@@ -346,7 +266,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <span>{t('settings.fontSizeDefault')}</span>
                   <span>{t('settings.fontSizeLarge')}</span>
                 </div>
-                <p className="text-[11px] text-herdr-700 dark:text-herdr-400 mt-1.5 leading-relaxed bg-herdr-50/70 dark:bg-herdr-950/40 p-2 rounded-lg border border-herdr-200 dark:border-herdr-800/60">
+                <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 mt-1.5 leading-relaxed">
                   {t('settings.mobileFontNote')}
                 </p>
                 <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 mt-1 leading-relaxed">
@@ -354,49 +274,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </p>
               </div>
 
-              {/* Cursor Style */}
-              <div>
-                <label className="flex items-center gap-1.5 text-charcoal-800 dark:text-charcoal-200 font-semibold mb-2">
-                  <Eye className="w-3.5 h-3.5 text-herdr-500" />
-                  <span>{t('settings.cursorStyleLabel')}</span>
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['block', 'underline', 'bar'] as const).map((style) => (
-                    <button
-                      key={style}
-                      type="button"
-                      onClick={() => updateSettings({ cursorStyle: style })}
-                      className={`py-2 px-3 rounded-xl border font-mono capitalize transition-all text-xs ${
-                        settings.cursorStyle === style
-                          ? 'bg-herdr-50 dark:bg-herdr-950/60 border-herdr-500 text-herdr-700 dark:text-herdr-300 ring-1 ring-herdr-500 font-bold'
-                          : 'bg-sand-50 dark:bg-charcoal-900 border-sand-300 dark:border-charcoal-700 text-charcoal-700 dark:text-charcoal-300 hover:border-sand-400'
-                      }`}
-                    >
-                      {style}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Toggle Options */}
               <div className="space-y-3 pt-2 border-t border-sand-200 dark:border-charcoal-750">
-                {/* Cursor Blink */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-charcoal-800 dark:text-charcoal-200 font-medium block">{t('settings.cursorBlink')}</span>
-                    <span className="text-[11px] text-charcoal-500 dark:text-charcoal-400">{t('settings.cursorBlinkDesc')}</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.cursorBlink}
-                      onChange={(e) => updateSettings({ cursorBlink: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-sand-300 dark:bg-charcoal-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-herdr-700"></div>
-                  </label>
-                </div>
-
                 {/* Key Toolbar */}
                 <div className="flex items-center justify-between">
                   <div>
@@ -431,6 +310,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </label>
                 </div>
               </div>
+
+              {/* Colors are the host's, not ours */}
+              <p className="text-[11px] text-charcoal-500 dark:text-charcoal-400 leading-relaxed pt-2 border-t border-sand-200 dark:border-charcoal-750">
+                {t('settings.colorPassthroughNote')}
+              </p>
             </>
           )}
 

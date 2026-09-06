@@ -42,11 +42,11 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     const zhText = translate('zh', 'toasts.clientIdCopied', { id: 'client-alpha' });
     expect(zhText).toBe('客户端 ID 已复制: client-alpha');
 
-    const previewZh = translate('zh', 'settings.fontPreviewLabel', { size: 14 });
-    expect(previewZh).toBe('字体效果实时预览 (14px)：');
+    const sizeZh = translate('zh', 'settings.fontSizeLabel', { size: 14 });
+    expect(sizeZh).toBe('终端字号 / 缩放 (14px)');
 
-    const previewEn = translate('en', 'settings.fontPreviewLabel', { size: 14 });
-    expect(previewEn).toBe('Font Preview (14px):');
+    const sizeEn = translate('en', 'settings.fontSizeLabel', { size: 14 });
+    expect(sizeEn).toBe('Terminal Text Size (14px)');
   });
 
   it('falls back to English when a key is undefined in target dictionary', () => {
@@ -407,17 +407,10 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     }
   });
 
-  it('verifies localized themes and font preset titles in en and zh', () => {
-    const themeIds = ['claude', 'light', 'dark', 'tokyonight', 'monokai', 'matrix'] as const;
-    for (const id of themeIds) {
-      const enTheme = translate('en', `themes.${id}` as any);
-      const zhTheme = translate('zh', `themes.${id}` as any);
-
-      expect(enTheme).toBeTruthy();
-      expect(zhTheme).toBeTruthy();
-      expect(enTheme).not.toBe(`themes.${id}`);
-      expect(zhTheme).not.toBe(`themes.${id}`);
-    }
+  it('verifies localized font preset titles in en and zh, with no palette copy left', () => {
+    // Palette names went away with the palettes themselves.
+    expect(translate('en', 'themes.claude' as any)).toBe('themes.claude');
+    expect(translate('zh', 'themes.matrix' as any)).toBe('themes.matrix');
 
     const presetIds = ['system', 'apple', 'windows', 'linux', 'courier', 'firacode'] as const;
     for (const id of presetIds) {
@@ -430,7 +423,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       expect(zhPreset).not.toBe(`fontPresets.${id}`);
     }
 
-    // Render SettingsModal in Chinese and check localized theme/font preset rendering
+    // Render SettingsModal in Chinese and check the localized font dropdown
     saveSettings({ language: 'zh' });
     render(
       <TerminalProvider>
@@ -438,10 +431,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText('Claude 象牙暖白 (Claude Ivory)')).toBeInTheDocument();
-    expect(screen.getByText('纯白极简 (Pure White)')).toBeInTheDocument();
-    expect(screen.getByText('Herdr 午夜蓝 (Herdr Midnight)')).toBeInTheDocument();
     expect(screen.getByText('系统默认 (推荐 / System Default)')).toBeInTheDocument();
     expect(screen.getByText('Fira Code (连字特性 / Ligatures)')).toBeInTheDocument();
+    expect(screen.queryByText('Claude 象牙暖白 (Claude Ivory)')).not.toBeInTheDocument();
   });
 });

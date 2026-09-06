@@ -1,0 +1,49 @@
+# nginx site for a self-hosted relay. Obtain the certificate first, e.g. with
+#   sudo certbot --nginx -d herdr.example.com
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name herdr.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name herdr.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/herdr.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/herdr.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+
+        # Required for /ws/host and /ws/client. Without these the browser falls
+        # back to nothing: the terminal never opens.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_set_header Host $host;
+        # The relay checks the Origin header against the request Host, and rate
+        # limits pairing per client address.
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # A terminal can sit idle for a long time between keystrokes; the
+        # default 60s would drop the session.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        # Terminal output must arrive as it is produced.
+        proxy_buffering off;
+    }
+}

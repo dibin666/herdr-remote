@@ -1,0 +1,41 @@
+# System-wide unit for a self-hosted relay.
+#
+#   sudo cp herdr-remote-relay.service /etc/systemd/system/
+#   sudo useradd --system --home /var/lib/herdr-remote-relay --create-home herdr-relay
+#   sudo install -m 600 -o herdr-relay -g herdr-relay relay.env /etc/herdr-remote-relay.env
+#   sudo systemctl enable --now herdr-remote-relay
+
+[Unit]
+Description=Herdr Remote relay
+Documentation=https://github.com/herdr/herdr-remote
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=herdr-relay
+Group=herdr-relay
+# Tokens live here, not on the command line, where `ps` would expose them.
+EnvironmentFile=/etc/herdr-remote-relay.env
+ExecStart=/usr/bin/npx herdr-remote-relay
+Restart=always
+RestartSec=3
+StateDirectory=herdr-remote-relay
+WorkingDirectory=/var/lib/herdr-remote-relay
+
+# The relay reads no user files and runs no subprocesses; it only needs its own
+# state directory and a socket.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

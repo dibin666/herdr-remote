@@ -1,0 +1,26 @@
+# Keep the build context small and deterministic. Anything the Dockerfile does
+# not explicitly COPY is still worth excluding: the context is uploaded to the
+# builder in full before the first instruction runs.
+
+.git/
+.github/
+.agents/
+.android/
+node_modules/
+**/node_modules/
+
+# Build output is produced inside the image, never copied from the host.
+packages/cli/dist/
+packages/relay/web/dist/
+**/*.tsbuildinfo
+
+# Tests and docs are not part of the runtime image.
+docs/
+**/tests/
+**/src/test/
+
+.env
+.state/
+*.log
+*.tgz
+*.md

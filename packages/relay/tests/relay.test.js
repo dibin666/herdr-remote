@@ -383,3 +383,98 @@ test('a viewer may scroll its own pty stream but may not type into it', async (t
   viewer.close();
   host.close();
 });
+
+test('the workstation palette reaches the browser with ready, before any output', async (t) => {
+  // A browser cannot know what the session looks like on the workstation, so
+  // the host reports its own terminal colors and the relay hands them over in
+  // the first message a client gets — before the first PTY byte, or the
+  // terminal would repaint mid-session.
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-palette-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const ansi = {
+    black: '#2e3436',
+    red: '#cc0000',
+    green: '#4e9a06',
+    yellow: '#c4a000',
+    blue: '#3465a4',
+    magenta: '#75507b',
+    cyan: '#06989a',
+    white: '#d3d7cf',
+    brightBlack: '#555753',
+    brightRed: '#ef2929',
+    brightGreen: '#8ae234',
+    brightYellow: '#fce94f',
+    brightBlue: '#729fcf',
+    brightMagenta: '#ad7fa8',
+    brightCyan: '#34e2e2',
+    brightWhite: '#eeeeec',
+  };
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({
+    type: 'host_hello',
+    protocol: 1,
+    hostId: 'host-1',
+    token: 'host-token-123456789',
+    terminalPalette: {
+      background: '#222226',
+      foreground: '#ffffff',
+      cursor: '#ffffff',
+      // A hostile or buggy workstation cannot smuggle anything else through.
+      injected: 'url(javascript:alert(1))',
+      ansi,
+    },
+  }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'phone', cols: 80, rows: 24 }));
+
+  const palette = (await ready).value.terminalPalette;
+  assert.equal(palette.background, '#222226');
+  assert.equal(palette.foreground, '#ffffff');
+  assert.equal(palette.cursor, '#ffffff');
+  assert.deepEqual(palette.ansi, ansi);
+  assert.equal(palette.injected, undefined);
+
+  client.close();
+  host.close();
+});
+
+test('a host with no terminal to ask leaves the browser on its own defaults', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-no-palette-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({
+    type: 'host_hello',
+    protocol: 1,
+    hostId: 'host-1',
+    token: 'host-token-123456789',
+    terminalPalette: null,
+  }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'phone', cols: 80, rows: 24 }));
+
+  assert.equal((await ready).value.terminalPalette, null);
+
+  client.close();
+  host.close();
+});

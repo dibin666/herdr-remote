@@ -1,0 +1,170 @@
+/**
+ * Herdr Remote WebUI Protocol Definitions
+ * Version: Protocol 1
+ */
+
+export type ClientRole = 'controller' | 'viewer';
+
+/** The sixteen ANSI slots, exactly as the host's terminal reported them. */
+export interface HostAnsiPalette {
+  black: string;
+  red: string;
+  green: string;
+  yellow: string;
+  blue: string;
+  magenta: string;
+  cyan: string;
+  white: string;
+  brightBlack: string;
+  brightRed: string;
+  brightGreen: string;
+  brightYellow: string;
+  brightBlue: string;
+  brightMagenta: string;
+  brightCyan: string;
+  brightWhite: string;
+}
+
+/**
+ * The workstation's terminal colors, answered by the host's own emulator to
+ * the OSC 10/11/12 and OSC 4 queries. The browser renders with these instead
+ * of inventing a palette, which is what makes the web view look like the
+ * session does on the workstation.
+ */
+export interface HostTerminalPalette {
+  background?: string;
+  foreground?: string;
+  cursor?: string;
+  ansi?: HostAnsiPalette;
+}
+
+export interface ClientHelloMessage {
+  type: 'hello';
+  protocol: 1;
+  token?: string;
+  pairCode?: string;
+  clientId: string;
+  cols: number;
+  rows: number;
+}
+
+export interface ClientClaimControlMessage {
+  type: 'claim_control';
+  force?: boolean;
+}
+
+export interface ClientReleaseControlMessage {
+  type: 'release_control';
+}
+
+export interface ClientResizeMessage {
+  type: 'resize';
+  cols: number;
+  rows: number;
+}
+
+export interface ClientPingMessage {
+  type: 'ping';
+}
+
+export type ClientJsonMessage =
+  | ClientHelloMessage
+  | ClientClaimControlMessage
+  | ClientReleaseControlMessage
+  | ClientResizeMessage
+  | ClientPingMessage;
+
+export interface ServerReadyMessage {
+  type: 'ready';
+  role: ClientRole;
+  controllerId?: string;
+  hostId?: string;
+  clientId?: string;
+  terminalPalette?: HostTerminalPalette | null;
+}
+
+export interface ServerPairedMessage {
+  type: 'paired';
+  token: string;
+  deviceId?: string;
+  hostId?: string;
+  expiresAt?: number | string;
+}
+
+export interface ServerControlStateMessage {
+  type: 'control_state';
+  role: ClientRole;
+  controllerId?: string;
+}
+
+export interface ServerControlRevokedMessage {
+  type: 'control_revoked';
+  reason?: string;
+}
+
+export interface ServerSessionReadyMessage {
+  type: 'session_ready';
+  sessionId?: string;
+  [key: string]: unknown;
+}
+
+export interface ServerExitMessage {
+  type: 'exit';
+  code?: number;
+  reason?: string;
+}
+
+export interface ServerControlGrantedMessage {
+  type: 'control_granted';
+}
+
+export interface ServerControlDeniedMessage {
+  type: 'control_denied';
+  message?: string;
+}
+
+export interface ServerStatusMessage {
+  type: 'status';
+  [key: string]: unknown;
+}
+
+export interface ServerErrorMessage {
+  type: 'error';
+  code: string | number;
+  message: string;
+}
+
+export interface ServerPongMessage {
+  type: 'pong';
+}
+
+export type ServerJsonMessage =
+  | ServerReadyMessage
+  | ServerPairedMessage
+  | ServerControlStateMessage
+  | ServerControlRevokedMessage
+  | ServerSessionReadyMessage
+  | ServerExitMessage
+  | ServerControlGrantedMessage
+  | ServerControlDeniedMessage
+  | ServerStatusMessage
+  | ServerErrorMessage
+  | ServerPongMessage;
+
+export type ConnectionState =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'error';
+
+export interface ConnectionConfig {
+  wsUrl: string;
+  token?: string;
+  pairCode?: string;
+  clientId: string;
+  autoReconnect: boolean;
+  reconnectIntervalMs: number;
+  maxReconnectAttempts: number;
+  pingIntervalMs: number;
+}

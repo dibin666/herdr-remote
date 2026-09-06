@@ -65,6 +65,19 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   const [copiedClientId, setCopiedClientId] = React.useState(false);
   const status = describeConnection(connectionState, t);
 
+  /**
+   * Runs a sheet action with the pressed button already blurred.
+   *
+   * The action unmounts this sheet. A focused element disappearing mid-frame
+   * makes the browser hunt for somewhere to put focus and scroll there, which
+   * is seen as the page jumping the instant a panel opens.
+   */
+  const withoutFocusScroll = (action: () => void) => () => {
+    const focused = document.activeElement as HTMLElement | null;
+    focused?.blur?.();
+    action();
+  };
+
   const copyClientId = () => {
     navigator.clipboard.writeText(settings.clientId).then(() => {
       setCopiedClientId(true);
@@ -183,7 +196,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
 
         <button
           type="button"
-          onClick={onOpenSettings}
+          onClick={withoutFocusScroll(onOpenSettings)}
           className={cn(actionButtonClass, idleActionClass)}
           aria-label={t('mobile.settingsAria')}
         >
@@ -193,7 +206,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
 
         <button
           type="button"
-          onClick={onNavigateAdmin}
+          onClick={withoutFocusScroll(onNavigateAdmin)}
           className={cn(actionButtonClass, idleActionClass)}
           aria-label={t('mobile.adminAria')}
         >
@@ -203,7 +216,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
 
         <button
           type="button"
-          onClick={onOpenPairing}
+          onClick={withoutFocusScroll(onOpenPairing)}
           className={cn(actionButtonClass, idleActionClass)}
           aria-label={t('mobile.pairingAria')}
         >

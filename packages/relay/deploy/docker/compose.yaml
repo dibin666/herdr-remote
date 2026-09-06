@@ -1,0 +1,23 @@
+# Put your own reverse proxy (nginx, Caddy, Traefik, Cloudflare Tunnel…) in
+# front of port 8787 and terminate TLS there.
+
+services:
+  relay:
+    image: node:22-alpine
+    command: npx -y herdr-remote-relay
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      RELAY_BIND: 0.0.0.0
+      RELAY_PORT: "8787"
+      RELAY_PUBLIC_URL: https://herdr.example.com
+      # Leave empty for a public relay.
+      RELAY_PASSWORD: change-me
+      RELAY_TRUST_PROXY: "1"
+      RELAY_AUTH_STATE_FILE: /data/relay-auth.json
+    volumes:
+      - relay-state:/data
+
+volumes:
+  relay-state:

@@ -1,0 +1,19 @@
+{
+  "ui": {
+    "language": "auto"
+  },
+  "relay": {
+    "mode": "local",
+    "port": 8787,
+    "lanHost": "",
+    "publicUrl": "",
+    "remoteUrl": ""
+  },
+  "herdr": {
+    "socketPath": null,
+    "args": []
+  },
+  "keepalive": {
+    "manager": "auto"
+  }
+}

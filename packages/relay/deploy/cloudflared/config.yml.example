@@ -1,0 +1,9 @@
+# Copy this file to ~/.cloudflared/config.yml after creating a named tunnel.
+# The relay itself remains bound to 127.0.0.1.
+tunnel: YOUR_TUNNEL_UUID
+credentials-file: /home/YOUR_USER/.cloudflared/YOUR_TUNNEL_UUID.json
+
+ingress:
+  - hostname: herdr.example.com
+    service: http://127.0.0.1:8787
+  - service: http_status:404

@@ -11,6 +11,7 @@ import {
   ClientRole,
   ConnectionState,
   ConnectionConfig,
+  HostTerminalPalette,
 } from '../types/protocol';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
@@ -20,7 +21,7 @@ import {
   saveSettings,
 } from '../utils/storage';
 import { translate, Language } from '../i18n';
-import { useEffectiveColorMode, applyDocumentTheme } from '../utils/theme';
+import { applyDocumentTheme } from '../utils/theme';
 
 export interface ToastItem {
   id: string;
@@ -57,7 +58,8 @@ interface TerminalContextValue {
   rttMs: number | null;
   statusPayload: Record<string, unknown> | null;
   settings: StoredSettings;
-  effectiveColorMode: 'light' | 'dark';
+  /** The host terminal's own colors, or null when the host could not report them. */
+  hostPalette: HostTerminalPalette | null;
   terminalDimensions: { cols: number; rows: number };
   toasts: ToastItem[];
   adapter: HerdrClientAdapter | null;
@@ -109,6 +111,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [role, setRole] = useState<ClientRole>('viewer');
   const [controllerId, setControllerId] = useState<string | undefined>();
   const [hostId, setHostId] = useState<string | undefined>();
+  const [hostPalette, setHostPalette] = useState<HostTerminalPalette | null>(null);
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
@@ -117,11 +120,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     rows: 24,
   });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const effectiveColorMode = useEffectiveColorMode(settings.colorMode);
-
   useEffect(() => {
-    applyDocumentTheme(effectiveColorMode);
-  }, [effectiveColorMode]);
+    applyDocumentTheme();
+  }, []);
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -319,6 +320,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (readyMsg.clientId) {
         setAssignedClientId(readyMsg.clientId);
       }
+      // The workstation tells us what its terminal looks like; nothing here
+      // decides a color, and an absent palette leaves xterm on its defaults.
+      setHostPalette(readyMsg.terminalPalette || null);
     });
 
     newAdapter.on('roleChange', (newRole, newControllerId, newHostId, newAssignedId) => {
@@ -465,7 +469,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         rttMs,
         statusPayload,
         settings,
-        effectiveColorMode,
+        hostPalette,
         terminalDimensions,
         toasts,
         adapter,

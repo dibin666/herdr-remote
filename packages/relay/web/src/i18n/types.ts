@@ -134,22 +134,13 @@ export interface TranslationSchema {
     tabGeneral: string;
     tabAppearance: string;
     tabVirtualKeys: string;
-    terminalPalette: string;
     fontFamilyLabel: string;
-    resetFontDefault: string;
-    customFontPlaceholder: string;
-    fontPreviewLabel: string;
     fontSizeLabel: string;
     fontSizeCompact: string;
     fontSizeDefault: string;
     fontSizeLarge: string;
     mobileFontNote: string;
-    cursorStyleLabel: string;
-    cursorBlock: string;
-    cursorUnderline: string;
-    cursorBar: string;
-    cursorBlink: string;
-    cursorBlinkDesc: string;
+    colorPassthroughNote: string;
     touchKeyToolbar: string;
     touchKeyToolbarDesc: string;
     touchHaptics: string;
@@ -158,7 +149,6 @@ export interface TranslationSchema {
     languageDesc: string;
     resetDefaults: string;
     resetDefaultsToast: string;
-    fontResetToast: string;
     windowZoomSharedNote: string;
     fontSizeZoomHelp: string;
   };
@@ -397,14 +387,6 @@ export interface TranslationSchema {
     title: string;
     help: string;
     terminalInputNote: string;
-  };
-  themes: {
-    claude: string;
-    light: string;
-    dark: string;
-    tokyonight: string;
-    monokai: string;
-    matrix: string;
   };
   fontPresets: {
     system: string;

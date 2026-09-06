@@ -3,11 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
-import {
-  resolveTerminalTheme,
-  terminalMinimumContrastRatio,
-  HERDR_BANNER_ANSI,
-} from '../utils/theme';
+import { hostPaletteToTheme } from '../utils/theme';
 import { encodeStringToBytes } from '../protocol/keyEncoder';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
@@ -130,14 +126,24 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     isController,
     connectionState,
     settings,
+    hostPalette,
     sendResize,
     sendBinary,
     addToast,
     connect,
     subscribeToOutput,
     t,
-    effectiveColorMode,
   } = useTerminal();
+
+  /**
+   * The host's own terminal colors, in xterm's theme shape. Not a theme this
+   * client chose: it is what the workstation's emulator answered to the OSC
+   * color queries. Without it xterm keeps its defaults rather than inventing
+   * a palette here.
+   */
+  const hostTheme = React.useMemo(() => hostPaletteToTheme(hostPalette), [hostPalette]);
+  const hostThemeRef = useRef(hostTheme);
+  hostThemeRef.current = hostTheme;
 
   // Fresh mutable refs to avoid stale React closure bugs in event listeners
   const isControllerRef = useRef(isController);
@@ -158,13 +164,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const tRef = useRef(t);
   tRef.current = t;
 
-  const { background: themeBackground } = resolveTerminalTheme(
-    settings.theme,
-    effectiveColorMode,
-    settings.colorMode
-  );
-  const themeBackgroundRef = useRef(themeBackground);
-  themeBackgroundRef.current = themeBackground;
 
   /** Debounced, change-gated PTY resize notification. */
   const notifyResize = useCallback((cols: number, rows: number) => {
@@ -214,11 +213,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const box = measureElementBox(container, getViewportWidth(), getViewportHeight());
       if (box.width <= 0 || box.height <= 0) return;
 
-      // Full-bleed visual geometry
-      container.style.backgroundColor = themeBackgroundRef.current;
+      // Full-bleed visual geometry. Nothing here paints a color: xterm owns
+      // the canvas, so the host's background is the only background.
       frame.style.width = '100%';
       frame.style.height = '100%';
-      frame.style.backgroundColor = themeBackgroundRef.current;
       surface.style.width = '100%';
       surface.style.height = '100%';
       surface.style.transform = 'none';
@@ -346,11 +344,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     if (!containerRef.current || !surfaceRef.current) return;
 
     const container = containerRef.current;
-    const { theme: termTheme, resolvedThemeName } = resolveTerminalTheme(
-      settings.theme,
-      effectiveColorMode,
-      settings.colorMode
-    );
     const initialBox = measureElementBox(container, getViewportWidth(), getViewportHeight());
 
     // PTY geometry baseline is fixed and independent of client-local fontSize
@@ -369,18 +362,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     const initialVisualFontSize = getEffectiveTerminalFontSize(settings.fontSize, initialBox.width);
 
+    // The only palette in play is the host's, when the host could report one.
+    // There is no client theme and no `minimumContrastRatio`, so every SGR/OSC
+    // color the Herdr host emits reaches the screen unaltered.
     const term = new Terminal({
-      cursorBlink: settings.cursorBlink,
-      cursorStyle: settings.cursorStyle,
       fontSize: initialVisualFontSize,
       fontFamily: settings.fontFamily,
       lineHeight: 1.15,
-      theme: termTheme,
-      minimumContrastRatio: terminalMinimumContrastRatio(resolvedThemeName),
+      ...(hostThemeRef.current ? { theme: { ...hostThemeRef.current } } : {}),
       allowProposedApi: true,
       convertEol: true,
       scrollback: 5000,
-      drawBoldTextInBrightColors: true,
+      // `drawBoldTextInBrightColors` is deliberately not set: forcing it would
+      // be this client recoloring the host's bold text. xterm's own default
+      // stands, which is what the mainstream host emulators do as well.
       cols: initialGrid.cols,
       rows: initialGrid.rows,
       screenReaderMode: false,
@@ -441,12 +436,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     // Initial banner text
     const bannerTitle = tRef.current('terminal.bannerTitle');
     const bannerSubtitle = tRef.current('terminal.bannerSubtitle');
-    term.writeln(`${HERDR_BANNER_ANSI}  ___ ___               .___      \x1b[0m`);
-    term.writeln(`${HERDR_BANNER_ANSI} /   |   \\  ____ _______| _/______\x1b[0m   \x1b[1m${bannerTitle}\x1b[0m`);
-    term.writeln(`${HERDR_BANNER_ANSI}/    ~    \\/ __ \\\\_  __ \\ __/  ___/\x1b[0m   \x1b[2m${bannerSubtitle}\x1b[0m`);
-    term.writeln(`${HERDR_BANNER_ANSI}\\    Y    /  ___/ |  | \\/|_ \\___ \\ \x1b[0m`);
-    term.writeln(`${HERDR_BANNER_ANSI} \\___|_  / \\___  >|__|  /___/____  >\x1b[0m`);
-    term.writeln(`${HERDR_BANNER_ANSI}       \\/      \\/                \\/ \x1b[0m`);
+    term.writeln('  ___ ___               .___      ');
+    term.writeln(` /   |   \\  ____ _______| _/______   \x1b[1m${bannerTitle}\x1b[0m`);
+    term.writeln(`/    ~    \\/ __ \\\\_  __ \\ __/  ___/   \x1b[2m${bannerSubtitle}\x1b[0m`);
+    term.writeln('\\    Y    /  ___/ |  | \\/|_ \\___ \\ ');
+    term.writeln(' \\___|_  / \\___  >|__|  /___/____  >');
+    term.writeln('       \\/      \\/                \\/ ');
     term.writeln('');
 
     if (!isTouchDevice) {
@@ -776,7 +771,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     };
   }, []); // Run once on mount
 
-  // Sync visual-only settings changes (fontSize, fontFamily, theme, cursor) with live terminal instance
+  // Sync visual-only settings changes (fontSize, fontFamily) with the live terminal
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
@@ -784,24 +779,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const box = measureElementBox(containerRef.current, getViewportWidth(), getViewportHeight());
     term.options.fontSize = getEffectiveTerminalFontSize(settings.fontSize, box.width);
     term.options.fontFamily = settings.fontFamily;
-    term.options.cursorBlink = settings.cursorBlink;
-    term.options.cursorStyle = settings.cursorStyle;
-
-    const { theme: activeTheme, background: activeBg, resolvedThemeName } = resolveTerminalTheme(
-      settings.theme,
-      effectiveColorMode,
-      settings.colorMode
-    );
-    term.options.theme = { ...activeTheme };
-    term.options.minimumContrastRatio = terminalMinimumContrastRatio(resolvedThemeName);
-    themeBackgroundRef.current = activeBg;
-
-    if (containerRef.current) {
-      containerRef.current.style.backgroundColor = activeBg;
-    }
-    if (frameRef.current) {
-      frameRef.current.style.backgroundColor = activeBg;
-    }
 
     try {
       term.refresh(0, Math.max(0, term.rows - 1));
@@ -814,15 +791,19 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     // leaving the frame half-painted; the renderer needs a frame to re-measure,
     // which is what the bounded chain waits for.
     scheduleBoundedFit(10);
-  }, [
-    settings.fontSize,
-    settings.fontFamily,
-    settings.cursorBlink,
-    settings.cursorStyle,
-    settings.theme,
-    settings.colorMode,
-    effectiveColorMode,
-  ]);
+  }, [settings.fontSize, settings.fontFamily]);
+
+  // The palette arrives with `ready`, which can land after xterm is open.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || !hostTheme) return;
+    term.options.theme = { ...hostTheme };
+    try {
+      term.refresh(0, Math.max(0, term.rows - 1));
+    } catch {
+      // ignore
+    }
+  }, [hostTheme]);
 
   /**
    * Attach the live terminal as the raw output sink.
@@ -884,7 +865,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   return (
     <main
       className="flex-1 w-full min-w-0 min-h-0 overflow-hidden relative flex flex-col"
-      style={{ backgroundColor: themeBackground }}
       onContextMenu={suppressBrowserMenu}
       aria-label={t('terminal.windowAriaLabel')}
     >
@@ -896,7 +876,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           // The controller owns mobile scrolling so Android cannot leave the
           // nested absolute xterm viewport at a fixed scroll position.
           touchAction: touchInputCapable ? 'none' : 'auto',
-          backgroundColor: themeBackground,
         }}
         tabIndex={0}
         onContextMenu={suppressBrowserMenu}
@@ -910,7 +889,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            backgroundColor: themeBackground,
           }}
         >
           <div

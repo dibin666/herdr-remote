@@ -71,9 +71,12 @@ html, body {
   padding: 0;
 }
 
+/* The viewport keeps xterm's own background instead of being forced
+   transparent: xterm paints what the host asked for (its default canvas, or
+   whatever an OSC 11 from the host changes it to), and the client paints
+   nothing of its own behind the grid. */
 .xterm .xterm-viewport {
   overflow-y: scroll !important;
-  background-color: transparent !important;
 }
 
 @media (pointer: coarse) {
@@ -88,6 +91,28 @@ html, body {
   #terminal-surface .xterm .xterm-viewport {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+  }
+
+  /* A phone has no room to spare and no pointer to aim a scrollbar with: the
+     reserved gutter only stole width from the right edge. Scrolling stays,
+     the gutter goes. */
+  #terminal-surface .xterm .xterm-viewport {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: none;
+  }
+
+  #terminal-surface .xterm .xterm-viewport::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  /* A grid of whole cells almost never divides the screen exactly, and the
+     leftover used to sit entirely on the right: text ran flush into the left
+     bezel while a strip of nothing followed the last column. Splitting the
+     remainder centres the grid, so both edges get the same few pixels. */
+  #terminal-surface .xterm-screen {
+    margin-inline: auto;
   }
 }
 

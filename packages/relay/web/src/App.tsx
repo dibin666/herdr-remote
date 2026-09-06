@@ -22,7 +22,7 @@ function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
-  const { updateSettings, settings, connectionState, stateDetail, effectiveColorMode } = useTerminal();
+  const { updateSettings, settings, connectionState, stateDetail } = useTerminal();
 
   /**
    * Phones get their own shell: the terminal takes the whole screen and every
@@ -43,8 +43,8 @@ function AppContent() {
 
   // Keep the dark-only document shell in sync before/after the app mounts
   useEffect(() => {
-    applyDocumentTheme(effectiveColorMode);
-  }, [effectiveColorMode]);
+    applyDocumentTheme();
+  }, []);
 
   // Modal Escape key listener (scoped to open modals/sheets, strictly never intercepts Ctrl/Alt/Meta)
   useEffect(() => {

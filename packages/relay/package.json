@@ -1,0 +1,41 @@
+{
+  "name": "herdr-remote-relay",
+  "version": "0.2.0",
+  "description": "Standalone relay server for Herdr Remote: serves the mobile web terminal and brokers browser <-> workstation sessions",
+  "license": "MIT",
+  "keywords": [
+    "herdr",
+    "relay",
+    "terminal",
+    "websocket",
+    "remote"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "herdr-remote-relay": "./bin/herdr-remote-relay.js"
+  },
+  "main": "./src/relay-server.js",
+  "exports": {
+    ".": "./src/relay-server.js",
+    "./protocol": "./src/stream-frame.js",
+    "./config": "./src/relay-config.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "web/dist",
+    "deploy",
+    "config.example.json"
+  ],
+  "scripts": {
+    "build": "npm --prefix web run build",
+    "start": "node bin/herdr-remote-relay.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

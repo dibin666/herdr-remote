@@ -1,0 +1,14 @@
+{
+  "relay": {
+    "mode": "remote",
+    "host": "127.0.0.1",
+    "port": 8787,
+    "publicUrl": "https://herdr.example.com",
+    "trustProxy": true
+  },
+  "auth": {
+    "password": "change-me",
+    "adminToken": "replace-with-a-long-random-operator-token",
+    "stateFile": "/var/lib/herdr-remote-relay/relay-auth.json"
+  }
+}

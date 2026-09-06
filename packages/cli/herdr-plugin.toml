@@ -1,0 +1,61 @@
+id = "herdr.remote.web"
+name = "Herdr Remote Web"
+version = "0.2.0"
+min_herdr_version = "0.8.2"
+description = "Mobile-first remote access to the native Herdr TUI through a local or self-hosted relay"
+platforms = ["linux", "macos"]
+
+# No [[build]] steps: this package is installed from npm with its TUI bundle and
+# web assets already built. Herdr should never compile anything on the user's
+# machine to enable the plugin.
+
+[[startup]]
+command = ["node", "bin/herdr-remote.js", "start"]
+
+[[panes]]
+id = "config"
+title = "Herdr Remote"
+placement = "zoomed"
+command = ["node", "bin/herdr-remote.js"]
+
+[[actions]]
+id = "configure"
+title = "Configure Herdr Remote"
+contexts = ["workspace", "pane"]
+command = ["herdr", "plugin", "pane", "open", "--plugin", "herdr.remote.web", "--entrypoint", "config", "--placement", "zoomed", "--focus"]
+
+[[actions]]
+id = "start"
+title = "Start Herdr Remote"
+contexts = ["workspace", "pane"]
+command = ["node", "bin/herdr-remote.js", "start"]
+
+[[actions]]
+id = "stop"
+title = "Stop Herdr Remote"
+contexts = ["workspace", "pane"]
+command = ["node", "bin/herdr-remote.js", "stop"]
+
+[[actions]]
+id = "status"
+title = "Show Herdr Remote status"
+contexts = ["workspace", "pane"]
+command = ["node", "bin/herdr-remote.js", "status"]
+
+[[actions]]
+id = "pair"
+title = "Create a phone pairing code"
+contexts = ["workspace", "pane"]
+command = ["node", "bin/herdr-remote.js", "pair"]
+
+[[actions]]
+id = "url"
+title = "Show the Herdr Remote URL"
+contexts = ["workspace", "pane"]
+command = ["node", "bin/herdr-remote.js", "url"]
+
+[[actions]]
+id = "keepalive"
+title = "Show the Herdr Remote keep-alive status"
+contexts = ["workspace", "pane"]
+command = ["node", "bin/herdr-remote.js", "keepalive", "status"]

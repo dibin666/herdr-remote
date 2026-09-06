@@ -1,0 +1,22 @@
+{
+  "name": "herdr-remote-monorepo",
+  "version": "0.2.0",
+  "description": "Monorepo for herdr-remote (Herdr plugin + TUI) and herdr-remote-relay (standalone relay)",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "packages/relay",
+    "packages/cli",
+    "packages/relay/web"
+  ],
+  "scripts": {
+    "build": "npm run build -w herdr-remote-relay && npm run build -w herdr-remote",
+    "test": "npm run test -w herdr-remote-relay && npm run test -w herdr-remote",
+    "test:web": "npm test -w herdr-remote-web",
+    "test:all": "npm run test && npm run test:web",
+    "typecheck": "npm run typecheck -w herdr-remote-web && npm run typecheck -w herdr-remote"
+  }
+}

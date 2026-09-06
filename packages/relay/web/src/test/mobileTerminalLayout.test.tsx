@@ -127,10 +127,11 @@ describe('Mobile terminal geometry', () => {
     expect(surface.style.transform).toBe('none');
     expect(surface.style.transformOrigin).toBe('top left');
 
-    // Terminal background paints every level, so no page-coloured band can
-    // show through a rounding remainder.
-    expect(container.style.backgroundColor).toBeTruthy();
-    expect(frame.style.backgroundColor).toBe(container.style.backgroundColor);
+    // Nothing in the client paints a terminal background any more: xterm's own
+    // canvas is the only surface with a color, so the host's palette is what
+    // reaches the screen.
+    expect(container.style.backgroundColor).toBe('');
+    expect(frame.style.backgroundColor).toBe('');
   });
 
   it('derives the grid from the measured mobile box at a legible font size', async () => {

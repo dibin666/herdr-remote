@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTerminal } from '../context/TerminalContext';
 import { Shield, ShieldAlert, ShieldCheck, Zap, LogOut, AlertTriangle } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -9,7 +10,15 @@ import { cn } from '../utils/cn';
  * (the phone sheet) the pair grows to a comfortable touch target instead.
  */
 const badgeSizeClass = (compact: boolean) =>
-  compact ? 'h-8 sm:h-9 px-2.5 text-xs' : 'h-10 px-3 text-xs';
+  compact ? 'h-8 sm:h-9 px-1.5 text-xs' : 'h-10 px-3 text-xs';
+
+/**
+ * In the header the badge is chromeless like every other control there: state
+ * is carried by the icon and its color, never by a filled pill. The phone
+ * sheet keeps the filled surfaces, where they are the only visual grouping.
+ */
+const surfaceClass = (compact: boolean, filled: string) =>
+  compact ? 'bg-transparent border-0' : filled;
 
 export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
   const {
@@ -35,7 +44,8 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
       <div
         className={cn(
           badgeSizeClass(compact),
-          'inline-flex items-center gap-1.5 rounded-full font-medium bg-sand-100 dark:bg-charcoal-800 text-charcoal-600 dark:text-charcoal-400 border border-sand-400/60 dark:border-charcoal-700'
+          'inline-flex items-center gap-1.5 rounded-full font-medium text-charcoal-600 dark:text-charcoal-400',
+          surfaceClass(compact, 'bg-sand-100 dark:bg-charcoal-800 border border-sand-400/60 dark:border-charcoal-700')
         )}
         role="status"
         aria-label={t('terminal.offlineStatusAria')}
@@ -62,11 +72,14 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
         <div
           className={cn(
             badgeSizeClass(compact),
-            'inline-flex items-center gap-1.5 rounded-full font-medium border transition-colors',
-            !compact && 'flex-1 min-w-0',
+            'inline-flex items-center gap-1.5 rounded-full font-medium transition-colors',
+            !compact && 'flex-1 min-w-0 border',
             isController
-              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
-              : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+              ? 'text-emerald-700 dark:text-emerald-300'
+              : 'text-amber-700 dark:text-amber-300',
+            isController
+              ? surfaceClass(compact, 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700')
+              : surfaceClass(compact, 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700')
           )}
           role="status"
           aria-label={isController ? t('role.controllerMode') : t('role.viewerMode')}
@@ -78,13 +91,15 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
               <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
-              <span className="font-semibold">{compact ? t('role.controlActive') : `${t('role.controlActive')} (Input active)`}</span>
+              <span className="font-semibold hidden lg:inline">
+                {compact ? t('role.controlActive') : `${t('role.controlActive')} (Input active)`}
+              </span>
             </>
           ) : (
             <>
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               <Shield className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>
+              <span className={cn(compact && 'hidden lg:inline')}>
                 {compact
                   ? t('common.viewer')
                   : isAnotherController
@@ -102,13 +117,16 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
             onClick={releaseControl}
             className={cn(
               badgeSizeClass(compact),
-              'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-medium bg-sand-100 hover:bg-sand-50 active:bg-sand-300 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 text-charcoal-700 dark:text-charcoal-200 border border-sand-400/60 dark:border-charcoal-600 transition-colors focus:outline-none focus:ring-2 focus:ring-herdr-500'
+              'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-herdr-500',
+              compact
+                ? 'bg-transparent border-0 text-charcoal-500 dark:text-charcoal-400 hover:text-charcoal-900 dark:hover:text-white'
+                : 'bg-sand-100 hover:bg-sand-50 active:bg-sand-300 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 text-charcoal-700 dark:text-charcoal-200 border border-sand-400/60 dark:border-charcoal-600 focus:ring-2'
             )}
             aria-label={t('terminal.releaseControlAria')}
             title={t('role.releaseControlTitle')}
           >
-            <LogOut className="w-3.5 h-3.5 text-charcoal-500" aria-hidden="true" />
-            <span className="hidden sm:inline">{t('role.releaseControl')}</span>
+            <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+            <span className={cn(compact ? 'hidden' : 'hidden sm:inline')}>{t('role.releaseControl')}</span>
           </button>
         ) : isAnotherController ? (
           <button
@@ -116,13 +134,16 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
             onClick={handleTakeoverClick}
             className={cn(
               badgeSizeClass(compact),
-              'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-semibold bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500'
+              'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-semibold transition-all focus:outline-none focus:ring-1 focus:ring-amber-500',
+              compact
+                ? 'bg-transparent border-0 text-amber-600 dark:text-amber-400 hover:text-amber-500'
+                : 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white shadow-sm focus:ring-2'
             )}
             aria-label={t('terminal.takeoverControlAria')}
             title={t('role.takeoverControlTitle', { controllerId: controllerId || '' })}
           >
             <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{t('role.takeoverControl')}</span>
+            <span className={cn(compact && 'hidden')}>{t('role.takeoverControl')}</span>
           </button>
         ) : (
           <button
@@ -130,26 +151,39 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
             onClick={() => claimControl(false)}
             className={cn(
               badgeSizeClass(compact),
-              'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-semibold bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-herdr-500'
+              'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-semibold transition-all focus:outline-none focus:ring-1 focus:ring-herdr-500',
+              compact
+                ? 'bg-transparent border-0 text-herdr-600 dark:text-herdr-400 hover:text-herdr-500'
+                : 'bg-herdr-700 hover:bg-herdr-800 active:bg-herdr-900 text-white shadow-sm focus:ring-2'
             )}
             aria-label={t('terminal.claimControlAria')}
             title={t('role.claimControlTitle')}
           >
             <Zap className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{t('role.claimControl')}</span>
+            <span className={cn(compact && 'hidden')}>{t('role.claimControl')}</span>
           </button>
         )}
       </div>
 
-      {/* Takeover Confirmation Modal */}
-      {showTakeoverConfirm && (
+      {/*
+       * The mobile control sheet has its own scroll container and backdrop blur.
+       * A fixed descendant of that surface is clipped to the sheet instead of
+       * the visual viewport (the confirmation dialog would start below the
+       * phone's bottom edge). Keep the dialog in document.body so fixed really
+       * means viewport-fixed, regardless of which shell opened it.
+       */}
+      {showTakeoverConfirm && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
+          className="fixed inset-x-0 top-0 z-[60] flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-sm animate-in fade-in"
+          style={{ height: 'var(--app-height, 100dvh)' }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="takeover-modal-title"
         >
-          <div className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-6 shadow-2xl max-w-sm w-full space-y-4">
+          <div
+            className="bg-paper dark:bg-charcoal-850 border border-sand-300 dark:border-charcoal-700 rounded-2xl p-6 shadow-2xl max-w-sm w-full space-y-4 overflow-y-auto"
+            style={{ maxHeight: 'calc(var(--app-height, 100dvh) - 2rem)' }}
+          >
             <div className="flex items-start gap-3">
               <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400">
                 <AlertTriangle className="w-5 h-5" />
@@ -184,7 +218,8 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
