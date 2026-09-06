@@ -3,6 +3,15 @@
   "version": "0.2.0",
   "description": "Standalone relay server for Herdr Remote: serves the mobile web terminal and brokers browser <-> workstation sessions",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dibin666/herdr-remote.git",
+    "directory": "packages/relay"
+  },
+  "homepage": "https://github.com/dibin666/herdr-remote#readme",
+  "bugs": {
+    "url": "https://github.com/dibin666/herdr-remote/issues"
+  },
   "keywords": [
     "herdr",
     "relay",
