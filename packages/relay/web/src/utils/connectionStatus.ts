@@ -7,10 +7,10 @@
 import { ConnectionState } from '../types/protocol';
 
 export interface ConnectionDescriptor {
-  /** Short label for the collapsed pill. */
+  /** Short label for the collapsed status line. */
   label: string;
-  /** Tailwind classes for the status dot. */
-  dotClass: string;
+  /** Status glyph level: `●` in a colour, or `○` for a session that is not up. */
+  level: 'ok' | 'warn' | 'bad' | 'idle';
   /** True while the session is not carrying live output. */
   needsAttention: boolean;
   /** Label for the recovery button, or undefined when there is nothing to do. */
@@ -27,33 +27,33 @@ export function describeConnection(
     case 'connected':
       return {
         label: tr('connection.live', 'Live'),
-        dotClass: 'bg-emerald-500',
+        level: 'ok',
         needsAttention: false,
       };
     case 'connecting':
       return {
         label: tr('connection.connecting', 'Connecting'),
-        dotClass: 'bg-amber-500 animate-pulse',
+        level: 'warn',
         needsAttention: true,
       };
     case 'reconnecting':
       return {
         label: tr('connection.reconnecting', 'Reconnecting'),
-        dotClass: 'bg-amber-500 animate-pulse',
+        level: 'warn',
         needsAttention: true,
         actionLabel: tr('connection.reconnectNow', 'Reconnect now'),
       };
     case 'error':
       return {
         label: tr('connection.error', 'Error'),
-        dotClass: 'bg-red-500',
+        level: 'bad',
         needsAttention: true,
         actionLabel: tr('connection.retry', 'Retry'),
       };
     default:
       return {
         label: tr('connection.offline', 'Offline'),
-        dotClass: 'bg-charcoal-400',
+        level: 'idle',
         needsAttention: true,
         actionLabel: tr('connection.connect', 'Connect'),
       };

@@ -27,7 +27,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
     expect(screen.queryByRole('button', { name: /Toggle color mode|Toggle theme/i })).not.toBeInTheDocument();
   });
 
-  it('renders Toast notifications with dark surface and semantic status classes', () => {
+  it('renders Toast notifications as TUI status lines on Herdr\'s own palette', () => {
     const ToastTrigger = () => {
       const { addToast } = useTerminal();
       return (
@@ -53,9 +53,11 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
 
     const alert = screen.getByRole('alert');
     expect(alert).toBeInTheDocument();
-    expect(alert.className).toContain('bg-paper');
-    expect(alert.className).toContain('dark:bg-charcoal-900');
-    expect(alert.className).toContain('border-emerald-300');
+    // A framed line on the panel surface, with the level carried by the left
+    // edge alone — no card, no fill, no radius.
+    expect(alert.className).toContain('bg-tui-base');
+    expect(alert.className).toContain('border-tui-border');
+    expect(alert.className).toContain('border-l-tui-ok');
   });
 
   it('renders settings and pairing dialogs on the dark surface', () => {
@@ -70,7 +72,11 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
     expect(dialogs.length).toBe(2);
 
     for (const dialog of dialogs) {
-      expect(dialog.querySelector('.bg-paper')).toBeTruthy();
+      expect(dialog.querySelector('.bg-tui-base')).toBeTruthy();
+      // Modal frames are portalled to the document and centered by the TUI
+      // shell, rather than being positioned relative to a clipped flex layer.
+      expect(dialog.parentElement).toBe(document.body);
+      expect(dialog.className).toContain('place-items-center');
     }
   });
 

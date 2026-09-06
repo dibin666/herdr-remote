@@ -207,7 +207,7 @@ describe('Panels open without moving the page', () => {
     expect(sheet.className).toContain('absolute');
     expect(sheet.className).toContain('inset-x-0');
     expect(sheet.className).toContain('bottom-0');
-    expect(sheet.className).toContain('max-h-[80%]');
+    expect(sheet.className).toContain('max-h-[85%]');
     expect(sheet.className).toContain('overflow-y-auto');
     expect(sheet.className).not.toContain('overflow-hidden');
 

@@ -1,24 +1,28 @@
 import React from 'react';
 import { useTerminal, ToastItem } from '../context/TerminalContext';
-import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { GLYPH, StatusLevel, TONE } from './tui';
 
-const TOAST_ICONS: Record<ToastItem['type'], React.ReactNode> = {
-  success: <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />,
-  warning: <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />,
-  error: <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />,
-  info: <Info className="w-4 h-4 text-herdr-600 dark:text-herdr-400 flex-shrink-0" />,
+/**
+ * Notifications, drawn the way a terminal program logs.
+ *
+ * Each one is a single line prefixed by a level glyph and coloured by that
+ * level — no icon, no card, no shadow. They stack under the header in the top
+ * right, the corner Herdr puts its own toasts in.
+ */
+
+const TOAST_TONE: Record<ToastItem['type'], StatusLevel> = {
+  success: 'ok',
+  warning: 'warn',
+  error: 'bad',
+  info: 'accent',
 };
 
-const TOAST_CLASSES: Record<ToastItem['type'], string> = {
-  success:
-    'bg-paper dark:bg-charcoal-900 border-emerald-300 dark:border-emerald-700/70 text-charcoal-800 dark:text-charcoal-100 shadow-lg shadow-emerald-950/5 dark:shadow-emerald-950/30',
-  warning:
-    'bg-paper dark:bg-charcoal-900 border-amber-300 dark:border-amber-700/70 text-charcoal-800 dark:text-charcoal-100 shadow-lg shadow-amber-950/5 dark:shadow-amber-950/30',
-  error:
-    'bg-paper dark:bg-charcoal-900 border-red-300 dark:border-red-700/70 text-charcoal-800 dark:text-charcoal-100 shadow-lg shadow-red-950/5 dark:shadow-red-950/30',
-  info:
-    'bg-paper dark:bg-charcoal-900 border-sand-300 dark:border-charcoal-700 text-charcoal-800 dark:text-charcoal-100 shadow-lg shadow-charcoal-950/5 dark:shadow-charcoal-950/30',
+const TOAST_PREFIX: Record<ToastItem['type'], string> = {
+  success: GLYPH.check,
+  warning: GLYPH.warn,
+  error: GLYPH.cross,
+  info: '›',
 };
 
 export const ToastContainer: React.FC = () => {
@@ -28,39 +32,46 @@ export const ToastContainer: React.FC = () => {
 
   return (
     <div
-      className="fixed top-14 right-3 z-50 flex flex-col gap-2 max-w-sm w-[calc(100vw-24px)] pointer-events-none"
+      className="pointer-events-none fixed right-2 top-12 z-50 flex w-[calc(100vw-16px)] max-w-sm flex-col gap-1"
       aria-live="polite"
       aria-atomic="true"
     >
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={cn(
-            'pointer-events-auto flex items-start gap-2.5 p-3 rounded-xl border backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium',
-            TOAST_CLASSES[toast.type]
-          )}
-          role="alert"
-        >
-          {TOAST_ICONS[toast.type]}
-          <div className="flex-1 leading-snug break-words">{toast.message}</div>
-          {toast.count > 1 && (
-            <span
-              className="shrink-0 rounded-full bg-sand-200 dark:bg-charcoal-800 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-charcoal-600 dark:text-charcoal-300"
-              aria-label={`×${toast.count}`}
-            >
-              ×{toast.count}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => removeToast(toast.id)}
-            className="text-charcoal-400 hover:text-charcoal-700 dark:hover:text-charcoal-200 p-0.5 rounded focus:outline-none focus:ring-1 focus:ring-herdr-500"
-            aria-label={t('common.dismissNotification')}
+      {toasts.map((toast) => {
+        const tone = TOAST_TONE[toast.type];
+        return (
+          <div
+            key={toast.id}
+            className={cn(
+              'pointer-events-auto flex items-start gap-2 border border-tui-border border-l-2 bg-tui-base px-2 py-1 text-tui',
+              TONE[tone].edgeL
+            )}
+            role="alert"
           >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      ))}
+            <span aria-hidden="true" className={cn('shrink-0 font-bold', TONE[tone].text)}>
+              {TOAST_PREFIX[toast.type]}
+            </span>
+            <div className="min-w-0 flex-1 break-words leading-snug text-tui-text">
+              {toast.message}
+            </div>
+            {toast.count > 1 && (
+              <span
+                className="shrink-0 border border-tui-border-dim px-1 text-tui-sm text-tui-muted"
+                aria-label={`×${toast.count}`}
+              >
+                ×{toast.count}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              className="tui-focusable shrink-0 select-none px-0.5 text-tui-faint transition-colors hover:text-tui-bad"
+              aria-label={t('common.dismissNotification')}
+            >
+              <span aria-hidden="true">{GLYPH.cross}</span>
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 };

@@ -83,6 +83,16 @@ interface TerminalContextValue {
   updateSettings: (partial: Partial<StoredSettings>) => void;
   addToast: (type: ToastItem['type'], message: string) => void;
   removeToast: (id: string) => void;
+  /**
+   * Announce that this client cannot type into the session.
+   *
+   * Read-only is a *mode*, not an event, but every rejected keystroke used to
+   * raise its own toast. Held keys and paste bursts turned that into a wall of
+   * notifications that kept re-arming its own dismissal timer, so the warning
+   * never left the screen while the user was still typing. This says it once
+   * per stretch of viewer role; the role badge is the standing reminder.
+   */
+  warnViewerMode: () => void;
 
   /**
    * Attach the live xterm instance as the sink for raw PTY output.
@@ -285,6 +295,21 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     dropToastRef.current(id);
   }, []);
 
+  // Armed once per stretch of viewer role: the first blocked input warns, the
+  // rest of the burst is silent. Taking control re-arms it, so the warning is
+  // available again the next time control is lost.
+  const viewerWarningArmedRef = useRef(true);
+
+  useEffect(() => {
+    if (role === 'controller') viewerWarningArmedRef.current = true;
+  }, [role]);
+
+  const warnViewerMode = useCallback(() => {
+    if (!viewerWarningArmedRef.current) return;
+    viewerWarningArmedRef.current = false;
+    addToast('warning', tRef.current('toasts.viewerModeWarning'));
+  }, [addToast]);
+
   useEffect(() => {
     const timers = toastTimersRef.current;
     return () => {
@@ -436,13 +461,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const sendKey = useCallback((rawKey: string) => {
     if (role !== 'controller') {
-      addToast('warning', tRef.current('toasts.viewerModeWarning'));
+      warnViewerMode();
       return;
     }
     if (adapterRef.current) {
       adapterRef.current.sendText(rawKey);
     }
-  }, [role, addToast]);
+  }, [role, warnViewerMode]);
 
   const sendBinary = useCallback((data: Uint8Array | ArrayBuffer) => {
     // Viewers are read-only for terminal *input*, but scrolling is not input
@@ -497,6 +522,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         updateSettings,
         addToast,
         removeToast,
+        warnViewerMode,
         subscribeToOutput,
         getPendingOutputChunkCount,
       }}

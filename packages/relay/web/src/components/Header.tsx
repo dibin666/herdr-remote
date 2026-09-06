@@ -1,31 +1,31 @@
 import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
-import { RoleControlBadge } from './RoleControlBadge';
-import {
-  Terminal as TerminalIcon,
-  Activity,
-  Settings,
-  Link2,
-  Keyboard,
-  Copy,
-  Check,
-  Globe,
-} from 'lucide-react';
 import { cn } from '../utils/cn';
 import { translate } from '../i18n';
+import { Tabs } from './tui';
 
 /**
- * Header actions are icons and nothing else: no plate, no border, no fill.
- * Only the icon color reacts to hover and to the active view, so the strip
- * reads as a row of glyphs instead of a row of boxes.
+ * The two chrome rows at the top of the window.
+ *
+ * Row one is the program and its actions; row two is the numbered tab strip.
+ * That is Herdr's own arrangement, and the reason it works is that neither row
+ * carries session *state* — the host, the client id, the latency and the
+ * control lease all live on the status line at the bottom of the screen, where
+ * a multiplexer keeps them. Splitting the two means the top of the window stays
+ * the same width at every connection state instead of reflowing every time a
+ * round-trip time appears.
+ *
+ * The actions are words, not icons: `cfg`, `link`, `cmd`. A terminal spells
+ * what it does, and a three-letter word survives translation and a 320px screen
+ * where a glyph has to be learnt.
  */
-const headerIconButtonClass =
-  'h-8 w-8 sm:h-9 sm:w-9 shrink-0 flex items-center justify-center rounded-md bg-transparent border-0 transition-colors focus:outline-none focus:ring-1 focus:ring-herdr-500';
 
-const headerIconIdleClass =
-  'text-charcoal-500 dark:text-charcoal-400 hover:text-charcoal-900 dark:hover:text-white';
+const actionClass =
+  'tui-focusable select-none border border-transparent px-1.5 text-tui uppercase transition-colors';
 
-const headerIconActiveClass = 'text-herdr-600 dark:text-herdr-400';
+const actionIdle = 'text-tui-muted hover:border-tui-border hover:text-tui-accent';
+
+const actionActive = 'border-tui-accent bg-tui-accent text-tui-crust';
 
 interface HeaderProps {
   currentView: 'terminal' | 'admin';
@@ -47,28 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleVirtualKeyboard,
   isVirtualKeyboardOpen,
 }) => {
-  const {
-    connectionState,
-    rttMs,
-    hostId,
-    settings,
-    addToast,
-    language,
-    setLanguage,
-    t,
-  } = useTerminal();
-
-  const [copiedClientId, setCopiedClientId] = React.useState(false);
-
-  const isConnected = connectionState === 'connected';
-
-  const copyClientId = () => {
-    navigator.clipboard.writeText(settings.clientId).then(() => {
-      setCopiedClientId(true);
-      addToast('info', t('toasts.clientIdCopied', { id: settings.clientId }));
-      setTimeout(() => setCopiedClientId(false), 2000);
-    });
-  };
+  const { addToast, language, setLanguage, t } = useTerminal();
 
   const toggleLanguage = () => {
     const nextLang = language === 'zh' ? 'en' : 'zh';
@@ -81,148 +60,86 @@ export const Header: React.FC<HeaderProps> = ({
     );
   };
 
+  const tabs = [
+    { id: 'terminal', label: t('header.terminalTab'), index: 1, ariaLabel: t('header.terminalTab') },
+    ...(showAdminEntry || currentView === 'admin'
+      ? [{ id: 'admin', label: t('header.adminTab'), index: 2, ariaLabel: t('header.adminTab') }]
+      : []),
+  ];
+
   return (
     <header
-      className="bg-sand-200 dark:bg-charcoal-900 border-b border-sand-400/70 dark:border-charcoal-700 px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between gap-2 sm:gap-3 select-none z-30 pt-[max(env(safe-area-inset-top,0px),0.375rem)] shadow-sm transition-colors flex-nowrap w-full overflow-x-hidden min-h-[48px]"
       role="banner"
+      className="z-30 w-full shrink-0 select-none overflow-hidden border-b border-tui-border bg-tui-mantle px-2 pt-[max(env(safe-area-inset-top,0px),0.125rem)]"
     >
       {/*
-       * Session identity comes first, in the reading position: host, client and
-       * round-trip time are one plain line of text — no chips, no plates —
-       * because they are information, not controls.
+       * One compact tab row, not a web header stacked over a nav bar. Herdr's
+       * TUI gives the program name, tabs and right-side commands one terminal
+       * row; the view below owns its own panels. Keeping these on one row also
+       * stops a narrow admin screen from spending four rows on chrome before
+       * the first useful value appears.
        */}
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 font-mono text-[11px] sm:text-xs text-charcoal-600 dark:text-charcoal-400">
-        {hostId && (
-          <>
-            <span className="truncate" title={`${t('header.hostLabel')} ${hostId}`}>
-              {t('header.hostLabel')}{' '}
-              <span className="text-herdr-700 dark:text-herdr-300 font-semibold">{hostId}</span>
-            </span>
-            <span className="text-charcoal-400/60 dark:text-charcoal-600 shrink-0" aria-hidden="true">
-              ·
-            </span>
-          </>
-        )}
+      <div className="scrollbar-none flex min-h-[var(--tui-row)] items-center gap-2 overflow-x-auto text-tui">
+        <span className="flex shrink-0 items-baseline gap-2">
+          <span className="font-bold text-tui-accent">herdr-remote</span>
+          <span className="hidden text-tui-sm text-tui-faint sm:inline">{t('header.tagline')}</span>
+        </span>
 
-        <button
-          type="button"
-          onClick={copyClientId}
-          className="flex min-w-0 items-center gap-1 bg-transparent border-0 p-0 hover:text-charcoal-900 dark:hover:text-charcoal-100 transition-colors"
-          title={t('header.copyClientIdTitle')}
-        >
-          <span className="truncate">
-            {t('header.clientIdLabel')}{' '}
-            <span className="text-charcoal-800 dark:text-charcoal-200">{settings.clientId}</span>
-          </span>
-          {copiedClientId ? (
-            <Check className="w-3 h-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <Copy className="w-3 h-3 shrink-0 text-charcoal-400" />
-          )}
-        </button>
+        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
 
-        {isConnected && rttMs !== null && (
-          <span
-            className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px]"
-            title={t('header.latencyTitle')}
-          >
-            <span
-              className={cn(
-                'w-1.5 h-1.5 rounded-full',
-                rttMs < 50 ? 'bg-emerald-500' : rttMs < 150 ? 'bg-amber-500' : 'bg-red-500'
-              )}
-            />
-            {rttMs}ms
-          </span>
-        )}
-      </div>
+        <Tabs
+          tabs={tabs}
+          activeId={currentView}
+          onSelect={(id) => onNavigate(id as 'terminal' | 'admin')}
+          ariaLabel={t('header.mainNavigationAria')}
+          className="shrink-0 gap-3"
+        />
 
-      {/* Right section: view switch, control lease and icon-only actions */}
-      <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-        <nav
-          className="flex items-center gap-0.5"
-          aria-label={t('header.mainNavigationAria')}
-        >
+        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
+
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={() => onNavigate('terminal')}
-            className={cn(
-              headerIconButtonClass,
-              currentView === 'terminal' ? headerIconActiveClass : headerIconIdleClass
-            )}
-            aria-current={currentView === 'terminal' ? 'page' : undefined}
-            title={t('header.terminalTab')}
-            aria-label={t('header.terminalTab')}
+            onClick={toggleLanguage}
+            className={cn(actionClass, actionIdle)}
+            title={t('header.languageToggleTitle')}
+            aria-label={t('header.languageToggleTitle')}
           >
-            <TerminalIcon className="w-4 h-4" aria-hidden="true" />
+            {language === 'zh' ? '中' : 'en'}
           </button>
-          {(showAdminEntry || currentView === 'admin') && (
+
+          {currentView === 'terminal' && (
             <button
               type="button"
-              onClick={() => onNavigate('admin')}
-              className={cn(
-                headerIconButtonClass,
-                currentView === 'admin' ? headerIconActiveClass : headerIconIdleClass
-              )}
-              aria-current={currentView === 'admin' ? 'page' : undefined}
-              title={t('header.adminTab')}
-              aria-label={t('header.adminTab')}
+              onClick={onToggleVirtualKeyboard}
+              className={cn(actionClass, isVirtualKeyboardOpen ? actionActive : actionIdle)}
+              title={t('header.virtualKeyboardTitle')}
+              aria-label={t('header.virtualKeyboardTitle')}
             >
-              <Activity className="w-4 h-4" aria-hidden="true" />
+              cmd
             </button>
           )}
-        </nav>
 
-        <RoleControlBadge compact />
-
-        {/* Language switch */}
-        <button
-          type="button"
-          onClick={toggleLanguage}
-          className={cn(headerIconButtonClass, headerIconIdleClass)}
-          title={t('header.languageToggleTitle')}
-          aria-label={t('header.languageToggleTitle')}
-        >
-          <Globe className="w-4 h-4" aria-hidden="true" />
-        </button>
-
-        {/* Soft keyboard helper */}
-        {currentView === 'terminal' && (
           <button
             type="button"
-            onClick={onToggleVirtualKeyboard}
-            className={cn(
-              headerIconButtonClass,
-              isVirtualKeyboardOpen ? headerIconActiveClass : headerIconIdleClass
-            )}
-            title={t('header.virtualKeyboardTitle')}
-            aria-label={t('header.virtualKeyboardTitle')}
+            onClick={onOpenPairing}
+            className={cn(actionClass, actionIdle)}
+            title={t('header.pairingTitle')}
+            aria-label={t('header.pairingTitle')}
           >
-            <Keyboard className="w-4 h-4" />
+            link
           </button>
-        )}
 
-        {/* Pairing */}
-        <button
-          type="button"
-          onClick={onOpenPairing}
-          className={cn(headerIconButtonClass, headerIconIdleClass)}
-          title={t('header.pairingTitle')}
-          aria-label={t('header.pairingTitle')}
-        >
-          <Link2 className="w-4 h-4" />
-        </button>
-
-        {/* Settings */}
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className={cn(headerIconButtonClass, headerIconIdleClass)}
-          title={t('header.settingsTitle')}
-          aria-label={t('header.settingsTitle')}
-        >
-          <Settings className="w-4 h-4" />
-        </button>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className={cn(actionClass, actionIdle)}
+            title={t('header.settingsTitle')}
+            aria-label={t('header.settingsTitle')}
+          >
+            cfg
+          </button>
+        </div>
       </div>
     </header>
   );

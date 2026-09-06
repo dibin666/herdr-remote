@@ -3,6 +3,7 @@ import { TranslationSchema } from './types';
 export const zh: TranslationSchema = {
   header: {
     appName: 'Herdr',
+    tagline: '远程终端客户端',
     terminalTab: '终端',
     adminTab: '管理面板',
     rttMs: '{rtt}ms',
@@ -210,6 +211,7 @@ export const zh: TranslationSchema = {
     pairingAria: '连接与配对设置',
     keybarAria: '切换触控按键条显示',
     quickInputAria: '切换快捷命令助手',
+    menu: '菜单',
   },
   terminal: {
     bannerTitle: 'Herdr Remote WebUI',
@@ -374,6 +376,9 @@ export const zh: TranslationSchema = {
     localWorkstationBadge: '本地宿主 Relay',
     modeLocal: '本地模式',
     modeRemote: '远程模式',
+    hintTabs: '切换标签页',
+    hintRefresh: '刷新状态',
+    hintBack: '返回终端',
   },
   toasts: {
     connected: '已成功连接至 Herdr 远程 Relay 服务',

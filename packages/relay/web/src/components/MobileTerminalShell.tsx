@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { MobileControlSheet } from './MobileControlSheet';
 import { describeConnection } from '../utils/connectionStatus';
-import { Sliders, Terminal as TerminalIcon } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { GLYPH, Sep, StatusDot } from './tui';
 
 export interface MobileTerminalShellProps {
   onNavigateAdmin: () => void;
@@ -13,6 +13,13 @@ export interface MobileTerminalShellProps {
   onOpenSettings: () => void;
 }
 
+/**
+ * The phone shell: one status row and a sheet holding everything else.
+ *
+ * The row is a TUI status line, not a floating pill — flat, square, the full
+ * width of the screen, sitting on its own reserved terminal row so it can never
+ * cover the first line of output the way an overlay did.
+ */
 export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   onNavigateAdmin,
   showAdminEntry = true,
@@ -62,25 +69,23 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   return (
     <>
       {/*
-       * Reserve a real top row for mobile chrome. The old pill floated over
-       * xterm's first rows, which hid Herdr's own tab/switch controls and made
-       * the top of the terminal look like two unrelated interfaces were
-       * stacked on top of each other.
+       * Reserve a real top row for mobile chrome. An overlaid pill hid xterm's
+       * first rows, which is where Herdr paints its own tab bar — the top of
+       * the screen looked like two unrelated interfaces stacked together.
        */}
       <div
         data-testid="mobile-topbar"
         role="toolbar"
         aria-label={t('mobile.sessionControls')}
-        className="pointer-events-none absolute inset-x-0 top-0 z-40 flex h-12 items-center justify-between border-b border-sand-300/80 bg-paper/95 px-3 shadow-sm backdrop-blur-md dark:border-charcoal-700/80 dark:bg-charcoal-900/95"
+        className="pointer-events-none absolute inset-x-0 top-0 z-40 flex h-12 items-center justify-between gap-2 border-b border-tui-border bg-tui-mantle px-2 text-tui"
       >
-        <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-charcoal-700 dark:text-charcoal-200">
-          <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-herdr-300 bg-herdr-100 text-herdr-600 dark:border-herdr-700 dark:bg-herdr-950 dark:text-herdr-300"
-            aria-hidden="true"
-          >
-            <TerminalIcon className="h-3.5 w-3.5" />
+        <div className="flex min-w-0 items-center gap-1.5 text-tui-sm text-tui-muted">
+          <span aria-hidden="true" className="shrink-0 font-bold text-tui-accent">
+            herdr
           </span>
-          <span className="truncate">{t('header.appName')}</span>
+          <Sep className="shrink-0" />
+          <StatusDot level={status.level} />
+          <span className="truncate uppercase">{status.label}</span>
         </div>
 
         <button
@@ -91,25 +96,21 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           className={cn(
-            'pointer-events-auto flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 shadow-md transition-colors',
-            'bg-paper dark:bg-charcoal-900',
+            'tui-focusable pointer-events-auto flex h-9 shrink-0 select-none items-center gap-1.5 border px-2 text-tui uppercase transition-colors',
             status.needsAttention
-              ? 'border-amber-400 dark:border-amber-600'
+              ? 'border-tui-warn text-tui-warn'
               : isController
-                ? 'border-sand-400/70 dark:border-charcoal-700'
-                : 'border-herdr-400 dark:border-herdr-700'
+                ? 'border-tui-border text-tui-muted'
+                : 'border-tui-accent text-tui-accent'
           )}
         >
-          <span className={cn('h-2 w-2 shrink-0 rounded-full', status.dotClass)} aria-hidden="true" />
-          {(status.needsAttention || !isController) && (
-            <span className="max-w-[9rem] truncate text-[11px] font-semibold text-charcoal-700 dark:text-charcoal-200">
-              {status.needsAttention ? status.label : t('common.viewer')}
-            </span>
+          {!isController && !status.needsAttention && (
+            <span className="max-w-[8rem] truncate">{t('common.viewer')}</span>
           )}
-          <Sliders
-            className="h-3.5 w-3.5 shrink-0 text-charcoal-500 dark:text-charcoal-400"
-            aria-hidden="true"
-          />
+          <span aria-hidden="true" className="text-tui">
+            {GLYPH.chevronDown}
+          </span>
+          <span aria-hidden="true">menu</span>
         </button>
       </div>
 
@@ -117,7 +118,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
         <>
           <div
             data-testid="mobile-sheet-scrim"
-            className="absolute inset-0 z-40 bg-charcoal-950/40"
+            className="absolute inset-0 z-40 bg-tui-crust/70"
             onClick={close}
             aria-hidden="true"
           />
@@ -129,12 +130,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
             aria-modal="true"
             aria-label={t('mobile.sessionControls')}
             tabIndex={-1}
-            className={cn(
-              'herdr-sheet absolute inset-x-0 bottom-0 z-50 max-h-[80%] overflow-y-auto',
-              'rounded-t-2xl border-t border-sand-300 bg-paper/95 shadow-2xl backdrop-blur-md',
-              'pb-3 focus:outline-none',
-              'dark:border-charcoal-700 dark:bg-charcoal-900/95'
-            )}
+            className="herdr-sheet absolute inset-x-0 bottom-0 z-50 max-h-[85%] overflow-y-auto border-t border-tui-border bg-tui-base pb-3 focus:outline-none"
           >
             <MobileControlSheet
               onClose={close}

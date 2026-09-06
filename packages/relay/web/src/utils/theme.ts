@@ -14,8 +14,13 @@ import type { HostTerminalPalette } from '../types/protocol';
  * terminal (header, modals, document background), which is dark-only.
  */
 
-/** Shell chrome color for the dark-only Herdr web UI. */
-export const HERDR_DARK_BACKGROUND = '#0b1120';
+/**
+ * Shell chrome colour for the dark-only Herdr web UI.
+ *
+ * Catppuccin Mocha's `crust`: the same base Herdr's own TUI paints itself on,
+ * so the browser client and the terminal it mirrors are the same shade of dark.
+ */
+export const HERDR_DARK_BACKGROUND = '#11111b';
 
 export const FONT_PRESETS = [
   {

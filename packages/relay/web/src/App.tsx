@@ -9,6 +9,7 @@ import { VirtualKeyboardHelper } from './components/VirtualKeyboardHelper';
 import { PairingModal } from './components/PairingModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ToastContainer } from './components/ToastContainer';
+import { SessionStatusLine } from './components/SessionStatusLine';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { MobileTerminalShell } from './components/MobileTerminalShell';
 import { observeViewportMetrics } from './utils/viewportMetrics';
@@ -209,7 +210,7 @@ function AppContent() {
             }
           : undefined
       }
-      className="flex flex-col h-full w-full bg-sand-100 dark:bg-charcoal-950 text-charcoal-900 dark:text-charcoal-100 overflow-hidden select-none transition-colors"
+      className="flex h-full w-full select-none flex-col overflow-hidden bg-tui-crust font-mono text-tui text-tui-text"
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -285,6 +286,11 @@ function AppContent() {
           />
         )}
       </div>
+
+      {/* Desktop status area: one TUI line for the live session facts. Mobile
+          keeps those facts in its reserved top row and control sheet, so this
+          does not take terminal height away from a phone. */}
+      {!isMobileShell && currentView !== 'admin' && <SessionStatusLine />}
 
       {/* Modals & Floating Overlays */}
       <PairingModal isOpen={isPairingOpen} onClose={() => setIsPairingOpen(false)} />
