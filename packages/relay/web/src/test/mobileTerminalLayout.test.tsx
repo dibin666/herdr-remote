@@ -331,12 +331,17 @@ describe('Terminal input reaches the PTY', () => {
       container.dispatchEvent(pointerEvent('pointerup', 120, 264));
     });
 
-    // 36px up over an 18px line step scrolls two lines up into older history.
-    expect(term.scrollLines).toHaveBeenCalledWith(-2);
+    // 36px of finger travel over an 18px line step moves two rows, and the
+    // content follows the finger: swiping up reveals newer output.
+    expect(term.scrollLines).toHaveBeenCalledWith(2);
     expect(term.focusCount).toBe(focusesBefore);
   });
 
-  it('uses the capture-phase touch path on Android-style touch input', async () => {
+  it('consumes the parallel touch stream so only the pointer gesture scrolls', async () => {
+    // Android Chrome delivers a full-rate pointermove stream but throttles
+    // touchmove to about one event per gesture, so the pointer stream drives
+    // scrolling. The touch stream still reaches xterm's own viewport scrolling
+    // and synthesizes a click, so it has to be swallowed rather than acted on.
     Object.defineProperty(navigator, 'maxTouchPoints', {
       configurable: true,
       value: 1,
@@ -364,18 +369,32 @@ describe('Terminal input reaches the PTY', () => {
         targetTouches: type === 'touchend' ? [] : [point(y)],
       });
     const focusesBefore = term.focusCount;
+    const touches = [
+      touchEvent('touchstart', 300),
+      touchEvent('touchmove', 264),
+      touchEvent('touchend', 264),
+    ];
 
+    // The touch stream on its own moves nothing and is cancelled...
     act(() => {
-      container.dispatchEvent(touchEvent('touchstart', 300));
-      container.dispatchEvent(touchEvent('touchmove', 264));
-      container.dispatchEvent(touchEvent('touchend', 264));
+      for (const event of touches) container.dispatchEvent(event);
+    });
+    expect(term.scrollLines).not.toHaveBeenCalled();
+    expect(touches.every((event) => event.defaultPrevented)).toBe(true);
+
+    // ...while the pointer stream for the same drag scrolls the buffer once.
+    act(() => {
+      container.dispatchEvent(pointerEvent('pointerdown', 120, 300));
+      container.dispatchEvent(pointerEvent('pointermove', 120, 264));
+      container.dispatchEvent(pointerEvent('pointerup', 120, 264));
     });
 
-    expect(term.scrollLines).toHaveBeenCalledWith(-2);
+    expect(term.scrollLines).toHaveBeenCalledTimes(1);
+    expect(term.scrollLines).toHaveBeenCalledWith(2);
     expect(term.focusCount).toBe(focusesBefore);
   });
 
-  it('focuses xterm after an Android-style touch tap, not during a swipe', async () => {
+  it('focuses xterm once for a tap that carries both a pointer and a touch stream', async () => {
     Object.defineProperty(navigator, 'maxTouchPoints', {
       configurable: true,
       value: 1,
@@ -402,8 +421,12 @@ describe('Terminal input reaches the PTY', () => {
         targetTouches: type === 'touchend' ? [] : [point(y)],
       });
 
+    // A real Android tap delivers both streams, interleaved as the browser
+    // orders them. Exactly one focus must come out of that.
     act(() => {
+      container.dispatchEvent(pointerEvent('pointerdown', 120, 300));
       container.dispatchEvent(touchEvent('touchstart', 300));
+      container.dispatchEvent(pointerEvent('pointerup', 120, 300));
       container.dispatchEvent(touchEvent('touchend', 300));
     });
 

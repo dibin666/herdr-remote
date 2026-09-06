@@ -544,22 +544,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       scrollLineHeightPx: 18,
     });
 
-    // Real touchscreens get the touch path even when they also expose
-    // PointerEvent. Some mobile WebKit/Chromium versions deliver touch events
-    // only reliably during the document capture phase, especially when the
-    // target is xterm's nested absolutely-positioned viewport. Keep one
-    // authoritative touch/pointer stream and never let it reach xterm's native
-    // focus handler before the gesture has been classified.
-    // `ontouchstart in window` is present in some desktop/jsdom environments
-    // even when the browser is delivering the gesture as PointerEvent. Use
-    // maxTouchPoints for selecting the native touch stream; the pointer path
-    // remains the compatibility path when that signal is unavailable.
-    const hasTouchInput =
-      typeof TouchEvent !== 'undefined' &&
-      typeof navigator !== 'undefined' &&
-      navigator.maxTouchPoints > 0;
-    const usePointerEvents =
-      !hasTouchInput && typeof window !== 'undefined' && 'PointerEvent' in window;
+    // The gesture is driven from PointerEvent wherever it exists. Measured on
+    // Android Chrome, one drag delivers a full-rate pointermove stream but only
+    // a single touchmove, so a touch-driven scroll threw most of the finger
+    // movement away and crawled. TouchEvent remains the fallback for engines
+    // with no PointerEvent at all.
+    const usePointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
+    const hasTouchEvents = typeof TouchEvent !== 'undefined';
     const detachInput: Array<() => void> = [];
     const eventIsInTerminal = (event: Event, allowActiveOutside = false): boolean => {
       const target = event.target;
@@ -613,6 +604,39 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         document.removeEventListener('pointerup', onPointerUp, pointerListenerOptions);
         document.removeEventListener('pointercancel', onPointerCancel, pointerListenerOptions);
       });
+
+      if (hasTouchEvents) {
+        // The pointer stream owns the gesture, but the parallel touch stream
+        // still reaches xterm, whose own touchstart/touchmove handlers scroll
+        // the nested viewport and whose synthesized click focuses the hidden
+        // textarea. Consume that stream here so only one thing moves the
+        // terminal and a history swipe cannot summon the IME.
+        const suppressNativeTouch = (e: TouchEvent) => {
+          if (!eventIsInTerminal(e, true)) return;
+          if (touchDebugEnabled) {
+            setTouchDebug((previous) => ({
+              ...previous,
+              touchEvents: previous.touchEvents + 1,
+            }));
+          }
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+        };
+        const suppressedTouchEvents = [
+          'touchstart',
+          'touchmove',
+          'touchend',
+          'touchcancel',
+        ] as const;
+        for (const name of suppressedTouchEvents) {
+          document.addEventListener(name, suppressNativeTouch, pointerListenerOptions);
+        }
+        detachInput.push(() => {
+          for (const name of suppressedTouchEvents) {
+            document.removeEventListener(name, suppressNativeTouch, pointerListenerOptions);
+          }
+        });
+      }
     } else {
       const touchListenerOptions = { passive: false, capture: true } as const;
       const markTouchEvent = (name: string) => {

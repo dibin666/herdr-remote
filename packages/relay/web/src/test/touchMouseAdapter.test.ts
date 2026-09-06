@@ -281,8 +281,19 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       const controller = makeController({ scrollLineHeightPx: 10 });
 
       controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
-      // Swipe up 30px = scroll up 3 lines into older history.
+      // The content follows the finger: swiping up 30px moves 3 rows down,
+      // towards newer output, exactly like every other mobile scroller.
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
+
+      expect(mockTerm.scrollLines).toHaveBeenCalledWith(3);
+    });
+
+    it('drags older history back into view when the finger moves down', () => {
+      mockTerm.modes.mouseTrackingMode = 'none';
+      const controller = makeController({ scrollLineHeightPx: 10 });
+
+      controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
+      controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 130 }));
 
       expect(mockTerm.scrollLines).toHaveBeenCalledWith(-3);
     });
@@ -295,10 +306,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
       expect(controller.getState()).toBe('scrolling');
-      expect(mockTerm.scrollLines).toHaveBeenCalledWith(-3);
+      expect(mockTerm.scrollLines).toHaveBeenCalledWith(3);
     });
 
-    it('replays an alternate-screen swipe as one line-mode wheel event on xterm', () => {
+    it('replays an alternate-screen swipe as one line-mode wheel event per row', () => {
       const xtermRoot = document.createElement('div');
       xtermRoot.className = 'xterm';
       mockContainer.replaceChildren(xtermRoot);
@@ -331,8 +342,11 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
-      expect(wheelEvents).toHaveLength(1);
-      expect(wheelEvents[0]).toMatchObject({ deltaY: -3, deltaMode: 1 });
+      // xterm emits one mouse report per wheel event no matter how many rows
+      // that event carries, so a 3-row swipe has to be 3 events or the agent
+      // scrolls a single line per gesture.
+      expect(wheelEvents).toHaveLength(3);
+      expect(wheelEvents.every((wheel) => wheel.deltaY === 1 && wheel.deltaMode === 1)).toBe(true);
       expect(mockTerm.scrollLines).not.toHaveBeenCalled();
     });
 
@@ -370,7 +384,8 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
       const reports = triggerMouseEvent.mock.calls as unknown as Array<[{ button: number; action: number }]>;
       expect(reports).toHaveLength(3);
-      expect(reports.every(([event]) => event.button === 4 && event.action === 0)).toBe(true);
+      // Swiping up scrolls down: CoreMouseButton.WHEEL with CoreMouseAction.DOWN.
+      expect(reports.every(([event]) => event.button === 4 && event.action === 1)).toBe(true);
       expect(mockTerm.scrollLines).not.toHaveBeenCalled();
     });
 
@@ -399,7 +414,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
-      expect(triggerDataEvent).toHaveBeenCalledWith('\u001b[A\u001b[A\u001b[A', true);
+      expect(triggerDataEvent).toHaveBeenCalledWith('\u001b[B\u001b[B\u001b[B', true);
       expect(mockTerm.scrollLines).not.toHaveBeenCalled();
     });
 
@@ -424,7 +439,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
       controller.handlePointerMove(move);
 
-      expect(mockTerm.scrollLines).toHaveBeenCalledWith(-3);
+      expect(mockTerm.scrollLines).toHaveBeenCalledWith(3);
       expect(viewport.scrollTop).toBe(500);
       expect(preventDefault).toHaveBeenCalled();
     });

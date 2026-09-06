@@ -419,6 +419,10 @@ export class TerminalPointerController {
    * mouse-enabled TUIs, cursor-key input for an alternate buffer without
    * mouse reporting, or normal-buffer scrollback. A canceled wheel is still a
    * successful delivery — xterm cancels it after forwarding it to the PTY.
+   *
+   * One event per row is deliberate. xterm emits exactly one mouse report per
+   * wheel event regardless of how many rows that event carries, so a single
+   * multi-row event made a fast swipe crawl one line at a time.
    */
   private dispatchWheel(
     point: GesturePoint,
@@ -427,33 +431,40 @@ export class TerminalPointerController {
     event?: CancellableEvent
   ): boolean {
     const target = this.getWheelDispatchTarget(term);
-    if (!target || typeof WheelEvent === 'undefined') return false;
+    if (!target || typeof WheelEvent === 'undefined' || lines === 0) return false;
 
     const logical = this.getLogicalCoordinates(point.clientX, point.clientY);
-    try {
-      const wheel = new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        clientX: logical.clientX,
-        clientY: logical.clientY,
-        deltaX: 0,
-        // Line mode makes the gesture deterministic and avoids depending on
-        // the browser's pixel-to-line conversion or xterm's partial-wheel
-        // accumulator. One event carries the whole row delta.
-        deltaY: lines,
-        deltaMode: 1, // WheelEvent.DOM_DELTA_LINE
-        ctrlKey: Boolean(event?.ctrlKey),
-        altKey: Boolean(event?.altKey),
-        shiftKey: Boolean(event?.shiftKey),
-      });
-      target.dispatchEvent(wheel);
-      return true;
-    } catch {
-      // Older embedded browsers may expose WheelEvent but reject its
-      // constructor. The core-service fallback below keeps those builds
-      // usable without ever dispatching a focus-causing mousedown.
-      return false;
+    const step = lines < 0 ? -1 : 1;
+    let sent = 0;
+
+    for (let index = 0; index < Math.abs(lines); index += 1) {
+      try {
+        const wheel = new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          clientX: logical.clientX,
+          clientY: logical.clientY,
+          deltaX: 0,
+          // Line mode keeps the gesture deterministic instead of depending on
+          // the browser's pixel-to-line conversion or xterm's partial-wheel
+          // accumulator.
+          deltaY: step,
+          deltaMode: 1, // WheelEvent.DOM_DELTA_LINE
+          ctrlKey: Boolean(event?.ctrlKey),
+          altKey: Boolean(event?.altKey),
+          shiftKey: Boolean(event?.shiftKey),
+        });
+        target.dispatchEvent(wheel);
+        sent += 1;
+      } catch {
+        // Older embedded browsers may expose WheelEvent but reject its
+        // constructor. The core-service fallback below keeps those builds
+        // usable without ever dispatching a focus-causing mousedown.
+        return sent > 0;
+      }
     }
+
+    return sent > 0;
   }
 
   /** Direct core fallback for xterm builds that expose no DOM wheel target. */
@@ -648,14 +659,18 @@ export class TerminalPointerController {
     this.lastX = point.clientX;
     this.lastY = point.clientY;
 
-    // Keep sub-cell movement until a whole row is available; a finger swipe
-    // upward therefore produces negative rows and reveals older output.
+    // Sub-cell movement is carried over until a whole row is available, so a
+    // slow drag still tracks the finger instead of being rounded away.
     const measuredCell = measureCellDimensions(term);
     const step = measuredCell.measured
       ? measuredCell.cellHeight
       : this.options.scrollLineHeightPx || measuredCell.cellHeight || 18;
     this.scrollRemainderY += deltaY;
-    const lines = Math.trunc(this.scrollRemainderY / step);
+    const rows = Math.trunc(this.scrollRemainderY / step);
+    // Direct manipulation, the way every mobile surface behaves: the content
+    // follows the finger. Dragging *down* pulls older rows into view, which is
+    // a negative row delta for xterm, and dragging up reveals newer output.
+    const lines = -rows;
     let moved = false;
     let scrollMode: ScrollMode = 'none';
     const active = this.getActiveBuffer(term);
@@ -678,7 +693,7 @@ export class TerminalPointerController {
           afterViewportY === null ||
           beforeViewportY !== afterViewportY;
       }
-      this.scrollRemainderY -= lines * step;
+      this.scrollRemainderY -= rows * step;
     }
 
     const viewport = this.getViewportElement(term);
