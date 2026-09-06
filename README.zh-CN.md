@@ -16,6 +16,7 @@ herdr-remote
 
 运行 `herdr-remote` 启动配置向导并运行后台服务。
 
+<img width="1237" height="665" alt="image" src="https://github.com/user-attachments/assets/cb57f108-d313-44b5-ac64-91a7ac95290a" />
 ---
 
 ## 包含的包
