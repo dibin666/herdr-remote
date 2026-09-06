@@ -57,6 +57,12 @@ interface TerminalContextValue {
   isController: boolean;
   rttMs: number | null;
   statusPayload: Record<string, unknown> | null;
+  /**
+   * Timestamp of the most recent successful pairing, or null if this session
+   * has not paired. Consumers watch it to leave the pairing UI: the pairing
+   * screen must not stay up once the relay has accepted the code.
+   */
+  lastPairedAt: number | null;
   settings: StoredSettings;
   /** The host terminal's own colors, or null when the host could not report them. */
   hostPalette: HostTerminalPalette | null;
@@ -115,6 +121,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
+  const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
   const [terminalDimensions, setTerminalDimensions] = useState<{ cols: number; rows: number }>({
     cols: 80,
     rows: 24,
@@ -353,13 +360,16 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       // Persist token, clear pairCode, never log token
       updateSettings({ token: payload.token, pairCode: '' });
       addToast('success', tRef.current('toasts.pairedSuccess'));
+      // Signals the UI to leave the pairing screen. A toast alone is not enough
+      // feedback: the code is single-use, so a page that still shows the input
+      // invites the user to retype a code that can no longer work.
+      setLastPairedAt(Date.now());
 
-      // Reconnect with the new token
-      newAdapter.updateConfig({ token: payload.token, pairCode: undefined });
-      newAdapter.disconnect();
-      setTimeout(() => {
-        newAdapter.connect(dimensionsRef.current);
-      }, 80);
+      // Reconnect with the new token. This has to be atomic: the previous
+      // disconnect-then-reconnect-on-a-timer left the pairing socket closing
+      // while its replacement was already connecting, and the late close event
+      // spawned a second live session (one controller, one viewer, two PTYs).
+      newAdapter.reconnectWith({ token: payload.token, pairCode: undefined });
     });
 
     newAdapter.on('exit', (code, reason) => {
@@ -468,6 +478,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         isController: role === 'controller',
         rttMs,
         statusPayload,
+        lastPairedAt,
         settings,
         hostPalette,
         terminalDimensions,

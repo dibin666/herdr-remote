@@ -38,6 +38,13 @@ const PACKAGE_ROOT = findPackageRoot(__dirname);
 //   remote — no local relay; the host connector dials an operator-run relay,
 //            which is the only way in from outside the local network.
 const ACCESS_MODES = ['local', 'lan', 'remote'];
+
+// The relay this project runs for people who do not want to host one. Offered
+// as a one-keystroke choice during setup; it is never selected automatically,
+// because routing a terminal through someone else's server has to be a
+// deliberate decision. It is a plain public relay: no join password, and each
+// workstation stays reachable only through its own host token.
+const OFFICIAL_RELAY_URL = 'wss://herdr-remote.564616.xyz';
 const LANGUAGES = ['auto', 'zh', 'en'];
 const KEEPALIVE_MANAGERS = ['auto', 'systemd', 'launchd', 'supervisor', 'none'];
 
@@ -385,6 +392,7 @@ module.exports = {
   PACKAGE_ROOT,
   DEFAULTS,
   ACCESS_MODES,
+  OFFICIAL_RELAY_URL,
   LANGUAGES,
   KEEPALIVE_MANAGERS,
   configDir,

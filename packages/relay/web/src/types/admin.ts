@@ -33,6 +33,21 @@ export interface ConnectedClientInfo {
   bytesSent?: number;
 }
 
+/**
+ * A device that completed pairing and holds a long-lived token. Served only on
+ * `/api/admin/status`, never on `/api/status`.
+ */
+export interface PairedDeviceInfo {
+  deviceId: string;
+  hostId: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: number;
+  expiresAtIso: string;
+  userAgent?: string | null;
+  lastIp?: string | null;
+}
+
 export interface HostInfo {
   id: string;
   hostname: string;
@@ -108,6 +123,8 @@ export interface AdminStatusResponse {
   clients: ConnectedClientInfo[];
   hosts: HostInfo[];
   ptys: PtyInfo[];
+  /** Operator-only roster of paired devices; absent from `/api/status`. */
+  devices?: PairedDeviceInfo[];
   throughput: ThroughputMetrics;
   cpu: CpuLoadMetrics;
   memory: MemoryMetrics;

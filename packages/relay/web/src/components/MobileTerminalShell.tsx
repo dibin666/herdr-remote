@@ -7,12 +7,15 @@ import { cn } from '../utils/cn';
 
 export interface MobileTerminalShellProps {
   onNavigateAdmin: () => void;
+  /** False on operator-facing relays; hides the dashboard shortcut. */
+  showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
 }
 
 export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   onNavigateAdmin,
+  showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
 }) => {
@@ -135,6 +138,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           >
             <MobileControlSheet
               onClose={close}
+              showAdminEntry={showAdminEntry}
               onNavigateAdmin={() => {
                 close();
                 onNavigateAdmin();

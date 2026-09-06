@@ -41,9 +41,11 @@ module.exports = {
 
   'mode.local': 'This machine only',
   'mode.lan': 'Local network / Tailscale',
+  'mode.official': 'Official relay (no server needed)',
   'mode.remote': 'Self-hosted relay',
   'mode.local.description': 'The relay listens on 127.0.0.1. Only a browser on this machine can reach it.',
   'mode.lan.description': 'The relay listens on 0.0.0.0 (every interface), so phones on your LAN or tailnet can reach it.',
+  'mode.official.description': 'Reach this machine from anywhere through the relay run by the Herdr Remote project. Nothing to deploy. Your terminal traffic passes through a server you do not control, and only devices you pair can open it.',
   'mode.remote.description': 'No local relay. The workstation dials a relay you run, which is the only way in from outside your network.',
 
   'overview.title': 'Status',

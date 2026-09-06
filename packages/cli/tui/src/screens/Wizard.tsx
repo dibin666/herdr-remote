@@ -6,6 +6,7 @@ import { FieldRow, Message, Panel, Selectable } from '../components/common.js';
 import { TextField } from '../components/TextField.js';
 import { ChoiceList } from './Relay.js';
 import {
+  OFFICIAL_RELAY_URL,
   configPath,
   keepalive,
   listReachableAddresses,
@@ -142,13 +143,42 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
       <Panel title={t('wizard.accessTitle')}>
         {header}
         <ChoiceList
-          options={['local', 'lan', 'remote'].map((mode) => ({
-            id: mode,
-            label: t(`mode.${mode}`),
-            description: t(`mode.${mode}.description`),
-          }))}
-          current={draft.relay.mode}
-          onPick={(mode) => { if (apply('mode', mode)) advance('access', stepsFor(mode as AccessMode)); }}
+          options={[
+            ...['local', 'lan'].map((mode) => ({
+              id: mode,
+              label: t(`mode.${mode}`),
+              description: t(`mode.${mode}.description`),
+            })),
+            // Offered ahead of the self-hosted option because it is the one
+            // that needs no server. It is still a separate, explicit choice:
+            // it routes the terminal through a relay this user does not own.
+            {
+              id: 'official',
+              label: t('mode.official'),
+              description: t('mode.official.description'),
+            },
+            {
+              id: 'remote',
+              label: t('mode.remote'),
+              description: t('mode.remote.description'),
+            },
+          ]}
+          current={draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL
+            ? 'official'
+            : draft.relay.mode}
+          onPick={(choice) => {
+            if (choice === 'official') {
+              // The official relay is "remote" with the address already known,
+              // so the URL question is answered and skipped. It is a public
+              // relay, so there is no join password to ask for either.
+              if (!apply('mode', 'remote')) return;
+              if (!apply('remoteUrl', OFFICIAL_RELAY_URL)) return;
+              setRelayPassword('');
+              advance('access', ['language', 'access', 'finish']);
+              return;
+            }
+            if (apply('mode', choice)) advance('access', stepsFor(choice as AccessMode));
+          }}
           onCancel={back}
         />
         <Box marginTop={1}>

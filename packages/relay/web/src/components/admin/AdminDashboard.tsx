@@ -5,6 +5,7 @@ import { StatCard } from './StatCard';
 import { MetricGauge } from './MetricGauge';
 import { ClientsTable } from './ClientsTable';
 import { PtysTable } from './PtysTable';
+import { DevicesTable } from './DevicesTable';
 import { RawStatusViewer } from './RawStatusViewer';
 import {
   Users,
@@ -50,7 +51,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isAuthError, setIsAuthError] = useState<boolean>(false);
   const [refreshInterval, setRefreshInterval] = useState<number>(3000); // 3 seconds
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys' | 'devices'>('overview');
   const [copiedPairCmd, setCopiedPairCmd] = useState(false);
 
   // Relay Operator Token for GET /api/admin/status
@@ -236,6 +237,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setLoading(false);
     }
   }, [infoLoaded, isRemoteRelay, isOperatorView, adminTokenInput, relayInfo, settings.token, t]);
+
+  /**
+   * Revoke a paired device. The relay drops the stored token hash and closes
+   * whatever sockets it still holds, so this refreshes straight afterwards to
+   * show the client disappearing rather than waiting for the poll interval.
+   */
+  const revokeDevice = useCallback(async (deviceId: string) => {
+    try {
+      const res = await fetch(`/api/admin/devices/${encodeURIComponent(deviceId)}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json', 'X-Relay-Admin-Token': adminTokenInput },
+      });
+      if (!res.ok) {
+        setError(t('admin.revokeFailed'));
+        return;
+      }
+      await fetchStatus();
+    } catch {
+      setError(t('admin.revokeFailed'));
+    }
+  }, [adminTokenInput, fetchStatus, t]);
 
   useEffect(() => {
     if (!infoLoaded) return;
@@ -666,6 +688,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <Terminal className="w-3.5 h-3.5" />
               <span>{t('admin.tabPtys', { count: data.ptys?.length || 0 })}</span>
             </button>
+            {/* The roster only exists in the operator response, so the tab only
+                exists once this dashboard is authenticated as the operator. */}
+            {data.devices && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('devices')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5',
+                  activeTab === 'devices'
+                    ? 'bg-herdr-700 text-white shadow-sm'
+                    : 'text-charcoal-600 dark:text-charcoal-400 hover:bg-sand-200 dark:hover:bg-charcoal-800'
+                )}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>{t('admin.tabDevices', { count: data.devices.length })}</span>
+              </button>
+            )}
           </div>
 
           {/* Tab: Overview */}
@@ -892,6 +931,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {activeTab === 'ptys' && (
             <div className="space-y-4">
               <PtysTable ptys={data.ptys || []} />
+            </div>
+          )}
+
+          {/* Tab: paired devices */}
+          {activeTab === 'devices' && (
+            <div className="space-y-4">
+              <DevicesTable devices={data.devices || []} onRevoke={revokeDevice} />
             </div>
           )}
         </>

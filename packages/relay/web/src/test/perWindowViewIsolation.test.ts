@@ -42,7 +42,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     sessionStorage.clear();
   });
 
-  it('genuinely isolates terminal font size, font family, and view states between two active browser sessions', () => {
+  it('seeds a new window from the last saved view settings while keeping open windows independent', () => {
     // Shared localStorage across both windows
     const sharedLocalStorage = new MemoryStorageShim();
     Object.defineProperty(window, 'localStorage', {
@@ -88,8 +88,11 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     const win2Initial = loadSettings();
     // Inherits shared credentials
     expect(win2Initial.token).toBe('shared-device-token-123');
-    // Initializes with default baseline (15px desktop)
-    expect(win2Initial.fontSize).toBe(15);
+    // A newly opened window continues from the last saved view settings rather
+    // than resetting to the defaults: closing a tab used to silently discard a
+    // chosen font size, so each visit began at 15px again.
+    expect(win2Initial.fontSize).toBe(24);
+    expect(win2Initial.fontFamily).toBe('Consolas, "Lucida Console", monospace');
 
     // Window 2 adjusts font size to 11px (compact zoom) and picks Fira Code
     saveSettings({
@@ -119,6 +122,37 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     // But Window 2 STILL retains its independent 11px font size & Fira Code stack!
     expect(win2AfterTokenUpdate.fontSize).toBe(11);
     expect(win2AfterTokenUpdate.fontFamily).toBe('"Fira Code", monospace');
+  });
+
+  it('keeps view settings after the tab is closed and reopened', () => {
+    const sharedLocalStorage = new MemoryStorageShim();
+    Object.defineProperty(window, 'localStorage', { value: sharedLocalStorage, writable: true });
+    Object.defineProperty(window, 'sessionStorage', { value: new MemoryStorageShim(), writable: true });
+
+    saveSettings({ fontSize: 22, toolbarPosition: 'top', vibrateOnKeyPress: false });
+
+    // Closing the tab takes sessionStorage with it; localStorage survives.
+    Object.defineProperty(window, 'sessionStorage', { value: new MemoryStorageShim(), writable: true });
+
+    const reopened = loadSettings();
+    expect(reopened.fontSize).toBe(22);
+    expect(reopened.toolbarPosition).toBe('top');
+    expect(reopened.vibrateOnKeyPress).toBe(false);
+  });
+
+  it('never writes the relay operator token to localStorage', () => {
+    const sharedLocalStorage = new MemoryStorageShim();
+    Object.defineProperty(window, 'localStorage', { value: sharedLocalStorage, writable: true });
+    Object.defineProperty(window, 'sessionStorage', { value: new MemoryStorageShim(), writable: true });
+
+    saveSettings({ adminToken: 'operator-secret-123456789', fontSize: 20 });
+
+    const persisted = sharedLocalStorage.getItem(LOCAL_STORAGE_KEY) || '';
+    expect(persisted).toContain('20');
+    expect(persisted).not.toContain('operator-secret-123456789');
+
+    // It still works for the tab it was typed into.
+    expect(loadSettings().adminToken).toBe('operator-secret-123456789');
   });
 
   it('ensures sessionData strictly overrides legacy localStorage view settings once session is initialized', () => {

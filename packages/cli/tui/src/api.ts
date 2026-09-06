@@ -7,6 +7,7 @@
 
 import {
   ACCESS_MODES,
+  OFFICIAL_RELAY_URL,
   bindAddress,
   configExists,
   configPath,
@@ -120,6 +121,7 @@ export function listReachableAddresses(options: { includeLoopback?: boolean; inc
 
 export {
   ACCESS_MODES,
+  OFFICIAL_RELAY_URL,
   bindAddress,
   FIELDS,
   configExists,

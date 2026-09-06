@@ -118,6 +118,19 @@ const SESSION_KEYS: Array<keyof StoredSettings> = [
 ];
 
 /**
+ * The subset of the per-window settings that is also remembered browser-wide,
+ * so a new window continues where the last one left off instead of resetting to
+ * the defaults.
+ *
+ * `adminToken` is deliberately excluded. It is the relay operator credential,
+ * and it stays in sessionStorage only: it should not outlive the tab it was
+ * typed into, and it has no business being written to disk.
+ */
+const PERSISTED_VIEW_KEYS: Array<keyof StoredSettings> = SESSION_KEYS.filter(
+  (key) => key !== 'adminToken'
+);
+
+/**
  * Terminal colors used to be a client setting. They are the host's now, so any
  * palette an older build persisted is stripped on read and never written back.
  */
@@ -280,6 +293,23 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
     }
   }
   safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionObj));
+
+  // 3. Mirror the view settings into localStorage as the browser-wide baseline.
+  //
+  // sessionStorage dies with the tab, so writing there alone meant every visit
+  // started from the built-in defaults — a font size chosen on a phone had to be
+  // chosen again on the next visit. localStorage remembers the last values
+  // saved anywhere, and a newly opened window seeds from them.
+  //
+  // The two-tier arrangement is what keeps both properties: windows already
+  // open keep their own sessionStorage overrides and are unaffected by another
+  // window's changes, while a *new* window inherits rather than resetting.
+  for (const k of PERSISTED_VIEW_KEYS) {
+    if (next[k] !== undefined) {
+      localObj[k] = next[k];
+    }
+  }
+  safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localObj));
 
   return next;
 }

@@ -22,7 +22,7 @@ function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
-  const { updateSettings, settings, connectionState, stateDetail } = useTerminal();
+  const { updateSettings, settings, connectionState, stateDetail, lastPairedAt } = useTerminal();
 
   /**
    * Phones get their own shell: the terminal takes the whole screen and every
@@ -40,6 +40,31 @@ function AppContent() {
    * keyboard so the toolbar stays reachable.
    */
   useEffect(() => observeViewportMetrics(), []);
+
+  /**
+   * Operator-facing relays serve strangers: their workstations are none of a
+   * visitor's business, so the terminal chrome offers no route into the
+   * dashboard. `/admin` still works when typed directly — this hides the
+   * signpost, it is not an access control. The real gate is RELAY_ADMIN_TOKEN,
+   * which the dashboard demands before it returns anything.
+   */
+  const [showAdminEntry, setShowAdminEntry] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/info', { headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((info) => {
+        if (cancelled || !info) return;
+        setShowAdminEntry(!info.isRemoteRelay);
+      })
+      .catch(() => {
+        // A relay too old to answer /api/info predates public deployments;
+        // leaving the entry visible matches how it behaved before.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Keep the dark-only document shell in sync before/after the app mounts
   useEffect(() => {
@@ -149,6 +174,18 @@ function AppContent() {
     if (!showOnboarding) setIsTerminalMounted(true);
   }, [showOnboarding]);
 
+  /**
+   * Pairing succeeded: put the terminal on screen and take the pairing UI down.
+   * The code has already been consumed at this point — leaving the dialog open
+   * would show a form that cannot be submitted again.
+   */
+  useEffect(() => {
+    if (!lastPairedAt) return;
+    setIsPairingOpen(false);
+    setIsTerminalMounted(true);
+    setCurrentView('terminal');
+  }, [lastPairedAt]);
+
   const isTerminalActive = currentView === 'terminal' && !showOnboarding;
 
   const layerVisibilityStyle = (visible: boolean) =>
@@ -183,6 +220,7 @@ function AppContent() {
         <Header
           currentView={currentView}
           onNavigate={handleNavigate}
+          showAdminEntry={showAdminEntry}
           onOpenPairing={() => setIsPairingOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onToggleVirtualKeyboard={() => setIsVirtualKeyboardOpen(!isVirtualKeyboardOpen)}
@@ -241,6 +279,7 @@ function AppContent() {
         {isMobileShell && isTerminalActive && (
           <MobileTerminalShell
             onNavigateAdmin={() => handleNavigate('admin')}
+            showAdminEntry={showAdminEntry}
             onOpenPairing={() => setIsPairingOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
           />

@@ -1,5 +1,10 @@
 # Herdr Remote
 
+[![herdr-remote on npm](https://img.shields.io/npm/v/herdr-remote?label=herdr-remote&color=0b7285)](https://www.npmjs.com/package/herdr-remote)
+[![herdr-remote-relay on npm](https://img.shields.io/npm/v/herdr-remote-relay?label=herdr-remote-relay&color=0b7285)](https://www.npmjs.com/package/herdr-remote-relay)
+[![node](https://img.shields.io/node/v/herdr-remote)](https://nodejs.org)
+[![license](https://img.shields.io/npm/l/herdr-remote)](./LICENSE)
+
 Use your [Herdr](https://herdr.dev) terminal workspaces from a phone or any
 browser. A mobile-first web terminal with low-latency ANSI streaming, one-time
 pairing codes, and a bilingual configuration TUI.
@@ -38,7 +43,14 @@ relay operator credential.
 |---|---|---|
 | **This machine only** *(default)* | a browser on the workstation | no |
 | **Local network / Tailscale** | phones on your LAN or tailnet | no |
+| **Official relay** | anywhere, over the internet | no — hosted at `wss://herdr-remote.564616.xyz` |
 | **Self-hosted relay** | anywhere, over the internet | yes — [guide](docs/self-hosted-relay.md) · [中文](docs/self-hosted-relay.zh-CN.md) |
+
+The official relay is offered as a choice during first-run setup, so reaching
+your workstation from outside your network needs no server of your own. It is a
+public relay: anyone may connect a workstation, and each one stays reachable
+only through its own host token. Your terminal traffic passes through a machine
+you do not control — self-host if that matters to you.
 
 Without a relay configured, the web UI is served from a local address only.
 This already covers being away from home if you run Tailscale or WireGuard.

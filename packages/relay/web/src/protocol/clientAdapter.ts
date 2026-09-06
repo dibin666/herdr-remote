@@ -146,6 +146,10 @@ export class HerdrClientAdapter {
       return;
     }
 
+    // A socket that is still CLOSING would otherwise keep its handlers alive and
+    // report its close *after* the replacement is live. Detach it now.
+    this.teardownSocket(1000, 'Replaced by a new connection');
+
     this.isManuallyClosed = false;
     this.authFailureDetail = null;
     this.clearTimers();
@@ -153,27 +157,90 @@ export class HerdrClientAdapter {
 
     try {
       const url = this.resolveWsUrl(this.config.wsUrl);
-      this.ws = new WebSocket(url);
-      this.ws.binaryType = 'arraybuffer';
+      const socket = new WebSocket(url);
+      this.ws = socket;
+      socket.binaryType = 'arraybuffer';
 
-      this.ws.onopen = this.handleOpen.bind(this);
-      this.ws.onmessage = this.handleMessage.bind(this);
-      this.ws.onerror = this.handleError.bind(this);
-      this.ws.onclose = this.handleClose.bind(this);
+      // Every handler is bound to the socket that registered it. A socket the
+      // adapter has already moved on from must never mutate adapter state: its
+      // close arrives after the replacement is connected, and acting on it used
+      // to drop `this.ws` and schedule a *second* live connection — the browser
+      // ended up holding both a controller and a viewer session at once.
+      socket.onopen = () => {
+        if (this.isStaleSocket(socket)) return;
+        this.handleOpen();
+      };
+      socket.onmessage = (event) => {
+        if (this.isStaleSocket(socket)) return;
+        void this.handleMessage(event);
+      };
+      socket.onerror = (event) => {
+        if (this.isStaleSocket(socket)) return;
+        this.handleError(event);
+      };
+      socket.onclose = (event) => {
+        if (this.isStaleSocket(socket)) return;
+        this.handleClose(event);
+      };
     } catch (err) {
       this.setState('error', err instanceof Error ? err.message : 'Connection failed');
       this.scheduleReconnect();
     }
   }
 
+  /**
+   * True when `socket` is no longer the adapter's live socket. Late events from
+   * a superseded or manually closed socket land here and are dropped.
+   */
+  private isStaleSocket(socket: WebSocket): boolean {
+    return this.ws !== socket;
+  }
+
+  /**
+   * Drop the current socket without going through `handleClose`. Handlers are
+   * cleared first so the pending close event cannot reach the adapter at all,
+   * and `this.ws` is cleared before `close()` so any handler that did survive
+   * would still see itself as stale.
+   */
+  private teardownSocket(code = 1000, reason = 'Client closed the connection'): void {
+    const socket = this.ws;
+    if (!socket) return;
+    this.ws = null;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    try {
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(code, reason);
+      }
+    } catch {
+      // A socket that refuses to close is already unusable; nothing to salvage.
+    }
+  }
+
   public disconnect(): void {
     this.isManuallyClosed = true;
     this.clearTimers();
-    if (this.ws) {
-      this.ws.close(1000, 'User initiated disconnect');
-      this.ws = null;
-    }
+    this.teardownSocket(1000, 'User initiated disconnect');
     this.setState('disconnected');
+  }
+
+  /**
+   * Swap credentials and rebuild the connection as one step.
+   *
+   * Pairing used to do this as `disconnect()` plus a delayed `connect()`, which
+   * left a window where the old socket's close could race the new socket into
+   * existence. Callers get an atomic replacement instead.
+   */
+  public reconnectWith(partialConfig: Partial<ConnectionConfig>): void {
+    this.updateConfig(partialConfig);
+    this.clearTimers();
+    this.teardownSocket(1000, 'Reconnecting with new credentials');
+    this.isManuallyClosed = false;
+    this.reconnectAttempts = 0;
+    this.authFailureDetail = null;
+    this.connect();
   }
 
   private handleOpen(): void {

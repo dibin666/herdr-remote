@@ -18,6 +18,7 @@ import { translate } from '../i18n';
 export interface MobileControlSheetProps {
   onClose: () => void;
   onNavigateAdmin: () => void;
+  showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
 }
@@ -45,6 +46,7 @@ const sectionLabelClass =
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
   onNavigateAdmin,
+  showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
 }) => {
@@ -204,15 +206,17 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           <span>{t('common.settings')}</span>
         </button>
 
-        <button
-          type="button"
-          onClick={withoutFocusScroll(onNavigateAdmin)}
-          className={cn(actionButtonClass, idleActionClass)}
-          aria-label={t('mobile.adminAria')}
-        >
-          <Activity className="h-4 w-4" />
-          <span>{t('common.admin')}</span>
-        </button>
+        {showAdminEntry && (
+          <button
+            type="button"
+            onClick={withoutFocusScroll(onNavigateAdmin)}
+            className={cn(actionButtonClass, idleActionClass)}
+            aria-label={t('mobile.adminAria')}
+          >
+            <Activity className="h-4 w-4" />
+            <span>{t('common.admin')}</span>
+          </button>
+        )}
 
         <button
           type="button"

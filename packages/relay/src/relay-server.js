@@ -311,7 +311,28 @@ class RelayServer {
         this.sendJsonResponse(res, 401, { ok: false, code: 'admin_auth_required', message: 'a valid relay admin token is required' });
         return;
       }
-      this.sendJsonResponse(res, 200, this.statusSnapshot());
+      this.sendJsonResponse(res, 200, this.statusSnapshot({ includeDevices: true }));
+      return;
+    }
+    if (requestUrl.pathname.startsWith('/api/admin/devices/') && req.method === 'DELETE') {
+      if (!this.adminToken) {
+        this.sendJsonResponse(res, 503, { ok: false, code: 'admin_not_configured', message: 'configure RELAY_ADMIN_TOKEN to access the relay dashboard' });
+        return;
+      }
+      if (!this.authorizedAdmin(req)) {
+        this.sendJsonResponse(res, 401, { ok: false, code: 'admin_auth_required', message: 'a valid relay admin token is required' });
+        return;
+      }
+      const deviceId = decodeURIComponent(requestUrl.pathname.slice('/api/admin/devices/'.length));
+      const revoked = this.auth.revokeDevice(deviceId);
+      if (!revoked) {
+        this.sendJsonResponse(res, 404, { ok: false, code: 'device_not_found', message: 'no such paired device' });
+        return;
+      }
+      // Revocation has to take effect now, not at the next reconnect: drop any
+      // socket the device still holds so the terminal closes immediately.
+      const disconnected = this.detachDeviceSessions(deviceId);
+      this.sendJsonResponse(res, 200, { ok: true, deviceId: revoked.deviceId, disconnected });
       return;
     }
     if (requestUrl.pathname === '/api/pair/start' && req.method === 'POST') {
@@ -500,6 +521,19 @@ class RelayServer {
         if (!device) return this.rejectHandshake(ws, 'valid device token or pairing code required', 'auth_required');
         const host = this.hosts.get(device.hostId);
         if (!host) return this.rejectHandshake(ws, 'paired Herdr host is offline', 'host_offline');
+
+        // One live session per browser. A browser that reconnects before the
+        // relay has noticed the old socket is gone would otherwise end up
+        // holding two sessions: the stale one keeps the controller lease, so
+        // the reconnected tab is stuck read-only against its own ghost. Retire
+        // that session first; the controller lease is released with it and this
+        // connection can take it again.
+        //
+        // Keyed on the browser-supplied client id, not on the device token:
+        // sharing one token across two browsers is the supported multi-viewer
+        // case and must keep working.
+        this.detachSupersededSession(device.deviceId, message.clientId, host);
+
         if (host.clients.size >= this.config.relay.maxClientsPerHost) return this.rejectHandshake(ws, 'host client limit reached', 'too_many_clients');
         clearTimeout(deadline);
         const clientId = randomId('client');
@@ -508,6 +542,9 @@ class RelayServer {
           ws,
           hostId: host.id,
           deviceId: device.deviceId,
+          // Stable per browser profile; used to recognise a reconnect from the
+          // same browser rather than a genuinely separate viewer.
+          browserClientId: typeof message.clientId === 'string' ? message.clientId : null,
           role: host.controllerId ? 'viewer' : 'controller',
           controllerId: host.controllerId,
           connectedAt: new Date().toISOString(),
@@ -523,6 +560,9 @@ class RelayServer {
         };
         if (client.role === 'controller') host.controllerId = client.id;
         client.controllerId = host.controllerId;
+        // Persist how this device identifies itself so the operator dashboard
+        // can name it in the revoke list instead of showing a bare device id.
+        this.auth.noteDeviceSeen(device.deviceId, { userAgent: client.userAgent, ip: client.ip });
         pending.authenticated = true;
         pending.client = client;
         this.clients.set(client.id, client);
@@ -635,6 +675,46 @@ class RelayServer {
     }
   }
 
+  /**
+   * Close every existing session belonging to `deviceId` on `host`.
+   *
+   * Called just before a freshly authenticated connection is registered, so the
+   * same physical device never occupies two client slots (and two PTYs) at once.
+   */
+  detachDeviceSessions(deviceId) {
+    if (!deviceId) return 0;
+    let closed = 0;
+    for (const existing of [...this.clients.values()]) {
+      if (!existing || existing.deviceId !== deviceId) continue;
+      this.detachClient(existing, { notify: false, reason: 'device_revoked' });
+      closeSocket(existing.ws, 1000, 'this device has been revoked by the relay operator');
+      closed += 1;
+    }
+    return closed;
+  }
+
+  /**
+   * Retire the session the same browser already holds on this host, if any.
+   *
+   * `browserClientId` is the identifier the browser persists for itself, so two
+   * tabs of one browser collapse to a single session while two genuinely
+   * different browsers sharing a device token stay independent viewers. A
+   * client that sends no id cannot be matched and is left alone.
+   */
+  detachSupersededSession(deviceId, browserClientId, host) {
+    if (!deviceId || typeof browserClientId !== 'string' || !browserClientId) return 0;
+    let closed = 0;
+    for (const clientId of [...host.clients]) {
+      const existing = this.clients.get(clientId);
+      if (!existing || existing.deviceId !== deviceId) continue;
+      if (existing.browserClientId !== browserClientId) continue;
+      this.detachClient(existing, { notify: false, reason: 'superseded_by_new_session' });
+      closeSocket(existing.ws, 1000, 'replaced by a newer session from the same browser');
+      closed += 1;
+    }
+    return closed;
+  }
+
   detachClient(client, { notify = true, reason = 'client_disconnected' } = {}) {
     if (!client || !this.clients.has(client.id)) return;
     this.clients.delete(client.id);
@@ -717,7 +797,7 @@ class RelayServer {
     this.metrics.cleanup.lastCleanupAt = new Date(now).toISOString();
   }
 
-  statusSnapshot({ sample = true } = {}) {
+  statusSnapshot({ sample = true, includeDevices = false } = {}) {
     const clients = [...this.clients.values()].map((client) => ({
       id: client.id,
       role: client.role,
@@ -741,8 +821,13 @@ class RelayServer {
       load: host.load,
     }));
     const ptys = [...this.hosts.values()].flatMap((host) => host.ptys.map((pty) => ({ ...pty, hostId: host.id })));
+    // The paired-device roster identifies people's hardware, so it is served to
+    // the relay operator only — never on /api/status, which any paired device
+    // may read.
+    const devices = includeDevices ? this.auth.listDevices() : undefined;
     return {
       ...this.metrics.snapshot({ clients, hosts, ptys, sample }),
+      ...(devices ? { devices } : {}),
       relayMode: this.relayMode,
       isRemoteRelay: this.relayMode === 'remote',
       remoteAdminUrl: this.relayMode === 'remote'

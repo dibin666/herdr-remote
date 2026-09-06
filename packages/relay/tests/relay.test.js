@@ -95,7 +95,8 @@ test('relay info identifies local and operator-facing deployments without creden
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
-    version: '0.2.0',
+    // Read from the manifest so a release does not have to touch this test.
+    version: require('../package.json').version,
     protocol: 1,
     relayMode: 'local',
     isRemoteRelay: false,
@@ -477,4 +478,100 @@ test('a host with no terminal to ask leaves the browser on its own defaults', as
 
   client.close();
   host.close();
+});
+
+// A browser that reconnects (after pairing swaps its pair code for a token, or
+// after a dropped socket) used to leave its previous session alive on the
+// relay. That ghost kept the controller lease, so the reconnected page was
+// wedged read-only against itself and the operator saw two clients and two
+// PTYs for a device that had only ever been paired once.
+test('a browser reconnecting replaces its own session instead of shadowing itself', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-resume-'));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const first = await openWebSocket(`${wsBase}/ws/client`);
+  const firstPaired = nextMessage(first, (message) => message.type === 'paired');
+  const firstReady = nextMessage(first, (message) => message.type === 'ready');
+  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'browser-a', cols: 80, rows: 24 }));
+  assert.equal((await firstReady).value.role, 'controller');
+  const { token } = (await firstPaired).value;
+
+  // The same browser comes back on a new socket while the old one is still
+  // registered, exactly as the pairing handover does.
+  const resumed = await openWebSocket(`${wsBase}/ws/client`);
+  const resumedReady = nextMessage(resumed, (message) => message.type === 'ready');
+  resumed.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-a', cols: 80, rows: 24 }));
+
+  // It gets the control lease back rather than being demoted behind its ghost.
+  assert.equal((await resumedReady).value.role, 'controller');
+  assert.equal(relay.clients.size, 1, 'the superseded session must not linger');
+
+  // A genuinely different browser sharing the same device token is still a
+  // separate viewer: this is the supported multi-device case.
+  const other = await openWebSocket(`${wsBase}/ws/client`);
+  const otherReady = nextMessage(other, (message) => message.type === 'ready');
+  other.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-b', cols: 80, rows: 24 }));
+  assert.equal((await otherReady).value.role, 'viewer');
+  assert.equal(relay.clients.size, 2);
+});
+
+test('an operator can list paired devices and revoke one', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-revoke-'));
+  const relayConfig = config();
+  relayConfig.auth.adminToken = 'operator-secret-123456789';
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  const admin = { 'X-Relay-Admin-Token': 'operator-secret-123456789' };
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const paired = nextMessage(client, (message) => message.type === 'paired');
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'browser-a', cols: 80, rows: 24 }));
+  await ready;
+  const { deviceId, token } = (await paired).value;
+
+  // The roster is operator-only: a paired device may read /api/status, and that
+  // response must not enumerate everyone else's hardware.
+  const deviceStatus = await fetch(`${base}/api/status`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(deviceStatus.status, 200);
+  assert.equal(Object.hasOwn(await deviceStatus.json(), 'devices'), false);
+
+  const listed = await (await fetch(`${base}/api/admin/status`, { headers: admin })).json();
+  const entry = listed.devices.find((device) => device.deviceId === deviceId);
+  assert.ok(entry, 'the paired device should appear in the operator roster');
+  assert.equal(Object.hasOwn(entry, 'tokenHash'), false, 'token hashes must never leave the process');
+
+  const closed = new Promise((resolve) => client.once('close', resolve));
+  const revoked = await fetch(`${base}/api/admin/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE', headers: admin });
+  assert.equal(revoked.status, 200);
+  assert.equal((await revoked.json()).disconnected, 1);
+
+  // Revocation is immediate, not deferred to the next reconnect.
+  await closed;
+  assert.equal(relay.clients.size, 0);
+
+  // And the token it was derived from is dead.
+  const rejected = await openWebSocket(`${wsBase}/ws/client`);
+  const refusal = nextMessage(rejected, (message) => message.type === 'error');
+  rejected.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-a', cols: 80, rows: 24 }));
+  assert.equal((await refusal).value.code, 'auth_required');
+
+  assert.equal((await fetch(`${base}/api/admin/devices/device-nope`, { method: 'DELETE', headers: admin })).status, 404);
 });

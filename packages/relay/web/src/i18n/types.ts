@@ -298,6 +298,7 @@ export interface TranslationSchema {
     tabOverview: string;
     tabClients: string;
     tabPtys: string;
+    tabDevices: string;
     cpuAndLoad: string;
     cpuUtilization: string;
     cores: string;
@@ -321,6 +322,16 @@ export interface TranslationSchema {
     connectedClientsTitle: string;
     noClients: string;
     colClientId: string;
+    colDevice: string;
+    colDeviceId: string;
+    colLastSeen: string;
+    colActions: string;
+    unknownDevice: string;
+    pairedDevicesTitle: string;
+    noDevices: string;
+    revokeDevice: string;
+    revokeConfirm: string;
+    revokeFailed: string;
     colRole: string;
     colIp: string;
     colConnectedAt: string;

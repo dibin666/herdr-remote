@@ -142,6 +142,69 @@ class AuthStore {
     return { deviceId, hostId: pairing.hostId, token, expiresAt, expiresAtIso: nowIso(expiresAt), publicUrl: pairing.publicUrl };
   }
 
+  /**
+   * Record how a device presented itself, so an operator revoking a device can
+   * tell which phone or laptop they are about to cut off. Only the coarse
+   * user agent string and the address are kept — never terminal content.
+   */
+  noteDeviceSeen(deviceId, { userAgent, ip } = {}, now = Date.now()) {
+    const device = this.state.devices[deviceId];
+    if (!device) return null;
+    let changed = false;
+    if (userAgent && device.userAgent !== userAgent) {
+      device.userAgent = String(userAgent).slice(0, 256);
+      changed = true;
+    }
+    if (ip && device.lastIp !== ip) {
+      device.lastIp = String(ip).slice(0, 64);
+      changed = true;
+    }
+    device.lastSeenAt = nowIso(now);
+    if (changed) this.save();
+    return { ...device };
+  }
+
+  /**
+   * Devices an operator may act on, newest first. Token hashes are never
+   * included: the dashboard has no use for them and they must not leave the
+   * process.
+   */
+  listDevices(now = Date.now()) {
+    return Object.values(this.state.devices)
+      .filter((device) => device && device.expiresAt > now)
+      .map((device) => ({
+        deviceId: device.deviceId,
+        hostId: device.hostId,
+        createdAt: device.createdAt,
+        lastSeenAt: device.lastSeenAt,
+        expiresAt: device.expiresAt,
+        expiresAtIso: nowIso(device.expiresAt),
+        userAgent: device.userAgent || null,
+        lastIp: device.lastIp || null,
+      }))
+      .sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')));
+  }
+
+  /**
+   * Permanently invalidate a paired device. The stored hash is dropped, so the
+   * token it was derived from can never authenticate again. Returns the removed
+   * record so the caller can also close whatever sockets it still holds.
+   */
+  revokeDevice(deviceId) {
+    if (typeof deviceId !== 'string' || !deviceId) return null;
+    const device = this.state.devices[deviceId];
+    if (!device) return null;
+    delete this.state.devices[deviceId];
+    this.lastDeviceSaveAt.delete(deviceId);
+    this.save();
+    return {
+      deviceId: device.deviceId,
+      hostId: device.hostId,
+      userAgent: device.userAgent || null,
+      lastIp: device.lastIp || null,
+    };
+  }
+
   authenticateDevice(token, now = Date.now()) {
     if (typeof token !== 'string' || token.length < 16) return null;
     const tokenHash = hash(token);

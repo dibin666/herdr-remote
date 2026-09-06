@@ -30,6 +30,8 @@ const headerIconActiveClass = 'text-herdr-600 dark:text-herdr-400';
 interface HeaderProps {
   currentView: 'terminal' | 'admin';
   onNavigate: (view: 'terminal' | 'admin') => void;
+  /** False on operator-facing relays, where visitors get no dashboard signpost. */
+  showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
   onToggleVirtualKeyboard: () => void;
@@ -39,6 +41,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
+  showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
   onToggleVirtualKeyboard,
@@ -153,19 +156,21 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <TerminalIcon className="w-4 h-4" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('admin')}
-            className={cn(
-              headerIconButtonClass,
-              currentView === 'admin' ? headerIconActiveClass : headerIconIdleClass
-            )}
-            aria-current={currentView === 'admin' ? 'page' : undefined}
-            title={t('header.adminTab')}
-            aria-label={t('header.adminTab')}
-          >
-            <Activity className="w-4 h-4" aria-hidden="true" />
-          </button>
+          {(showAdminEntry || currentView === 'admin') && (
+            <button
+              type="button"
+              onClick={() => onNavigate('admin')}
+              className={cn(
+                headerIconButtonClass,
+                currentView === 'admin' ? headerIconActiveClass : headerIconIdleClass
+              )}
+              aria-current={currentView === 'admin' ? 'page' : undefined}
+              title={t('header.adminTab')}
+              aria-label={t('header.adminTab')}
+            >
+              <Activity className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
         </nav>
 
         <RoleControlBadge compact />

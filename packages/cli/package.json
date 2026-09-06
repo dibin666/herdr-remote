@@ -1,6 +1,6 @@
 {
   "name": "herdr-remote",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Remote browser access to your Herdr terminal workspaces: Herdr plugin, host connector, and bilingual configuration TUI",
   "license": "MIT",
   "repository": {
@@ -42,7 +42,7 @@
     "start": "node bin/herdr-remote.js"
   },
   "dependencies": {
-    "herdr-remote-relay": "^0.2.0",
+    "herdr-remote-relay": "^0.2.1",
     "ink": "^7.1.1",
     "node-pty": "^1.1.0",
     "qrcode": "^1.5.4",

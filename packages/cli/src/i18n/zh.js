@@ -40,9 +40,11 @@ module.exports = {
 
   'mode.local': '仅本机',
   'mode.lan': '局域网 / Tailscale',
+  'mode.official': '官方 relay（无需自建服务器）',
   'mode.remote': '自建 relay',
   'mode.local.description': 'relay 监听 127.0.0.1，只有本机浏览器能访问。',
   'mode.lan.description': 'relay 监听 0.0.0.0（所有网卡），局域网或 tailnet 里的手机都能访问。',
+  'mode.official.description': '通过 Herdr Remote 官方 relay 从任意网络访问本机，无需部署任何服务器。终端流量会经过一台你无法控制的服务器，但只有你配对过的设备才能打开终端。',
   'mode.remote.description': '不启动本地 relay。本机连接你自建的 relay，这是从外网访问的唯一方式。',
 
   'overview.title': '状态',

@@ -186,6 +186,7 @@ test('choosing the self-hosted relay adds the URL and credential steps', async (
   instance.stdin.write('\r');
   await settle();
   instance.stdin.write('[B'); // down: local network
+  instance.stdin.write('[B'); // down: official relay
   instance.stdin.write('[B'); // down: self-hosted relay
   await settle();
   assert.match(instance.lastFrame(), /No local relay/);
@@ -307,4 +308,39 @@ test('the services screen refuses to restart onto a stale configuration', async 
   instance.stdin.write('3'); // Services, with the draft still uncommitted
   await settle();
   assert.match(instance.lastFrame(), /unsaved changes/i);
+});
+
+// The official relay answers the "which relay" question by itself, so setup
+// must not go on to ask for a URL: picking it lands straight on the last step.
+test('the official relay is offered during setup and needs no further answers', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
+  t.after(() => instance.unmount());
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+  instance.stdin.write('\r');
+  await settle();
+  assert.match(instance.lastFrame(), /Official relay/);
+
+  instance.stdin.write('[B'); // down: local network
+  instance.stdin.write('[B'); // down: official relay
+  await settle();
+  assert.match(instance.lastFrame(), /Herdr Remote project/);
+
+  instance.stdin.write('\r');
+  await settle();
+  const frame = instance.lastFrame();
+  assert.doesNotMatch(frame, /Relay URL/, 'the official relay URL is already known');
+  assert.match(frame, /Step 3 of 3/);
+
+  // The wizard commits the draft only on the final confirmation, which would
+  // also start the services, so the flow above is what this test pins down.
+  // The address it fills in is asserted separately, on the constant itself.
+  const { OFFICIAL_RELAY_URL } = await import('../src/config.js');
+  assert.equal(OFFICIAL_RELAY_URL, 'wss://herdr-remote.564616.xyz');
+  assert.match(OFFICIAL_RELAY_URL, /^wss:\/\//, 'the official relay must be reached over TLS');
 });

@@ -1,7 +1,8 @@
 import React from 'react';
 import { ConnectedClientInfo } from '../../types/admin';
-import { ShieldCheck, Shield, Users, Globe } from 'lucide-react';
+import { ShieldCheck, Shield, Users, Globe, Smartphone } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
 
 interface ClientsTableProps {
@@ -39,6 +40,7 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
             <tr>
               <th className="px-4 py-2.5">{t('admin.colClientId')}</th>
               <th className="px-4 py-2.5">{t('admin.colRole')}</th>
+              <th className="px-4 py-2.5">{t('admin.colDevice')}</th>
               <th className="px-4 py-2.5">{t('admin.colIp')}</th>
               <th className="px-4 py-2.5">{t('admin.colConnectedAt')}</th>
               <th className="px-4 py-2.5 text-right">{t('admin.colTraffic')}</th>
@@ -75,6 +77,22 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
                         </>
                       )}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 font-sans text-charcoal-600 dark:text-charcoal-300">
+                    {(() => {
+                      const device = describeUserAgent(c.userAgent);
+                      if (!device.label) {
+                        return <span className="text-charcoal-400 dark:text-charcoal-500">{t('admin.unknownDevice')}</span>;
+                      }
+                      return (
+                        // The full agent string stays reachable on hover; the
+                        // cell itself shows only what tells devices apart.
+                        <span className="flex items-center gap-1" title={device.raw}>
+                          <Smartphone className="w-3 h-3 text-charcoal-400 shrink-0" />
+                          <span>{device.label}</span>
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-charcoal-500 dark:text-charcoal-400">
                     <span className="flex items-center gap-1">
