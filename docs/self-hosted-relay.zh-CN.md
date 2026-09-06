@@ -2,32 +2,11 @@
 
 *[English](./self-hosted-relay.md)*
 
-relay 用来从外网访问你的工作站。只有**自建 relay** 这种访问方式才需要它 ——
-「仅本机」和「局域网 / Tailscale」由 `herdr-remote` 在本地起 relay，不用部署任何东西。
+relay 用于从外网访问工作站。仅在「自建 relay」模式下需要单独部署；「仅本机」与「局域网 / Tailscale」模式均由 `herdr-remote` 在本地运行 relay，无需额外服务器。
 
-`herdr-remote-relay` 是独立的 npm 包，运行时依赖只有 `ws`，服务器不需要编译工具、
-不需要装 Herdr、也不需要装插件。
-
-如果只是让手机访问工作站，不需要自建 relay：在工作站的 `herdr-remote` 中选择
-「局域网 / Tailscale」，本地 relay 会监听 `0.0.0.0`。TUI 里的「浏览器访问地址」
-要填写实际的局域网或 Tailscale IP；`0.0.0.0` 只表示监听所有网卡，不能作为浏览器地址。
-
-前置条件：Node.js 22+、一个域名、TLS（反向代理自己选，nginx、Caddy、Traefik、
-Cloudflare Tunnel 都行）。
+前置条件：Node.js 22+、域名、TLS 反向代理（nginx、Caddy、Traefik、Cloudflare Tunnel 等）。
 
 ## Docker
-
-预编译镜像发布在 GitHub Container Registry，支持 `linux/amd64` 和 `linux/arm64`：
-
-```
-ghcr.io/dibin666/herdr-remote-relay:latest
-```
-
-该包是私有的，先用带 `read:packages` 权限的 GitHub token 登录一次：
-
-```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u dibin666 --password-stdin
-```
 
 ```bash
 docker run -d --name herdr-relay --restart unless-stopped \
@@ -40,14 +19,8 @@ docker run -d --name herdr-relay --restart unless-stopped \
   ghcr.io/dibin666/herdr-remote-relay:latest
 ```
 
-`RELAY_BIND=0.0.0.0` 和 `RELAY_AUTH_STATE_FILE=/data/relay-auth.json` 已经是镜像
-默认值，因此只需传上面这些配置。镜像以非 root 用户（uid 10001）运行，除 BusyBox
-外不含包管理器和多余工具 —— 内容仅为 Alpine、Node 二进制、relay 源码和 `ws`。
-
-生产部署建议固定版本号而不用 `latest`：
-
 ```bash
-docker pull ghcr.io/dibin666/herdr-remote-relay:0.1.0
+docker pull ghcr.io/dibin666/herdr-remote-relay:latest
 ```
 
 ## Docker Compose

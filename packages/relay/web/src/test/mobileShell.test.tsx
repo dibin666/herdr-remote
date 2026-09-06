@@ -332,15 +332,15 @@ describe('Phone control sheet', () => {
 
     // Full Control mode is reachable — this is not a viewer-only shell.
     expect(
-      within(sheet).getByRole('button', { name: /Claim terminal control/i })
+      within(sheet).getByRole('button', { name: /Claim Control|Claim terminal control/i })
     ).toBeInTheDocument();
 
     expect(within(sheet).getByRole('button', { name: /Terminal Settings/i })).toBeInTheDocument();
     expect(
-      within(sheet).getByRole('button', { name: /Connection and Pairing Settings/i })
+      within(sheet).getByRole('button', { name: /Connection & pairing|Connection and Pairing Settings/i })
     ).toBeInTheDocument();
     expect(
-      within(sheet).getByRole('button', { name: /Open Admin dashboard/i })
+      within(sheet).getByRole('button', { name: /Admin dashboard|Open Admin dashboard/i })
     ).toBeInTheDocument();
   });
 
@@ -350,7 +350,7 @@ describe('Phone control sheet', () => {
 
     const sheet = await openSheet();
     await act(async () => {
-      fireEvent.click(within(sheet).getByRole('button', { name: /Claim terminal control/i }));
+      fireEvent.click(within(sheet).getByRole('button', { name: /Claim Control|Claim terminal control/i }));
     });
 
     const claims = webSocketInstances[0].sent
@@ -365,7 +365,7 @@ describe('Phone control sheet', () => {
 
     expect(
       within(screen.getByTestId('mobile-control-sheet')).getByRole('button', {
-        name: /Release terminal control lease/i,
+        name: /Release Control|Release terminal control lease/i,
       })
     ).toBeInTheDocument();
   });
@@ -457,10 +457,10 @@ describe('Phone control sheet', () => {
 
     const sheet = await openSheet();
     await act(async () => {
-      fireEvent.click(within(sheet).getByRole('button', { name: /Open Admin dashboard/i }));
+      fireEvent.click(within(sheet).getByRole('button', { name: /Admin dashboard|Open Admin dashboard/i }));
     });
 
-    expect(await screen.findByText(/System Administration/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Admin Dashboard|System Administration/i)).toBeInTheDocument();
     // The sheet gets out of the way, and the terminal is hidden but mounted.
     expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
     expect(xtermInstances.length).toBe(1);
@@ -488,7 +488,7 @@ describe('Phone control sheet', () => {
 
     const sentBefore = webSocketInstances[0].sent.length;
     await act(async () => {
-      fireEvent.click(screen.getByTitle('Escape'));
+      fireEvent.click(screen.getByTitle('Escape (ESC)'));
     });
 
     const binaryFrames = webSocketInstances[0].sent
@@ -605,10 +605,10 @@ describe('Desktop shell is untouched by the phone layout', () => {
     render(<App />);
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
-    fireEvent.click(screen.getByRole('button', { name: /Hide the key bar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Collapse Toolbar|Hide the key bar/i }));
 
     expect(screen.queryByTestId('key-toolbar')).toBeNull();
-    const handle = screen.getByRole('button', { name: /Show the key bar/i });
+    const handle = screen.getByRole('button', { name: /Expand Toolbar|Show the key bar/i });
     expect(handle).toBeInTheDocument();
 
     fireEvent.click(handle);
@@ -621,7 +621,7 @@ describe('Desktop shell is untouched by the phone layout', () => {
 
     // The auto-connect leaves the session connecting, and on desktop that state
     // gets a full-width banner row rather than a dot on a pill.
-    const banner = screen.getByText(/Connecting to remote terminal relay/i);
+    const banner = screen.getByText(/Connecting to relay/i);
     expect(banner).toBeInTheDocument();
     expect(banner.closest('aside')).toBeInTheDocument();
   });

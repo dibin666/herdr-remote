@@ -218,7 +218,7 @@ describe('Terminal geometry across view navigation', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^Admin$/i }));
     });
-    expect(await screen.findByText(/System Administration/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Admin Dashboard/i)).toBeInTheDocument();
 
     // Rotate/resize into a phone viewport while the terminal is off screen.
     setPointerKind('coarse');

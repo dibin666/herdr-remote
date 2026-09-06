@@ -24,29 +24,29 @@ const { preferredLanAddress } = require('../src/net-interfaces');
 
 const VERSION = require('../package.json').version;
 
-const USAGE = `herdr-remote ${VERSION} — remote browser access to your Herdr workspaces
+const USAGE = `herdr-remote ${VERSION} — browser access to Herdr workspaces
 
 Usage: herdr-remote [command] [options]
 
 Commands:
   (none)               Open the configuration TUI
-  start                Start the relay and host connector
-  stop                 Stop them
-  restart              Restart them
+  start                Start relay and host connector
+  stop                 Stop services
+  restart              Restart services
   status [--json]      Show service status
-  pair [--json]        Create a one-time pairing code
-  url                  Print the URL to open in a browser
-  run [--daemon]       Run the services in the foreground (used by keep-alive)
+  pair [--json]        Create pairing code
+  url                  Print browser access URL
+  run [--daemon]       Run services in foreground (keep-alive)
   keepalive <action>   install | uninstall | restart | status
-  plugin <action>      link | unlink | status  (Herdr plugin registration)
+  plugin <action>      link | unlink | status  (Herdr plugin)
 
 Options:
-  --lang <zh|en>       Force the interface language
-  --json               Machine readable output where supported
-  -h, --help           Show this help
-  -v, --version        Show the version
+  --lang <zh|en>       Interface language
+  --json               JSON output
+  -h, --help           Show help
+  -v, --version        Show version
 
-Self-hosting a relay: docs/self-hosted-relay.md
+Self-hosting: docs/self-hosted-relay.md
 `;
 
 function parseArgs(argv) {
@@ -97,8 +97,7 @@ async function runTui(options) {
   const bundle = path.join(__dirname, '..', 'dist', 'tui.mjs');
   if (!fs.existsSync(bundle)) {
     process.stderr.write(
-      'herdr-remote: the TUI bundle is missing.\n'
-      + 'If you are running from a source checkout, build it first:\n'
+      'herdr-remote: TUI bundle missing. Build first:\n'
       + '  npm run build -w herdr-remote\n',
     );
     process.exitCode = 1;

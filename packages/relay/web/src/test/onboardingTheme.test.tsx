@@ -26,7 +26,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     // Verifies the onboarding title and explanation
     expect(screen.getByText(/Pair with Herdr Remote/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/Control your Herdr terminal agent sessions securely/i)
+      screen.getByText(/Control Herdr sessions/i)
     ).toBeInTheDocument();
 
     // Verifies copyable host pairing command
@@ -35,7 +35,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     // Verifies pairing code input and connect CTA
     expect(screen.getByPlaceholderText(/e\.g\. 7X9K2A/i)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /Connect & Pair Device/i })
+      screen.getByRole('button', { name: /Connect & Pair/i })
     ).toBeInTheDocument();
   });
 

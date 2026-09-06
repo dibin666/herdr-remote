@@ -143,7 +143,7 @@ test('the first-run wizard opens on the language step', async (t) => {
 
   const output = instance.lastFrame();
   assert.match(output, /First-time setup/);
-  assert.match(output, /Choose your language/);
+  assert.match(output, /Choose language/);
   assert.match(output, /Step 1 of/);
   // The overview must not be reachable before the wizard is answered.
   assert.equal(/Access mode/.test(output), false);
@@ -161,16 +161,16 @@ test('the wizard walks language, access mode and finish', async (t) => {
 
   instance.stdin.write('\r'); // accept the highlighted language
   await settle();
-  assert.match(instance.lastFrame(), /How do you want to reach this machine/);
+  assert.match(instance.lastFrame(), /Access mode/);
   assert.match(instance.lastFrame(), /Local network \/ Tailscale/);
   assert.match(instance.lastFrame(), /Self-hosted relay/);
 
   instance.stdin.write('\r'); // "This machine only"
   await settle();
   const finalFrame = instance.lastFrame();
-  assert.match(finalFrame, /Ready/);
-  assert.match(finalFrame, /Start the services now/);
-  assert.match(finalFrame, /Keep the services running/);
+  assert.match(finalFrame, /Finish/);
+  assert.match(finalFrame, /Start services now/);
+  assert.match(finalFrame, /Run in background/);
 });
 
 test('choosing the self-hosted relay adds the URL and credential steps', async (t) => {
@@ -189,11 +189,11 @@ test('choosing the self-hosted relay adds the URL and credential steps', async (
   instance.stdin.write('[B'); // down: official relay
   instance.stdin.write('[B'); // down: self-hosted relay
   await settle();
-  assert.match(instance.lastFrame(), /No local relay/);
+  assert.match(instance.lastFrame(), /Connect via self-hosted relay/);
 
   instance.stdin.write('\r');
   await settle();
-  assert.match(instance.lastFrame(), /Your relay server/);
+  assert.match(instance.lastFrame(), /Relay server/);
   assert.match(instance.lastFrame(), /Relay URL/);
   assert.match(instance.lastFrame(), /Step 3 of 5/);
 });
@@ -213,7 +213,7 @@ test('the relay screen offers a password only for a self-hosted relay', async (t
   const output = instance.lastFrame();
   assert.match(output, /Relay settings/);
   assert.match(output, /Relay password/);
-  assert.match(output, /public relay/);
+  assert.match(output, /not set \(public\)/);
   // The host token is a credential and is never rendered.
   const { readRuntime } = require('../src/service');
   const runtime = readRuntime();
@@ -329,7 +329,7 @@ test('the official relay is offered during setup and needs no further answers', 
   instance.stdin.write('[B'); // down: local network
   instance.stdin.write('[B'); // down: official relay
   await settle();
-  assert.match(instance.lastFrame(), /Herdr Remote project/);
+  assert.match(instance.lastFrame(), /Connect via official relay/);
 
   instance.stdin.write('\r');
   await settle();

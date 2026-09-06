@@ -1,7 +1,7 @@
 {
   "name": "herdr-remote-relay",
   "version": "0.2.1",
-  "description": "Standalone relay server for Herdr Remote: serves the mobile web terminal and brokers browser <-> workstation sessions",
+  "description": "Standalone relay server and web terminal for Herdr Remote",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -37,7 +37,8 @@
     "src",
     "web/dist",
     "deploy",
-    "config.example.json"
+    "config.example.json",
+    "README.zh-CN.md"
   ],
   "scripts": {
     "build": "npm --prefix web run build",

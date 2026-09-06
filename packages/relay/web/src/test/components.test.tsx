@@ -33,7 +33,7 @@ describe('UI Components', () => {
 
     expect(screen.getByText(/Pair with Herdr Remote/i)).toBeInTheDocument();
     expect(screen.getByText(/node bin\/service\.js pair/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Connect & Pair Device/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
   });
 
   it('renders StatusBanner when token is set and disconnected', () => {
@@ -59,7 +59,7 @@ describe('UI Components', () => {
     expect(screen.getByRole('toolbar')).toBeInTheDocument();
     expect(screen.getByTitle(/Escape/i)).toBeInTheDocument();
     expect(screen.getByTitle(/Tab/i)).toBeInTheDocument();
-    expect(screen.getByTitle(/Toggle Ctrl modifier latch/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/Toggle Ctrl Lock/i)).toBeInTheDocument();
   });
 
   it('renders AdminDashboard with stats and tabs', async () => {
@@ -93,6 +93,6 @@ describe('UI Components', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText(/System Administration/i)).toBeInTheDocument();
+    expect(screen.getByText(/Admin Dashboard/i)).toBeInTheDocument();
   });
 });

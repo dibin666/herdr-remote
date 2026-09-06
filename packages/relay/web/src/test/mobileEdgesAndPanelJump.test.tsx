@@ -154,11 +154,11 @@ describe('Panels open without moving the page', () => {
     fireEvent.click(screen.getByTestId('mobile-chrome-trigger'));
     const sheet = screen.getByTestId('mobile-control-sheet');
     fireEvent.click(
-      within(sheet).getByRole('button', { name: /强占终端控制权|Takeover terminal control/i })
+      within(sheet).getByRole('button', { name: /强占控制权|Takeover/i })
     );
 
     const dialog = screen.getByRole('dialog', {
-      name: /确认接管终端控制权|Confirm Control Takeover/i,
+      name: /确认接管|Confirm (Control )?Takeover/i,
     });
     const panel = dialog.firstElementChild as HTMLElement;
 
@@ -257,7 +257,7 @@ describe('Panels open without moving the page', () => {
     const beforeScrollY = window.scrollY;
     const beforeVisualViewportTop = window.visualViewport?.offsetTop ?? null;
     act(() => {
-      fireEvent.click(screen.getByLabelText(/终端首选项设置|Terminal Settings|Terminal preferences/i));
+      fireEvent.click(screen.getByLabelText(/终端设置|Terminal settings/i));
     });
 
     expect(onOpenSettings).toHaveBeenCalled();

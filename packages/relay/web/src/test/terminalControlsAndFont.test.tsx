@@ -83,7 +83,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
 
     expect(screen.getByText(/Terminal Preferences/i)).toBeInTheDocument();
 
-    const fontSelect = screen.getByLabelText(/Terminal Monospace Font/i) as HTMLSelectElement;
+    const fontSelect = screen.getByLabelText(/Monospace Font/i) as HTMLSelectElement;
     expect(fontSelect.tagName).toBe('SELECT');
     expect(fontSelect.value).toBe(DEFAULT_TERMINAL_FONT);
 
@@ -106,7 +106,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText(/standard Herdr server/i)).toBeInTheDocument();
+    expect(screen.getByText(/view isolation is not active/i)).toBeInTheDocument();
 
     // There is no per-device view any more, so nothing a host says about its
     // own build may put that copy back.
@@ -117,7 +117,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
         features: { independentView: true },
       });
     });
-    expect(screen.getByText(/standard Herdr server/i)).toBeInTheDocument();
+    expect(screen.getByText(/view isolation is not active/i)).toBeInTheDocument();
   });
 
   it('offers no color controls at all, because colors belong to the host', () => {
@@ -165,7 +165,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.getByText(/Viewer \(Active: client-other-99\)/i)).toBeInTheDocument();
 
     // Takeover button should be present
-    const takeoverBtn = screen.getByRole('button', { name: /Takeover terminal control/i });
+    const takeoverBtn = screen.getByRole('button', { name: /Takeover/i });
     expect(takeoverBtn).toBeInTheDocument();
 
     // Spy on claimControl

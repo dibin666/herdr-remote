@@ -32,7 +32,7 @@ describe('Frontend Security & URL Redaction', () => {
       </TerminalProvider>
     );
 
-    const copyBtn = screen.getByRole('button', { name: /Copy Direct Connection Link/i });
+    const copyBtn = screen.getByRole('button', { name: /Copy direct pairing link/i });
     fireEvent.click(copyBtn);
 
     expect(navigator.clipboard.writeText).toHaveBeenCalled();

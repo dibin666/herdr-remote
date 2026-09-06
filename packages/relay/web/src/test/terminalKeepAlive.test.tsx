@@ -68,7 +68,7 @@ describe('Terminal keep-alive across view navigation', () => {
     await act(async () => {
       goToAdmin();
     });
-    expect(await screen.findByText(/System Administration/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Admin Dashboard/i)).toBeInTheDocument();
 
     // The single terminal instance survives: not disposed, not rebuilt.
     expect(xtermInstances.length).toBe(1);

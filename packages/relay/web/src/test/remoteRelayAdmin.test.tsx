@@ -147,7 +147,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     // 3. Assert: Remote guidance view is rendered
     expect(screen.getByText('wss://relay.example.com/ws/client')).toBeInTheDocument();
 
-    const openRemoteBtn = screen.getByRole('button', { name: /Open Remote Relay Admin Dashboard|前往远程管理后台/i });
+    const openRemoteBtn = screen.getByRole('button', { name: /Open Remote Admin|前往远程管理后台/i });
     expect(openRemoteBtn).toBeInTheDocument();
 
     fireEvent.click(openRemoteBtn);
@@ -224,14 +224,14 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     });
 
     // Click operator login button
-    const loginBtn = screen.getByRole('button', { name: /Authenticate & View Operator Metrics|验证并查看服务端指标/i });
+    const loginBtn = screen.getByRole('button', { name: /Verify & View Metrics|验证并查看服务端指标/i });
     fireEvent.click(loginBtn);
 
     // Enter token
     const tokenInput = screen.getByPlaceholderText(/Enter RELAY_ADMIN_TOKEN|请输入 RELAY_ADMIN_TOKEN/i);
     fireEvent.change(tokenInput, { target: { value: 'secret-admin-pass' } });
 
-    const submitBtn = screen.getAllByRole('button', { name: /Authenticate & View Operator Metrics|验证并查看服务端指标/i })[0];
+    const submitBtn = screen.getAllByRole('button', { name: /Verify & View Metrics|验证并查看服务端指标/i })[0];
     fireEvent.click(submitBtn);
 
     await waitFor(() => {

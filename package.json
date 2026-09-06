@@ -1,7 +1,7 @@
 {
   "name": "herdr-remote-monorepo",
   "version": "0.2.0",
-  "description": "Monorepo for herdr-remote (Herdr plugin + TUI) and herdr-remote-relay (standalone relay)",
+  "description": "Monorepo for herdr-remote and herdr-remote-relay",
   "private": true,
   "license": "MIT",
   "engines": {

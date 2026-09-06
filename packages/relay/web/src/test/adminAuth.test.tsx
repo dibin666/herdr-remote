@@ -115,7 +115,7 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Admin Status Unauthorized \(401\/403\)/i)
+        screen.getByText(/Unauthorized \(401\/403\)/i)
       ).toBeInTheDocument();
     });
 
@@ -147,7 +147,7 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Admin Status Unauthorized \(401\/403\)/i)
+        screen.getByText(/Unauthorized \(401\/403\)/i)
       ).toBeInTheDocument();
     });
 

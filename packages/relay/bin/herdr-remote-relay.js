@@ -17,22 +17,21 @@ const USAGE = `herdr-remote-relay ${VERSION} — standalone relay for Herdr Remo
 Usage: herdr-remote-relay [options]
 
 Options:
-  --password <password>      Password a workstation must present (RELAY_PASSWORD).
-                             Leave unset for a public relay.
-  --admin-token <token>      Operator token for the relay dashboard (RELAY_ADMIN_TOKEN).
-  --deployment-mode <mode>   WebUI deployment mode: local or remote (default remote).
-  --public-url <url>         Public URL browsers use (RELAY_PUBLIC_URL)
+  --password <password>      Workstation password (RELAY_PASSWORD, empty for public)
+  --admin-token <token>      Admin dashboard token (RELAY_ADMIN_TOKEN)
+  --deployment-mode <mode>   Deployment mode: local or remote (default remote)
+  --public-url <url>         Public URL for browsers (RELAY_PUBLIC_URL)
   --bind <address>           Listen address (default 127.0.0.1, RELAY_BIND)
   --port <number>            Listen port (default 8787, RELAY_PORT)
-  --trust-proxy              Read X-Forwarded-For for rate limiting (RELAY_TRUST_PROXY)
-  --state-file <file>        Where device/host records are stored (RELAY_AUTH_STATE_FILE)
-  --allowed-origins <list>   Extra comma-separated browser origins (RELAY_ALLOWED_ORIGINS)
-  --max-clients <number>     Max browsers per workstation (RELAY_MAX_CLIENTS_PER_HOST)
-  --config <file>            JSON config file (also HERDR_RELAY_CONFIG)
-  -h, --help                 Show this help
-  -v, --version              Show the version
+  --trust-proxy              Trust X-Forwarded-For headers (RELAY_TRUST_PROXY)
+  --state-file <file>        Auth state file path (RELAY_AUTH_STATE_FILE)
+  --allowed-origins <list>   Allowed browser origins, comma-separated
+  --max-clients <number>     Max clients per workstation (default 16)
+  --config <file>            JSON config file (HERDR_RELAY_CONFIG)
+  -h, --help                 Show help
+  -v, --version              Show version
 
-See docs/self-hosted-relay.md.
+Guide: docs/self-hosted-relay.md
 `;
 
 function webUiBuilt() {

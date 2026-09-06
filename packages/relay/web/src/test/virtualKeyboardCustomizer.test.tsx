@@ -39,10 +39,10 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     );
 
     // Switch to Virtual Keys Tab
-    const virtualKeysTab = screen.getByRole('button', { name: /Virtual Keyboard|虚拟按键/i });
+    const virtualKeysTab = screen.getByRole('button', { name: /Virtual (Keys|Keyboard)|虚拟按键/i });
     fireEvent.click(virtualKeysTab);
 
-    expect(screen.getByText(/Custom Key Toolbar Layout|自定义虚拟按键/i)).toBeInTheDocument();
+    expect(screen.getByText(/Custom Key Toolbar|自定义虚拟按键/i)).toBeInTheDocument();
 
     // Toggle ESC key checkbox
     const escCheckbox = document.querySelector('#toggle-esc');
@@ -63,14 +63,14 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
       </TerminalProvider>
     );
 
-    const virtualKeysTab = screen.getByRole('button', { name: /Virtual Keyboard|虚拟按键/i });
+    const virtualKeysTab = screen.getByRole('button', { name: /Virtual (Keys|Keyboard)|虚拟按键/i });
     fireEvent.click(virtualKeysTab);
 
     // Click Add Key button
     const addKeyBtn = screen.getByRole('button', { name: /^Add Key$|^添加按键$/i });
     fireEvent.click(addKeyBtn);
 
-    expect(screen.getByText(/Available Keys Palette|可选按键库/i)).toBeInTheDocument();
+    expect(screen.getByText(/Available Keys|可选按键库/i)).toBeInTheDocument();
 
     // Find F1 in catalog and click
     const f1Buttons = screen.getAllByRole('button', { name: /F1/i });
@@ -92,10 +92,10 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
       </TerminalProvider>
     );
 
-    const virtualKeysTab = screen.getByRole('button', { name: /Virtual Keyboard|虚拟按键/i });
+    const virtualKeysTab = screen.getByRole('button', { name: /Virtual (Keys|Keyboard)|虚拟按键/i });
     fireEvent.click(virtualKeysTab);
 
-    const resetBtn = screen.getByRole('button', { name: /Reset to Default Layout|恢复默认布局/i });
+    const resetBtn = screen.getByRole('button', { name: /^Reset to Default$|恢复默认布局/i });
     fireEvent.click(resetBtn);
 
     const settings = loadSettings();

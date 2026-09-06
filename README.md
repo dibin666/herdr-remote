@@ -1,69 +1,47 @@
 # Herdr Remote
 
+*[English](README.md) · [简体中文](README.zh-CN.md)*
+
 [![herdr-remote on npm](https://img.shields.io/npm/v/herdr-remote?label=herdr-remote&color=0b7285)](https://www.npmjs.com/package/herdr-remote)
 [![herdr-remote-relay on npm](https://img.shields.io/npm/v/herdr-remote-relay?label=herdr-remote-relay&color=0b7285)](https://www.npmjs.com/package/herdr-remote-relay)
 [![node](https://img.shields.io/node/v/herdr-remote)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/herdr-remote)](./LICENSE)
 
-Use your [Herdr](https://herdr.dev) terminal workspaces from a phone or any
-browser. A mobile-first web terminal with low-latency ANSI streaming, one-time
-pairing codes, and a bilingual configuration TUI.
+Web terminal client for [Herdr](https://herdr.dev) workspaces. Supports mobile touch controls, low-latency ANSI streaming, and one-time pairing.
 
 ```bash
 npm install -g herdr-remote
 herdr-remote
 ```
 
-That opens the setup wizard: pick a language, pick how you want to reach the
-machine, and it starts the services for you.
+Running `herdr-remote` launches the setup wizard and starts background services.
 
 ---
 
-## Two packages
+## Packages
 
-| Package | Runs on | Contains |
+| Package | Target | Description |
 |---|---|---|
-| **`herdr-remote`** | your workstation | Herdr plugin, host connector, configuration TUI |
-| **`herdr-remote-relay`** | wherever you want | the relay and the web terminal |
+| **`herdr-remote`** | Workstation | Herdr plugin, host connector, and configuration TUI |
+| **`herdr-remote-relay`** | Anywhere | Standalone WebSocket relay and WebUI assets |
 
-The relay is completely separate: its only dependency is `ws`, so a server
-running one needs no compiler, no Herdr and no plugin. You do not have to
-install it yourself — `herdr-remote` starts one locally unless you point it at
-your own.
+`herdr-remote` runs a local relay automatically unless configured to use an external one.
 
-An operator-run relay can expose its relay-wide dashboard at `/admin` by
-setting `RELAY_ADMIN_TOKEN`. That credential is separate from the workstation
-join password and from paired device tokens; relay-wide metrics are served by
-`/api/admin/status`, and the terminal WebUI does not use a device token as a
-relay operator credential.
+## Connection Modes
 
-## Three ways to connect
-
-| Mode | Who can reach it | Needs a server? |
+| Mode | Reachability | External Server |
 |---|---|---|
-| **This machine only** *(default)* | a browser on the workstation | no |
-| **Local network / Tailscale** | phones on your LAN or tailnet | no |
-| **Official relay** | anywhere, over the internet | no — hosted at `wss://herdr-remote.564616.xyz` |
-| **Self-hosted relay** | anywhere, over the internet | yes — [guide](docs/self-hosted-relay.md) · [中文](docs/self-hosted-relay.zh-CN.md) |
+| **This machine only** *(default)* | Local workstation browser | No |
+| **Local network / Tailscale** | Devices on LAN or Tailnet | No |
+| **Official relay** | Internet | No (`wss://herdr-remote.564616.xyz`) |
+| **Self-hosted relay** | Internet | Yes ([Guide](docs/self-hosted-relay.md) · [中文](docs/self-hosted-relay.zh-CN.md)) |
 
-The official relay is offered as a choice during first-run setup, so reaching
-your workstation from outside your network needs no server of your own. It is a
-public relay: anyone may connect a workstation, and each one stays reachable
-only through its own host token. Your terminal traffic passes through a machine
-you do not control — self-host if that matters to you.
+## TUI
 
-Without a relay configured, the web UI is served from a local address only.
-This already covers being away from home if you run Tailscale or WireGuard.
-Only a self-hosted relay opens access from outside your network.
-
-## The TUI
-
-`herdr-remote` with no arguments opens the interface. It is bilingual —
-Chinese or English, following `$LANG` unless you choose otherwise — and works
-with the keyboard or the mouse.
+Run `herdr-remote` without arguments to open the configuration TUI (Chinese/English, follows `$LANG` by default).
 
 ```
- Herdr Remote  Remote browser access to your Herdr workspaces
+ Herdr Remote  Remote browser access to Herdr workspaces
 
  1 Overview  2 Pair a device  3 Services  4 Relay  5 Keep-alive  6 Herdr  7 Language & about
  ╭──────────────────────────────────────────────────────────────────────╮
@@ -75,77 +53,59 @@ with the keyboard or the mouse.
  │ Herdr socket        ● /home/you/.config/herdr/herdr.sock             │
  │ Web UI              http://127.0.0.1:8787                            │
  │ Keep-alive          ● systemd — running                              │
- │                                                                      │
- │ Workstations        1                                                │
- │ Browsers            0                                                │
- │ Relay uptime        4m 2s                                            │
  ╰──────────────────────────────────────────────────────────────────────╯
-  ↑↓ move  ·  ↵ select  ·  ← → switch tab  ·  m mouse off  ·  q quit
+  ↑↓ move  ·  ↵ select  ·  ← → switch tab  ·  m mouse toggle  ·  q quit
 ```
 
-| Tab | |
-|---|---|
-| **Overview** | live service, socket and keep-alive status |
-| **Pair a device** | one-time code with a QR you can scan |
-| **Services** | start, stop, restart, recent logs |
-| **Relay** | access mode, port, listen address, browser access address, relay URL and password |
-| **Keep-alive** | install or remove the background service |
-| **Herdr** | socket path, arguments, plugin registration |
-| **Language & about** | Chinese / English / follow the system |
+### Keybindings
 
-Keys: `↑↓` move · `↵` select or edit · `←→` or `1`–`7` switch tab · `s` save ·
-`r` refresh · `m` toggle mouse · `q` quit.
-
-Mouse tracking turns itself on where the terminal supports it. It takes over
-text selection while active, so press `m` when you want to copy something.
+- `↑↓`: Navigate
+- `↵`: Select or edit
+- `←→` or `1`–`7`: Switch tab
+- `s`: Save
+- `r`: Refresh status
+- `m`: Toggle mouse
+- `q`: Quit
 
 ## Pairing
 
-Open **Pair a device** and press Enter. Scan the QR code, or enter the six
-characters on the page. The browser gets a long-lived token; the code is burned
-on first use and expires after ten minutes.
+1. Open the **Pair a device** tab in TUI (or run `herdr-remote pair`).
+2. Scan the QR code or enter the 6-character code in the browser.
+3. Pairing codes expire in 10 minutes and are single-use.
 
-## Keeping it running
+## Keep-Alive Service
 
-The **Keep-alive** tab installs a service that starts the relay and host
-connector at login and restarts them if they die — a systemd user unit on
-Linux, a LaunchAgent on macOS, and a supervised background process where
-neither is available.
+Install background service via the **Keep-alive** tab or CLI:
+- **Linux**: systemd user unit (`loginctl enable-linger` for boot persistence)
+- **macOS**: LaunchAgent
+- **Fallback**: Background supervisor process
 
-On Linux, "Enable start at boot" runs `loginctl enable-linger` so it also comes
-up before you log in.
+```bash
+herdr-remote keepalive install | uninstall | restart | status
+```
 
-## Command line
-
-Everything the TUI does is scriptable:
+## CLI Reference
 
 ```bash
 herdr-remote start | stop | restart
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url
-herdr-remote keepalive install | uninstall | restart | status
 herdr-remote plugin link | unlink | status
 herdr-remote --lang zh|en
 ```
 
-## Herdr plugin
+## Herdr Plugin Registration
 
-The package is also a Herdr plugin. Register it from the **Herdr** tab, or:
+Register as a native Herdr plugin:
 
 ```bash
 herdr-remote plugin link
 ```
 
-Nothing is compiled at registration time — the npm package ships prebuilt.
-
-> Upgrading from a source checkout? Unlink the old one first:
-> `herdr plugin unlink herdr.remote.web`. Your settings are migrated
-> automatically on first run.
-
 ## Configuration
 
-`~/.config/herdr-remote/config.json`, edited through the TUI:
+Settings: `~/.config/herdr-remote/config.json`
 
 ```json
 {
@@ -156,55 +116,23 @@ Nothing is compiled at registration time — the npm package ships prebuilt.
 }
 ```
 
-Secrets are never stored here. The workstation's host token and the relay
-password live in `~/.local/state/herdr-remote/runtime.json`, mode 0600.
+Authentication tokens and secrets are stored in `~/.local/state/herdr-remote/runtime.json` (mode `0600`).
 
 ## Security
 
-- The relay never runs a shell and never sees your Herdr socket; only the host
-  connector on your machine does.
-- Tokens are stored as SHA-256 hashes. Terminal content is never written to disk.
-- Pairing codes are single-use, expire in ten minutes, and are rate limited.
-- Secrets never appear in URLs or shell history; the web UI strips them from the
-  address bar after pairing.
-- One writable controller at a time, with explicit takeover; other devices watch
-  read-only.
+- Relay brokers WebSocket streams without running shells or accessing local sockets directly.
+- Authentication tokens are hashed with SHA-256; terminal content is never written to disk.
+- Single active controller lease with explicit takeover; additional devices watch read-only.
+- Pairing codes are single-use, rate-limited, and expire in 10 minutes.
 
 ## Development
 
 ```bash
 npm install
-npm run build          # web UI, then the TUI bundle
-npm test               # relay and CLI suites
-npm run typecheck
-```
-
-```
-packages/relay/   herdr-remote-relay — relay server + web UI (ws only)
-packages/cli/     herdr-remote — TUI, host connector, plugin manifest
-docs/             protocol and self-hosting guides
-```
-
-### Releasing
-
-Two independent workflows, because the container image and the npm tarballs are
-different artefacts with different reasons to change.
-
-| Workflow | Runs when | Produces |
-|---|---|---|
-| `relay image` | `packages/relay/**` changes | `ghcr.io/dibin666/herdr-remote-relay`, patch-incremented from the `relay-v*` tags |
-| `npm publish` | a package's `version` changes | `herdr-remote-relay` then `herdr-remote` on npm |
-
-A CLI-only change therefore builds no image, and a relay-only change does not
-wait on the CLI. To publish, bump `version` in the package manifest and push —
-the workflow asks the registry whether that version exists and does nothing if
-it does, so re-runs and reverts are safe.
-
-Publishing needs an npm **automation** token (the classic token type that
-bypasses 2FA for CI) in the repository secret `NPM_TOKEN`:
-
-```bash
-gh secret set NPM_TOKEN
+npm run build      # Build WebUI and TUI bundle
+npm test           # Run relay and CLI test suites
+npm run test:web   # Run WebUI tests
+npm run typecheck  # TypeScript check
 ```
 
 ## License

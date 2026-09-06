@@ -32,7 +32,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(translate('zh', 'common.settings')).toBe('设置');
 
     expect(translate('en', 'role.controllerMode')).toBe('Controller mode active');
-    expect(translate('zh', 'role.controllerMode')).toBe('控制模式生效中');
+    expect(translate('zh', 'role.controllerMode')).toBe('控制模式');
   });
 
   it('handles parameter interpolation properly', () => {
@@ -43,7 +43,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(zhText).toBe('客户端 ID 已复制: client-alpha');
 
     const sizeZh = translate('zh', 'settings.fontSizeLabel', { size: 14 });
-    expect(sizeZh).toBe('终端字号 / 缩放 (14px)');
+    expect(sizeZh).toBe('终端字号 (14px)');
 
     const sizeEn = translate('en', 'settings.fontSizeLabel', { size: 14 });
     expect(sizeEn).toBe('Terminal Text Size (14px)');
@@ -95,7 +95,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     // Connected
     expect(describeConnection('connected', tEn).label).toBe('Live');
-    expect(describeConnection('connected', tZh).label).toBe('在线 (Live)');
+    expect(describeConnection('connected', tZh).label).toBe('在线');
 
     // Reconnecting
     const reconEn = describeConnection('reconnecting', tEn);
@@ -136,7 +136,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(screen.getByText('设置')).toBeInTheDocument();
     expect(screen.getByText('管理面板')).toBeInTheDocument();
     expect(screen.getByText('配对')).toBeInTheDocument();
-    expect(screen.getByText('虚拟按键条')).toBeInTheDocument();
+    expect(screen.getByText('按键条')).toBeInTheDocument();
     expect(screen.getByLabelText('关闭会话控制面板')).toBeInTheDocument();
 
     unmount();
@@ -192,7 +192,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText('No active PTY sessions allocated')).toBeInTheDocument();
+    expect(screen.getByText('No active PTY sessions')).toBeInTheDocument();
     expect(screen.getByText('Controller')).toBeInTheDocument();
     expect(screen.getByText('Viewer')).toBeInTheDocument();
     expect(screen.getByText('Client ID')).toBeInTheDocument();
@@ -215,8 +215,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     expect(screen.getByText('控制端')).toBeInTheDocument();
     expect(screen.getByText('观察者')).toBeInTheDocument();
-    expect(screen.getByText('客户端标识 (ID)')).toBeInTheDocument();
-    expect(screen.getByText('角色权限')).toBeInTheDocument();
+    expect(screen.getByText('客户端 ID')).toBeInTheDocument();
+    expect(screen.getByText('角色')).toBeInTheDocument();
   });
 
   it('renders TerminalView with localized welcome banner in terminal buffer', () => {
@@ -233,7 +233,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     const writtenText = (term.writes || []).join('\n');
     expect(writtenText).toContain('Herdr Remote WebUI');
-    expect(writtenText).toContain('已连接至 Herdr 代理多路复用会话。');
+    expect(writtenText).toContain('已连接至 Herdr 会话。');
   });
 
   it('localizes all virtual key titles across Chinese and English and falls back for unknown keys', () => {
@@ -252,11 +252,11 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     }
 
     // 2. Specific key assertions
-    expect(getLocalizedKeyTitle({ id: 'esc', label: 'ESC' }, tZh)).toBe('Escape (ESC 键)');
-    expect(getLocalizedKeyTitle({ id: 'enter', label: 'Enter' }, tZh)).toBe('回车键 (Enter)');
-    expect(getLocalizedKeyTitle({ id: 'ctrl_c', label: '^C' }, tZh)).toBe('Ctrl+C (中断/SIGINT)');
-    expect(getLocalizedKeyTitle({ id: 'sym_pipe', label: '|' }, tZh)).toBe('竖线管道符 (|)');
-    expect(getLocalizedKeyTitle({ id: 'f1', label: 'F1' }, tZh)).toBe('功能键 F1');
+    expect(getLocalizedKeyTitle({ id: 'esc', label: 'ESC' }, tZh)).toBe('Escape (ESC)');
+    expect(getLocalizedKeyTitle({ id: 'enter', label: 'Enter' }, tZh)).toBe('回车 (Enter)');
+    expect(getLocalizedKeyTitle({ id: 'ctrl_c', label: '^C' }, tZh)).toBe('Ctrl+C (中断)');
+    expect(getLocalizedKeyTitle({ id: 'sym_pipe', label: '|' }, tZh)).toBe('管道符 (|)');
+    expect(getLocalizedKeyTitle({ id: 'f1', label: 'F1' }, tZh)).toBe('F1');
 
     // 3. Fallback for unknown / custom user key
     const customKey = { id: 'custom_my_key', label: 'CustomKey', title: 'My Custom Action' };
@@ -273,9 +273,9 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByTitle('Escape (ESC 键)')).toBeInTheDocument();
-    expect(screen.getByTitle('回车键 (Enter)')).toBeInTheDocument();
-    expect(screen.getByTitle('切换 Ctrl 组合键锁定')).toBeInTheDocument();
+    expect(screen.getByTitle('Escape (ESC)')).toBeInTheDocument();
+    expect(screen.getByTitle('回车 (Enter)')).toBeInTheDocument();
+    expect(screen.getByTitle('切换 Ctrl 锁定')).toBeInTheDocument();
 
     unmount();
 
@@ -288,9 +288,9 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     fireEvent.click(screen.getByText('虚拟按键'));
 
-    expect(screen.getByText('Escape (ESC 键)')).toBeInTheDocument();
-    expect(screen.getByText('回车键 (Enter)')).toBeInTheDocument();
-    expect(screen.getByText('切换 Ctrl 组合键锁定')).toBeInTheDocument();
+    expect(screen.getByText('Escape (ESC)')).toBeInTheDocument();
+    expect(screen.getByText('回车 (Enter)')).toBeInTheDocument();
+    expect(screen.getByText('切换 Ctrl 锁定')).toBeInTheDocument();
   });
 
   it('verifies all Header keys and tooltips resolve correctly without returning key paths', () => {
@@ -334,10 +334,10 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByTitle('切换界面语言 (English / 中文)')).toBeInTheDocument();
-    expect(screen.getByTitle('连接与配对设置')).toBeInTheDocument();
-    expect(screen.getByTitle('终端首选项')).toBeInTheDocument();
-    expect(screen.getByTitle('快捷文本命令助手')).toBeInTheDocument();
+    expect(screen.getByTitle('切换语言 (EN / 中文)')).toBeInTheDocument();
+    expect(screen.getByTitle('连接与配对')).toBeInTheDocument();
+    expect(screen.getByTitle('终端设置')).toBeInTheDocument();
+    expect(screen.getByTitle('快捷命令')).toBeInTheDocument();
 
     unmount();
 
@@ -356,9 +356,9 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByTitle('Switch interface language (EN / 中文)')).toBeInTheDocument();
-    expect(screen.getByTitle('Connection & pairing settings')).toBeInTheDocument();
-    expect(screen.getByTitle('Terminal preferences')).toBeInTheDocument();
+    expect(screen.getByTitle('Switch language (EN / 中文)')).toBeInTheDocument();
+    expect(screen.getByTitle('Connection & pairing')).toBeInTheDocument();
+    expect(screen.getByTitle('Terminal settings')).toBeInTheDocument();
     expect(screen.getByTitle('Quick command helper')).toBeInTheDocument();
   });
 
@@ -431,8 +431,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText('系统默认 (推荐 / System Default)')).toBeInTheDocument();
-    expect(screen.getByText('Fira Code (连字特性 / Ligatures)')).toBeInTheDocument();
+    expect(screen.getByText('系统默认')).toBeInTheDocument();
+    expect(screen.getByText('Fira Code')).toBeInTheDocument();
     expect(screen.queryByText('Claude 象牙暖白 (Claude Ivory)')).not.toBeInTheDocument();
   });
 });
