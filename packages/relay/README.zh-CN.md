@@ -45,9 +45,17 @@ docker run -d --name herdr-relay --restart unless-stopped \
 | `--state-file` | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | 认证状态文件路径 |
 | `--allowed-origins` | `RELAY_ALLOWED_ORIGINS` | *(同源)* | 允许的跨域源，逗号分隔 |
 | `--max-clients` | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | 每台工作站最大客户端连接数 |
+| `--max-hosts` | `RELAY_MAX_HOSTS` | `1024` | relay 最大工作站数 |
+| `--max-pending-handshakes` | `RELAY_MAX_PENDING_HANDSHAKES` | `1024` | 最大未认证 WebSocket 握手数 |
+| `--max-buffered-bytes` | `RELAY_MAX_BUFFERED_BYTES_PER_CLIENT` | `4194304` | 单个慢浏览器最大待发送缓冲 |
+| `--host-reconnect-grace-ms` | `RELAY_HOST_RECONNECT_GRACE_MS` | `30000` | 工作站断线恢复宽限时间 |
 | `--config` | `HERDR_RELAY_CONFIG` | *(无)* | JSON 配置文件路径 |
 
-反向代理必须转发 WebSocket `Upgrade` 头，并设置较长空闲超时时间。`deploy/` 目录下提供 nginx、systemd 与 Docker Compose 示例。
+反向代理必须转发 WebSocket `Upgrade` 头，并设置较长空闲超时时间。relay 会关闭 WebSocket 压缩并启用 TCP NoDelay；没有浏览器连接时，工作站会停止业务 heartbeat，仅保留 WebSocket 存活探测以节省流量。`deploy/` 目录下提供 nginx、systemd 与 Docker Compose 示例。
+
+## 多工作站与隔离
+
+同一个浏览器可以保存多个工作站配对，WebUI 左下角的实例切换器只显示本地已保存的实例，不会枚举 relay 上的其他工作站。`/api/status` 按设备令牌绑定的工作站隔离，只有 `RELAY_ADMIN_TOKEN` 才能查看 relay 全局状态；`/healthz` 不公开工作站和客户端数量。
 
 ## 工作站连接
 

@@ -26,23 +26,92 @@ class RelayMetrics {
       closedPtysCleaned: 0,
       deadConnectionsClosed: 0,
       idleHostsTerminated: 0,
+      slowClientsDropped: 0,
       lastCleanupAt: null,
     };
     this.lastSample = { at: this.startedAt, bytesIn: 0, bytesOut: 0, framesIn: 0, framesOut: 0 };
+    this.hostTraffic = new Map();
     this.cpuSampleAt = process.hrtime.bigint();
     this.cpuSample = process.cpuUsage();
     this.eventLoop = monitorEventLoopDelay({ resolution: 20 });
     this.eventLoop.enable();
   }
 
-  recordIn(bytes) {
-    this.bytesIn += bytes;
-    this.framesIn += 1;
+  hostCounter(hostId) {
+    if (typeof hostId !== 'string' || hostId.length === 0) return null;
+    let counter = this.hostTraffic.get(hostId);
+    if (!counter) {
+      counter = {
+        bytesIn: 0,
+        bytesOut: 0,
+        framesIn: 0,
+        framesOut: 0,
+        sampleAt: Date.now(),
+        sampleBytesIn: 0,
+        sampleBytesOut: 0,
+        sampleFramesIn: 0,
+        sampleFramesOut: 0,
+      };
+      this.hostTraffic.set(hostId, counter);
+    }
+    return counter;
   }
 
-  recordOut(bytes) {
-    this.bytesOut += bytes;
+  recordIn(bytes, hostId = null) {
+    const amount = Math.max(0, Number(bytes) || 0);
+    this.bytesIn += amount;
+    this.framesIn += 1;
+    const counter = this.hostCounter(hostId);
+    if (counter) {
+      counter.bytesIn += amount;
+      counter.framesIn += 1;
+    }
+  }
+
+  recordOut(bytes, hostId = null) {
+    const amount = Math.max(0, Number(bytes) || 0);
+    this.bytesOut += amount;
     this.framesOut += 1;
+    const counter = this.hostCounter(hostId);
+    if (counter) {
+      counter.bytesOut += amount;
+      counter.framesOut += 1;
+    }
+  }
+
+  forgetHost(hostId) {
+    if (typeof hostId === 'string') this.hostTraffic.delete(hostId);
+  }
+
+  hostThroughput(hostId, now = Date.now()) {
+    const counter = this.hostCounter(hostId);
+    if (!counter) return {
+      bytesIn: 0,
+      bytesOut: 0,
+      bytesInPerSec: 0,
+      bytesOutPerSec: 0,
+      framesIn: 0,
+      framesOut: 0,
+      framesInPerSec: 0,
+      framesOutPerSec: 0,
+    };
+    const elapsedMs = now - counter.sampleAt;
+    const throughput = {
+      bytesIn: counter.bytesIn,
+      bytesOut: counter.bytesOut,
+      bytesInPerSec: bytesPerSecond(counter.bytesIn, counter.sampleBytesIn, elapsedMs),
+      bytesOutPerSec: bytesPerSecond(counter.bytesOut, counter.sampleBytesOut, elapsedMs),
+      framesIn: counter.framesIn,
+      framesOut: counter.framesOut,
+      framesInPerSec: bytesPerSecond(counter.framesIn, counter.sampleFramesIn, elapsedMs),
+      framesOutPerSec: bytesPerSecond(counter.framesOut, counter.sampleFramesOut, elapsedMs),
+    };
+    counter.sampleAt = now;
+    counter.sampleBytesIn = counter.bytesIn;
+    counter.sampleBytesOut = counter.bytesOut;
+    counter.sampleFramesIn = counter.framesIn;
+    counter.sampleFramesOut = counter.framesOut;
+    return throughput;
   }
 
   recordCleanup(name, amount = 1) {
@@ -74,7 +143,7 @@ class RelayMetrics {
     };
   }
 
-  snapshot({ clients = [], hosts = [], ptys = [], sample = true } = {}) {
+  snapshot({ clients = [], hosts = [], ptys = [], sample = true, scopeHostId = null } = {}) {
     const now = Date.now();
     const elapsedMs = now - this.lastSample.at;
     const throughput = {
@@ -97,6 +166,7 @@ class RelayMetrics {
     // distinction that does not exist. The host is still worth naming, and any
     // client knows which workstation it is on.
     const anyClient = clients[0];
+    const scopedThroughput = scopeHostId ? this.hostThroughput(scopeHostId, now) : throughput;
     return {
       version: this.version,
       protocolVersion: this.protocolVersion,
@@ -111,7 +181,7 @@ class RelayMetrics {
       clientCount: clients.length,
       hostCount: hosts.length,
       ptyCount: ptys.length,
-      throughput,
+      throughput: scopedThroughput,
       cpu: {
         load1m: finite(load[0]),
         load5m: finite(load[1]),
@@ -134,6 +204,7 @@ class RelayMetrics {
 
   close() {
     this.eventLoop.disable();
+    this.hostTraffic.clear();
   }
 }
 

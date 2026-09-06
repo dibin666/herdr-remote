@@ -27,6 +27,10 @@ Options:
   --state-file <file>        Auth state file path (RELAY_AUTH_STATE_FILE)
   --allowed-origins <list>   Allowed browser origins, comma-separated
   --max-clients <number>     Max clients per workstation (default 16)
+  --max-hosts <number>       Max workstations on this relay (default 1024)
+  --max-pending-handshakes <n> Max unauthenticated WebSockets (default 1024)
+  --max-buffered-bytes <n>   Max queued bytes per browser (default 4194304)
+  --host-reconnect-grace-ms <n> Grace period for host handoff (default 30000)
   --config <file>            JSON config file (HERDR_RELAY_CONFIG)
   -h, --help                 Show help
   -v, --version              Show version

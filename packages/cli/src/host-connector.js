@@ -1,9 +1,12 @@
 'use strict';
 
+const fs = require('node:fs');
 const os = require('node:os');
+const path = require('node:path');
 const crypto = require('node:crypto');
 const { WebSocket } = require('ws');
-const { loadConfig, hostWebSocketUrl, resolveHostRelayUrl } = require('./config');
+const { loadConfig, hostWebSocketUrl, resolveHostRelayUrl, stateDir } = require('./config');
+const { ensureDir } = require('./state');
 const { resolveSocketPath, inspectSocket } = require('./socket-discovery');
 const { PtySession } = require('./pty-session');
 const { resolveHerdrCommand } = require('./herdr-command');
@@ -11,7 +14,7 @@ const { resolveHerdrCommand } = require('./herdr-command');
 // generated from one definition.
 const { packStreamFrame, unpackStreamFrame, PROTOCOL_VERSION } = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
-const { EXIT_REPLACED } = require('./exit-codes');
+const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
@@ -21,9 +24,19 @@ function sendJson(ws, payload) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
 }
 
-function closeSocket(ws) {
+function closeSocket(ws, reason = 'host connector stopping') {
   if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) return;
-  try { ws.close(1000, 'host connector stopping'); } catch {}
+  try { ws.close(1000, reason); } catch {}
+}
+
+function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
 }
 
 class HostConnector {
@@ -55,13 +68,62 @@ class HostConnector {
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     this.reconnectAttempts = 0;
+    this.clientCount = 0;
+    this.legacyHeartbeat = false;
+    this.ready = false;
+    this.authFailure = false;
     this.stopping = false;
+    this.lockPath = options.lockPath
+      || process.env.HERDR_REMOTE_HOST_LOCK
+      || path.join(stateDir(), 'host-connector.lock');
+    this.lockFd = null;
+  }
+
+  acquireLock() {
+    if (this.lockFd !== null) return;
+    ensureDir(path.dirname(this.lockPath));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const fd = fs.openSync(this.lockPath, 'wx', 0o600);
+        fs.writeFileSync(fd, `${JSON.stringify({ pid: process.pid, hostId: this.hostId, startedAt: new Date().toISOString() })}\n`);
+        this.lockFd = fd;
+        return;
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        let owner = null;
+        try { owner = JSON.parse(fs.readFileSync(this.lockPath, 'utf8')); } catch {}
+        if (owner && pidAlive(owner.pid)) {
+          const duplicate = new Error(`another host connector is already running (pid ${owner.pid})`);
+          duplicate.code = 'HOST_ALREADY_RUNNING';
+          throw duplicate;
+        }
+        try { fs.rmSync(this.lockPath, { force: true }); } catch {}
+      }
+    }
+    const stale = new Error('could not acquire host connector lock');
+    stale.code = 'HOST_LOCK_FAILED';
+    throw stale;
+  }
+
+  releaseLock() {
+    const owned = this.lockFd !== null;
+    if (this.lockFd !== null) {
+      try { fs.closeSync(this.lockFd); } catch {}
+      this.lockFd = null;
+    }
+    if (!owned) return;
+    try {
+      const owner = JSON.parse(fs.readFileSync(this.lockPath, 'utf8'));
+      if (owner.pid !== process.pid) return;
+    } catch {}
+    try { fs.rmSync(this.lockPath, { force: true }); } catch {}
   }
 
   start() {
     if (!this.hostToken) {
       throw new Error('RELAY_HOST_TOKEN is required');
     }
+    this.acquireLock();
     this.stopping = false;
     this.connect();
   }
@@ -72,9 +134,14 @@ class HostConnector {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
+    sendJson(this.ws, { type: 'host_shutdown' });
     this.destroySessions();
-    closeSocket(this.ws);
+    closeSocket(this.ws, 'host_shutdown');
     this.ws = null;
+    this.ready = false;
+    this.clientCount = 0;
+    this.legacyHeartbeat = false;
+    this.releaseLock();
   }
 
   connect() {
@@ -89,8 +156,9 @@ class HostConnector {
     this.ws = ws;
     ws.isAlive = true;
     ws.on('open', () => {
-      this.reconnectAttempts = 0;
       ws.isAlive = true;
+      this.ready = false;
+      this.authFailure = false;
       sendJson(ws, {
         type: 'host_hello',
         protocol: PROTOCOL_VERSION,
@@ -101,16 +169,24 @@ class HostConnector {
         platform: process.platform,
         arch: process.arch,
         terminalPalette: this.terminalPalette || null,
+        capabilities: ['host_handoff', 'idle_heartbeat'],
       });
-      this.sendHeartbeat();
-      this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), this.config.cleanup.heartbeatIntervalMs);
+      // The relay sends host_ready with the current browser count. No business
+      // heartbeat is started until that message says somebody is watching.
     });
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (raw, isBinary) => this.handleMessage(raw, isBinary));
     ws.on('close', (code, rawReason) => {
-      if (this.ws === ws) this.ws = null;
+      // A replacement socket may be live while an older socket is still
+      // delivering its close event. Never let that stale event destroy the new
+      // session or clear its heartbeat timer.
+      if (this.ws !== ws) return;
+      this.ws = null;
       if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+      this.ready = false;
+      this.clientCount = 0;
+      this.legacyHeartbeat = false;
       this.destroySessions();
 
       // Another connector has claimed this workstation. Reconnecting would just
@@ -122,6 +198,12 @@ class HostConnector {
         process.stderr.write('herdr-remote host connector: another instance took over this workstation; exiting\n');
         this.stop();
         process.exit(EXIT_REPLACED);
+      }
+      if (this.authFailure) {
+        this.stopping = true;
+        process.stderr.write('herdr-remote host connector: authentication failed; update relay credentials and restart the service\n');
+        this.releaseLock();
+        process.exit(EXIT_AUTH_FAILED);
       }
       this.scheduleReconnect();
     });
@@ -160,7 +242,27 @@ class HostConnector {
     // connection just closed silently and reconnected forever, leaving the user
     // with an empty log and no idea what was wrong.
     if (message.type === 'error' && !message.clientId) {
+      this.authFailure = ['relay_password_required', 'host_auth_failed', 'invalid_host_credentials'].includes(message.code);
       process.stderr.write(`herdr-remote host connector: relay rejected the connection: ${message.message || message.code}\n`);
+      return;
+    }
+    if (message.type === 'host_ready') {
+      this.ready = true;
+      this.reconnectAttempts = 0;
+      if (Object.hasOwn(message, 'clientCount')) {
+        this.legacyHeartbeat = false;
+        this.setClientCount(message.clientCount);
+      } else {
+        // An older relay does not know client_count. Keep its historical
+        // telemetry behavior so rolling upgrades do not silently lose status.
+        this.legacyHeartbeat = true;
+        this.sendHeartbeat(true);
+        this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), this.config.cleanup.heartbeatIntervalMs);
+      }
+      return;
+    }
+    if (message.type === 'client_count') {
+      this.setClientCount(message.clientCount);
       return;
     }
     if (message.type === 'session_start') this.startSession(message);
@@ -224,6 +326,22 @@ class HostConnector {
     this.sendHeartbeat();
   }
 
+  setClientCount(value) {
+    const next = Number.isInteger(value) ? Math.max(0, value) : 0;
+    if (next === this.clientCount && (next === 0 || this.heartbeatTimer)) return;
+    const wasActive = this.clientCount > 0;
+    this.clientCount = next;
+    if (next > 0) {
+      if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+      this.sendHeartbeat(true);
+      this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), this.config.cleanup.heartbeatIntervalMs);
+    } else {
+      if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+      if (wasActive) this.sendHeartbeat(true);
+    }
+  }
+
   resizeSession(message) {
     const id = message.clientId || message.streamId;
     const session = this.sessions.get(id);
@@ -238,7 +356,8 @@ class HostConnector {
     this.sessions.clear();
   }
 
-  sendHeartbeat() {
+  sendHeartbeat(force = false) {
+    if (!force && this.clientCount <= 0 && !this.legacyHeartbeat) return;
     const memory = process.memoryUsage();
     const load = os.loadavg();
     sendJson(this.ws, {
@@ -270,7 +389,7 @@ if (require.main === module) {
     connector.start();
   } catch (error) {
     process.stderr.write(`herdr-remote host connector failed: ${error.message}\n`);
-    process.exitCode = 1;
+    process.exitCode = error.code === 'HOST_ALREADY_RUNNING' ? EXIT_REPLACED : 1;
   }
   const stop = () => { connector.stop(); process.exit(0); };
   process.once('SIGINT', stop);

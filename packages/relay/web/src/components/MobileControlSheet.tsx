@@ -5,6 +5,7 @@ import { describeConnection } from '../utils/connectionStatus';
 import { cn } from '../utils/cn';
 import { translate } from '../i18n';
 import { Button, GLYPH, Panel, Row, StatusDot } from './tui';
+import { HostSwitcher } from './HostSwitcher';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
@@ -12,6 +13,7 @@ export interface MobileControlSheetProps {
   showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
+  onAddProfile?: () => void;
 }
 
 /**
@@ -48,6 +50,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
+  onAddProfile = () => {},
 }) => {
   const {
     connectionState,
@@ -112,6 +115,12 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           esc
         </Button>
       </div>
+
+      {/* Saved Herdr instances. This list is local-only and never comes from
+          relay-wide discovery. */}
+      <Panel title={t('profiles.title')} tone="accent" bodyClassName="space-y-1">
+        <HostSwitcher mobile onAddProfile={onAddProfile} />
+      </Panel>
 
       {/* Connection */}
       <Panel

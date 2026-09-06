@@ -11,6 +11,7 @@ export interface MobileTerminalShellProps {
   showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
+  onAddProfile?: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
+  onAddProfile = () => {},
 }) => {
   const { connectionState, isController, t } = useTerminal();
   const [isOpen, setIsOpen] = useState(false);
@@ -146,6 +148,10 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
               onOpenSettings={() => {
                 close();
                 onOpenSettings();
+              }}
+              onAddProfile={() => {
+                close();
+                onAddProfile();
               }}
             />
           </div>

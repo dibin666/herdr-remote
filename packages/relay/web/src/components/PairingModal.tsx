@@ -16,6 +16,8 @@ import {
 interface PairingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Opened from the profile switcher to create a new saved connection. */
+  isAddMode?: boolean;
 }
 
 const STATE_TONE: Record<string, StatusLevel> = {
@@ -33,7 +35,7 @@ const STATE_TONE: Record<string, StatusLevel> = {
  * bracketed checkbox for the boolean, and the actions on the status line at the
  * bottom where a terminal program keeps them.
  */
-export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) => {
+export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose, isAddMode = false }) => {
   const {
     settings,
     updateSettings,
@@ -43,48 +45,65 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
     hostId,
     addToast,
     t,
+    activeProfile,
+    activeProfileId,
+    addProfileAndConnect,
+    renameProfile,
   } = useTerminal();
 
   const [wsUrl, setWsUrl] = useState(settings.wsUrl);
   const [token, setToken] = useState(settings.token);
   const [pairCode, setPairCode] = useState(settings.pairCode);
   const [clientId, setClientId] = useState(settings.clientId);
+  const [displayName, setDisplayName] = useState(activeProfile?.displayName || '');
   const [autoReconnect, setAutoReconnect] = useState(settings.autoReconnect);
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setWsUrl(settings.wsUrl);
-      setToken(settings.token);
-      setPairCode(settings.pairCode);
+      setToken(isAddMode ? '' : settings.token);
+      setPairCode(isAddMode ? '' : settings.pairCode);
       setClientId(settings.clientId);
+      setDisplayName(isAddMode ? '' : activeProfile?.displayName || '');
       setAutoReconnect(settings.autoReconnect);
     }
-  }, [isOpen, settings]);
+  }, [isOpen, isAddMode, settings, activeProfile]);
 
   if (!isOpen) return null;
 
   const handleSaveAndConnect = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({
+    const connection = {
       wsUrl: wsUrl.trim() || '/ws/client',
       token: token.trim(),
       pairCode: pairCode.trim().toUpperCase(),
       clientId: clientId.trim() || settings.clientId,
       autoReconnect,
-    });
-
-    disconnect();
-    setTimeout(() => {
+    };
+    if (!connection.token && !connection.pairCode) {
+      addToast('warning', t('pairing.credentialsRequired'));
+      return;
+    }
+    if (isAddMode) {
+      addProfileAndConnect({
+        ...connection,
+        displayName: displayName.trim() || undefined,
+      });
+    } else {
+      updateSettings(connection);
+      if (activeProfileId && displayName.trim()) renameProfile(activeProfileId, displayName);
+      // `disconnect` clears the adapter's handlers synchronously, so the new
+      // connection can start immediately without a close-event race or timer.
+      disconnect();
       connect({
-        wsUrl: wsUrl.trim() || '/ws/client',
-        token: token.trim() || undefined,
-        pairCode: pairCode.trim().toUpperCase() || undefined,
-        clientId: clientId.trim() || settings.clientId,
+        wsUrl: connection.wsUrl,
+        token: connection.token || undefined,
+        pairCode: connection.pairCode || undefined,
+        clientId: connection.clientId,
         autoReconnect,
       });
-    }, 100);
-
+    }
     onClose();
   };
 
@@ -113,7 +132,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={t('pairing.title')}
+      title={isAddMode ? t('pairing.addTitle') : t('pairing.title')}
       subtitle={t('pairing.subtitle')}
       closeLabel={t('common.closeDialog')}
       hints={[
@@ -169,6 +188,20 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
       </div>
 
       <form id="pairing-form" onSubmit={handleSaveAndConnect} className="space-y-3">
+        <div className="space-y-1">
+          <FieldLabel htmlFor="pairing-name">{t('pairing.displayNameLabel')}</FieldLabel>
+          <Input
+            id="pairing-name"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder={t('pairing.displayNamePlaceholder')}
+            maxLength={64}
+            autoComplete="off"
+          />
+          <p className="text-tui-sm text-tui-faint">{t('pairing.displayNameHelp')}</p>
+        </div>
+
         <div className="space-y-1">
           <FieldLabel htmlFor="pairing-code" hint={t('pairing.pairCodeNote')}>
             {t('pairing.pairCodeLabel')}

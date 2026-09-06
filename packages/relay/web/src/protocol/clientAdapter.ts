@@ -12,6 +12,7 @@ import {
   ServerJsonMessage,
   ServerReadyMessage,
   ServerSessionReadyMessage,
+  ServerSessionRestartedMessage,
   ClientRole,
   ConnectionState,
   ConnectionConfig,
@@ -42,6 +43,10 @@ export type AdapterEventMap = {
   peerCount: (count: number) => void;
   /** The grid the shared terminal now runs at. */
   sharedResize: (cols: number, rows: number) => void;
+  /** The authenticated host socket is temporarily reconnecting. */
+  hostReconnecting: (code?: string) => void;
+  /** A new PTY was created after a host handoff or profile switch. */
+  sessionRestarted: (cols?: number, rows?: number, palette?: ServerSessionRestartedMessage['terminalPalette'], hostname?: string) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
@@ -62,6 +67,7 @@ export class HerdrClientAdapter {
   private isManuallyClosed = false;
   private authFailureDetail: string | null = null;
   private authFailureCode: string | null = null;
+  private temporaryFailureCode: string | null = null;
 
   private listeners: {
     [K in keyof AdapterEventMap]: Set<AdapterEventMap[K]>;
@@ -79,6 +85,8 @@ export class HerdrClientAdapter {
     status: new Set(),
     peerCount: new Set(),
     sharedResize: new Set(),
+    hostReconnecting: new Set(),
+    sessionRestarted: new Set(),
     error: new Set(),
     binaryData: new Set(),
     rttUpdate: new Set(),
@@ -168,6 +176,7 @@ export class HerdrClientAdapter {
     this.isManuallyClosed = false;
     this.authFailureDetail = null;
     this.authFailureCode = null;
+    this.temporaryFailureCode = null;
     this.clearTimers();
     this.setState('connecting');
 
@@ -261,11 +270,11 @@ export class HerdrClientAdapter {
     this.reconnectAttempts = 0;
     this.authFailureDetail = null;
     this.authFailureCode = null;
+    this.temporaryFailureCode = null;
     this.connect();
   }
 
   private handleOpen(): void {
-    this.reconnectAttempts = 0;
     this.sendHello();
     this.startHeartbeat();
   }
@@ -296,6 +305,7 @@ export class HerdrClientAdapter {
   private processJsonMessage(msg: ServerJsonMessage): void {
     switch (msg.type) {
       case 'ready': {
+        this.reconnectAttempts = 0;
         this.setState('connected');
         this.currentRole = msg.role;
         this.controllerId = msg.controllerId;
@@ -326,6 +336,19 @@ export class HerdrClientAdapter {
         break;
       }
 
+      case 'host_reconnecting': {
+        this.temporaryFailureCode = 'host_reconnecting';
+        this.setState('reconnecting', 'Herdr host is reconnecting', msg.code || 'host_reconnecting');
+        this.emit('hostReconnecting', msg.code);
+        break;
+      }
+
+      case 'session_restarted': {
+        this.setState('reconnecting', 'Herdr session is restarting', 'session_restarted');
+        this.emit('sessionRestarted', msg.cols, msg.rows, msg.terminalPalette, msg.hostname);
+        break;
+      }
+
       case 'shared_resize': {
         // Deliberately not stored as this adapter's own geometry: `terminalCols`
         // is what this window can *show*, and that is what the relay needs on
@@ -346,6 +369,7 @@ export class HerdrClientAdapter {
       }
 
       case 'session_ready': {
+        this.setState('connected');
         this.emit('sessionReady', msg);
         break;
       }
@@ -374,9 +398,19 @@ export class HerdrClientAdapter {
       }
 
       case 'error': {
-        if (
+        const temporary = msg.code === 'host_offline'
+          || msg.code === 'host_reconnecting'
+          || msg.code === 'host_reconnect_timeout'
+          || msg.code === 'rate_limited';
+        if (temporary) {
+          this.temporaryFailureCode = String(msg.code);
+          this.setState('reconnecting', msg.message, String(msg.code));
+        } else if (
           msg.code === 'auth_required' ||
           msg.code === 'unauthorized' ||
+          msg.code === 'device_revoked' ||
+          msg.code === 'invalid_handshake' ||
+          msg.code === 'too_many_hosts' ||
           msg.code === 401 ||
           msg.code === 403
         ) {
@@ -413,6 +447,15 @@ export class HerdrClientAdapter {
 
     if (this.authFailureDetail) {
       this.setState('error', this.authFailureDetail, this.authFailureCode ?? undefined);
+      return;
+    }
+    if (event.code === 1008 && this.temporaryFailureCode) {
+      this.setState('reconnecting', event.reason || 'The relay is temporarily unavailable', this.temporaryFailureCode);
+      this.scheduleReconnect();
+      return;
+    }
+    if (event.code === 1008) {
+      this.setState('error', event.reason || 'The relay rejected the connection', String(event.code));
       return;
     }
 
@@ -478,6 +521,7 @@ export class HerdrClientAdapter {
       clientId: this.config.clientId,
       cols: this.terminalCols,
       rows: this.terminalRows,
+      capabilities: ['host_handoff'],
     };
 
     if (this.config.token) {
@@ -543,8 +587,16 @@ export class HerdrClientAdapter {
   }
 
   private resolveWsUrl(configuredUrl: string): string {
-    if (configuredUrl.startsWith('ws://') || configuredUrl.startsWith('wss://')) {
+    if (/^wss?:\/\//i.test(configuredUrl)) {
       return configuredUrl;
+    }
+    if (/^https?:\/\//i.test(configuredUrl)) {
+      // Older settings accepted an HTTP origin in the WebSocket field. Keep
+      // those credentials usable while upgrading the transport to ws/wss.
+      const url = new URL(configuredUrl);
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      if (!url.pathname || url.pathname === '/') url.pathname = '/ws/client';
+      return url.toString();
     }
 
     // Relative path or same-origin fallback

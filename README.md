@@ -67,6 +67,10 @@ Run `herdr-remote` without arguments to open the configuration TUI (Chinese/Engl
 - `m`: Toggle mouse
 - `q`: Quit
 
+## Multiple Herdr instances
+
+One browser can pair multiple Herdr workstations. Use **Add Herdr instance** in the lower-left switcher, enter the new pairing code, and optionally rename the saved instance. Names and credentials stay in the current browser; switching keeps only the active WebSocket to reduce relay traffic.
+
 ## Pairing
 
 1. Open the **Pair a device** tab in TUI (or run `herdr-remote pair`).
@@ -120,6 +124,7 @@ Authentication tokens and secrets are stored in `~/.local/state/herdr-remote/run
 
 ## Security
 
+- Device tokens are bound to one workstation. `/api/status` is workstation-scoped, ordinary users cannot enumerate other Herdr instances, and relay-wide status requires the operator token.
 - Relay brokers WebSocket streams without running shells or accessing local sockets directly.
 - Authentication tokens are hashed with SHA-256; terminal content is never written to disk.
 - Every paired window shares one terminal with full input; pairing, not a control lease, is the permission boundary.

@@ -1025,7 +1025,7 @@ export const StatusLine: React.FC<{
 }> = ({ left, right, className }) => (
   <footer
     className={cn(
-      'flex h-[var(--tui-row)] w-full shrink-0 items-center justify-between gap-3 overflow-hidden border-t border-tui-border bg-tui-mantle px-2 text-tui-sm',
+      'relative flex h-[var(--tui-row)] w-full shrink-0 items-center justify-between gap-3 overflow-visible border-t border-tui-border bg-tui-mantle px-2 text-tui-sm',
       className
     )}
   >

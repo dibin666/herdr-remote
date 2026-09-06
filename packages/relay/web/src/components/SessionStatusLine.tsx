@@ -2,6 +2,11 @@ import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { describeConnection } from '../utils/connectionStatus';
 import { Badge, Segments, StatusDot, StatusLine } from './tui';
+import { HostSwitcher } from './HostSwitcher';
+
+interface SessionStatusLineProps {
+  onAddProfile?: () => void;
+}
 
 /**
  * The status area shared by every desktop view.
@@ -12,7 +17,7 @@ import { Badge, Segments, StatusDot, StatusLine } from './tui';
  * then be a terminal, a wizard, or an admin screen without changing the shell
  * around it.
  */
-export const SessionStatusLine: React.FC = () => {
+export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfile = () => {} }) => {
   const {
     connectionState,
     role,
@@ -29,8 +34,10 @@ export const SessionStatusLine: React.FC = () => {
   return (
     <StatusLine
       left={
-        <Segments
-          items={[
+        <>
+          <HostSwitcher onAddProfile={onAddProfile} />
+          <Segments
+            items={[
             <span key="status" className="flex items-center gap-1">
               <StatusDot level={status.level} />
               <span className="text-tui-text">{status.label}</span>
@@ -58,8 +65,9 @@ export const SessionStatusLine: React.FC = () => {
               <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
               <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
             </span>,
-          ]}
-        />
+            ]}
+          />
+        </>
       }
       right={
         <Segments

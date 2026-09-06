@@ -18,6 +18,7 @@ The host connects to `/ws/host` and sends:
   "hostname": "workstation",
   "platform": "linux",
   "arch": "x64",
+  "capabilities": ["host_handoff", "idle_heartbeat"],
   "terminalPalette": {
     "background": "#222226",
     "foreground": "#ffffff",
@@ -40,9 +41,19 @@ Two different secrets, with two different jobs:
 That split is what makes a public relay safe to share: joining is open, but each
 workstation remains reachable only by whoever holds its host token.
 
-The host then sends periodic `heartbeat` JSON messages containing load and
-PTY metadata. The relay sends `session_start`, `session_stop`, and `resize`
-messages back to the host.
+The relay responds with `host_ready` and an optional `clientCount`. It also
+sends `client_count` whenever the number of attached browser windows changes.
+The host sends `heartbeat` JSON messages containing load and PTY metadata only
+while `clientCount > 0`; when no browser is attached it keeps only the WebSocket
+ping/pong liveness connection. The relay sends `session_start`, `session_stop`,
+and `resize` messages back to the host.
+
+A host advertising `host_handoff` may temporarily disconnect without dropping
+already-authorized browser sockets. The relay sends `host_reconnecting`, keeps
+them for the configured grace period, and starts a fresh shared session after
+the host authenticates again. `session_restarted` tells browsers to clear the
+old terminal buffer before rendering the new PTY. Clients without the capability
+fall back to the original close-and-reconnect behavior.
 
 ### Terminal colors
 
@@ -81,7 +92,8 @@ The browser connects to `/ws/client` and sends `hello` with either a one-time
   "pairCode": "AB12XYZ",
   "clientId": "phone-1",
   "cols": 80,
-  "rows": 24
+  "rows": 24,
+  "capabilities": ["host_handoff"]
 }
 ```
 
@@ -129,11 +141,12 @@ but they no longer move anything.
 
 ## HTTP endpoints
 
-- `GET /healthz` — unauthenticated liveness and coarse counts.
+- `GET /healthz` — unauthenticated tenant-blind liveness (no host/client counts).
 - `GET /api/info` — unauthenticated UI capabilities and deployment mode; it
   does not include host, client, or PTY data.
 - `GET /api/status` — workstation-scoped dashboard metrics; authenticated with
-  a device token (`Authorization: Bearer …`) or host headers.
+  a device token (`Authorization: Bearer …`) or host headers. It never returns
+  another host's clients, PTYs, devices, or traffic.
 - `GET /api/admin/status` — the standalone relay operator dashboard endpoint;
   authenticated with `X-Relay-Admin-Token` when `RELAY_ADMIN_TOKEN` is set.
 - `POST /api/pair/start` — creates a pairing code for one workstation.

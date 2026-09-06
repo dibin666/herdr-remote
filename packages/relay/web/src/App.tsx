@@ -20,6 +20,7 @@ import { applyDocumentTheme } from './utils/theme';
 function AppContent() {
   const [currentView, setCurrentView] = useState<'terminal' | 'admin'>('terminal');
   const [isPairingOpen, setIsPairingOpen] = useState(false);
+  const [isPairingAddMode, setIsPairingAddMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
@@ -151,6 +152,16 @@ function AppContent() {
     };
   }, []);
 
+  const openPairing = (addNew = false) => {
+    setIsPairingAddMode(addNew);
+    setIsPairingOpen(true);
+  };
+
+  const closePairing = () => {
+    setIsPairingOpen(false);
+    setIsPairingAddMode(false);
+  };
+
   const handleNavigate = (view: 'terminal' | 'admin') => {
     setCurrentView(view);
     if (view === 'admin') {
@@ -227,7 +238,7 @@ function AppContent() {
           currentView={currentView}
           onNavigate={handleNavigate}
           showAdminEntry={showAdminEntry}
-          onOpenPairing={() => setIsPairingOpen(true)}
+          onOpenPairing={() => openPairing(false)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onToggleVirtualKeyboard={() => setIsVirtualKeyboardOpen(!isVirtualKeyboardOpen)}
           isVirtualKeyboardOpen={isVirtualKeyboardOpen}
@@ -276,7 +287,7 @@ function AppContent() {
           >
             <AdminDashboard
               onBackToTerminal={() => handleNavigate('terminal')}
-              onOpenPairing={() => setIsPairingOpen(true)}
+              onOpenPairing={() => openPairing(false)}
             />
           </div>
         )}
@@ -286,8 +297,9 @@ function AppContent() {
           <MobileTerminalShell
             onNavigateAdmin={() => handleNavigate('admin')}
             showAdminEntry={showAdminEntry}
-            onOpenPairing={() => setIsPairingOpen(true)}
+            onOpenPairing={() => openPairing(false)}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onAddProfile={() => openPairing(true)}
           />
         )}
       </div>
@@ -295,10 +307,10 @@ function AppContent() {
       {/* Desktop status area: one TUI line for the live session facts. Mobile
           keeps those facts in its reserved top row and control sheet, so this
           does not take terminal height away from a phone. */}
-      {!isMobileShell && currentView !== 'admin' && <SessionStatusLine />}
+      {!isMobileShell && currentView !== 'admin' && <SessionStatusLine onAddProfile={() => openPairing(true)} />}
 
       {/* Modals & Floating Overlays */}
-      <PairingModal isOpen={isPairingOpen} onClose={() => setIsPairingOpen(false)} />
+      <PairingModal isOpen={isPairingOpen} isAddMode={isPairingAddMode} onClose={closePairing} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <ToastContainer />
     </div>

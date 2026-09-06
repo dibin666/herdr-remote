@@ -24,6 +24,9 @@ function config() {
       port: 0,
       maxPayloadBytes: 1024 * 1024,
       maxClientsPerHost: 8,
+      maxHosts: 8,
+      maxBufferedBytesPerClient: 1024,
+      hostReconnectGraceMs: 500,
     },
     auth: { pairingTtlMs: 60_000, deviceTtlMs: 60_000, maxDevices: 8 },
     cleanup: { intervalMs: 60_000, heartbeatIntervalMs: 60_000, staleAfterMs: 180_000 },
@@ -80,6 +83,20 @@ test('relay admin token can be configured from environment, file options, or CLI
   assert.equal(loadRelayConfig({ argv: ['--admin-token', 'cli-admin-token'], env: {} }).config.auth.adminToken, 'cli-admin-token');
   assert.equal(loadRelayConfig({ env: { RELAY_DEPLOYMENT_MODE: 'local' } }).config.relay.mode, 'local');
   assert.equal(loadRelayConfig({ argv: ['--deployment-mode', 'local'], env: {} }).config.relay.mode, 'local');
+  assert.equal(loadRelayConfig({ env: {
+    RELAY_MAX_HOSTS: '12',
+    RELAY_MAX_PENDING_HANDSHAKES: '34',
+    RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: '65536',
+    RELAY_HOST_RECONNECT_GRACE_MS: '5000',
+  } }).config.relay.maxHosts, 12);
+  const tuned = loadRelayConfig({ env: {
+    RELAY_MAX_PENDING_HANDSHAKES: '34',
+    RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: '65536',
+    RELAY_HOST_RECONNECT_GRACE_MS: '5000',
+  } }).config.relay;
+  assert.equal(tuned.maxPendingHandshakes, 34);
+  assert.equal(tuned.maxBufferedBytesPerClient, 65536);
+  assert.equal(tuned.hostReconnectGraceMs, 5000);
 });
 
 test('relay info identifies local and operator-facing deployments without credentials', async (t) => {
@@ -106,6 +123,100 @@ test('relay info identifies local and operator-facing deployments without creden
     publicUrl: 'http://127.0.0.1:0',
     remoteAdminUrl: null,
   });
+});
+
+test('scoped status and public health never expose another host', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-scope-'));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const hostA = await openWebSocket(`${wsBase}/ws/host`);
+  const hostB = await openWebSocket(`${wsBase}/ws/host`);
+  hostA.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-a', token: 'host-a-token-123456789' }));
+  hostB.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-b', token: 'host-b-token-123456789' }));
+  await Promise.all([
+    nextMessage(hostA, (message) => message.type === 'host_ready'),
+    nextMessage(hostB, (message) => message.type === 'host_ready'),
+  ]);
+
+  const health = await (await fetch(`${base}/healthz`)).json();
+  assert.equal(Object.hasOwn(health, 'hosts'), false);
+  assert.equal(Object.hasOwn(health, 'clients'), false);
+
+  const statusA = await (await fetch(`${base}/api/status`, { headers: {
+    'X-Herdr-Host-Id': 'host-a',
+    'X-Herdr-Host-Token': 'host-a-token-123456789',
+  } })).json();
+  const statusB = await (await fetch(`${base}/api/status`, { headers: {
+    'X-Herdr-Host-Id': 'host-b',
+    'X-Herdr-Host-Token': 'host-b-token-123456789',
+  } })).json();
+  assert.deepEqual(statusA.hosts.map((host) => host.id), ['host-a']);
+  assert.deepEqual(statusB.hosts.map((host) => host.id), ['host-b']);
+  assert.equal(statusA.hosts.some((host) => host.id === 'host-b'), false);
+  assert.equal(Object.hasOwn(statusA.clients[0] || {}, 'hostId'), false);
+
+  // Device credentials are tenant scoped in exactly the same way as host
+  // credentials; a browser paired to A must never receive B's host record.
+  const pairingA = await postJson(`${base}/api/pair/start`, {
+    'X-Herdr-Host-Id': 'host-a',
+    'X-Herdr-Host-Token': 'host-a-token-123456789',
+  });
+  const pairingB = await postJson(`${base}/api/pair/start`, {
+    'X-Herdr-Host-Id': 'host-b',
+    'X-Herdr-Host-Token': 'host-b-token-123456789',
+  });
+  const clientA = await openWebSocket(`${wsBase}/ws/client`);
+  const clientB = await openWebSocket(`${wsBase}/ws/client`);
+  const pairedA = nextMessage(clientA, (message) => message.type === 'paired');
+  const pairedB = nextMessage(clientB, (message) => message.type === 'paired');
+  const readyA = nextMessage(clientA, (message) => message.type === 'ready');
+  const readyB = nextMessage(clientB, (message) => message.type === 'ready');
+  clientA.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingA.code, clientId: 'device-a', cols: 80, rows: 24 }));
+  clientB.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingB.code, clientId: 'device-b', cols: 80, rows: 24 }));
+  const [pairedAMessage, pairedBMessage] = await Promise.all([pairedA, pairedB]);
+  await Promise.all([readyA, readyB]);
+  const tokenA = pairedAMessage.value.token;
+  const tokenB = pairedBMessage.value.token;
+  const deviceStatusA = await (await fetch(`${base}/api/status`, {
+    headers: { Authorization: `Bearer ${tokenA}` },
+  })).json();
+  const deviceStatusB = await (await fetch(`${base}/api/status`, {
+    headers: { Authorization: `Bearer ${tokenB}` },
+  })).json();
+  assert.deepEqual(deviceStatusA.hosts.map((host) => host.id), ['host-a']);
+  assert.deepEqual(deviceStatusB.hosts.map((host) => host.id), ['host-b']);
+  assert.equal(deviceStatusA.hosts.some((host) => host.id === 'host-b'), false);
+
+  const mixed = await fetch(`${base}/api/status`, { headers: {
+    'X-Herdr-Host-Id': 'host-a',
+    'X-Herdr-Host-Token': 'host-a-token-123456789',
+    Authorization: 'Bearer no-device-token-for-host-b',
+  } });
+  assert.equal(mixed.status, 401);
+  clientA.close();
+  clientB.close();
+  hostA.close();
+  hostB.close();
+});
+
+test('CORS echoes only an explicitly allowed origin', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-cors-'));
+  const relayConfig = config();
+  relayConfig.relay.allowedOrigins = ['https://console.example'];
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const allowed = await fetch(`${base}/api/info`, { headers: { Origin: 'https://console.example' } });
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://console.example');
+  const denied = await fetch(`${base}/api/info`, { headers: { Origin: 'https://evil.example' } });
+  assert.equal(denied.status, 403);
 });
 
 test('relay pairs a client and preserves output/input streams', async (t) => {
@@ -633,6 +744,61 @@ test('two windows of one browser both stay attached instead of evicting each oth
   other.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-b', cols: 80, rows: 24 }));
   assert.equal((await otherReady).value.role, 'controller');
   assert.equal(relay.clients.size, 3);
+});
+
+test('a capable host reconnects without dropping its authorized browser', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-handoff-'));
+  const relayConfig = config();
+  relayConfig.relay.hostReconnectGraceMs = 500;
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+  const hello = { type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789', capabilities: ['host_handoff', 'idle_heartbeat'] };
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify(hello));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const paired = nextMessage(client, (message) => message.type === 'paired');
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  const firstSession = nextMessage(host, (message) => message.type === 'session_start');
+  client.send(JSON.stringify({
+    type: 'hello',
+    protocol: 1,
+    pairCode: pairing.code,
+    clientId: 'browser-a',
+    cols: 80,
+    rows: 24,
+    capabilities: ['host_handoff'],
+  }));
+  await ready;
+  await paired;
+  await firstSession;
+
+  const reconnecting = nextMessage(client, (message) => message.type === 'host_reconnecting');
+  host.close();
+  await reconnecting;
+  assert.equal(relay.clients.size, 1, 'the authorized browser remains attached during handoff');
+
+  const replacement = await openWebSocket(`${wsBase}/ws/host`);
+  const replacementReady = nextMessage(replacement, (message) => message.type === 'host_ready');
+  const replacementSession = nextMessage(replacement, (message) => message.type === 'session_start');
+  const restarted = nextMessage(client, (message) => message.type === 'session_restarted');
+  replacement.send(JSON.stringify(hello));
+  await replacementReady;
+  const session = (await replacementSession).value;
+  const reset = (await restarted).value;
+  assert.equal(typeof session.streamId, 'string');
+  assert.equal(reset.streamId, session.streamId);
+  assert.notEqual(relay.hosts.get('host-1').ws, host);
+  assert.equal(relay.hosts.get('host-1').ws.readyState, WebSocket.OPEN);
+  assert.equal(relay.clients.size, 1);
+
+  client.close();
+  replacement.close();
 });
 
 test('an operator can list paired devices and revoke one', async (t) => {

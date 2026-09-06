@@ -166,6 +166,10 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
         RELAY_AUTH_STATE_FILE: relayAuthStatePath(),
         RELAY_ALLOWED_ORIGINS: (config.relay.allowedOrigins || []).join(','),
         RELAY_MAX_CLIENTS_PER_HOST: String(config.relay.maxClientsPerHost),
+        RELAY_MAX_HOSTS: String(config.relay.maxHosts),
+        RELAY_MAX_PENDING_HANDSHAKES: String(config.relay.maxPendingHandshakes),
+        RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: String(config.relay.maxBufferedBytesPerClient),
+        RELAY_HOST_RECONNECT_GRACE_MS: String(config.relay.hostReconnectGraceMs),
       },
     });
   }
@@ -377,18 +381,26 @@ async function waitForRelay(config, { attempts = 20, delayMs = 100 } = {}) {
 }
 
 async function waitForHost(config, { attempts = 30, delayMs = 100 } = {}) {
-  let lastHealth = null;
+  const state = ensureRuntime();
+  const statusEndpoint = `${resolveAdminOrigin(config)}/api/status`;
+  let lastStatus = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      lastHealth = await requestJson(healthUrl(config), { timeout: 800 });
-      if (lastHealth.hosts > 0) return lastHealth;
+      lastStatus = await requestJson(statusEndpoint, {
+        timeout: 800,
+        headers: {
+          'X-Herdr-Host-Id': state.hostId,
+          'X-Herdr-Host-Token': state.hostToken,
+        },
+      });
+      if (lastStatus.hosts?.some((host) => host.id === state.hostId)) return lastStatus;
     } catch (error) {
-      lastHealth = { ok: false, message: error.message };
+      lastStatus = { ok: false, message: error.message };
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
-  const error = new Error(lastHealth?.message || 'the Herdr host connector did not register with the relay');
-  error.health = lastHealth;
+  const error = new Error(lastStatus?.message || 'the Herdr host connector did not register with the relay');
+  error.health = lastStatus;
   throw error;
 }
 

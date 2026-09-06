@@ -108,7 +108,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
 
     global.fetch = vi.fn().mockImplementation((url: string) => {
       requestedEndpoints.push(url);
-      if (url === '/api/info') {
+      if (url === 'https://relay.example.com/api/info') {
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -135,7 +135,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     });
 
     // 1. Assert: /api/status was NEVER requested!
-    expect(requestedEndpoints).toEqual(['/api/info']);
+    expect(requestedEndpoints).toEqual(['https://relay.example.com/api/info']);
     expect(requestedEndpoints).not.toContain('/api/status');
     expect(requestedEndpoints).not.toContain('/api/admin/status');
 
@@ -171,7 +171,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     let requestedHeaders: Record<string, string> = {};
 
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
-      if (url === '/api/info') {
+      if (url === 'https://relay.example.com/api/info') {
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -235,7 +235,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(requestedUrl).toBe('/api/admin/status');
+      expect(requestedUrl).toBe('https://relay.example.com/api/admin/status');
       // Assert: only X-Relay-Admin-Token is sent, never Bearer device token
       expect(requestedHeaders['X-Relay-Admin-Token']).toBe('secret-admin-pass');
       expect(requestedHeaders['Authorization']).toBeUndefined();

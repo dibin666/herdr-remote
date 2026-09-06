@@ -101,7 +101,15 @@ describe('HerdrClientAdapter Protocol', () => {
       pairCode: 'TEST12',
       cols: 100,
       rows: 40,
+      capabilities: ['host_handoff'],
     });
+  });
+
+  it('keeps legacy HTTP relay URLs usable by upgrading them to WebSocket URLs', async () => {
+    const adapter = new HerdrClientAdapter({ ...baseConfig, wsUrl: 'https://relay.example.com' });
+    adapter.connect();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(MockWebSocket.instances[0].url).toBe('wss://relay.example.com/ws/client');
   });
 
   it('handles ready message and stores server-assigned clientId and role', async () => {

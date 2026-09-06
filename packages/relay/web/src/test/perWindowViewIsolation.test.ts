@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  createConnectionProfile,
   loadSettings,
+  profileKey,
   saveSettings,
   LOCAL_STORAGE_KEY,
 } from '../utils/storage';
@@ -185,6 +187,51 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     const current = loadSettings();
     expect(current.fontSize).toBe(12);
     expect(current.toolbarVisible).toBe(true);
+  });
+
+  it('migrates a legacy HTTP relay URL without dropping its token', () => {
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ wsUrl: 'https://legacy.example/ws/client', token: 'legacy-token-123456789' }),
+    );
+    const loaded = loadSettings();
+    expect(loaded.token).toBe('legacy-token-123456789');
+    expect(loaded.profiles[0].wsUrl).toBe('https://legacy.example/ws/client');
+  });
+
+  it('stores multiple host profiles independently and keeps aliases local', () => {
+    const first = createConnectionProfile({
+      wsUrl: 'wss://relay.example/a/ws/client',
+      token: 'first-token-123456789',
+      hostId: 'host-a',
+      displayName: 'Office',
+    });
+    const second = createConnectionProfile({
+      wsUrl: 'wss://relay.example/b/ws/client',
+      token: 'second-token-123456789',
+      hostId: 'host-b',
+      displayName: 'Home',
+    });
+
+    saveSettings({ profiles: [first, second], activeProfileId: first.id, wsUrl: first.wsUrl, token: first.token });
+    let loaded = loadSettings();
+    expect(loaded.profiles).toHaveLength(2);
+    expect(loaded.activeProfileId).toBe(first.id);
+    expect(loaded.profiles[0].displayName).toBe('Office');
+    expect(profileKey(loaded.profiles[0])).not.toBe(profileKey(loaded.profiles[1]));
+
+    saveSettings({
+      profiles: loaded.profiles,
+      activeProfileId: second.id,
+      wsUrl: second.wsUrl,
+      token: second.token,
+    });
+    loaded = loadSettings();
+    expect(loaded.activeProfileId).toBe(second.id);
+    expect(loaded.wsUrl).toBe(second.wsUrl);
+    expect(loaded.token).toBe(second.token);
+    expect(loaded.profiles.find((profile) => profile.id === first.id)?.displayName).toBe('Office');
+    expect(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').profiles).toHaveLength(2);
   });
 
   it('sessionStorage failure gracefully falls back to memory storage per session', () => {

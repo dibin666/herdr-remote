@@ -83,11 +83,24 @@ function tokenMatches(candidate, expected) {
 
 class RelayServer {
   constructor(config = loadRelayConfig().config, options = {}) {
-    this.config = config;
+    this.config = {
+      ...config,
+      relay: {
+        ...config.relay,
+        maxHosts: config.relay?.maxHosts ?? 1024,
+        maxPendingHandshakes: config.relay?.maxPendingHandshakes ?? 1024,
+        maxBufferedBytesPerClient: config.relay?.maxBufferedBytesPerClient ?? 4 * 1024 * 1024,
+        hostReconnectGraceMs: config.relay?.hostReconnectGraceMs ?? 30 * 1000,
+      },
+    };
+    config = this.config;
     this.relayMode = config.relay?.mode === 'local' ? 'local' : 'remote';
     this.hosts = new Map();
     this.clients = new Map();
     this.pairAttempts = new Map();
+    this.clientHandshakeAttempts = new Map();
+    this.hostHandshakeAttempts = new Map();
+    this.pendingHandshakes = new Set();
     this.startedAt = Date.now();
     this.metrics = options.metrics || new RelayMetrics({ version: VERSION, protocolVersion: PROTOCOL_VERSION });
     this.stateFile = options.stateFile || config.auth?.stateFile || path.join(defaultStateDir(), 'relay-auth.json');
@@ -102,7 +115,14 @@ class RelayServer {
       password: this.password,
     });
     this.server = http.createServer((req, res) => this.handleHttp(req, res));
-    this.wss = new WebSocketServer({ noServer: true, clientTracking: false, maxPayload: config.relay.maxPayloadBytes });
+    this.wss = new WebSocketServer({
+      noServer: true,
+      clientTracking: false,
+      maxPayload: config.relay.maxPayloadBytes,
+      // Terminal data is already compact and latency-sensitive. Compression
+      // adds CPU and buffering without helping the usual ANSI payloads.
+      perMessageDeflate: false,
+    });
     this.heartbeatTimer = null;
     this.cleanupTimer = null;
     this.server.on('upgrade', (req, socket, head) => this.handleUpgrade(req, socket, head));
@@ -140,6 +160,10 @@ class RelayServer {
     this.cleanupTimer = null;
     for (const client of [...this.clients.values()]) this.detachClient(client, { notify: false });
     for (const host of [...this.hosts.values()]) this.detachHost(host, { notify: false });
+    this.pairAttempts.clear();
+    this.clientHandshakeAttempts.clear();
+    this.hostHandshakeAttempts.clear();
+    this.pendingHandshakes.clear();
     this.metrics.close();
     await new Promise((resolve) => {
       if (!this.server.listening) return resolve();
@@ -177,7 +201,21 @@ class RelayServer {
       socket.destroy();
       return;
     }
+    if (this.pendingHandshakes.size >= this.config.relay.maxPendingHandshakes) {
+      socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    // Small ANSI/input frames should not wait behind Nagle's timer. This is
+    // safe for both plain HTTP and TLS sockets and also benefits a relay behind
+    // a reverse proxy by keeping the relay leg immediately writable.
+    try {
+      socket.setNoDelay(true);
+      socket.setKeepAlive?.(true, this.config.cleanup.heartbeatIntervalMs);
+    } catch {}
     this.wss.handleUpgrade(req, socket, head, (ws) => {
+      this.pendingHandshakes.add(ws);
+      ws.once('close', () => this.finishHandshake(ws));
       if (pathname === '/ws/host') this.handleHostConnection(ws, req);
       else this.handleClientConnection(ws, req);
     });
@@ -189,7 +227,7 @@ class RelayServer {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'");
   }
 
   sendJsonResponse(res, status, payload) {
@@ -216,6 +254,27 @@ class RelayServer {
     return token ? this.auth.authenticateDevice(token) : null;
   }
 
+  /**
+   * Resolve the request to one tenant. Supplying both authentication schemes is
+   * allowed only when they identify the same host; otherwise a caller could
+   * accidentally combine credentials from two workstations and receive the
+   * result selected by whichever branch happened to run first.
+   */
+  authorizedSubject(req) {
+    const hostIdHeader = req.headers['x-herdr-host-id'];
+    const hostTokenHeader = req.headers['x-herdr-host-token'];
+    const hasHostCredentials = hostIdHeader !== undefined || hostTokenHeader !== undefined;
+    const hasBearer = req.headers.authorization !== undefined;
+    const hostId = this.authorizedHost(req);
+    const device = this.authorizedDevice(req);
+    if (hasHostCredentials && !hostId) return null;
+    if (hasBearer && !device) return null;
+    if (hostId && device && hostId !== device.hostId) return null;
+    if (hostId) return { kind: 'host', hostId };
+    if (device) return { kind: 'device', hostId: device.hostId, deviceId: device.deviceId };
+    return null;
+  }
+
   /** Authenticate the operator of this relay, not a workstation or device. */
   authorizedAdmin(req) {
     return tokenMatches(req.headers['x-relay-admin-token'], this.adminToken);
@@ -239,17 +298,40 @@ class RelayServer {
     return req.socket.remoteAddress || 'unknown';
   }
 
-  allowPairAttempt(req) {
+  allowAttempt(store, req, limit = 20) {
     const key = this.rateLimitKey(req);
     const now = Date.now();
-    const current = this.pairAttempts.get(key);
+    const current = store.get(key);
     if (!current || now - current.startedAt >= 60_000) {
-      this.pairAttempts.set(key, { startedAt: now, count: 1 });
+      // Bound the map even when an attacker rotates source addresses. Expired
+      // entries are removed by sweep; the oldest live entry is the least
+      // useful one to retain when the cap is reached.
+      if (store.size >= 4096) {
+        const oldest = store.keys().next().value;
+        if (oldest !== undefined) store.delete(oldest);
+      }
+      store.set(key, { startedAt: now, count: 1 });
       return true;
     }
-    if (current.count >= 20) return false;
+    if (current.count >= limit) return false;
     current.count += 1;
     return true;
+  }
+
+  allowPairAttempt(req) {
+    return this.allowAttempt(this.pairAttempts, req, 20);
+  }
+
+  allowClientHandshake(req) {
+    return this.allowAttempt(this.clientHandshakeAttempts, req, 60);
+  }
+
+  allowHostHandshake(req) {
+    return this.allowAttempt(this.hostHandshakeAttempts, req, 60);
+  }
+
+  finishHandshake(ws) {
+    this.pendingHandshakes.delete(ws);
   }
 
   handleHttp(req, res) {
@@ -268,7 +350,7 @@ class RelayServer {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': req.headers.origin || '*',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Herdr-Host-Id, X-Herdr-Host-Token, X-Relay-Admin-Token',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         Vary: 'Origin',
       });
       res.end();
@@ -278,16 +360,21 @@ class RelayServer {
       this.sendJsonResponse(res, 403, { ok: false, code: 'origin_denied', message: 'origin is not allowed' });
       return;
     }
+    // Only echo an origin after the exact allowlist/same-host check above. This
+    // makes explicitly configured cross-origin WebUI profiles usable without
+    // reflecting an attacker-controlled Origin header.
+    if (req.headers.origin) {
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+      res.setHeader('Vary', 'Origin');
+    }
     if (requestUrl.pathname === '/healthz' && req.method === 'GET') {
-      const snapshot = this.statusSnapshot({ sample: false });
+      // Liveness is intentionally tenant-blind. Host/client counts let an
+      // unauthenticated caller learn whether other workstations are present.
       this.sendJsonResponse(res, 200, {
         ok: true,
         version: VERSION,
         protocol: PROTOCOL_VERSION,
-        hosts: snapshot.hostCount,
-        clients: snapshot.clientCount,
-        uptimeSeconds: snapshot.uptimeSeconds,
-        load1m: snapshot.cpu.load1m,
+        uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
       });
       return;
     }
@@ -308,11 +395,12 @@ class RelayServer {
       return;
     }
     if (requestUrl.pathname === '/api/status' && req.method === 'GET') {
-      if (!this.authorizedHost(req) && !this.authorizedDevice(req)) {
+      const subject = this.authorizedSubject(req);
+      if (!subject) {
         this.sendJsonResponse(res, 401, { ok: false, code: 'auth_required', message: 'an authorized device or host token is required' });
         return;
       }
-      this.sendJsonResponse(res, 200, this.statusSnapshot());
+      this.sendJsonResponse(res, 200, this.statusSnapshot({ scopeHostId: subject.hostId }));
       return;
     }
     if (requestUrl.pathname === '/api/admin/status' && req.method === 'GET') {
@@ -358,7 +446,8 @@ class RelayServer {
         this.sendJsonResponse(res, 401, { ok: false, code: 'host_auth_required', message: 'a valid host id and token are required' });
         return;
       }
-      if (!this.hosts.has(hostId)) {
+      const host = this.hosts.get(hostId);
+      if (!host || host.reconnecting || !isOpen(host.ws)) {
         this.sendJsonResponse(res, 409, { ok: false, code: 'host_offline', message: 'no Herdr host is connected' });
         return;
       }
@@ -417,6 +506,66 @@ class RelayServer {
     });
   }
 
+  createHostRecord(message, ws, pending, clients = new Set()) {
+    const capabilities = Array.isArray(message.capabilities) ? message.capabilities : [];
+    return {
+      id: message.hostId,
+      ws,
+      hostname: typeof message.hostname === 'string' ? message.hostname.slice(0, 128) : os.hostname(),
+      platform: typeof message.platform === 'string' ? message.platform.slice(0, 32) : process.platform,
+      arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
+      connectedAt: new Date(pending.connectedAt).toISOString(),
+      connectedAtMs: pending.connectedAt,
+      // One shared terminal per workstation. Every browser attached to this
+      // host reads and writes the same PTY, so what one of them shows is what
+      // all of them show.
+      session: null,
+      terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
+      lastSeenAt: Date.now(),
+      clients,
+      controllerId: null,
+      load: {},
+      ptys: [],
+      reconnecting: false,
+      reconnectTimer: null,
+      connectionGeneration: randomId('host-connection'),
+      handoffCapable: capabilities.includes('host_handoff'),
+      shutdownRequested: false,
+    };
+  }
+
+  canHandoffHost(host) {
+    if (!host?.handoffCapable || host.clients.size === 0) return false;
+    for (const clientId of host.clients) {
+      const client = this.clients.get(clientId);
+      if (!client?.handoffCapable) return false;
+    }
+    return true;
+  }
+
+  beginHostReconnect(host, reason = 'host_disconnected') {
+    if (!host || this.hosts.get(host.id) !== host || host.reconnecting) return;
+    if (!this.canHandoffHost(host)) {
+      this.detachHost(host, { notify: true, reason });
+      return;
+    }
+    host.ws = null;
+    host.reconnecting = true;
+    host.reconnectStartedAt = Date.now();
+    host.lastSeenAt = Date.now();
+    host.load = {};
+    host.ptys = [];
+    host.session = null;
+    this.broadcastToClients(host, () => ({ type: 'host_reconnecting', code: reason }));
+    host.reconnectTimer = setTimeout(() => {
+      host.reconnectTimer = null;
+      if (this.hosts.get(host.id) === host && host.reconnecting) {
+        this.detachHost(host, { notify: true, reason: 'host_reconnect_timeout' });
+      }
+    }, this.config.relay.hostReconnectGraceMs);
+    host.reconnectTimer.unref?.();
+  }
+
   handleHostConnection(ws, req) {
     const pending = { ws, remoteAddress: req.socket.remoteAddress, connectedAt: Date.now(), authenticated: false };
     const deadline = setTimeout(() => {
@@ -432,43 +581,65 @@ class RelayServer {
         if (isBinary) return this.rejectHandshake(ws, 'host hello must be JSON');
         const message = parseJson(raw.toString());
         if (!message || message.type !== 'host_hello' || message.protocol !== PROTOCOL_VERSION) return this.rejectHandshake(ws, 'invalid host hello');
+        if (!this.allowHostHandshake(req)) return this.rejectHandshake(ws, 'too many connection attempts', 'rate_limited');
+        const oldHost = this.hosts.get(message.hostId);
+        if (!oldHost && this.hosts.size >= this.config.relay.maxHosts) {
+          return this.rejectHandshake(ws, 'relay host limit reached', 'too_many_hosts');
+        }
         const registration = this.auth.registerHost(message.hostId, message.token, message.password ?? null);
         if (!registration.ok) return this.rejectHandshake(ws, registration.message, registration.code);
         clearTimeout(deadline);
         pending.authenticated = true;
-        const oldHost = this.hosts.get(message.hostId);
-        if (oldHost) this.detachHost(oldHost, { notify: true, reason: 'host_replaced' });
-        const host = {
-          id: message.hostId,
-          ws,
-          hostname: typeof message.hostname === 'string' ? message.hostname.slice(0, 128) : os.hostname(),
-          platform: typeof message.platform === 'string' ? message.platform.slice(0, 32) : process.platform,
-          arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
-          connectedAt: new Date(pending.connectedAt).toISOString(),
-          connectedAtMs: pending.connectedAt,
-          // One shared terminal per workstation. Every browser attached to this
-          // host reads and writes the same PTY, so what one window shows is
-          // what all of them show.
-          session: null,
-          // Colors are the workstation's to declare, but only in the one shape
-          // a browser renderer accepts.
-          terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
-          lastSeenAt: Date.now(),
-          clients: new Set(),
-          controllerId: null,
-          load: {},
-          ptys: [],
-        };
+        this.finishHandshake(ws);
+
+        const handoff = this.canHandoffHost(oldHost);
+        const retainedClients = handoff ? oldHost.clients : new Set();
+        if (oldHost) {
+          if (oldHost.reconnectTimer) clearTimeout(oldHost.reconnectTimer);
+          oldHost.reconnectTimer = null;
+          if (handoff) {
+            if (oldHost.session && isOpen(oldHost.ws)) {
+              jsonSend(oldHost.ws, { type: 'session_stop', clientId: oldHost.session.streamId, streamId: oldHost.session.streamId });
+            }
+            oldHost.session = null;
+            oldHost.load = {};
+            oldHost.ptys = [];
+            this.broadcastToClients(oldHost, () => ({ type: 'host_reconnecting', code: 'host_replaced' }));
+          } else {
+            this.detachHost(oldHost, { notify: true, reason: 'host_replaced' });
+          }
+        }
+
+        const host = this.createHostRecord(message, ws, pending, retainedClients);
         pending.host = host;
+        // Install the new record before closing the old socket. Its delayed
+        // close handler then fails the identity check instead of detaching the
+        // freshly authenticated host.
         this.hosts.set(host.id, host);
-        jsonSend(ws, { type: 'host_ready', protocol: PROTOCOL_VERSION, hostId: host.id });
+        if (oldHost && handoff) closeSocket(oldHost.ws, 1000, 'host_replaced');
+        jsonSend(ws, {
+          type: 'host_ready',
+          protocol: PROTOCOL_VERSION,
+          hostId: host.id,
+          clientCount: host.clients.size,
+        });
+        this.notifyHostClientCount(host);
+        if (handoff) this.startSession(host, { restarted: true });
         return;
       }
       this.handleHostMessage(pending.host, raw, isBinary);
     });
-    ws.on('close', () => {
+    ws.on('close', (_code, rawReason) => {
       clearTimeout(deadline);
-      if (pending.host) this.detachHost(pending.host, { notify: true, reason: 'host_disconnected' });
+      const host = pending.host;
+      if (!host || this.hosts.get(host.id) !== host || host.ws !== ws) return;
+      const reason = rawReason ? rawReason.toString() : '';
+      if (reason === 'host_shutdown') host.shutdownRequested = true;
+      if (host.shutdownRequested || !this.canHandoffHost(host)) {
+        this.detachHost(host, { notify: true, reason: host.shutdownRequested ? 'host_shutdown' : 'host_disconnected' });
+        return;
+      }
+      this.beginHostReconnect(host, 'host_disconnected');
     });
     ws.on('error', () => {});
   }
@@ -494,12 +665,10 @@ class RelayServer {
       const session = host.session;
       if (frame.type !== 'output' || !session || session.streamId !== frame.streamId) return;
       this.rememberOutput(session, frame.payload);
-      for (const clientId of host.clients) {
+      for (const clientId of [...host.clients]) {
         const client = this.clients.get(clientId);
         if (!client || !isOpen(client.ws)) continue;
-        client.ws.send(frame.payload);
-        client.bytesSent += frame.payload.length;
-        this.metrics.recordOut(frame.payload.length);
+        this.sendClientBinary(host, client, frame.payload);
       }
       return;
     }
@@ -508,6 +677,11 @@ class RelayServer {
     if (message.type === 'heartbeat') {
       host.load = message.load && typeof message.load === 'object' ? message.load : {};
       host.ptys = Array.isArray(message.ptys) ? message.ptys.slice(0, 256) : [];
+      return;
+    }
+    if (message.type === 'host_shutdown') {
+      host.shutdownRequested = true;
+      if (this.hosts.get(host.id) === host) this.detachHost(host, { notify: true, reason: 'host_shutdown' });
       return;
     }
     // Session-level news concerns the whole room: the host talks about the one
@@ -532,6 +706,36 @@ class RelayServer {
         code: message.code || 'host_error',
         message: String(message.message || 'Host connector error'),
       }));
+    }
+  }
+
+  /** Notify the host whether any browser currently needs business telemetry. */
+  notifyHostClientCount(host) {
+    if (!host || !isOpen(host.ws)) return;
+    jsonSend(host.ws, { type: 'client_count', clientCount: host.clients.size });
+  }
+
+  /**
+   * Forward output without allowing one slow browser to grow an unbounded ws
+   * queue. Closing only that browser preserves low latency for the other views.
+   */
+  sendClientBinary(host, client, payload) {
+    if (!client || !isOpen(client.ws)) return false;
+    const limit = this.config.relay.maxBufferedBytesPerClient;
+    const buffered = Number(client.ws.bufferedAmount) || 0;
+    if (buffered + payload.length > limit) {
+      this.metrics.recordCleanup('slowClientsDropped');
+      this.detachClient(client, { notify: true, reason: 'slow_client', closeCode: 1013 });
+      return false;
+    }
+    try {
+      client.ws.send(payload);
+      client.bytesSent += payload.length;
+      this.metrics.recordOut(payload.length, host.id);
+      return true;
+    } catch {
+      this.detachClient(client, { notify: false, reason: 'client_send_failed', closeCode: 1011 });
+      return false;
     }
   }
 
@@ -580,6 +784,43 @@ class RelayServer {
     };
   }
 
+  /** Start the one shared PTY for a host's currently attached clients. */
+  startSession(host, { restarted = false } = {}) {
+    const firstClientId = [...host.clients][0];
+    const firstClient = firstClientId ? this.clients.get(firstClientId) : null;
+    if (!firstClient || !isOpen(host.ws)) return;
+    host.session = {
+      streamId: randomId('session'),
+      cols: firstClient.cols,
+      rows: firstClient.rows,
+      ready: false,
+      replay: [],
+      replayBytes: 0,
+    };
+    const dims = this.sharedDimensions(host) || { cols: firstClient.cols, rows: firstClient.rows };
+    host.session.cols = dims.cols;
+    host.session.rows = dims.rows;
+    jsonSend(host.ws, {
+      type: 'session_start',
+      clientId: host.session.streamId,
+      streamId: host.session.streamId,
+      cols: dims.cols,
+      rows: dims.rows,
+      role: 'controller',
+    });
+    this.broadcastToClients(host, () => ({ type: 'shared_resize', cols: dims.cols, rows: dims.rows }));
+    if (restarted) {
+      this.broadcastToClients(host, () => ({
+        type: 'session_restarted',
+        streamId: host.session.streamId,
+        cols: dims.cols,
+        rows: dims.rows,
+        hostname: host.hostname,
+        terminalPalette: host.terminalPalette || null,
+      }));
+    }
+  }
+
   /**
    * Attach `client` to the workstation's shared terminal, starting it if this
    * is the first browser through the door.
@@ -591,29 +832,7 @@ class RelayServer {
    */
   attachSession(host, client) {
     if (!host.session) {
-      host.session = {
-        streamId: randomId('session'),
-        cols: client.cols,
-        rows: client.rows,
-        ready: false,
-        replay: [],
-        replayBytes: 0,
-      };
-      const dims = this.sharedDimensions(host) || { cols: client.cols, rows: client.rows };
-      host.session.cols = dims.cols;
-      host.session.rows = dims.rows;
-      jsonSend(host.ws, {
-        type: 'session_start',
-        clientId: host.session.streamId,
-        streamId: host.session.streamId,
-        cols: dims.cols,
-        rows: dims.rows,
-        role: 'controller',
-      });
-      // Said out loud even when this window is the only one, so a browser that
-      // reconnects is never left painting the grid of a session that has since
-      // been torn down and started again at a different size.
-      jsonSend(client.ws, { type: 'shared_resize', cols: dims.cols, rows: dims.rows });
+      this.startSession(host);
       return;
     }
 
@@ -621,8 +840,7 @@ class RelayServer {
     if (session.ready) jsonSend(client.ws, { type: 'session_ready', clientId: client.id });
     for (const chunk of session.replay) {
       if (!isOpen(client.ws)) break;
-      client.ws.send(chunk);
-      client.bytesSent += chunk.length;
+      this.sendClientBinary(host, client, chunk);
     }
     // Geometry may now be smaller than it was; the resize doubles as the
     // repaint that puts the newcomer on the same screen as everyone else.
@@ -684,6 +902,7 @@ class RelayServer {
         if (isBinary) return this.rejectHandshake(ws, 'client hello must be JSON');
         const message = parseJson(raw.toString());
         if (!message || message.type !== 'hello' || message.protocol !== PROTOCOL_VERSION) return this.rejectHandshake(ws, 'invalid client hello');
+        if (!this.allowClientHandshake(req)) return this.rejectHandshake(ws, 'too many connection attempts', 'rate_limited');
         let device = null;
         let paired = null;
         if (message.pairCode) {
@@ -694,7 +913,7 @@ class RelayServer {
         else if (message.token) device = this.auth.authenticateDevice(message.token);
         if (!device) return this.rejectHandshake(ws, 'valid device token or pairing code required', 'auth_required');
         const host = this.hosts.get(device.hostId);
-        if (!host) return this.rejectHandshake(ws, 'paired Herdr host is offline', 'host_offline');
+        if (!host || host.reconnecting || !isOpen(host.ws)) return this.rejectHandshake(ws, 'paired Herdr host is offline', host?.reconnecting ? 'host_reconnecting' : 'host_offline');
 
         // Two tabs of one browser are two windows onto the same terminal, not
         // rivals. Nothing is retired here: the relay used to close whichever
@@ -704,6 +923,7 @@ class RelayServer {
         // back, forever.
         if (host.clients.size >= this.config.relay.maxClientsPerHost) return this.rejectHandshake(ws, 'host client limit reached', 'too_many_clients');
         clearTimeout(deadline);
+        this.finishHandshake(ws);
         const clientId = randomId('client');
         const client = {
           id: clientId,
@@ -712,7 +932,8 @@ class RelayServer {
           deviceId: device.deviceId,
           // Stable per browser profile; used to recognise a reconnect from the
           // same browser rather than a genuinely separate viewer.
-          browserClientId: typeof message.clientId === 'string' ? message.clientId : null,
+          browserClientId: typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
+          handoffCapable: Array.isArray(message.capabilities) && message.capabilities.includes('host_handoff'),
           // Every paired window may type. Pairing is the permission boundary;
           // once a device is through it, holding a second window read-only
           // serves nobody — they are all views of one shared terminal.
@@ -737,6 +958,7 @@ class RelayServer {
         pending.client = client;
         this.clients.set(client.id, client);
         host.clients.add(client.id);
+        this.notifyHostClientCount(host);
         ws.isAlive = true;
         ws.on('pong', () => {
           ws.isAlive = true;
@@ -756,6 +978,7 @@ class RelayServer {
           // `null` is exactly the answer that means "nobody does".
           controllerId: null,
           hostId: host.id,
+          hostname: host.hostname,
           clientId: client.id,
           // Delivered with `ready`, before the first PTY byte, so the terminal
           // is painted in the host's colors from its very first frame.
@@ -787,9 +1010,13 @@ class RelayServer {
       // with the session's stream id rather than the sender's.
       const frame = packStreamFrame('input', session.streamId, raw);
       if (isOpen(host.ws)) {
-        host.ws.send(frame);
-        client.bytesReceived += raw.length;
-        this.metrics.recordIn(raw.length);
+        try {
+          host.ws.send(frame);
+          client.bytesReceived += raw.length;
+          this.metrics.recordIn(raw.length, host.id);
+        } catch {
+          this.beginHostReconnect(host, 'host_send_failed');
+        }
       }
       return;
     }
@@ -858,7 +1085,7 @@ class RelayServer {
     return closed;
   }
 
-  detachClient(client, { notify = true, reason = 'client_disconnected' } = {}) {
+  detachClient(client, { notify = true, reason = 'client_disconnected', closeCode = 1000 } = {}) {
     if (!client || !this.clients.has(client.id)) return;
     this.clients.delete(client.id);
     const host = this.hosts.get(client.hostId);
@@ -876,17 +1103,24 @@ class RelayServer {
         }
         host.controllerId = null;
       } else {
+        this.notifyHostClientCount(host);
         this.syncDimensions(host);
         this.broadcastControlState(host);
       }
+      if (host.clients.size === 0) {
+        this.notifyHostClientCount(host);
+        if (host.reconnecting) this.detachHost(host, { notify: false, reason: 'no_clients' });
+      }
     }
     if (notify) jsonSend(client.ws, { type: 'error', code: reason, message: reason === 'host_offline' ? 'Herdr host is offline' : 'connection closed' });
-    closeSocket(client.ws, 1000, reason);
+    closeSocket(client.ws, closeCode, reason);
     this.metrics.recordCleanup('closedPtysCleaned');
   }
 
   detachHost(host, { notify = true, reason = 'host_disconnected' } = {}) {
     if (!host || this.hosts.get(host.id) !== host) return;
+    if (host.reconnectTimer) clearTimeout(host.reconnectTimer);
+    host.reconnectTimer = null;
     this.hosts.delete(host.id);
     for (const clientId of [...host.clients]) {
       const client = this.clients.get(clientId);
@@ -896,14 +1130,17 @@ class RelayServer {
       closeSocket(client.ws, 1012, reason);
     }
     host.clients.clear();
-    closeSocket(host.ws, 1000, reason);
+    this.metrics.forgetHost(host.id);
+    const hostSocket = host.ws;
+    host.ws = null;
+    closeSocket(hostSocket, 1000, reason);
   }
 
   heartbeat() {
     const sockets = [
       ...[...this.hosts.values()].map((host) => host.ws),
       ...[...this.clients.values()].map((client) => client.ws),
-    ];
+    ].filter(isOpen);
     for (const socket of sockets) {
       if (!socket.isAlive) {
         this.metrics.recordCleanup('deadConnectionsClosed');
@@ -923,6 +1160,12 @@ class RelayServer {
     for (const [key, attempt] of this.pairAttempts.entries()) {
       if (now - attempt.startedAt >= 60_000) this.pairAttempts.delete(key);
     }
+    for (const [key, attempt] of this.clientHandshakeAttempts.entries()) {
+      if (now - attempt.startedAt >= 60_000) this.clientHandshakeAttempts.delete(key);
+    }
+    for (const [key, attempt] of this.hostHandshakeAttempts.entries()) {
+      if (now - attempt.startedAt >= 60_000) this.hostHandshakeAttempts.delete(key);
+    }
     for (const client of [...this.clients.values()]) {
       if (now - client.lastSeenAt > staleAfter) {
         this.metrics.recordCleanup('staleClientsPurged');
@@ -930,6 +1173,7 @@ class RelayServer {
       }
     }
     for (const host of [...this.hosts.values()]) {
+      if (host.reconnecting) continue;
       if (now - host.lastSeenAt > staleAfter) {
         this.metrics.recordCleanup('deadConnectionsClosed');
         this.detachHost(host, { notify: true, reason: 'stale_host' });
@@ -940,12 +1184,18 @@ class RelayServer {
     this.metrics.cleanup.lastCleanupAt = new Date(now).toISOString();
   }
 
-  statusSnapshot({ sample = true, includeDevices = false } = {}) {
-    const clients = [...this.clients.values()].map((client) => ({
+  statusSnapshot({ sample = true, includeDevices = false, scopeHostId = null } = {}) {
+    const scopedClients = scopeHostId
+      ? [...this.clients.values()].filter((client) => client.hostId === scopeHostId)
+      : [...this.clients.values()];
+    const scopedHosts = scopeHostId
+      ? [...this.hosts.values()].filter((host) => host.id === scopeHostId)
+      : [...this.hosts.values()];
+    const clients = scopedClients.map((client) => ({
       id: client.id,
       role: client.role,
-      hostId: client.hostId,
-      deviceId: client.deviceId,
+      ...(scopeHostId ? {} : { hostId: client.hostId }),
+      ...(includeDevices ? { deviceId: client.deviceId } : {}),
       userAgent: client.userAgent,
       connectedAt: client.connectedAt,
       lastPingAt: client.lastPingAt,
@@ -953,22 +1203,23 @@ class RelayServer {
       bytesSent: client.bytesSent,
       ip: client.ip,
     }));
-    const hosts = [...this.hosts.values()].map((host) => ({
+    const hosts = scopedHosts.map((host) => ({
       id: host.id,
       hostname: host.hostname,
       platform: host.platform,
       arch: host.arch,
-      status: host.clients.size ? 'busy' : 'online',
+      status: host.reconnecting ? 'reconnecting' : host.clients.size ? 'busy' : 'online',
       connectedAt: host.connectedAt,
       activePtyCount: host.ptys.length,
       load: host.load,
     }));
     // The workstation counts one PTY per stream and cannot know how many
     // windows are watching it; the relay does, and that is the number an
-    // operator needs when the session is shared.
-    const ptys = [...this.hosts.values()].flatMap((host) => host.ptys.map((pty) => ({
+    // operator needs when the session is shared. Scoped callers only receive
+    // the PTYs belonging to their authenticated host.
+    const ptys = scopedHosts.flatMap((host) => host.ptys.map((pty) => ({
       ...pty,
-      hostId: host.id,
+      ...(scopeHostId ? {} : { hostId: host.id }),
       activeClients: host.clients.size,
     })));
     // The paired-device roster identifies people's hardware, so it is served to
@@ -976,7 +1227,7 @@ class RelayServer {
     // may read.
     const devices = includeDevices ? this.auth.listDevices() : undefined;
     return {
-      ...this.metrics.snapshot({ clients, hosts, ptys, sample }),
+      ...this.metrics.snapshot({ clients, hosts, ptys, sample, scopeHostId }),
       ...(devices ? { devices } : {}),
       relayMode: this.relayMode,
       isRemoteRelay: this.relayMode === 'remote',
@@ -989,6 +1240,10 @@ class RelayServer {
         bind: this.config.relay.host,
         port: this.address()?.port || this.config.relay.port,
         maxClientsPerHost: this.config.relay.maxClientsPerHost,
+        maxHosts: this.config.relay.maxHosts,
+        maxPendingHandshakes: this.config.relay.maxPendingHandshakes,
+        maxBufferedBytesPerClient: this.config.relay.maxBufferedBytesPerClient,
+        hostReconnectGraceMs: this.config.relay.hostReconnectGraceMs,
         adminConfigured: Boolean(this.adminToken),
         adminStatusPath: '/api/admin/status',
         dashboardPath: '/admin',

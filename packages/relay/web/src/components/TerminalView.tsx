@@ -128,6 +128,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     settings,
     hostPalette,
     sharedGrid,
+    terminalResetVersion,
     sendResize,
     sendBinary,
     addToast,
@@ -832,6 +833,24 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       console.debug('Error applying the shared terminal grid:', err);
     }
   }, [sharedGrid]);
+
+  // Switching profiles or rebuilding a PTY must never append new output to the
+  // previous host's screen. Keep the xterm instance mounted for layout
+  // stability, but explicitly reset its buffer at the generation boundary.
+  const appliedResetVersionRef = useRef(terminalResetVersion);
+  useEffect(() => {
+    if (appliedResetVersionRef.current === terminalResetVersion) return;
+    appliedResetVersionRef.current = terminalResetVersion;
+    const term = termRef.current as (Terminal & { reset?: () => void }) | null;
+    if (!term) return;
+    try {
+      term.reset?.();
+      term.clear();
+      term.refresh(0, Math.max(0, term.rows - 1));
+    } catch {
+      // ignore
+    }
+  }, [terminalResetVersion]);
 
   // The palette arrives with `ready`, which can land after xterm is open.
   useEffect(() => {

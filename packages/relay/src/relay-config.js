@@ -33,8 +33,12 @@ const DEFAULTS = {
     publicUrl: 'http://127.0.0.1:8787',
     maxPayloadBytes: 1024 * 1024,
     maxClientsPerHost: 16,
+    maxHosts: 1024,
+    maxPendingHandshakes: 1024,
+    maxBufferedBytesPerClient: 4 * 1024 * 1024,
     allowedOrigins: [],
     trustProxy: false,
+    hostReconnectGraceMs: 30 * 1000,
   },
   auth: {
     pairingTtlMs: 10 * 60 * 1000,
@@ -147,6 +151,10 @@ function applyEnvironment(config, env) {
   if (env.RELAY_PUBLIC_URL) config.relay.publicUrl = env.RELAY_PUBLIC_URL;
   if (env.RELAY_MAX_PAYLOAD_BYTES) config.relay.maxPayloadBytes = env.RELAY_MAX_PAYLOAD_BYTES;
   if (env.RELAY_MAX_CLIENTS_PER_HOST) config.relay.maxClientsPerHost = env.RELAY_MAX_CLIENTS_PER_HOST;
+  if (env.RELAY_MAX_HOSTS) config.relay.maxHosts = env.RELAY_MAX_HOSTS;
+  if (env.RELAY_MAX_PENDING_HANDSHAKES) config.relay.maxPendingHandshakes = env.RELAY_MAX_PENDING_HANDSHAKES;
+  if (env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT) config.relay.maxBufferedBytesPerClient = env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT;
+  if (env.RELAY_HOST_RECONNECT_GRACE_MS) config.relay.hostReconnectGraceMs = env.RELAY_HOST_RECONNECT_GRACE_MS;
   if (env.RELAY_ALLOWED_ORIGINS !== undefined) {
     const origins = parseOriginList(env.RELAY_ALLOWED_ORIGINS);
     if (origins) config.relay.allowedOrigins = origins;
@@ -180,6 +188,10 @@ function applyOptions(config, options) {
   if (options['admin-token']) config.auth.adminToken = options['admin-token'];
   if (options['state-file']) config.auth.stateFile = options['state-file'];
   if (options['max-clients']) config.relay.maxClientsPerHost = options['max-clients'];
+  if (options['max-hosts']) config.relay.maxHosts = options['max-hosts'];
+  if (options['max-pending-handshakes']) config.relay.maxPendingHandshakes = options['max-pending-handshakes'];
+  if (options['max-buffered-bytes']) config.relay.maxBufferedBytesPerClient = options['max-buffered-bytes'];
+  if (options['host-reconnect-grace-ms']) config.relay.hostReconnectGraceMs = options['host-reconnect-grace-ms'];
 }
 
 function validate(config) {
@@ -192,6 +204,25 @@ function validate(config) {
     16 * 1024 * 1024,
   );
   config.relay.maxClientsPerHost = parseInteger(config.relay.maxClientsPerHost, DEFAULTS.relay.maxClientsPerHost, 1, 256);
+  config.relay.maxHosts = parseInteger(config.relay.maxHosts, DEFAULTS.relay.maxHosts, 1, 100000);
+  config.relay.maxPendingHandshakes = parseInteger(
+    config.relay.maxPendingHandshakes,
+    DEFAULTS.relay.maxPendingHandshakes,
+    16,
+    100000,
+  );
+  config.relay.maxBufferedBytesPerClient = parseInteger(
+    config.relay.maxBufferedBytesPerClient,
+    DEFAULTS.relay.maxBufferedBytesPerClient,
+    64 * 1024,
+    256 * 1024 * 1024,
+  );
+  config.relay.hostReconnectGraceMs = parseInteger(
+    config.relay.hostReconnectGraceMs,
+    DEFAULTS.relay.hostReconnectGraceMs,
+    1000,
+    24 * 60 * 60 * 1000,
+  );
   config.auth.pairingTtlMs = parseInteger(config.auth.pairingTtlMs, DEFAULTS.auth.pairingTtlMs, 30 * 1000, 24 * 60 * 60 * 1000);
   config.auth.deviceTtlMs = parseInteger(config.auth.deviceTtlMs, DEFAULTS.auth.deviceTtlMs, 60 * 1000, 365 * 24 * 60 * 60 * 1000);
   config.auth.maxDevices = parseInteger(config.auth.maxDevices, DEFAULTS.auth.maxDevices, 1, 10000);

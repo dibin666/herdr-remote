@@ -53,7 +53,7 @@ export interface HostInfo {
   hostname: string;
   platform: string;
   arch?: string;
-  status: 'online' | 'busy' | 'offline';
+  status: 'online' | 'busy' | 'reconnecting' | 'offline';
   connectedAt: string;
   activePtyCount: number;
 }
@@ -110,6 +110,7 @@ export interface CleanupCounters {
   closedPtysCleaned: number;
   deadConnectionsClosed: number;
   idleHostsTerminated: number;
+  slowClientsDropped?: number;
   lastCleanupAt?: string;
 }
 

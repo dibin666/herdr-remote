@@ -16,8 +16,11 @@ import {
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import {
+  ConnectionProfile,
   StoredSettings,
+  createConnectionProfile,
   loadSettings,
+  profileKey,
   saveSettings,
 } from '../utils/storage';
 import { translate, Language } from '../i18n';
@@ -55,7 +58,11 @@ interface TerminalContextValue {
   role: ClientRole;
   controllerId?: string;
   hostId?: string;
+  hostname?: string;
   assignedClientId?: string;
+  profiles: ConnectionProfile[];
+  activeProfileId: string;
+  activeProfile?: ConnectionProfile;
   isController: boolean;
   /**
    * How many windows share this terminal, this one included.
@@ -72,6 +79,8 @@ interface TerminalContextValue {
    * smallest.
    */
   sharedGrid: { cols: number; rows: number } | null;
+  /** Incremented when a profile/session needs the xterm buffer reset. */
+  terminalResetVersion: number;
   rttMs: number | null;
   statusPayload: Record<string, unknown> | null;
   /**
@@ -92,6 +101,10 @@ interface TerminalContextValue {
   setLanguage: (lang: Language) => void;
   connect: (overrideConfig?: Partial<ConnectionConfig>) => void;
   disconnect: () => void;
+  switchProfile: (profileId: string) => void;
+  addProfileAndConnect: (profile: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>) => void;
+  renameProfile: (profileId: string, displayName: string) => void;
+  removeProfile: (profileId: string) => void;
   claimControl: (force?: boolean) => void;
   releaseControl: () => void;
   sendKey: (rawKey: string) => void;
@@ -132,7 +145,9 @@ function buildConnectionConfig(source: StoredSettings): ConnectionConfig {
     clientId: source.clientId,
     autoReconnect: source.autoReconnect,
     reconnectIntervalMs: 2000,
-    maxReconnectAttempts: 10,
+    // Network failures are transient for a remote host; retry indefinitely
+    // until the user disconnects or credentials are explicitly rejected.
+    maxReconnectAttempts: 0,
     pingIntervalMs: 10000,
   };
 }
@@ -145,11 +160,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [role, setRole] = useState<ClientRole>('viewer');
   const [controllerId, setControllerId] = useState<string | undefined>();
   const [hostId, setHostId] = useState<string | undefined>();
+  const [hostname, setHostname] = useState<string | undefined>();
   const [hostPalette, setHostPalette] = useState<HostTerminalPalette | null>(null);
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [sharedWindowCount, setSharedWindowCount] = useState(1);
   const [sharedGrid, setSharedGrid] = useState<{ cols: number; rows: number } | null>(null);
+  const [terminalResetVersion, setTerminalResetVersion] = useState(0);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
   const [terminalDimensions, setTerminalDimensions] = useState<{ cols: number; rows: number }>({
@@ -165,6 +182,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   settingsRef.current = settings;
 
   const adapterRef = useRef<HerdrClientAdapter | null>(null);
+  const hasEstablishedConnectionRef = useRef(false);
   const dimensionsRef = useRef(terminalDimensions);
   dimensionsRef.current = terminalDimensions;
 
@@ -250,6 +268,26 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [enqueueOutput]);
 
   const getPendingOutputChunkCount = useCallback(() => pendingOutputRef.current.length, []);
+
+  const clearPendingOutput = useCallback(() => {
+    pendingOutputRef.current = [];
+    pendingOutputBytesRef.current = 0;
+  }, []);
+
+  const resetConnectionPresentation = useCallback((resetTerminal = true) => {
+    setRole('viewer');
+    setControllerId(undefined);
+    setHostId(undefined);
+    setHostname(undefined);
+    setHostPalette(null);
+    setAssignedClientId(undefined);
+    setRttMs(null);
+    setSharedWindowCount(1);
+    setSharedGrid(null);
+    setStatusPayload(null);
+    clearPendingOutput();
+    if (resetTerminal) setTerminalResetVersion((value) => value + 1);
+  }, [clearPendingOutput]);
 
   // The live list is held in a ref as well as in state: `addToast` can fire many
   // times between two renders (once per keystroke), and a reducer reading stale
@@ -340,12 +378,160 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const updateSettings = useCallback((partial: Partial<StoredSettings>) => {
     const updated = saveSettings(partial);
+    settingsRef.current = updated;
     setSettingsState(updated);
   }, []);
 
   const setLanguage = useCallback((lang: Language) => {
     updateSettings({ language: lang });
   }, [updateSettings]);
+
+  const applySavedSettings = useCallback((next: StoredSettings) => {
+    // Keep the ref current immediately: pairing and reconnect events can arrive
+    // before React has committed the next render.
+    settingsRef.current = next;
+    setSettingsState(next);
+  }, []);
+
+  const addProfileAndConnect = useCallback((draft: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>) => {
+    const current = settingsRef.current;
+    const profile = createConnectionProfile({
+      ...draft,
+      wsUrl: draft.wsUrl || '/ws/client',
+      token: draft.token || '',
+      displayName: draft.displayName || `Herdr ${current.profiles.length + 1}`,
+      autoReconnect: draft.autoReconnect !== false,
+    }, current.profiles.length);
+    const next = saveSettings({
+      profiles: [...current.profiles, profile],
+      activeProfileId: profile.id,
+      wsUrl: profile.wsUrl,
+      token: profile.token,
+      pairCode: profile.pairCode || '',
+      autoReconnect: profile.autoReconnect,
+    });
+    applySavedSettings(next);
+    resetConnectionPresentation();
+    adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+  }, [applySavedSettings, resetConnectionPresentation]);
+
+  const switchProfile = useCallback((profileId: string) => {
+    const current = settingsRef.current;
+    const target = current.profiles.find((profile) => profile.id === profileId);
+    if (!target || target.id === current.activeProfileId) return;
+    const next = saveSettings({
+      activeProfileId: target.id,
+      wsUrl: target.wsUrl,
+      token: target.token,
+      pairCode: target.pairCode || '',
+      autoReconnect: target.autoReconnect,
+      profiles: current.profiles.map((profile) => profile.id === target.id
+        ? { ...profile, lastUsedAt: Date.now() }
+        : profile),
+    });
+    applySavedSettings(next);
+    resetConnectionPresentation();
+    adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+  }, [applySavedSettings, resetConnectionPresentation]);
+
+  const renameProfile = useCallback((profileId: string, displayName: string) => {
+    const current = settingsRef.current;
+    const profile = current.profiles.find((item) => item.id === profileId);
+    if (!profile) return;
+    const trimmed = displayName.trim().slice(0, 64);
+    if (!trimmed) return;
+    const next = saveSettings({
+      profiles: current.profiles.map((item) => item.id === profileId
+        ? { ...item, displayName: trimmed }
+        : item),
+    });
+    applySavedSettings(next);
+  }, [applySavedSettings]);
+
+  const removeProfile = useCallback((profileId: string) => {
+    const current = settingsRef.current;
+    if (!current.profiles.some((profile) => profile.id === profileId)) return;
+    const remaining = current.profiles.filter((profile) => profile.id !== profileId);
+    const nextActive = remaining.find((profile) => profile.id === current.activeProfileId)
+      || remaining[0];
+    const next = nextActive
+      ? saveSettings({
+          profiles: remaining,
+          activeProfileId: nextActive.id,
+          wsUrl: nextActive.wsUrl,
+          token: nextActive.token,
+          pairCode: nextActive.pairCode || '',
+          autoReconnect: nextActive.autoReconnect,
+        })
+      : saveSettings({ profiles: [], activeProfileId: '', wsUrl: '/ws/client', token: '', pairCode: '' });
+    applySavedSettings(next);
+    if (profileId === current.activeProfileId) {
+      resetConnectionPresentation();
+      adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+    }
+  }, [applySavedSettings, resetConnectionPresentation]);
+
+  const savePairedProfile = useCallback((payload: { token: string; hostId?: string; deviceId?: string; expiresAt?: number | string }) => {
+    const current = settingsRef.current;
+    const active = current.profiles.find((profile) => profile.id === current.activeProfileId);
+    const key = payload.hostId
+      ? profileKey({ wsUrl: current.wsUrl, hostId: payload.hostId })
+      : null;
+    const matchIndex = key
+      ? current.profiles.findIndex((profile) => profileKey(profile) === key)
+      : -1;
+    const targetIndex = matchIndex >= 0 ? matchIndex : Math.max(0, current.profiles.findIndex((profile) => profile.id === current.activeProfileId));
+    const base = current.profiles[targetIndex] || active || createConnectionProfile({
+      wsUrl: current.wsUrl || '/ws/client',
+      token: '',
+      pairCode: current.pairCode || 'PENDING',
+      displayName: `Herdr ${current.profiles.length + 1}`,
+    }, current.profiles.length);
+    const updated: ConnectionProfile = {
+      ...base,
+      token: payload.token,
+      pairCode: undefined,
+      ...(payload.hostId ? { hostId: payload.hostId } : {}),
+      ...(payload.deviceId ? { deviceId: payload.deviceId } : {}),
+      lastUsedAt: Date.now(),
+    };
+    let profiles = [...current.profiles];
+    if (targetIndex >= 0 && targetIndex < profiles.length) profiles[targetIndex] = updated;
+    else profiles.push(updated);
+    // If re-pairing found an older profile, remove the temporary pending one
+    // that initiated this flow while preserving the older profile's alias.
+    const pendingId = active?.id;
+    profiles = profiles.filter((profile, index) => {
+      if (index === targetIndex || profile.id === updated.id) return true;
+      if (matchIndex >= 0 && pendingId && profile.id === pendingId) return false;
+      return true;
+    });
+    const next = saveSettings({
+      profiles,
+      activeProfileId: updated.id,
+      wsUrl: updated.wsUrl,
+      token: updated.token,
+      pairCode: '',
+      autoReconnect: updated.autoReconnect,
+    });
+    applySavedSettings(next);
+    return next;
+  }, [applySavedSettings]);
+
+  const noteReadyProfile = useCallback((ready: { hostId?: string; hostname?: string }) => {
+    const current = settingsRef.current;
+    const active = current.profiles.find((profile) => profile.id === current.activeProfileId);
+    if (!active || (!ready.hostId && !ready.hostname)) return;
+    const fallbackName = /^Herdr \d+$/.test(active.displayName);
+    const updated = {
+      ...active,
+      ...(ready.hostId ? { hostId: ready.hostId } : {}),
+      ...(ready.hostname ? { hostname: ready.hostname } : {}),
+      ...(ready.hostname && fallbackName ? { displayName: ready.hostname } : {}),
+    };
+    const next = saveSettings({ profiles: current.profiles.map((profile) => profile.id === active.id ? updated : profile) });
+    applySavedSettings(next);
+  }, [applySavedSettings]);
 
   /**
    * The adapter is constructed and wired during the first render, not from an
@@ -373,15 +559,48 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('ready', (readyMsg) => {
+      // A relay restart cannot preserve the old PTY. Reset before accepting
+      // the new stream so output from the previous profile/session is never
+      // painted into this connection.
+      if (hasEstablishedConnectionRef.current) {
+        clearPendingOutput();
+        setTerminalResetVersion((value) => value + 1);
+      }
+      hasEstablishedConnectionRef.current = true;
       setRole(readyMsg.role);
       setControllerId(readyMsg.controllerId);
       setHostId(readyMsg.hostId);
+      setHostname(readyMsg.hostname);
+      noteReadyProfile(readyMsg);
       if (readyMsg.clientId) {
         setAssignedClientId(readyMsg.clientId);
       }
       // The workstation tells us what its terminal looks like; nothing here
       // decides a color, and an absent palette leaves xterm on its defaults.
       setHostPalette(readyMsg.terminalPalette || null);
+    });
+
+    newAdapter.on('hostReconnecting', (code) => {
+      setStateCode(code || 'host_reconnecting');
+      setStateDetail(tRef.current(`serverErrors.${code || 'host_reconnecting'}`));
+      setRole('viewer');
+      setControllerId(undefined);
+      setHostname(undefined);
+      setHostPalette(null);
+      setRttMs(null);
+      setSharedWindowCount(1);
+      setSharedGrid(null);
+      setStatusPayload(null);
+      clearPendingOutput();
+    });
+
+    newAdapter.on('sessionRestarted', (cols, rows, palette, nextHostname) => {
+      clearPendingOutput();
+      setHostname(nextHostname);
+      noteReadyProfile({ hostId: newAdapter.getHostId(), hostname: nextHostname });
+      setHostPalette(palette || null);
+      setSharedGrid(Number.isFinite(cols) && Number.isFinite(rows) ? { cols: cols as number, rows: rows as number } : null);
+      setTerminalResetVersion((value) => value + 1);
     });
 
     newAdapter.on('roleChange', (newRole, newControllerId, newHostId, newAssignedId) => {
@@ -409,8 +628,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('paired', (payload) => {
-      // Persist token, clear pairCode, never log token
-      updateSettings({ token: payload.token, pairCode: '' });
+      // Persist the token in the profile that initiated pairing, never in a
+      // global singleton that would overwrite another Herdr connection.
+      const next = savePairedProfile(payload);
       addToast('success', tRef.current('toasts.pairedSuccess'));
       // Signals the UI to leave the pairing screen. A toast alone is not enough
       // feedback: the code is single-use, so a page that still shows the input
@@ -421,7 +641,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       // disconnect-then-reconnect-on-a-timer left the pairing socket closing
       // while its replacement was already connecting, and the late close event
       // spawned a second live session (one controller, one viewer, two PTYs).
-      newAdapter.reconnectWith({ token: payload.token, pairCode: undefined });
+      newAdapter.reconnectWith(buildConnectionConfig(next));
     });
 
     newAdapter.on('exit', (code, reason) => {
@@ -451,6 +671,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setSharedGrid({ cols, rows });
     });
 
+    newAdapter.on('sessionReady', () => {
+      setConnectionState('connected');
+    });
+
     // Single lifetime subscription: survives TerminalView unmount/hide so no
     // PTY output is lost while the user is on another view.
     newAdapter.on('binaryData', (data) => {
@@ -459,6 +683,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   }
 
   const adapter = adapterRef.current;
+  const activeProfile = settings.profiles.find((profile) => profile.id === settings.activeProfileId);
 
   // Keep the live adapter's credentials in step with saved settings.
   useEffect(() => {
@@ -539,10 +764,15 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         role,
         controllerId,
         hostId,
+        hostname,
         assignedClientId,
+        profiles: settings.profiles,
+        activeProfileId: settings.activeProfileId,
+        activeProfile,
         isController: role === 'controller',
         sharedWindowCount,
         sharedGrid,
+        terminalResetVersion,
         rttMs,
         statusPayload,
         lastPairedAt,
@@ -556,6 +786,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         setLanguage,
         connect,
         disconnect,
+        switchProfile,
+        addProfileAndConnect,
+        renameProfile,
+        removeProfile,
         claimControl,
         releaseControl,
         sendKey,

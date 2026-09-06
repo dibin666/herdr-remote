@@ -45,9 +45,17 @@ docker run -d --name herdr-relay --restart unless-stopped \
 | `--state-file` | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | Auth state file path |
 | `--allowed-origins` | `RELAY_ALLOWED_ORIGINS` | *(same-origin)* | Allowed CORS origins, comma-separated |
 | `--max-clients` | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | Maximum browser clients per host |
+| `--max-hosts` | `RELAY_MAX_HOSTS` | `1024` | Maximum workstations on this relay |
+| `--max-pending-handshakes` | `RELAY_MAX_PENDING_HANDSHAKES` | `1024` | Maximum unauthenticated WebSockets |
+| `--max-buffered-bytes` | `RELAY_MAX_BUFFERED_BYTES_PER_CLIENT` | `4194304` | Maximum queued bytes per browser |
+| `--host-reconnect-grace-ms` | `RELAY_HOST_RECONNECT_GRACE_MS` | `30000` | Host reconnect grace period |
 | `--config` | `HERDR_RELAY_CONFIG` | *(none)* | JSON configuration file path |
 
-Reverse proxies must pass WebSocket `Upgrade` headers and maintain long idle timeouts. Deployment examples for nginx, systemd, and Docker Compose are in `deploy/`.
+Reverse proxies must pass WebSocket `Upgrade` headers and maintain long idle timeouts. The relay disables WebSocket compression and enables TCP NoDelay for terminal frames. When no browser is attached, business heartbeats stop and only WebSocket liveness probes remain. Deployment examples for nginx, systemd, and Docker Compose are in `deploy/`.
+
+## Multiple workstations and isolation
+
+A browser can save multiple workstation pairings. The switcher in the lower-left WebUI only shows profiles saved by that browser; it never enumerates other relay hosts. `/api/status` is scoped to the workstation bound to the presented credentials, while only `RELAY_ADMIN_TOKEN` can inspect relay-wide state. `/healthz` does not disclose host or client counts.
 
 ## Connecting a Workstation
 

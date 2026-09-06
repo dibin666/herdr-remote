@@ -54,6 +54,27 @@ function pushSample(series: number[], sample: number): number[] {
   return next.length > HISTORY_LENGTH ? next.slice(next.length - HISTORY_LENGTH) : next;
 }
 
+/** Resolve the active profile's relay origin without performing discovery. */
+function relayHttpBase(wsUrl: string): string {
+  if (typeof window === 'undefined' || !wsUrl || wsUrl.startsWith('/')) return '';
+  try {
+    const url = new URL(wsUrl.replace(/^ws/, 'http'));
+    const pathname = url.pathname.replace(/\/ws\/client\/?$/, '').replace(/\/+$/, '');
+    // Keep the existing same-origin relative fetch contract. Absolute URLs are
+    // needed only when a profile points at another relay origin.
+    if (url.origin === window.location.origin && !pathname) return '';
+    return `${url.origin}${pathname}`;
+  } catch {
+    return '';
+  }
+}
+
+function relayEndpoint(wsUrl: string, endpoint: string): string {
+  const base = relayHttpBase(wsUrl);
+  if (!base) return endpoint;
+  return `${base}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+}
+
 /** Pressure is the reading, not a decoration: past 65% amber, past 85% red. */
 function pressureTone(percent: number, base: StatusLevel = 'accent'): StatusLevel {
   if (percent > 85) return 'bad';
@@ -71,6 +92,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenPairing,
 }) => {
   const { settings, updateSettings, addToast, t } = useTerminal();
+  const activeRelayOrigin = relayHttpBase(settings.wsUrl)
+    || (typeof window !== 'undefined' ? window.location.origin : 'local');
+  const savedAdminToken = settings.adminTokens?.[activeRelayOrigin]
+    || (activeRelayOrigin === (typeof window !== 'undefined' ? window.location.origin : 'local') ? settings.adminToken : '')
+    || '';
   const [data, setData] = useState<AdminStatusResponse | null>(null);
   const [relayInfo, setRelayInfo] = useState<RelayInfoResponse | null>(null);
   const [infoLoaded, setInfoLoaded] = useState<boolean>(false);
@@ -101,10 +127,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   });
 
   // Relay Operator Token for GET /api/admin/status
-  const [adminTokenInput, setAdminTokenInput] = useState(settings.adminToken || '');
-  const [isOperatorView, setIsOperatorView] = useState(Boolean(settings.adminToken));
+  const [adminTokenInput, setAdminTokenInput] = useState(savedAdminToken);
+  const [isOperatorView, setIsOperatorView] = useState(Boolean(savedAdminToken));
 
   const PAIR_COMMAND = 'node bin/service.js pair';
+
+  useEffect(() => {
+    setAdminTokenInput(savedAdminToken);
+    setIsOperatorView(Boolean(savedAdminToken));
+    setData(null);
+    setRelayInfo(null);
+    setInfoLoaded(false);
+    setHistory(EMPTY_HISTORY);
+  }, [activeRelayOrigin]);
 
   const handleCopyPairCmd = () => {
     navigator.clipboard.writeText(PAIR_COMMAND).then(() => {
@@ -121,7 +156,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     async function checkRelayInfo() {
       try {
-        const res = await fetch('/api/info', {
+        const res = await fetch(relayEndpoint(settings.wsUrl, '/api/info'), {
           headers: { Accept: 'application/json' },
         });
         if (res.ok) {
@@ -163,7 +198,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [settings.wsUrl]);
+  }, [settings.wsUrl, activeRelayOrigin]);
 
   const isRemoteRelay = relayInfo?.relayMode === 'remote';
 
@@ -173,13 +208,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (relayInfo.publicUrl) {
         return `${relayInfo.publicUrl.replace(/\/$/, '')}${relayInfo.adminPath}`;
       }
-      return relayInfo.adminPath;
+      return relayEndpoint(settings.wsUrl, relayInfo.adminPath);
     }
     if (data?.remoteAdminUrl) return data.remoteAdminUrl;
     if (settings.wsUrl) {
       try {
-        const url = new URL(settings.wsUrl.replace(/^ws/, 'http'));
-        return `${url.origin}/admin`;
+        return relayEndpoint(settings.wsUrl, '/admin');
       } catch {
         // ignore
       }
@@ -206,7 +240,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Remote operator mode: strictly request GET /api/admin/status with X-Relay-Admin-Token
       try {
         setLoading(true);
-        const targetEndpoint = relayInfo?.adminStatusPath || '/api/admin/status';
+        const targetEndpoint = relayEndpoint(settings.wsUrl, relayInfo?.adminStatusPath || '/api/admin/status');
         const headers: Record<string, string> = {
           Accept: 'application/json',
           'X-Relay-Admin-Token': adminTokenInput,
@@ -284,7 +318,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [infoLoaded, isRemoteRelay, isOperatorView, adminTokenInput, relayInfo, settings.token, t]);
+  }, [infoLoaded, isRemoteRelay, isOperatorView, adminTokenInput, relayInfo, settings.token, settings.wsUrl, activeRelayOrigin, t]);
 
   /**
    * Revoke a paired device. The relay drops the stored token hash and closes
@@ -293,7 +327,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
    */
   const revokeDevice = useCallback(async (deviceId: string) => {
     try {
-      const res = await fetch(`/api/admin/devices/${encodeURIComponent(deviceId)}`, {
+      const res = await fetch(relayEndpoint(settings.wsUrl, `/api/admin/devices/${encodeURIComponent(deviceId)}`), {
         method: 'DELETE',
         headers: { Accept: 'application/json', 'X-Relay-Admin-Token': adminTokenInput },
       });
@@ -305,7 +339,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch {
       setError(t('admin.revokeFailed'));
     }
-  }, [adminTokenInput, fetchStatus, t]);
+  }, [adminTokenInput, fetchStatus, settings.wsUrl, t]);
 
   useEffect(() => {
     if (!infoLoaded) return;
@@ -351,8 +385,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSaveAdminToken = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanToken = adminTokenInput.trim();
-    updateSettings({ adminToken: cleanToken });
-    setIsOperatorView(true);
+    updateSettings({
+      adminToken: cleanToken,
+      adminTokens: {
+        ...(settings.adminTokens || {}),
+        [activeRelayOrigin]: cleanToken,
+      },
+    });
+    setIsOperatorView(Boolean(cleanToken));
   };
 
   /**
@@ -862,6 +902,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </Row>
                   <Row label={t('admin.idleHostsTerminated')} labelWidth={18}>
                     <span className="font-bold">{data.cleanup?.idleHostsTerminated || 0}</span>
+                  </Row>
+                  <Row label={t('admin.slowClientsDropped')} labelWidth={18}>
+                    <span className="font-bold">{data.cleanup?.slowClientsDropped || 0}</span>
                   </Row>
                 </Panel>
               </div>

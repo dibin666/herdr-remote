@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 const { PACKAGE_ROOT, loadConfig, runtimeStatePath, stateDir } = require('./config');
 const { ensureDir, readJson, writeJsonAtomic } = require('./state');
 const { baseEnvironment, ensureRuntime, logPath, managedPids, pidAlive, recordManagedPid, serviceSpecs } = require('./service');
-const { EXIT_REPLACED } = require('./exit-codes');
+const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 
 const MIN_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 30_000;
@@ -129,6 +129,14 @@ class Supervisor {
           type: 'replaced',
           name,
           message: `${name} stood down: another instance owns this workstation. Not restarting it.`,
+        });
+        return;
+      }
+      if (code === EXIT_AUTH_FAILED) {
+        this.emit({
+          type: 'fatal',
+          name,
+          message: `${name} stopped: relay authentication failed. Update credentials before restarting it.`,
         });
         return;
       }

@@ -80,12 +80,18 @@ A systemd unit is included: see `deploy/systemd/` in the package.
 | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | Device records |
 | `RELAY_ALLOWED_ORIGINS` | *(same-origin)* | Extra browser origins, comma separated |
 | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | Browsers per workstation |
+| `RELAY_MAX_HOSTS` | `1024` | Workstations allowed on this relay |
+| `RELAY_MAX_PENDING_HANDSHAKES` | `1024` | Maximum unauthenticated WebSocket handshakes |
+| `RELAY_MAX_BUFFERED_BYTES_PER_CLIENT` | `4194304` | Per-browser send queue limit; only slow clients are dropped |
+| `RELAY_HOST_RECONNECT_GRACE_MS` | `30000` | Grace period for reconnecting a host while preserving authorized browsers |
 
 ## Reverse proxy
 
 Whatever proxy you use, it must forward WebSocket upgrades and not time out idle
-connections — a terminal is idle between keystrokes. Example configs for nginx
-and Cloudflare Tunnel are in `deploy/` in the package.
+connections — a terminal is idle between keystrokes. The relay disables WebSocket compression
+and enables TCP NoDelay for terminal frames. When no browser is attached, the workstation stops
+business heartbeats and keeps only the WebSocket liveness probe. Example configs for nginx and
+Cloudflare Tunnel are in `deploy/` in the package.
 
 ## Connect your workstation
 
@@ -98,7 +104,9 @@ Run `herdr-remote` on the workstation, open the **Relay** tab and set:
 Save with `s`, restart from the **Services** tab, then check:
 
 ```bash
-curl https://herdr.example.com/healthz    # hosts should be 1
+curl https://herdr.example.com/healthz    # returns liveness only
+curl -H "X-Herdr-Host-Id: <host-id>" -H "X-Herdr-Host-Token: <host-token>" \
+  https://herdr.example.com/api/status    # scoped host status
 ```
 
 Pair a phone from the **Pair a device** tab.
@@ -115,6 +123,10 @@ workstation is online. Set a password if that matters.
 
 ## Notes
 
+- One browser can save multiple workstation pairings. The local switcher never enumerates other hosts on the relay.
+- `/api/status` is scoped to the workstation bound to the device/host credentials; only `RELAY_ADMIN_TOKEN` can view relay-wide state.
+- If the WebUI is hosted on a different origin, add that exact origin to `RELAY_ALLOWED_ORIGINS`; the relay never reflects arbitrary origins.
+- `/healthz` is a tenant-blind liveness endpoint and does not disclose host or client counts.
 - Only the reverse proxy needs a public port; keep the relay on loopback.
 - The relay stores SHA-256 hashes of tokens, never the tokens. Terminal content
   is never written to disk.
@@ -125,7 +137,7 @@ workstation is online. Set a password if that matters.
 
 | Symptom | Cause |
 |---|---|
-| `hosts: 0` | Workstation not connected — check `herdr-remote status` |
+| `/api/status` has no host | Workstation not connected — check `herdr-remote status` |
 | `relay_password_required` | Password differs between the two sides |
 | Page loads, terminal never opens | Proxy is not forwarding `Upgrade` headers |
 | Drops after ~60s idle | Proxy read timeout too short |

@@ -46,6 +46,7 @@ export interface ClientHelloMessage {
   clientId: string;
   cols: number;
   rows: number;
+  capabilities?: string[];
 }
 
 export interface ClientClaimControlMessage {
@@ -79,6 +80,7 @@ export interface ServerReadyMessage {
   role: ClientRole;
   controllerId?: string;
   hostId?: string;
+  hostname?: string;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
   /** How many windows share this terminal, this one included. */
@@ -112,6 +114,20 @@ export interface ServerSharedResizeMessage {
   type: 'shared_resize';
   cols: number;
   rows: number;
+}
+
+export interface ServerHostReconnectingMessage {
+  type: 'host_reconnecting';
+  code?: string;
+}
+
+export interface ServerSessionRestartedMessage {
+  type: 'session_restarted';
+  streamId?: string;
+  cols?: number;
+  rows?: number;
+  hostname?: string;
+  terminalPalette?: HostTerminalPalette | null;
 }
 
 export interface ServerControlRevokedMessage {
@@ -160,6 +176,8 @@ export type ServerJsonMessage =
   | ServerPairedMessage
   | ServerControlStateMessage
   | ServerSharedResizeMessage
+  | ServerHostReconnectingMessage
+  | ServerSessionRestartedMessage
   | ServerControlRevokedMessage
   | ServerSessionReadyMessage
   | ServerExitMessage

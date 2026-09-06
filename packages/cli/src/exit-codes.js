@@ -10,5 +10,7 @@
  * one exit the supervisor must respect rather than recover from.
  */
 const EXIT_REPLACED = 12;
+/** Credentials need operator intervention; a supervisor must not loop. */
+const EXIT_AUTH_FAILED = 13;
 
-module.exports = { EXIT_REPLACED };
+module.exports = { EXIT_REPLACED, EXIT_AUTH_FAILED };

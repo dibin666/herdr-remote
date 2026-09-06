@@ -63,6 +63,13 @@ test('without a password the relay is public and accepts many workstations', () 
   assert.equal(store.hostCount(), 2);
 });
 
+test('host ids reject object keys and oversized credentials', () => {
+  const { store } = makeStore();
+  assert.equal(store.registerHost('__proto__', 'host-secret-123456789', null).code, 'invalid_host_credentials');
+  assert.equal(store.registerHost('host/unsafe', 'host-secret-123456789', null).code, 'invalid_host_credentials');
+  assert.equal(store.registerHost('host-1', 'x'.repeat(4097), null).code, 'invalid_host_credentials');
+});
+
 test('a host token cannot be reused to impersonate another workstation', () => {
   const { store } = makeStore();
   store.registerHost('host-alice', 'alice-secret-123456789', null);

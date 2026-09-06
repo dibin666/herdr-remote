@@ -65,6 +65,10 @@ export type Config = {
     publicUrl: string;
     remoteUrl: string;
     maxClientsPerHost: number;
+    maxHosts: number;
+    maxPendingHandshakes: number;
+    maxBufferedBytesPerClient: number;
+    hostReconnectGraceMs: number;
     allowedOrigins: string[];
   };
   herdr: { socketPath: string | null; args: string[]; cwd: string };
@@ -182,13 +186,37 @@ export function relayStartCommand(config: Config, password: string): string {
   return parts.join(' ');
 }
 
-/** Reachability probe used by the relay screen, for local and remote alike. */
+/**
+ * Reachability probe used by the relay screen, for local and remote alike.
+ *
+ * Liveness and tenant status are deliberately separate: a relay must be able
+ * to report "I am reachable" before this workstation has enrolled, while the
+ * host count (when available) comes only from this workstation's scoped view.
+ */
 export async function probeRelay(config: Config): Promise<{ ok: boolean; version?: string; hosts?: number; message?: string }> {
+  const origin = resolveAdminOrigin(config);
+  let health: Record<string, unknown>;
   try {
-    const health = await requestJson(`${resolveAdminOrigin(config)}/healthz`, { timeout: 4000 });
-    return { ok: true, version: health.version, hosts: health.hosts };
+    health = await requestJson(`${origin}/healthz`, { timeout: 4000 });
   } catch (error) {
     return { ok: false, message: (error as Error).message };
+  }
+
+  try {
+    const runtime = ensureRuntime();
+    const status = await requestJson(`${origin}/api/status`, {
+      timeout: 4000,
+      headers: {
+        'X-Herdr-Host-Id': runtime.hostId,
+        'X-Herdr-Host-Token': runtime.hostToken,
+      },
+    });
+    return { ok: true, version: String(health.version || status.version || ''), hosts: Array.isArray(status.hosts) ? status.hosts.length : 0 };
+  } catch {
+    // The relay is healthy even when this machine is not enrolled or its host
+    // connector is offline. Do not turn a tenant-auth failure into a network
+    // failure in the configuration TUI.
+    return { ok: true, version: String(health.version || ''), hosts: undefined };
   }
 }
 

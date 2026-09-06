@@ -18,6 +18,11 @@ function nowIso(now = Date.now()) {
   return new Date(now).toISOString();
 }
 
+function validHostId(value) {
+  return typeof value === 'string'
+    && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+}
+
 class AuthStore {
   constructor({ stateFile, pairingTtlMs = 10 * 60 * 1000, deviceTtlMs = 30 * 24 * 60 * 60 * 1000, maxDevices = 32, password = null } = {}) {
     if (!stateFile) throw new TypeError('stateFile is required');
@@ -57,7 +62,7 @@ class AuthStore {
    * relay nobody else can impersonate an enrolled host or pair a device to it.
    */
   registerHost(hostId, token, password = null, now = Date.now()) {
-    if (typeof hostId !== 'string' || hostId.length < 1 || hostId.length > 128 || typeof token !== 'string' || token.length < 16) {
+    if (!validHostId(hostId) || typeof token !== 'string' || token.length < 16 || token.length > 4096) {
       return { ok: false, code: 'invalid_host_credentials', message: 'hostId and token are required' };
     }
     if (!this.checkPassword(password)) {
@@ -84,7 +89,7 @@ class AuthStore {
 
   /** Verify a host token without enrolling anything. */
   authenticateHost(hostId, token) {
-    if (typeof hostId !== 'string' || typeof token !== 'string' || token.length < 16) return false;
+    if (!validHostId(hostId) || typeof token !== 'string' || token.length < 16 || token.length > 4096) return false;
     const existing = this.state.hosts[hostId];
     return Boolean(existing) && equalHash(existing.tokenHash, hash(token));
   }
@@ -94,7 +99,7 @@ class AuthStore {
   }
 
   startPairing(hostId, publicUrl, now = Date.now()) {
-    if (!this.state.hosts[hostId]) {
+    if (!validHostId(hostId) || !this.state.hosts[hostId]) {
       const error = new Error('host is not connected or enrolled');
       error.code = 'host_not_found';
       throw error;
@@ -103,7 +108,7 @@ class AuthStore {
     let code;
     do {
       code = randomToken(4).toUpperCase().replace(/[-_]/g, '').slice(0, 6);
-    } while ([...this.pairings.values()].some((pairing) => pairing.codeHash === hash(code)));
+    } while ([...this.pairings.values()].some((pairing) => equalHash(pairing.codeHash, hash(code))));
     const expiresAt = now + this.pairingTtlMs;
     this.pairings.set(code, {
       codeHash: hash(code),
@@ -119,7 +124,7 @@ class AuthStore {
     this.cleanup(now);
     const normalized = code.trim().toUpperCase();
     const pairing = this.pairings.get(normalized);
-    if (!pairing || pairing.expiresAt <= now || pairing.codeHash !== hash(normalized)) return null;
+    if (!pairing || pairing.expiresAt <= now || !equalHash(pairing.codeHash, hash(normalized))) return null;
     this.pairings.delete(normalized);
 
     const devices = Object.values(this.state.devices);

@@ -124,6 +124,11 @@ export interface TranslationSchema {
   };
   pairing: {
     title: string;
+    addTitle: string;
+    displayNameLabel: string;
+    displayNamePlaceholder: string;
+    displayNameHelp: string;
+    credentialsRequired: string;
     subtitle: string;
     pairCodeLabel: string;
     pairCodeNote: string;
@@ -213,6 +218,16 @@ export interface TranslationSchema {
     badgeEnd: string;
     badgeKill: string;
     keyEnter: string;
+  };
+  profiles: {
+    title: string;
+    switcherLabel: string;
+    current: string;
+    empty: string;
+    addHost: string;
+    rename: string;
+    remove: string;
+    removeConfirm: string;
   };
   mobile: {
     sessionControls: string;
@@ -348,6 +363,7 @@ export interface TranslationSchema {
     closedPtysCleaned: string;
     deadConnections: string;
     idleHostsTerminated: string;
+    slowClientsDropped: string;
     connectedClientsTitle: string;
     noClients: string;
     colClientId: string;
@@ -449,6 +465,12 @@ export interface TranslationSchema {
     device_revoked: string;
     connection_closed: string;
     connection_failed: string;
+    host_reconnecting: string;
+    host_reconnect_timeout: string;
+    host_replaced: string;
+    slow_client: string;
+    client_send_failed: string;
+    too_many_hosts: string;
   };
   fontPresets: {
     system: string;

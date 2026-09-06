@@ -64,6 +64,10 @@ const DEFAULTS = {
     remoteUrl: '',
     maxPayloadBytes: 1024 * 1024,
     maxClientsPerHost: 16,
+    maxHosts: 1024,
+    maxPendingHandshakes: 1024,
+    maxBufferedBytesPerClient: 4 * 1024 * 1024,
+    hostReconnectGraceMs: 30 * 1000,
     allowedOrigins: [],
   },
   herdr: {
@@ -230,6 +234,20 @@ function validate(config) {
   config.relay.port = parseInteger(config.relay.port, DEFAULTS.relay.port, 1, 65535);
   config.relay.maxPayloadBytes = parseInteger(config.relay.maxPayloadBytes, DEFAULTS.relay.maxPayloadBytes, 4096, 16 * 1024 * 1024);
   config.relay.maxClientsPerHost = parseInteger(config.relay.maxClientsPerHost, DEFAULTS.relay.maxClientsPerHost, 1, 256);
+  config.relay.maxHosts = parseInteger(config.relay.maxHosts, DEFAULTS.relay.maxHosts, 1, 100000);
+  config.relay.maxPendingHandshakes = parseInteger(config.relay.maxPendingHandshakes, DEFAULTS.relay.maxPendingHandshakes, 16, 100000);
+  config.relay.maxBufferedBytesPerClient = parseInteger(
+    config.relay.maxBufferedBytesPerClient,
+    DEFAULTS.relay.maxBufferedBytesPerClient,
+    64 * 1024,
+    256 * 1024 * 1024,
+  );
+  config.relay.hostReconnectGraceMs = parseInteger(
+    config.relay.hostReconnectGraceMs,
+    DEFAULTS.relay.hostReconnectGraceMs,
+    1000,
+    24 * 60 * 60 * 1000,
+  );
   config.auth.pairingTtlMs = parseInteger(config.auth.pairingTtlMs, DEFAULTS.auth.pairingTtlMs, 30 * 1000, 24 * 60 * 60 * 1000);
   config.auth.deviceTtlMs = parseInteger(config.auth.deviceTtlMs, DEFAULTS.auth.deviceTtlMs, 60 * 1000, 365 * 24 * 60 * 60 * 1000);
   config.auth.maxDevices = parseInteger(config.auth.maxDevices, DEFAULTS.auth.maxDevices, 1, 10000);
@@ -277,6 +295,10 @@ function applyEnvironment(config) {
   if (env.RELAY_PORT) config.relay.port = env.RELAY_PORT;
   if (env.RELAY_PUBLIC_URL) config.relay.publicUrl = env.RELAY_PUBLIC_URL;
   if (env.RELAY_REMOTE_URL) config.relay.remoteUrl = env.RELAY_REMOTE_URL;
+  if (env.RELAY_MAX_HOSTS) config.relay.maxHosts = env.RELAY_MAX_HOSTS;
+  if (env.RELAY_MAX_PENDING_HANDSHAKES) config.relay.maxPendingHandshakes = env.RELAY_MAX_PENDING_HANDSHAKES;
+  if (env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT) config.relay.maxBufferedBytesPerClient = env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT;
+  if (env.RELAY_HOST_RECONNECT_GRACE_MS) config.relay.hostReconnectGraceMs = env.RELAY_HOST_RECONNECT_GRACE_MS;
   if (env.HERDR_SOCKET_PATH) config.herdr.socketPath = env.HERDR_SOCKET_PATH;
   if (env.HERDR_CWD) config.herdr.cwd = env.HERDR_CWD;
   if (env.HERDR_ARGS_JSON) {
