@@ -442,3 +442,42 @@ test('switching from the official relay to a self-hosted one clears the address'
   assert.doesNotMatch(frame, /wss:\/\/herdr-remote\.564616\.xyz/);
   assert.match(frame, /Relay password/, 'a relay somebody else runs may need a password');
 });
+
+// A password is a credential for one particular relay. Switching to the
+// official one, which takes none, used to leave the old self-hosted password in
+// the runtime file — where the next connection would have sent it.
+test('choosing the official relay drops the password typed for a self-hosted one', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({
+    ui: { language: 'en' },
+    relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
+  });
+
+  const { setRelayPassword, readRuntime } = require('../src/service');
+  setRelayPassword('self-hosted-secret');
+  assert.equal(readRuntime().relayPassword, 'self-hosted-secret');
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  t.after(() => instance.unmount());
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+  instance.stdin.write('4'); // Relay tab
+  await settle();
+  instance.stdin.write('\r'); // open the access-mode chooser
+  await settle();
+  // The cursor starts on the current answer, the self-hosted relay.
+  instance.stdin.write('\u001B[A'); // official relay, the row above
+  await settle();
+  instance.stdin.write('\r');
+  await settle();
+
+  assert.equal(readRuntime().relayPassword, '');
+  const frame = instance.lastFrame();
+  assert.match(frame, /Official relay/);
+  assert.doesNotMatch(frame, /Relay password/);
+  // The browser URL follows from the fixed address, so it is stated too.
+  assert.match(frame, /https:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/);
+});

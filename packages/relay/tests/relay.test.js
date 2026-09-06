@@ -355,6 +355,51 @@ test('the shared grid follows the smallest attached window', async (t) => {
   host.close();
 });
 
+// A shared terminal has one grid, and every window has to be *told* what it is.
+// Telling only the workstation left each browser rendering at its own width: the
+// same bytes then wrapped in one window and not in another, which is the one
+// thing a shared session must not do.
+test('every window is told the grid the shared terminal runs at', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-grid-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const laptop = await openWebSocket(`${wsBase}/ws/client`);
+  const laptopPair = nextMessage(laptop, (message) => message.type === 'paired');
+  const laptopReady = nextMessage(laptop, (message) => message.type === 'ready');
+  laptop.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'laptop', cols: 120, rows: 40 }));
+  await laptopReady;
+  const token = (await laptopPair).value.token;
+
+  // A phone joins: both windows hear the same new geometry.
+  const laptopTold = nextMessage(laptop, (message) => message.type === 'shared_resize');
+  const phone = await openWebSocket(`${wsBase}/ws/client`);
+  const phoneTold = nextMessage(phone, (message) => message.type === 'shared_resize');
+  phone.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'phone', cols: 49, rows: 46 }));
+
+  const onLaptop = (await laptopTold).value;
+  const onPhone = (await phoneTold).value;
+  assert.deepEqual(
+    { cols: onLaptop.cols, rows: onLaptop.rows },
+    { cols: 49, rows: 40 },
+    'the grid is the smallest attached window',
+  );
+  assert.deepEqual({ cols: onPhone.cols, rows: onPhone.rows }, { cols: onLaptop.cols, rows: onLaptop.rows });
+
+  laptop.close();
+  phone.close();
+  host.close();
+});
+
 // A window that joins a session already in progress has missed everything
 // printed before it arrived. Replaying the tail of the stream is what makes
 // "every window shows the same thing" true from its first painted frame.

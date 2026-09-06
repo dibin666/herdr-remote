@@ -641,6 +641,16 @@ class RelayServer {
     session.cols = dims.cols;
     session.rows = dims.rows;
     if (!changed && !force) return;
+    // Every window has to be told what the shared grid became, not just the
+    // workstation. A browser that keeps rendering at its own width would wrap
+    // a stream written for a narrower terminal, which is the one thing a
+    // shared session must not do: the same bytes have to look the same in
+    // every window.
+    this.broadcastToClients(host, () => ({
+      type: 'shared_resize',
+      cols: dims.cols,
+      rows: dims.rows,
+    }));
     if (!changed && force) {
       // A no-op resize is ignored by the PTY, so bounce one row and come back.
       jsonSend(host.ws, {
@@ -857,6 +867,10 @@ class RelayServer {
         }
         host.controllerId = null;
       } else {
+        // The departing window may have been the one this field named. Nothing
+        // reads it as a lease any more, but leaving a dead id in the status
+        // snapshot would have an operator hunting for a client that is gone.
+        if (host.controllerId === client.id) host.controllerId = null;
         this.syncDimensions(host);
         this.broadcastControlState(host);
       }

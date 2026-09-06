@@ -42,7 +42,12 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
   const entries: Entry[] = [
     ...fields.map((field: { id: string; kind: string; labelKey: string }) => ({
       id: field.id,
-      kind: (official && field.id === 'remoteUrl' ? 'readonly' : 'field') as Entry['kind'],
+      // The official relay's address is ours and its browser URL follows from
+      // it, so neither is offered for editing: an editable box holding a value
+      // that must not change is an invitation to break the setup.
+      kind: (official && (field.id === 'remoteUrl' || field.id === 'publicUrl')
+        ? 'readonly'
+        : 'field') as Entry['kind'],
       fieldKind: field.kind,
       label: t(field.labelKey),
     })),
@@ -171,7 +176,14 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
             // clears it again. The screen does not have to keep the two fields
             // in step by hand, which is what let the picker land on "official"
             // while every row below still described a self-hosted relay.
-            applyField('mode', choice);
+            if (!applyField('mode', choice)) return;
+            if (choice === 'official') {
+              // A password typed for somebody else's relay is not a credential
+              // the official one wants, and leaving it behind would send it
+              // there on the next connection.
+              setPassword('');
+              setRelayPassword('');
+            }
             ctx.setEditing(null);
           }}
           onCancel={() => ctx.setEditing(null)}
@@ -246,7 +258,9 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
                 />
               ) : entry.kind === 'readonly' ? (
                 // Fixed by us, so it is printed rather than offered for editing.
-                <Text color={theme.muted}>{`${getField(draft, entry.id)}  (${t('relay.locked')})`}</Text>
+                <Text color={theme.muted}>
+                  {`${getField(draft, entry.id) || placeholderText(ctx, entry.id)}  (${t('relay.locked')})`}
+                </Text>
               ) : entry.fieldKind === 'choice' ? (
                 // Choice fields are picked from a list, never typed, so they
                 // show the translated label rather than the stored id — and the

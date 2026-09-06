@@ -101,6 +101,19 @@ export interface ServerControlStateMessage {
   clientCount?: number;
 }
 
+/**
+ * The grid the shared terminal now runs at.
+ *
+ * Every window renders this rather than its own capacity: the same bytes have
+ * to look the same in all of them, and a browser painting a 43-column stream
+ * into 158 columns of its own would wrap nothing where the workstation wrapped.
+ */
+export interface ServerSharedResizeMessage {
+  type: 'shared_resize';
+  cols: number;
+  rows: number;
+}
+
 export interface ServerControlRevokedMessage {
   type: 'control_revoked';
   reason?: string;
@@ -146,6 +159,7 @@ export type ServerJsonMessage =
   | ServerReadyMessage
   | ServerPairedMessage
   | ServerControlStateMessage
+  | ServerSharedResizeMessage
   | ServerControlRevokedMessage
   | ServerSessionReadyMessage
   | ServerExitMessage

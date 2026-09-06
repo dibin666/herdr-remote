@@ -64,6 +64,14 @@ interface TerminalContextValue {
    * only thing left to report is how many of them are watching.
    */
   sharedWindowCount: number;
+  /**
+   * The grid the shared terminal runs at, or null before the relay has said.
+   *
+   * This is what the renderer must paint; `terminalDimensions` stays what this
+   * window could show, which is what the relay is told so it can pick the
+   * smallest.
+   */
+  sharedGrid: { cols: number; rows: number } | null;
   rttMs: number | null;
   statusPayload: Record<string, unknown> | null;
   /**
@@ -141,6 +149,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [sharedWindowCount, setSharedWindowCount] = useState(1);
+  const [sharedGrid, setSharedGrid] = useState<{ cols: number; rows: number } | null>(null);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
   const [terminalDimensions, setTerminalDimensions] = useState<{ cols: number; rows: number }>({
@@ -438,6 +447,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setSharedWindowCount(Math.max(1, count));
     });
 
+    newAdapter.on('sharedResize', (cols, rows) => {
+      setSharedGrid({ cols, rows });
+    });
+
     // Single lifetime subscription: survives TerminalView unmount/hide so no
     // PTY output is lost while the user is on another view.
     newAdapter.on('binaryData', (data) => {
@@ -525,6 +538,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         assignedClientId,
         isController: role === 'controller',
         sharedWindowCount,
+        sharedGrid,
         rttMs,
         statusPayload,
         lastPairedAt,

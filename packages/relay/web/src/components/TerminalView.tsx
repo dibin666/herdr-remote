@@ -127,6 +127,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     connectionState,
     settings,
     hostPalette,
+    sharedGrid,
     sendResize,
     sendBinary,
     addToast,
@@ -161,6 +162,18 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   const sendResizeRef = useRef(sendResize);
   sendResizeRef.current = sendResize;
+
+  /**
+   * The grid the shared terminal is running at.
+   *
+   * Every window paints this, not its own capacity: the workstation wrapped
+   * the stream for the smallest attached window, and a browser re-wrapping it
+   * at its own width would show something none of the others is showing. What
+   * this window *could* show is still what gets announced, which is what lets
+   * the relay pick the minimum.
+   */
+  const sharedGridRef = useRef<{ cols: number; rows: number } | null>(sharedGrid);
+  sharedGridRef.current = sharedGrid;
 
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
@@ -266,9 +279,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         Math.abs(box.width - lastBoxRef.current.width) > 1 ||
         Math.abs(box.height - lastBoxRef.current.height) > 1;
 
-      if (term.cols !== fit.cols || term.rows !== fit.rows) {
+      // Render the shared grid where there is one; announce our own capacity
+      // either way, a few lines below.
+      const shared = sharedGridRef.current;
+      const painted = shared ?? fit;
+      if (term.cols !== painted.cols || term.rows !== painted.rows) {
         try {
-          term.resize(fit.cols, fit.rows);
+          term.resize(painted.cols, painted.rows);
         } catch (err) {
           console.debug('Error resizing terminal grid:', err);
         }
@@ -796,6 +813,25 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     // which is what the bounded chain waits for.
     scheduleBoundedFit(10);
   }, [settings.fontSize, settings.fontFamily]);
+
+  /**
+   * The shared grid changed: another window joined, left, or resized.
+   *
+   * Applied straight to the renderer rather than through a fit, because this
+   * geometry is not negotiable from here — it is what the workstation is
+   * already painting into.
+   */
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || !sharedGrid) return;
+    if (term.cols === sharedGrid.cols && term.rows === sharedGrid.rows) return;
+    try {
+      term.resize(sharedGrid.cols, sharedGrid.rows);
+      term.refresh(0, Math.max(0, term.rows - 1));
+    } catch (err) {
+      console.debug('Error applying the shared terminal grid:', err);
+    }
+  }, [sharedGrid]);
 
   // The palette arrives with `ready`, which can land after xterm is open.
   useEffect(() => {
