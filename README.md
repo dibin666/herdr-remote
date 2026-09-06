@@ -185,6 +185,28 @@ packages/cli/     herdr-remote — TUI, host connector, plugin manifest
 docs/             protocol and self-hosting guides
 ```
 
+### Releasing
+
+Two independent workflows, because the container image and the npm tarballs are
+different artefacts with different reasons to change.
+
+| Workflow | Runs when | Produces |
+|---|---|---|
+| `relay image` | `packages/relay/**` changes | `ghcr.io/dibin666/herdr-remote-relay`, patch-incremented from the `relay-v*` tags |
+| `npm publish` | a package's `version` changes | `herdr-remote-relay` then `herdr-remote` on npm |
+
+A CLI-only change therefore builds no image, and a relay-only change does not
+wait on the CLI. To publish, bump `version` in the package manifest and push —
+the workflow asks the registry whether that version exists and does nothing if
+it does, so re-runs and reverts are safe.
+
+Publishing needs an npm **automation** token (the classic token type that
+bypasses 2FA for CI) in the repository secret `NPM_TOKEN`:
+
+```bash
+gh secret set NPM_TOKEN
+```
+
 ## License
 
 MIT

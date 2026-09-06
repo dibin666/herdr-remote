@@ -5,6 +5,7 @@ import { theme } from '../theme.js';
 import { FieldRow, Menu, Message, Panel, Row, Selectable } from '../components/common.js';
 import { TextField } from '../components/TextField.js';
 import {
+  OFFICIAL_RELAY_URL,
   bindAddress,
   fieldsForMode,
   getField,
@@ -127,13 +128,31 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     return (
       <Panel title={t('field.mode')}>
         <ChoiceList
-          options={['local', 'lan', 'remote'].map((mode) => ({
-            id: mode,
-            label: t(`mode.${mode}`),
-            description: t(`mode.${mode}.description`),
-          }))}
-          current={draft.relay.mode}
-          onPick={(mode) => { applyField('mode', mode); ctx.setEditing(null); }}
+          options={[
+            ...['local', 'lan'].map((mode) => ({
+              id: mode,
+              label: t(`mode.${mode}`),
+              description: t(`mode.${mode}.description`),
+            })),
+            { id: 'official', label: t('mode.official'), description: t('mode.official.description') },
+            { id: 'remote', label: t('mode.remote'), description: t('mode.remote.description') },
+          ]}
+          // Reflects the official relay as its own selection rather than as an
+          // indistinguishable "self-hosted" row that happens to hold our URL.
+          current={draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL
+            ? 'official'
+            : draft.relay.mode}
+          onPick={(choice) => {
+            if (choice === 'official') {
+              // Fills in the address the same way the first-run wizard does, so
+              // switching over here needs no second trip to the URL field.
+              if (applyField('mode', 'remote')) applyField('remoteUrl', OFFICIAL_RELAY_URL);
+              ctx.setEditing(null);
+              return;
+            }
+            applyField('mode', choice);
+            ctx.setEditing(null);
+          }}
           onCancel={() => ctx.setEditing(null)}
         />
       </Panel>

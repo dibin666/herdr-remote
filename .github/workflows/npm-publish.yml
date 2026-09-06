@@ -1,0 +1,77 @@
+name: npm publish
+
+# Publishes the two npm packages. Deliberately separate from `relay image`:
+# the container and the npm tarballs are different artefacts on different
+# schedules, and a CLI-only change should not mint a new image (nor a relay-only
+# change wait on the CLI).
+#
+# The trigger is the version field itself. Bump `version` in a package manifest,
+# push, and that package is published; leave it alone and the run is a no-op.
+# That keeps the registry as the single source of truth for what exists, so a
+# re-run, a revert or a merge commit can never double-publish.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packages/cli/package.json'
+      - 'packages/relay/package.json'
+      - '.github/workflows/npm-publish.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish changed packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      # --ignore-scripts keeps the CLI's native node-pty dependency from being
+      # compiled; nothing here needs it. Note that the packages themselves are
+      # built by their own `prepack`, which `npm publish` runs.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Test
+        run: |
+          npm test -w herdr-remote-relay
+          npm test -w herdr-remote
+          npm test -w herdr-remote-web
+
+      # The relay is published first and unconditionally waited on: the CLI
+      # depends on it by version range, so a CLI release that lands first would
+      # be installable only once the relay caught up.
+      - name: Publish herdr-remote-relay
+        id: relay
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: .github/scripts/publish-if-new.sh packages/relay
+
+      - name: Publish herdr-remote
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: .github/scripts/publish-if-new.sh packages/cli
+
+      - name: Summary
+        run: |
+          {
+            echo "### npm"
+            echo
+            for dir in packages/relay packages/cli; do
+              name="$(node -p "require('./$dir/package.json').name")"
+              version="$(node -p "require('./$dir/package.json').version")"
+              echo "- \`$name@$version\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

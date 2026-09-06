@@ -13,6 +13,14 @@ name: relay image
 on:
   push:
     branches: [master]
+    # The image only contains the relay and the web UI it serves, so a commit
+    # that touches the CLI, the docs or the npm workflow has nothing to rebuild.
+    # Skipping those keeps the version sequence meaningful: every published tag
+    # corresponds to a real change in what the image runs.
+    paths:
+      - 'packages/relay/**'
+      - 'package-lock.json'
+      - '.github/workflows/relay-image.yml'
   workflow_dispatch:
     inputs:
       version:
@@ -53,6 +61,9 @@ jobs:
 
       - name: Web unit tests
         run: npm test -w herdr-remote-web
+
+      - name: Web typecheck
+        run: npm run typecheck -w herdr-remote-web
 
   publish:
     name: build and publish
