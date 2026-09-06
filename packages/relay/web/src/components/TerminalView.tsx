@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
 import { resolveTerminalTheme, terminalMinimumContrastRatio } from '../utils/theme';
 import { encodeStringToBytes } from '../protocol/keyEncoder';
+import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
 import { attachTerminalRenderer } from '../utils/terminalRenderer';
 import {
@@ -454,20 +455,23 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     // Handle user keyboard & mouse reporting input from xterm
     const dataDispose = term.onData((data) => {
-      if (!isControllerRef.current) {
+      const bytes = encodeStringToBytes(data);
+      // Scrolling a viewer's own stream is allowed; typing into the shared
+      // session is not. Without this split every wheel notch raised a
+      // read-only warning, which buried the terminal under toasts.
+      if (!isControllerRef.current && !isWheelOnlyInput(bytes)) {
         addToastRef.current('warning', tRef.current('toasts.viewerModeWarning'));
         return;
       }
-      const bytes = encodeStringToBytes(data);
       sendBinaryRef.current(bytes);
     });
 
     const binaryDispose = term.onBinary((data) => {
-      if (!isControllerRef.current) return;
       const bytes = new Uint8Array(data.length);
       for (let i = 0; i < data.length; i++) {
         bytes[i] = data.charCodeAt(i) & 255;
       }
+      if (!isControllerRef.current && !isWheelOnlyInput(bytes)) return;
       sendBinaryRef.current(bytes);
     });
 

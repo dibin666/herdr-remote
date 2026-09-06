@@ -506,9 +506,15 @@ export class TerminalPointerController {
     term: Terminal,
     event?: CancellableEvent
   ): ScrollMode {
-    if (lines === 0 || !this.options.getIsController()) return 'none';
+    if (lines === 0) return 'none';
 
     const mouseTracking = isMouseTrackingActive(term);
+    // A viewer may scroll: it drives its own PTY stream, so a wheel report
+    // moves only its own screen. The cursor-key fallback further down is
+    // ordinary keyboard input, which stays behind the control lease — sending
+    // it as a viewer would only earn a read-only rejection.
+    if (!mouseTracking && !this.options.getIsController()) return 'none';
+
     if (this.emitWheel(point, lines, term, event)) {
       return mouseTracking ? 'application-mouse' : 'application-keys';
     }
