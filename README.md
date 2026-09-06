@@ -122,7 +122,7 @@ Authentication tokens and secrets are stored in `~/.local/state/herdr-remote/run
 
 - Relay brokers WebSocket streams without running shells or accessing local sockets directly.
 - Authentication tokens are hashed with SHA-256; terminal content is never written to disk.
-- Single active controller lease with explicit takeover; additional devices watch read-only.
+- Every paired window shares one terminal with full input; pairing, not a control lease, is the permission boundary.
 - Pairing codes are single-use, rate-limited, and expire in 10 minutes.
 
 ## Development

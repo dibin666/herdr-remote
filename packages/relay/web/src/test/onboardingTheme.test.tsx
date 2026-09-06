@@ -16,6 +16,25 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     expect('colorMode' in defaults).toBe(false);
   });
 
+  // The first-run panel is the only thing on the screen and the only thing the
+  // visitor can do; it used to sit in the top-left corner of an otherwise empty
+  // terminal, which read as a page that had failed to finish loading.
+  it('centres the first-pairing panel in the window', () => {
+    const { container } = render(
+      <TerminalProvider>
+        <OnboardingView />
+      </TerminalProvider>
+    );
+
+    const layer = container.firstElementChild as HTMLElement;
+    expect(layer.className).toContain('justify-center');
+    // Centred by auto margins rather than by `items-center`, so a window too
+    // short for the panel scrolls instead of clipping its top off.
+    const panel = layer.firstElementChild as HTMLElement;
+    expect(panel.className).toContain('my-auto');
+    expect(layer.className).toContain('overflow-y-auto');
+  });
+
   it('renders OnboardingView on first run when no token exists', () => {
     render(
       <TerminalProvider>

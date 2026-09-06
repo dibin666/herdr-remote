@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
+import { describeConnection } from '../utils/connectionStatus';
 import {
   Button,
   Checkbox,
@@ -143,9 +144,11 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
         <span className="flex items-center gap-1.5">
           <StatusDot level={tone} />
           <span className="text-tui-muted">{t('common.status')}</span>
+          {/* The state in the interface's own words. Printing the protocol's
+              own enum here left `CONNECTED` sitting in the middle of a Chinese
+              sentence. */}
           <span
             className={cn(
-              'uppercase',
               tone === 'ok'
                 ? 'text-tui-ok'
                 : tone === 'bad'
@@ -155,7 +158,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
                     : 'text-tui-faint'
             )}
           >
-            {connectionState}
+            {describeConnection(connectionState, t).label}
           </span>
         </span>
         {hostId && (

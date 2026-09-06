@@ -88,17 +88,35 @@ The browser connects to `/ws/client` and sends `hello` with either a one-time
 The relay responds with `paired` when a new device token was issued, followed
 by `ready`. `ready` carries the workstation's `terminalPalette` (or `null`),
 delivered before the first PTY byte so the terminal is painted in the host's
-colors from its first frame instead of repainting mid-session. `claim_control` and `release_control` manage the single writable
-client. A forced claim is explicit:
+colors from its first frame instead of repainting mid-session, and `clientCount`,
+the number of windows now sharing this terminal.
 
-```json
-{"type":"claim_control","force":true}
-```
-
-JSON frames carry control messages. Binary frames carry raw terminal input
-from the controller or raw ANSI output from the host. The relay adds a small
+JSON frames carry control messages. Binary frames carry raw terminal input from
+any attached window, or raw ANSI output from the host. The relay adds a small
 internal routing header only on the host-side binary hop and removes it before
 forwarding bytes to the browser.
+
+### One terminal, many windows
+
+Every window paired to a workstation is a view of the *same* PTY:
+
+- the first window to attach starts the session; the relay allocates one
+  `streamId` for the workstation and sends a single `session_start`;
+- output from the host is broadcast to every attached window, and the relay
+  keeps the tail of that stream so a window joining later is replayed what has
+  already been printed rather than facing a blank screen;
+- input from any window is written to that one PTY — there is no control lease
+  and no read-only role. Pairing is the permission boundary; past it, every
+  window may type;
+- the shared grid is the *smallest* attached window, as it is in tmux: a column
+  a phone cannot show is a column the program must not paint, or every other
+  window sees wrapped output. A window joining or leaving re-computes it;
+- the PTY is stopped only when the last window has gone, so closing one tab
+  never kills the session another tab is still watching.
+
+`claim_control` and `release_control` remain answered — with a grant and a
+`control_state` respectively — so clients built against protocol 1 keep working,
+but they no longer move anything.
 
 ## HTTP endpoints
 
