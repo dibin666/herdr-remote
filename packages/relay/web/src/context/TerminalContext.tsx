@@ -486,13 +486,17 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   }, []);
 
+  /**
+   * Kept for clients and tests built against the lease, and deliberately inert.
+   *
+   * Input is not a lease any more: every paired window may type, and demoting
+   * this one locally would have the UI refuse keystrokes the relay would have
+   * accepted. The message is still sent, because a relay may still be listening
+   * for it, and the role is left to whatever the relay says it is.
+   */
   const releaseControl = useCallback(() => {
-    if (adapterRef.current) {
-      adapterRef.current.releaseControl();
-      setRole('viewer');
-      addToast('info', tRef.current('toasts.controlReleased'));
-    }
-  }, [addToast]);
+    adapterRef.current?.releaseControl();
+  }, []);
 
   const sendKey = useCallback((rawKey: string) => {
     if (role !== 'controller') {

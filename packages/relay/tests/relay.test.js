@@ -400,6 +400,49 @@ test('every window is told the grid the shared terminal runs at', async (t) => {
   host.close();
 });
 
+// A window that comes back after the session was torn down and started again
+// would otherwise keep painting the grid of the session that is gone, because
+// the geometry is only announced when it *changes*.
+test('a window opening a fresh session is told its grid straight away', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-first-grid-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const first = await openWebSocket(`${wsBase}/ws/client`);
+  const firstPaired = nextMessage(first, (message) => message.type === 'paired');
+  const firstGrid = nextMessage(first, (message) => message.type === 'shared_resize');
+  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'only', cols: 100, rows: 30 }));
+  const opened = (await firstGrid).value;
+  assert.deepEqual({ cols: opened.cols, rows: opened.rows }, { cols: 100, rows: 30 });
+  const { token } = (await firstPaired).value;
+
+  // The only window goes away, taking the session with it, and comes back at a
+  // different size: it is told the new grid rather than left on the old one.
+  const closed = new Promise((resolve) => first.once('close', resolve));
+  first.close();
+  await closed;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(relay.hosts.get('host-1').session, null, 'the last window closes the session');
+
+  const again = await openWebSocket(`${wsBase}/ws/client`);
+  const againGrid = nextMessage(again, (message) => message.type === 'shared_resize');
+  again.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'only', cols: 60, rows: 20 }));
+  const reopened = (await againGrid).value;
+  assert.deepEqual({ cols: reopened.cols, rows: reopened.rows }, { cols: 60, rows: 20 });
+
+  again.close();
+  host.close();
+});
+
 // A window that joins a session already in progress has missed everything
 // printed before it arrived. Replaying the tail of the stream is what makes
 // "every window shows the same thing" true from its first painted frame.

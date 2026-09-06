@@ -92,15 +92,19 @@ class RelayMetrics {
     }
     const memory = process.memoryUsage();
     const load = os.loadavg();
-    const controller = clients.find((client) => client.role === 'controller');
+    // Every attached window has full input, so there is no "active controller"
+    // to name: reporting the first of them as one had an operator reading a
+    // distinction that does not exist. The host is still worth naming, and any
+    // client knows which workstation it is on.
+    const anyClient = clients[0];
     return {
       version: this.version,
       protocolVersion: this.protocolVersion,
       uptimeSeconds: Math.floor((now - this.startedAt) / 1000),
       startTime: new Date(this.startedAt).toISOString(),
       serverTime: new Date(now).toISOString(),
-      activeControllerId: controller?.id || null,
-      activeHostId: controller?.hostId || hosts[0]?.id || null,
+      activeControllerId: null,
+      activeHostId: anyClient?.hostId || hosts[0]?.id || null,
       clients,
       hosts,
       ptys,

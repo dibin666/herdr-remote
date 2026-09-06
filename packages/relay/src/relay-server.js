@@ -610,6 +610,10 @@ class RelayServer {
         rows: dims.rows,
         role: 'controller',
       });
+      // Said out loud even when this window is the only one, so a browser that
+      // reconnects is never left painting the grid of a session that has since
+      // been torn down and started again at a different size.
+      jsonSend(client.ws, { type: 'shared_resize', cols: dims.cols, rows: dims.rows });
       return;
     }
 
@@ -725,8 +729,7 @@ class RelayServer {
           cols: clampDimension(message.cols, 80),
           rows: clampDimension(message.rows, 24),
         };
-        host.controllerId = client.id;
-        client.controllerId = client.id;
+        client.controllerId = null;
         // Persist how this device identifies itself so the operator dashboard
         // can name it in the revoke list instead of showing a bare device id.
         this.auth.noteDeviceSeen(device.deviceId, { userAgent: client.userAgent, ip: client.ip });
@@ -747,7 +750,11 @@ class RelayServer {
         jsonSend(ws, {
           type: 'ready',
           role: client.role,
-          controllerId: client.id,
+          // There is no controller to name: every window has full input. The
+          // field stays in the message for clients built against protocol 1,
+          // which read it to decide whether somebody else held the lease — and
+          // `null` is exactly the answer that means "nobody does".
+          controllerId: null,
           hostId: host.id,
           clientId: client.id,
           // Delivered with `ready`, before the first PTY byte, so the terminal
@@ -806,7 +813,9 @@ class RelayServer {
       client.role = 'controller';
       jsonSend(client.ws, { type: 'control_granted' });
     } else if (message.type === 'release_control') {
-      jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: client.id });
+      // Nothing to release: the window keeps its input either way, and saying
+      // so beats a silence an older client would wait on.
+      jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: null });
     }
   }
 
@@ -821,11 +830,11 @@ class RelayServer {
       const client = this.clients.get(clientId);
       if (!client) continue;
       client.role = 'controller';
-      client.controllerId = client.id;
+      client.controllerId = null;
       jsonSend(client.ws, {
         type: 'control_state',
         role: 'controller',
-        controllerId: client.id,
+        controllerId: null,
         clientCount: host.clients.size,
       });
     }
@@ -867,10 +876,6 @@ class RelayServer {
         }
         host.controllerId = null;
       } else {
-        // The departing window may have been the one this field named. Nothing
-        // reads it as a lease any more, but leaving a dead id in the status
-        // snapshot would have an operator hunting for a client that is gone.
-        if (host.controllerId === client.id) host.controllerId = null;
         this.syncDimensions(host);
         this.broadcastControlState(host);
       }

@@ -103,14 +103,23 @@ Every window paired to a workstation is a view of the *same* PTY:
 - the first window to attach starts the session; the relay allocates one
   `streamId` for the workstation and sends a single `session_start`;
 - output from the host is broadcast to every attached window, and the relay
-  keeps the tail of that stream so a window joining later is replayed what has
-  already been printed rather than facing a blank screen;
+  keeps the last 512 KB of that stream so a window joining later is replayed
+  what has already been printed rather than facing a blank screen. This is a
+  catch-up, not a screen snapshot: the relay does not emulate a terminal, so a
+  window that joins mid-session sees a correct screen only once the program has
+  redrawn itself. The geometry change that follows the join is what usually
+  prompts that redraw, and a full-screen program that ignores `SIGWINCH` may
+  need a repaint (`^L`) before the two windows agree exactly;
 - input from any window is written to that one PTY — there is no control lease
   and no read-only role. Pairing is the permission boundary; past it, every
   window may type;
 - the shared grid is the *smallest* attached window, as it is in tmux: a column
   a phone cannot show is a column the program must not paint, or every other
-  window sees wrapped output. A window joining or leaving re-computes it;
+  window sees wrapped output. A window joining or leaving re-computes it, and
+  the result is announced to the workstation *and* to every window as
+  `shared_resize`. A browser renders that grid rather than its own width, and
+  keeps reporting its own width in `resize` — which is the number the minimum
+  is computed from;
 - the PTY is stopped only when the last window has gone, so closing one tab
   never kills the session another tab is still watching.
 

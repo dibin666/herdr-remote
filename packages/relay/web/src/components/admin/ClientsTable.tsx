@@ -6,7 +6,6 @@ import { Badge, Column, Panel, StatusDot, Table } from '../tui';
 
 interface ClientsTableProps {
   clients: ConnectedClientInfo[];
-  activeControllerId?: string | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -20,10 +19,13 @@ function formatBytes(bytes: number): string {
 /**
  * Who is attached right now.
  *
- * The role column is the one worth colouring: exactly one row can be the
- * controller, and finding it is the reason an operator opens this table.
+ * Every row can type: the windows share one terminal, and pairing is the
+ * boundary. The role column says so per row rather than being dropped, because
+ * "all of these can type" is the security-relevant fact an operator is here to
+ * check — and a relay too old to have been updated would still show a row that
+ * cannot.
  */
-export const ClientsTable: React.FC<ClientsTableProps> = ({ clients, activeControllerId }) => {
+export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
   const { t } = useTerminal();
 
   const columns: Column<ConnectedClientInfo>[] = [
@@ -42,7 +44,7 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients, activeContr
       header: t('admin.colRole'),
       width: 12,
       render: (c) => {
-        const isController = c.role === 'controller' || c.id === activeControllerId;
+        const isController = c.role === 'controller';
         return (
           <Badge tone={isController ? 'ok' : 'warn'}>
             {isController ? t('common.controller') : t('common.viewer')}

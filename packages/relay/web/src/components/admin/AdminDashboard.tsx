@@ -866,10 +866,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </Panel>
               </div>
 
-              <ClientsTable
-                clients={data.clients || []}
-                activeControllerId={data.activeControllerId}
-              />
+              <ClientsTable clients={data.clients || []} />
               <PtysTable ptys={data.ptys || []} />
 
               <RawStatusViewer data={data} />
@@ -877,10 +874,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
 
           {activeTab === 'clients' && (
-            <ClientsTable
-              clients={data.clients || []}
-              activeControllerId={data.activeControllerId}
-            />
+            <ClientsTable clients={data.clients || []} />
           )}
 
           {activeTab === 'ptys' && <PtysTable ptys={data.ptys || []} />}
