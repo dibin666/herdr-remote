@@ -11,12 +11,25 @@ const { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } = require('./relay-conf
 const { AuthStore } = require('./auth-store');
 const { RelayMetrics } = require('./metrics');
 const { unpackStreamFrame, packStreamFrame, sanitizeTerminalPalette } = require('./stream-frame');
-const { isWheelOnlyInput } = require('./scroll-input');
 const { ensureDir } = require('./state');
 
 const VERSION = require('../package.json').version;
 const { PROTOCOL_VERSION } = require('./stream-frame');
 const MAX_DIMENSION = 500;
+
+/**
+ * How much recent PTY output the relay keeps per shared session.
+ *
+ * A browser that joins a session already in progress has missed everything
+ * printed before it arrived. Replaying the tail of the stream is what makes
+ * "every window shows the same thing" true on the *first* frame rather than
+ * only after the next repaint.
+ */
+const SESSION_REPLAY_BYTES = 512 * 1024;
+
+/** Never shrink a shared grid below something a program can still draw in. */
+const MIN_SHARED_COLS = 20;
+const MIN_SHARED_ROWS = 6;
 
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
@@ -433,6 +446,10 @@ class RelayServer {
           arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
           connectedAt: new Date(pending.connectedAt).toISOString(),
           connectedAtMs: pending.connectedAt,
+          // One shared terminal per workstation. Every browser attached to this
+          // host reads and writes the same PTY, so what one window shows is
+          // what all of them show.
+          session: null,
           // Colors are the workstation's to declare, but only in the one shape
           // a browser renderer accepts.
           terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
@@ -472,9 +489,14 @@ class RelayServer {
         closeSocket(host.ws, 1003, error.message);
         return;
       }
-      const client = this.clients.get(frame.streamId);
-      if (frame.type !== 'output' || !client || client.hostId !== host.id) return;
-      if (isOpen(client.ws)) {
+      // Output belongs to the workstation's one shared session, so it goes to
+      // every browser attached to it rather than to a single stream owner.
+      const session = host.session;
+      if (frame.type !== 'output' || !session || session.streamId !== frame.streamId) return;
+      this.rememberOutput(session, frame.payload);
+      for (const clientId of host.clients) {
+        const client = this.clients.get(clientId);
+        if (!client || !isOpen(client.ws)) continue;
         client.ws.send(frame.payload);
         client.bytesSent += frame.payload.length;
         this.metrics.recordOut(frame.payload.length);
@@ -488,16 +510,154 @@ class RelayServer {
       host.ptys = Array.isArray(message.ptys) ? message.ptys.slice(0, 256) : [];
       return;
     }
-    const client = typeof message.clientId === 'string' ? this.clients.get(message.clientId) : null;
-    if (!client || client.hostId !== host.id) return;
+    // Session-level news concerns the whole room: the host talks about the one
+    // shared stream, and every attached browser has to hear it.
+    const session = host.session;
+    const streamId = typeof message.clientId === 'string' ? message.clientId : message.streamId;
+    if (!session || (streamId && streamId !== session.streamId)) return;
     if (message.type === 'session_ready') {
-      jsonSend(client.ws, { type: 'session_ready', clientId: client.id });
+      session.ready = true;
+      this.broadcastToClients(host, (client) => ({ type: 'session_ready', clientId: client.id }));
     } else if (message.type === 'session_exit') {
-      jsonSend(client.ws, { type: 'exit', code: Number.isInteger(message.code) ? message.code : null });
-      this.detachClient(client, { notify: false });
+      const code = Number.isInteger(message.code) ? message.code : null;
+      host.session = null;
+      this.broadcastToClients(host, () => ({ type: 'exit', code }));
+      for (const clientId of [...host.clients]) {
+        const client = this.clients.get(clientId);
+        if (client) this.detachClient(client, { notify: false });
+      }
     } else if (message.type === 'error') {
-      jsonSend(client.ws, { type: 'error', code: message.code || 'host_error', message: String(message.message || 'Host connector error') });
+      this.broadcastToClients(host, () => ({
+        type: 'error',
+        code: message.code || 'host_error',
+        message: String(message.message || 'Host connector error'),
+      }));
     }
+  }
+
+  /** Send one JSON message to every browser attached to `host`. */
+  broadcastToClients(host, build) {
+    for (const clientId of [...host.clients]) {
+      const client = this.clients.get(clientId);
+      if (!client) continue;
+      const payload = build(client);
+      if (payload) jsonSend(client.ws, payload);
+    }
+  }
+
+  /** Keep the tail of the shared stream so a late joiner can be caught up. */
+  rememberOutput(session, payload) {
+    session.replay.push(Buffer.from(payload));
+    session.replayBytes += payload.length;
+    while (session.replayBytes > SESSION_REPLAY_BYTES && session.replay.length > 1) {
+      session.replayBytes -= session.replay.shift().length;
+    }
+  }
+
+  /**
+   * The grid the shared PTY runs at.
+   *
+   * The smallest attached window wins, exactly as it does in tmux: a column a
+   * phone cannot show is a column the program must not paint, or every other
+   * window sees wrapped rubbish. Nothing else keeps a shared terminal legible
+   * on two different screens at once.
+   */
+  sharedDimensions(host) {
+    let cols = MAX_DIMENSION;
+    let rows = MAX_DIMENSION;
+    let found = false;
+    for (const clientId of host.clients) {
+      const client = this.clients.get(clientId);
+      if (!client) continue;
+      found = true;
+      cols = Math.min(cols, client.cols);
+      rows = Math.min(rows, client.rows);
+    }
+    if (!found) return null;
+    return {
+      cols: Math.max(MIN_SHARED_COLS, cols),
+      rows: Math.max(MIN_SHARED_ROWS, rows),
+    };
+  }
+
+  /**
+   * Attach `client` to the workstation's shared terminal, starting it if this
+   * is the first browser through the door.
+   *
+   * A later arrival does not get its own PTY: it is handed the stream already
+   * running, the output that has been printed so far, and — once the geometry
+   * has settled — a repaint, so it lands on the same screen everyone else is
+   * looking at.
+   */
+  attachSession(host, client) {
+    if (!host.session) {
+      host.session = {
+        streamId: randomId('session'),
+        cols: client.cols,
+        rows: client.rows,
+        ready: false,
+        replay: [],
+        replayBytes: 0,
+      };
+      const dims = this.sharedDimensions(host) || { cols: client.cols, rows: client.rows };
+      host.session.cols = dims.cols;
+      host.session.rows = dims.rows;
+      jsonSend(host.ws, {
+        type: 'session_start',
+        clientId: host.session.streamId,
+        streamId: host.session.streamId,
+        cols: dims.cols,
+        rows: dims.rows,
+        role: 'controller',
+      });
+      return;
+    }
+
+    const session = host.session;
+    if (session.ready) jsonSend(client.ws, { type: 'session_ready', clientId: client.id });
+    for (const chunk of session.replay) {
+      if (!isOpen(client.ws)) break;
+      client.ws.send(chunk);
+      client.bytesSent += chunk.length;
+    }
+    // Geometry may now be smaller than it was; the resize doubles as the
+    // repaint that puts the newcomer on the same screen as everyone else.
+    this.syncDimensions(host, { force: true });
+  }
+
+  /**
+   * Push the shared grid to the workstation.
+   *
+   * `force` asks for a repaint even when the numbers did not move: a browser
+   * that just joined needs the program to draw itself again, and a resize is
+   * the only signal a PTY has for "paint everything".
+   */
+  syncDimensions(host, { force = false } = {}) {
+    const session = host.session;
+    if (!session) return;
+    const dims = this.sharedDimensions(host);
+    if (!dims) return;
+    const changed = dims.cols !== session.cols || dims.rows !== session.rows;
+    session.cols = dims.cols;
+    session.rows = dims.rows;
+    if (!changed && !force) return;
+    if (!changed && force) {
+      // A no-op resize is ignored by the PTY, so bounce one row and come back.
+      jsonSend(host.ws, {
+        type: 'resize',
+        clientId: session.streamId,
+        streamId: session.streamId,
+        cols: dims.cols,
+        rows: Math.max(MIN_SHARED_ROWS, dims.rows - 1),
+      });
+    }
+    jsonSend(host.ws, {
+      type: 'resize',
+      clientId: session.streamId,
+      streamId: session.streamId,
+      cols: dims.cols,
+      rows: dims.rows,
+    });
   }
 
   handleClientConnection(ws, req) {
@@ -522,18 +682,12 @@ class RelayServer {
         const host = this.hosts.get(device.hostId);
         if (!host) return this.rejectHandshake(ws, 'paired Herdr host is offline', 'host_offline');
 
-        // One live session per browser. A browser that reconnects before the
-        // relay has noticed the old socket is gone would otherwise end up
-        // holding two sessions: the stale one keeps the controller lease, so
-        // the reconnected tab is stuck read-only against its own ghost. Retire
-        // that session first; the controller lease is released with it and this
-        // connection can take it again.
-        //
-        // Keyed on the browser-supplied client id, not on the device token:
-        // sharing one token across two browsers is the supported multi-viewer
-        // case and must keep working.
-        this.detachSupersededSession(device.deviceId, message.clientId, host);
-
+        // Two tabs of one browser are two windows onto the same terminal, not
+        // rivals. Nothing is retired here: the relay used to close whichever
+        // session shared this browser's client id, which made two open tabs
+        // evict each other in a loop that never converged — each eviction
+        // triggered the other tab's auto-reconnect, which evicted this one
+        // back, forever.
         if (host.clients.size >= this.config.relay.maxClientsPerHost) return this.rejectHandshake(ws, 'host client limit reached', 'too_many_clients');
         clearTimeout(deadline);
         const clientId = randomId('client');
@@ -545,8 +699,11 @@ class RelayServer {
           // Stable per browser profile; used to recognise a reconnect from the
           // same browser rather than a genuinely separate viewer.
           browserClientId: typeof message.clientId === 'string' ? message.clientId : null,
-          role: host.controllerId ? 'viewer' : 'controller',
-          controllerId: host.controllerId,
+          // Every paired window may type. Pairing is the permission boundary;
+          // once a device is through it, holding a second window read-only
+          // serves nobody — they are all views of one shared terminal.
+          role: 'controller',
+          controllerId: null,
           connectedAt: new Date().toISOString(),
           connectedAtMs: Date.now(),
           lastSeenAt: Date.now(),
@@ -558,8 +715,8 @@ class RelayServer {
           cols: clampDimension(message.cols, 80),
           rows: clampDimension(message.rows, 24),
         };
-        if (client.role === 'controller') host.controllerId = client.id;
-        client.controllerId = host.controllerId;
+        host.controllerId = client.id;
+        client.controllerId = client.id;
         // Persist how this device identifies itself so the operator dashboard
         // can name it in the revoke list instead of showing a bare device id.
         this.auth.noteDeviceSeen(device.deviceId, { userAgent: client.userAgent, ip: client.ip });
@@ -580,14 +737,15 @@ class RelayServer {
         jsonSend(ws, {
           type: 'ready',
           role: client.role,
-          controllerId: host.controllerId,
+          controllerId: client.id,
           hostId: host.id,
           clientId: client.id,
           // Delivered with `ready`, before the first PTY byte, so the terminal
           // is painted in the host's colors from its very first frame.
           terminalPalette: host.terminalPalette || null,
+          clientCount: host.clients.size,
         });
-        jsonSend(host.ws, { type: 'session_start', clientId: client.id, streamId: client.id, cols: client.cols, rows: client.rows, role: client.role });
+        this.attachSession(host, client);
         this.broadcastControlState(host);
         return;
       }
@@ -605,16 +763,12 @@ class RelayServer {
     const host = this.hosts.get(client.hostId);
     if (!host) return this.detachClient(client, { notify: true, reason: 'host_offline' });
     if (isBinary) {
-      // A read-only device may still scroll. Like `resize` below, scrolling is
-      // not a shared-terminal action: each client drives its own PTY stream, so
-      // a wheel report moves only that viewer's own screen. Everything else —
-      // keystrokes, clicks, drags — stays behind the control lease.
-      if (client.role !== 'controller' && !isWheelOnlyInput(raw)) {
-        jsonSend(client.ws, { type: 'control_denied', message: 'this device is read-only' });
-        return;
-      }
       if (raw.length > this.config.relay.maxPayloadBytes) return;
-      const frame = packStreamFrame('input', client.id, raw);
+      const session = host.session;
+      if (!session) return;
+      // Every window writes into the one shared terminal, so input is stamped
+      // with the session's stream id rather than the sender's.
+      const frame = packStreamFrame('input', session.streamId, raw);
       if (isOpen(host.ws)) {
         host.ws.send(frame);
         client.bytesReceived += raw.length;
@@ -631,47 +785,39 @@ class RelayServer {
       client.lastPingAt = new Date().toISOString();
       jsonSend(client.ws, { type: 'pong' });
     } else if (message.type === 'resize') {
-      // Every client drives its *own* PTY stream — `session_start` is emitted
-      // per client with `streamId: client.id`, and the host resizes only that
-      // session — so geometry is not a shared-terminal action and must not
-      // require the control lease. Gating it here left a viewer's PTY at the
-      // 80x24 it was opened with: the agent then painted into a grid the
-      // terminal did not have, leaving blank rows under the content and
-      // columns clipped off the right edge.
+      // The shared grid is the smallest attached window, so one client's resize
+      // is recomputed across the room rather than applied on its own.
       client.cols = clampDimension(message.cols, client.cols);
       client.rows = clampDimension(message.rows, client.rows);
-      jsonSend(host.ws, { type: 'resize', clientId: client.id, cols: client.cols, rows: client.rows });
+      this.syncDimensions(host);
     } else if (message.type === 'claim_control') {
-      this.claimControl(host, client, Boolean(message.force));
+      // Control is no longer a lease. Answering the old request keeps clients
+      // built against the previous protocol working.
+      client.role = 'controller';
+      jsonSend(client.ws, { type: 'control_granted' });
     } else if (message.type === 'release_control') {
-      if (host.controllerId === client.id) {
-        host.controllerId = null;
-        this.broadcastControlState(host);
-      }
+      jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: client.id });
     }
   }
 
-  claimControl(host, client, force) {
-    if (host.controllerId === client.id) return jsonSend(client.ws, { type: 'control_granted' });
-    if (host.controllerId && !force) return jsonSend(client.ws, { type: 'control_denied', message: 'another device currently controls this Herdr' });
-    const previous = host.controllerId ? this.clients.get(host.controllerId) : null;
-    if (previous) {
-      previous.role = 'viewer';
-      jsonSend(previous.ws, { type: 'control_revoked', controllerId: client.id });
-    }
-    host.controllerId = client.id;
-    client.role = 'controller';
-    jsonSend(client.ws, { type: 'control_granted' });
-    this.broadcastControlState(host);
-  }
-
+  /**
+   * Tell every window who is attached.
+   *
+   * There is no controller to announce any more, so this carries the one fact
+   * that changed: how many windows now share this terminal.
+   */
   broadcastControlState(host) {
     for (const clientId of host.clients) {
       const client = this.clients.get(clientId);
       if (!client) continue;
-      client.role = host.controllerId === client.id ? 'controller' : 'viewer';
-      client.controllerId = host.controllerId;
-      jsonSend(client.ws, { type: 'control_state', role: client.role, controllerId: host.controllerId || null });
+      client.role = 'controller';
+      client.controllerId = client.id;
+      jsonSend(client.ws, {
+        type: 'control_state',
+        role: 'controller',
+        controllerId: client.id,
+        clientCount: host.clients.size,
+      });
     }
   }
 
@@ -693,47 +839,25 @@ class RelayServer {
     return closed;
   }
 
-  /**
-   * Retire the session the same browser already holds on this host, if any.
-   *
-   * `browserClientId` is the identifier the browser persists for itself, so two
-   * tabs of one browser collapse to a single session while two genuinely
-   * different browsers sharing a device token stay independent viewers. A
-   * client that sends no id cannot be matched and is left alone.
-   */
-  detachSupersededSession(deviceId, browserClientId, host) {
-    if (!deviceId || typeof browserClientId !== 'string' || !browserClientId) return 0;
-    let closed = 0;
-    for (const clientId of [...host.clients]) {
-      const existing = this.clients.get(clientId);
-      if (!existing || existing.deviceId !== deviceId) continue;
-      if (existing.browserClientId !== browserClientId) continue;
-      this.detachClient(existing, { notify: false, reason: 'superseded_by_new_session' });
-      closeSocket(existing.ws, 1000, 'replaced by a newer session from the same browser');
-      closed += 1;
-    }
-    return closed;
-  }
-
   detachClient(client, { notify = true, reason = 'client_disconnected' } = {}) {
     if (!client || !this.clients.has(client.id)) return;
     this.clients.delete(client.id);
     const host = this.hosts.get(client.hostId);
     if (host) {
       host.clients.delete(client.id);
-      if (isOpen(host.ws)) jsonSend(host.ws, { type: 'session_stop', clientId: client.id });
-      const wasController = host.controllerId === client.id;
-      if (wasController) {
-        host.controllerId = null;
-        const next = [...host.clients]
-          .map((id) => this.clients.get(id))
-          .filter(Boolean)
-          .sort((a, b) => a.connectedAtMs - b.connectedAtMs)[0];
-        if (next) {
-          host.controllerId = next.id;
-          next.role = 'controller';
-          jsonSend(next.ws, { type: 'control_granted' });
+      // The shared terminal outlives any one window: it is torn down only when
+      // the last of them has gone, so closing a tab never kills the session the
+      // other tabs are still watching.
+      if (host.clients.size === 0) {
+        if (host.session) {
+          if (isOpen(host.ws)) {
+            jsonSend(host.ws, { type: 'session_stop', clientId: host.session.streamId, streamId: host.session.streamId });
+          }
+          host.session = null;
         }
+        host.controllerId = null;
+      } else {
+        this.syncDimensions(host);
         this.broadcastControlState(host);
       }
     }
@@ -820,7 +944,14 @@ class RelayServer {
       activePtyCount: host.ptys.length,
       load: host.load,
     }));
-    const ptys = [...this.hosts.values()].flatMap((host) => host.ptys.map((pty) => ({ ...pty, hostId: host.id })));
+    // The workstation counts one PTY per stream and cannot know how many
+    // windows are watching it; the relay does, and that is the number an
+    // operator needs when the session is shared.
+    const ptys = [...this.hosts.values()].flatMap((host) => host.ptys.map((pty) => ({
+      ...pty,
+      hostId: host.id,
+      activeClients: host.clients.size,
+    })));
     // The paired-device roster identifies people's hardware, so it is served to
     // the relay operator only — never on /api/status, which any paired device
     // may read.

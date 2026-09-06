@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { RoleControlBadge } from '../components/RoleControlBadge';
@@ -136,8 +136,10 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.getByText(/pass through from the host/i)).toBeInTheDocument();
   });
 
-  it('RoleControlBadge prompts confirmation dialog for Takeover when another device is controlling', async () => {
-    // Render RoleControlBadge inside TerminalProvider
+  it('RoleControlBadge states shared control and how many windows are attached', () => {
+    // The lease is gone: every paired window types into the same terminal, so
+    // the badge reports the shape of the room rather than offering a control
+    // to seize it from somebody else.
     let terminalCtx: ReturnType<typeof useTerminal> | undefined;
 
     render(
@@ -147,41 +149,24 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       </TerminalProvider>
     );
 
-    // Simulate adapter connection and receiving a ready message where another client is controller
     act(() => {
       // @ts-expect-error test mock
       terminalCtx?.adapter?.emit('stateChange', 'connected');
       // @ts-expect-error test mock
       terminalCtx?.adapter?.emit('ready', {
         type: 'ready',
-        role: 'viewer',
-        controllerId: 'client-other-99',
+        role: 'controller',
+        controllerId: 'client-local-11',
         hostId: 'host-1',
         clientId: 'client-local-11',
       });
+      // @ts-expect-error test mock
+      terminalCtx?.adapter?.emit('peerCount', 2);
     });
 
-    // Badge should show viewer with active controller ID
-    expect(screen.getByText(/Viewer \(Active: client-other-99\)/i)).toBeInTheDocument();
-
-    // Takeover button should be present
-    const takeoverBtn = screen.getByRole('button', { name: /Takeover/i });
-    expect(takeoverBtn).toBeInTheDocument();
-
-    // Spy on claimControl
-    const claimControlSpy = vi.spyOn(terminalCtx!.adapter!, 'claimControl');
-
-    // Click takeover button - should show confirmation modal, NOT immediately force claim
-    fireEvent.click(takeoverBtn);
-
-    expect(screen.getByText(/Confirm Control Takeover/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/client-other-99/i).length).toBeGreaterThanOrEqual(1);
-    expect(claimControlSpy).not.toHaveBeenCalled();
-
-    // Confirm takeover in modal
-    const confirmBtn = screen.getByRole('button', { name: /Confirm Takeover/i });
-    fireEvent.click(confirmBtn);
-
-    expect(claimControlSpy).toHaveBeenCalledWith(true);
+    expect(screen.getByText(/Full control/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 windows/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Takeover|Claim Control|Release/i })).toBeNull();
+    expect(screen.queryByText(/Confirm Control Takeover/i)).toBeNull();
   });
 });

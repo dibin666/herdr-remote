@@ -55,6 +55,13 @@ interface TerminalContextValue {
   hostId?: string;
   assignedClientId?: string;
   isController: boolean;
+  /**
+   * How many windows share this terminal, this one included.
+   *
+   * Every paired window is a view of one shared session with full input, so the
+   * only thing left to report is how many of them are watching.
+   */
+  sharedWindowCount: number;
   rttMs: number | null;
   statusPayload: Record<string, unknown> | null;
   /**
@@ -130,6 +137,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [hostPalette, setHostPalette] = useState<HostTerminalPalette | null>(null);
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
+  const [sharedWindowCount, setSharedWindowCount] = useState(1);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
   const [terminalDimensions, setTerminalDimensions] = useState<{ cols: number; rows: number }>({
@@ -416,6 +424,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setRttMs(rtt);
     });
 
+    newAdapter.on('peerCount', (count) => {
+      setSharedWindowCount(Math.max(1, count));
+    });
+
     // Single lifetime subscription: survives TerminalView unmount/hide so no
     // PTY output is lost while the user is on another view.
     newAdapter.on('binaryData', (data) => {
@@ -501,6 +513,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         hostId,
         assignedClientId,
         isController: role === 'controller',
+        sharedWindowCount,
         rttMs,
         statusPayload,
         lastPairedAt,

@@ -30,6 +30,8 @@ export type AdapterEventMap = {
   controlGranted: () => void;
   controlDenied: (message?: string) => void;
   status: (payload: Record<string, unknown>) => void;
+  /** How many windows currently share this terminal, this one included. */
+  peerCount: (count: number) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
@@ -64,6 +66,7 @@ export class HerdrClientAdapter {
     controlGranted: new Set(),
     controlDenied: new Set(),
     status: new Set(),
+    peerCount: new Set(),
     error: new Set(),
     binaryData: new Set(),
     rttUpdate: new Set(),
@@ -282,6 +285,7 @@ export class HerdrClientAdapter {
         this.assignedClientId = msg.clientId;
         this.emit('ready', msg);
         this.emit('roleChange', msg.role, msg.controllerId, msg.hostId, msg.clientId);
+        if (typeof msg.clientCount === 'number') this.emit('peerCount', msg.clientCount);
         break;
       }
 
@@ -300,6 +304,7 @@ export class HerdrClientAdapter {
         this.controllerId = msg.controllerId;
         this.emit('controlState', msg.role, msg.controllerId);
         this.emit('roleChange', msg.role, msg.controllerId, this.hostId, this.assignedClientId);
+        if (typeof msg.clientCount === 'number') this.emit('peerCount', msg.clientCount);
         break;
       }
 

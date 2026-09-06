@@ -20,12 +20,15 @@ import { createTranslator, detectLocale as detectLocaleRaw } from '../../src/i18
 import { listReachableAddresses as listReachableAddressesRaw, preferredLanAddress } from '../../src/net-interfaces.js';
 import {
   FIELDS,
+  SELECTABLE_MODES,
   createDraft,
   fieldsForMode,
   getField,
   getFieldPlaceholder,
+  isOfficialRelay,
   requiresRestart,
   saveDraft,
+  selectedMode,
   setField,
   validateDraft,
 } from '../../src/settings-model.js';
@@ -127,7 +130,10 @@ export function listReachableAddresses(options: { includeLoopback?: boolean; inc
 
 export {
   ACCESS_MODES,
+  SELECTABLE_MODES,
   OFFICIAL_RELAY_URL,
+  isOfficialRelay,
+  selectedMode,
   canSelfUpdate,
   checkForUpdate,
   installKind,

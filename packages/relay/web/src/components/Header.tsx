@@ -15,9 +15,10 @@ import { Tabs } from './tui';
  * the same width at every connection state instead of reflowing every time a
  * round-trip time appears.
  *
- * The actions are words, not icons: `cfg`, `link`, `cmd`. A terminal spells
- * what it does, and a three-letter word survives translation and a 320px screen
- * where a glyph has to be learnt.
+ * The actions are words, not icons: a terminal spells what it does, and a short
+ * word survives a 320px screen where a glyph has to be learnt. They are words in
+ * the interface's *own* language — a Chinese UI whose commands still read `CMD
+ * LINK CFG` is a Chinese UI with English left in it.
  */
 
 const actionClass =
@@ -105,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
             title={t('header.languageToggleTitle')}
             aria-label={t('header.languageToggleTitle')}
           >
-            {language === 'zh' ? '中' : 'en'}
+            {t('header.languageShort')}
           </button>
 
           {currentView === 'terminal' && (
@@ -116,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
               title={t('header.virtualKeyboardTitle')}
               aria-label={t('header.virtualKeyboardTitle')}
             >
-              cmd
+              {t('header.actionKeyboard')}
             </button>
           )}
 
@@ -127,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
             title={t('header.pairingTitle')}
             aria-label={t('header.pairingTitle')}
           >
-            link
+            {t('header.actionPairing')}
           </button>
 
           <button
@@ -137,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
             title={t('header.settingsTitle')}
             aria-label={t('header.settingsTitle')}
           >
-            cfg
+            {t('header.actionSettings')}
           </button>
         </div>
       </div>

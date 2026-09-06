@@ -11,6 +11,7 @@ const {
   ACCESS_MODES,
   KEEPALIVE_MANAGERS,
   LANGUAGES,
+  OFFICIAL_RELAY_URL,
   configDir,
   configPath,
   isLoopbackHost,
@@ -39,6 +40,30 @@ const FIELDS = [
 ];
 
 const EMPTY = '';
+
+/**
+ * The access modes a *person* chooses between.
+ *
+ * The official relay is stored as `remote` with a known URL, because that is
+ * exactly what it is and nothing downstream should have to learn a fourth mode.
+ * It is still a separate answer to "how do I reach this workstation", though:
+ * one option needs no server and no credentials, the other needs both. Keeping
+ * that distinction here — rather than in whichever screen happens to draw it —
+ * is what stops the official relay from being displayed as "self-hosted relay"
+ * that merely happens to hold our address.
+ */
+const SELECTABLE_MODES = ['local', 'lan', 'official', 'remote'];
+
+/** Which of `SELECTABLE_MODES` this draft represents. */
+function selectedMode(draft) {
+  if (draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL) return 'official';
+  return draft.relay.mode;
+}
+
+/** True when the relay is the one we run, so its address and password are ours. */
+function isOfficialRelay(draft) {
+  return selectedMode(draft) === 'official';
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -121,7 +146,22 @@ function setField(draft, id, rawValue) {
 
   switch (id) {
     case 'mode': {
-      if (!ACCESS_MODES.includes(value)) return { draft, errorKey: 'error.invalidMode' };
+      if (!SELECTABLE_MODES.includes(value)) return { draft, errorKey: 'error.invalidMode' };
+      // Picking the official relay fills in its address in the same edit: a
+      // remote mode with no URL is not a valid state, and asking for the
+      // address we already know would be asking the user to do our filing.
+      if (value === 'official') {
+        next.relay.mode = 'remote';
+        next.relay.remoteUrl = OFFICIAL_RELAY_URL;
+        next.relay.publicUrl = EMPTY;
+        break;
+      }
+      // Leaving the official relay clears its address, so the self-hosted URL
+      // field is empty and asking to be filled in rather than pre-loaded with
+      // an address that belongs to somebody else's server.
+      if (value === 'remote' && next.relay.remoteUrl === OFFICIAL_RELAY_URL) {
+        next.relay.remoteUrl = EMPTY;
+      }
       next.relay.mode = value;
       if (value === 'lan'
         && (isLoopbackHost(next.relay.lanHost) || isUnspecifiedAddress(next.relay.lanHost))) {
@@ -254,8 +294,11 @@ function requiresRestart(before, after) {
 
 module.exports = {
   FIELDS,
+  SELECTABLE_MODES,
   createDraft,
   fieldsForMode,
+  isOfficialRelay,
+  selectedMode,
   getField,
   getFieldPlaceholder,
   setField,

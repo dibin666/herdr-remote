@@ -24,6 +24,9 @@ type UpdateState =
   | { phase: 'done'; latest: string }
   | { phase: 'error'; messageKey: string };
 
+/** The registry that answered the last check, reused by the install. */
+type RegistryRef = { current: string };
+
 // Injected at build time by scripts/build-tui.mjs.
 declare const __APP_VERSION__: string;
 
@@ -31,6 +34,7 @@ export function About({ ctx }: { ctx: AppContext }) {
   const { t, draft } = ctx;
   const [selected, setSelected] = useState('auto');
   const [update, setUpdate] = useState<UpdateState>({ phase: 'idle' });
+  const registryRef = useState<RegistryRef>(() => ({ current: '' }))[0];
 
   const detected = detectLocale({ preference: 'auto' });
   const languageOptions = [
@@ -61,8 +65,13 @@ export function About({ ctx }: { ctx: AppContext }) {
     const result = await checkForUpdate();
     if (!result.ok) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorNetwork' });
+      // Which registries were tried, and what each of them said. Without this
+      // the row reads "could not reach npm registry" on a machine where
+      // `npm install` works perfectly, and there is nothing to act on.
+      if (result.message) ctx.notify(t('update.errorNetworkDetail', { message: result.message }), 'error');
       return;
     }
+    registryRef.current = result.registry ?? '';
     setUpdate(result.updateAvailable
       ? { phase: 'available', latest: result.latest as string }
       : { phase: 'current', latest: result.latest as string });
@@ -70,7 +79,7 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const runUpdate = async (latest: string) => {
     setUpdate({ phase: 'updating', latest });
-    const result = await performUpdate();
+    const result = await performUpdate({ registry: registryRef.current });
     if (!result.ok) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed' });
       ctx.notify(t('update.errorFailed'), 'error');

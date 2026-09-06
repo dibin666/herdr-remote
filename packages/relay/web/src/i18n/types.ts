@@ -16,6 +16,15 @@ export interface TranslationSchema {
     virtualKeyboardTitle: string;
     latencyTitle: string;
     mainNavigationAria: string;
+    /**
+     * The words on the right of the program line. They are commands, so they
+     * are translated like every other word in the interface: a Chinese UI that
+     * still says `CMD LINK CFG` is a Chinese UI with English in it.
+     */
+    actionKeyboard: string;
+    actionPairing: string;
+    actionSettings: string;
+    languageShort: string;
   };
   common: {
     connecting: string;
@@ -66,6 +75,11 @@ export interface TranslationSchema {
     controlActive: string;
     viewerReadOnly: string;
     viewerWithController: string;
+    /** Every paired window types into one shared terminal. */
+    sharedControl: string;
+    sharedControlDesc: string;
+    sharedWindows: string;
+    thisWindow: string;
     claimControl: string;
     claimControlTitle: string;
     releaseControl: string;

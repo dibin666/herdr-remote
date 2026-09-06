@@ -12,6 +12,14 @@ export interface ToolbarKeyDef {
   isPlainChar?: boolean;
 }
 
+/**
+ * The default bar, left to right.
+ *
+ * Enter is last because it is the key that commits, and a keyboard puts the
+ * committing key under the thumb at the right-hand end — physical Return is at
+ * the right edge of every layout there is. Everything before it is either a
+ * modifier, a movement, or a drawer, and none of those ends a command.
+ */
 export const DEFAULT_TOOLBAR_KEYS: ToolbarKeyDef[] = [
   { id: 'esc', label: 'ESC', code: ANSI_KEYS.ESC, type: 'key', enabled: true, title: 'Escape' },
   { id: 'tab', label: 'TAB', code: ANSI_KEYS.TAB, type: 'key', enabled: true, title: 'Tab' },
@@ -21,10 +29,10 @@ export const DEFAULT_TOOLBAR_KEYS: ToolbarKeyDef[] = [
   { id: 'up', label: '↑', code: ANSI_KEYS.UP, type: 'key', enabled: true, title: 'Arrow Up' },
   { id: 'down', label: '↓', code: ANSI_KEYS.DOWN, type: 'key', enabled: true, title: 'Arrow Down' },
   { id: 'right', label: '→', code: ANSI_KEYS.RIGHT, type: 'key', enabled: true, title: 'Arrow Right' },
-  { id: 'enter', label: 'Enter', code: ANSI_KEYS.ENTER, type: 'key', enabled: true, title: 'Enter / Return' },
   { id: 'drawer_chords', label: '^C', code: '', type: 'drawer', enabled: true, drawerType: 'chords', title: 'Quick Ctrl Chords' },
   { id: 'drawer_symbols', label: '~|/', code: '', type: 'drawer', enabled: true, drawerType: 'symbols', title: 'Special Symbols' },
   { id: 'drawer_fn', label: 'Fn', code: '', type: 'drawer', enabled: true, drawerType: 'fn', title: 'Function Keys (F1-F12)' },
+  { id: 'enter', label: 'Enter', code: ANSI_KEYS.ENTER, type: 'key', enabled: true, title: 'Enter / Return' },
 ];
 
 export const ALL_AVAILABLE_KEYS: ToolbarKeyDef[] = [
@@ -96,18 +104,48 @@ export function getDefaultVirtualKeys(): ToolbarKeyDef[] {
   return JSON.parse(JSON.stringify(DEFAULT_TOOLBAR_KEYS));
 }
 
+/**
+ * The layout every earlier build shipped, with Enter buried mid-row.
+ *
+ * A saved layout is the user's own arrangement and must be left alone — unless
+ * it is untouched, in which case it is not a preference at all but a copy of a
+ * default that has since moved on. Recognising it by its exact key order is
+ * what lets the new default reach the people who never customised anything.
+ */
+const LEGACY_DEFAULT_KEY_ORDER = [
+  'esc',
+  'tab',
+  'ctrl',
+  'alt',
+  'left',
+  'up',
+  'down',
+  'right',
+  'enter',
+  'drawer_chords',
+  'drawer_symbols',
+  'drawer_fn',
+];
+
+function isUntouchedLegacyLayout(keys: ToolbarKeyDef[]): boolean {
+  if (keys.length !== LEGACY_DEFAULT_KEY_ORDER.length) return false;
+  return keys.every((key, index) => key.id === LEGACY_DEFAULT_KEY_ORDER[index] && key.enabled !== false);
+}
+
 export function sanitizeVirtualKeys(keys: unknown): ToolbarKeyDef[] {
   if (!Array.isArray(keys) || keys.length === 0) {
     return getDefaultVirtualKeys();
   }
-  return keys.filter(
+  const valid = keys.filter(
     (k) =>
       typeof k === 'object' &&
       k !== null &&
       typeof k.id === 'string' &&
       typeof k.label === 'string' &&
       typeof k.code === 'string'
-  );
+  ) as ToolbarKeyDef[];
+  if (isUntouchedLegacyLayout(valid)) return getDefaultVirtualKeys();
+  return valid;
 }
 
 export function getLocalizedKeyTitle(

@@ -109,23 +109,10 @@ describe('Panels open without moving the page', () => {
     }
   });
 
-  it.each([
-    [370, 912],
-    [464, 1080],
-    [501, 1080],
-  ])('keeps the takeover dialog in the visual viewport at %dx%d', (width, height) => {
-    Object.defineProperty(window, 'innerWidth', {
-      value: width,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(window, 'innerHeight', {
-      value: height,
-      writable: true,
-      configurable: true,
-    });
-    document.documentElement.style.setProperty('--app-height', `${height}px`);
-
+  it('states that the terminal is shared and offers no lease to take over', () => {
+    // There is no control lease any more: every paired window types into the
+    // one shared terminal. The sheet therefore reports how many windows are
+    // attached instead of offering a control to seize from somebody else.
     let terminalContext: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
@@ -144,32 +131,23 @@ describe('Panels open without moving the page', () => {
       // @ts-expect-error adapter emit is intentionally exercised by this test
       terminalContext?.adapter?.emit('ready', {
         type: 'ready',
-        role: 'viewer',
-        controllerId: 'client-other',
+        role: 'controller',
+        controllerId: 'client-local',
         hostId: 'host-1',
         clientId: 'client-local',
       });
+      // @ts-expect-error adapter emit is intentionally exercised by this test
+      terminalContext?.adapter?.emit('peerCount', 2);
     });
 
     fireEvent.click(screen.getByTestId('mobile-chrome-trigger'));
     const sheet = screen.getByTestId('mobile-control-sheet');
-    fireEvent.click(
-      within(sheet).getByRole('button', { name: /强占控制权|Takeover/i })
-    );
 
-    const dialog = screen.getByRole('dialog', {
-      name: /确认接管|Confirm (Control )?Takeover/i,
-    });
-    const panel = dialog.firstElementChild as HTMLElement;
-
-    // A fixed descendant of the sheet is clipped by its overflow and backdrop
-    // context. Portal rendering must leave the dialog at body level instead.
-    expect(dialog.parentElement).toBe(document.body);
-    expect(sheet).not.toContainElement(dialog);
-    expect(dialog.className).toMatch(/\bfixed\b/);
-    expect(dialog.className).toContain('inset-x-0');
-    expect(dialog.style.height).toBe('var(--app-height, 100dvh)');
-    expect(panel.style.maxHeight).toContain('--app-height');
+    expect(within(sheet).getByText(/Full control/i)).toBeInTheDocument();
+    expect(within(sheet).getByText(/2 windows/i)).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Takeover|Claim Control/i })).toBeNull();
+    // Nothing to confirm, so nothing opens over the sheet.
+    expect(screen.queryByRole('dialog', { name: /Takeover|接管/i })).toBeNull();
   });
 
   it.each([

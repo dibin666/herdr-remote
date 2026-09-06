@@ -321,19 +321,21 @@ describe('Phone control sheet', () => {
     setVisualViewport(null);
   });
 
-  it('reaches connection status, the control lease, settings, pairing and Admin', async () => {
+  it('reaches connection status, the shared-session state, settings, pairing and Admin', async () => {
     await renderPhoneApp();
-    openSession('viewer');
+    openSession('controller');
 
     const sheet = await openSheet();
 
     // Connection state, which the phone shell has no banner for.
     expect(within(sheet).getByText(/^Live$/)).toBeInTheDocument();
 
-    // Full Control mode is reachable — this is not a viewer-only shell.
+    // Input is not a lease to be claimed: this window already has it, and the
+    // sheet says so rather than offering a control that does nothing.
+    expect(within(sheet).getByText(/Full control/i)).toBeInTheDocument();
     expect(
-      within(sheet).getByRole('button', { name: /Claim Control|Claim terminal control/i })
-    ).toBeInTheDocument();
+      within(sheet).queryByRole('button', { name: /Claim Control|Release Control|Takeover/i })
+    ).toBeNull();
 
     expect(within(sheet).getByRole('button', { name: /Terminal Settings/i })).toBeInTheDocument();
     expect(
@@ -344,30 +346,23 @@ describe('Phone control sheet', () => {
     ).toBeInTheDocument();
   });
 
-  it('claims and releases control from the sheet', async () => {
+  it('reports how many windows share the terminal', async () => {
     await renderPhoneApp();
-    openSession('viewer');
-
-    const sheet = await openSheet();
-    await act(async () => {
-      fireEvent.click(within(sheet).getByRole('button', { name: /Claim Control|Claim terminal control/i }));
-    });
-
-    const claims = webSocketInstances[0].sent
-      .filter((frame): frame is string => typeof frame === 'string')
-      .map((frame) => JSON.parse(frame))
-      .filter((msg) => msg.type === 'claim_control');
-    expect(claims).toHaveLength(1);
+    openSession('controller');
 
     act(() => {
-      webSocketInstances[0].simulateMessage(JSON.stringify({ type: 'control_granted' }));
+      webSocketInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'control_state',
+          role: 'controller',
+          controllerId: 'client-me',
+          clientCount: 3,
+        })
+      );
     });
 
-    expect(
-      within(screen.getByTestId('mobile-control-sheet')).getByRole('button', {
-        name: /Release Control|Release terminal control lease/i,
-      })
-    ).toBeInTheDocument();
+    const sheet = await openSheet();
+    expect(within(sheet).getByText(/3 windows/i)).toBeInTheDocument();
   });
 
   it('closes when the terminal area is tapped, handing input back to the terminal', async () => {

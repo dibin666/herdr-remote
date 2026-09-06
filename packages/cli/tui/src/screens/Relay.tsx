@@ -5,22 +5,23 @@ import { theme } from '../theme.js';
 import { FieldRow, Menu, Message, Panel, Row, Selectable } from '../components/common.js';
 import { TextField } from '../components/TextField.js';
 import {
-  OFFICIAL_RELAY_URL,
   bindAddress,
   fieldsForMode,
   getField,
   getFieldPlaceholder,
+  isOfficialRelay,
   listReachableAddresses,
   probeRelay,
   regenerateHostIdentity,
   relayStartCommand,
   saveDraft,
+  selectedMode,
   setField,
   setRelayPassword,
   type NetworkAddress,
 } from '../api.js';
 
-type Entry = { id: string; kind: 'field' | 'password' | 'action'; label: string; fieldKind?: string };
+type Entry = { id: string; kind: 'field' | 'password' | 'action' | 'readonly'; label: string; fieldKind?: string };
 
 export function RelayScreen({ ctx }: { ctx: AppContext }) {
   const { t, draft, editingId } = ctx;
@@ -29,6 +30,11 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
   const [showEnv, setShowEnv] = useState(false);
   const [password, setPassword] = useState<string>(ctx.runtime.relayPassword || '');
 
+  // The official relay is ours: its address is fixed and it takes no password.
+  // Both are therefore facts to *show*, not fields to fill in — an editable box
+  // holding a value that must not change is an invitation to break the setup.
+  const official = isOfficialRelay(draft);
+
   const fields = useMemo(() => fieldsForMode(draft.relay.mode)
     .filter((field: { id: string }) => ['mode', 'port', 'lanHost', 'remoteUrl', 'publicUrl'].includes(field.id)),
   [draft.relay.mode]);
@@ -36,13 +42,14 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
   const entries: Entry[] = [
     ...fields.map((field: { id: string; kind: string; labelKey: string }) => ({
       id: field.id,
-      kind: 'field' as const,
+      kind: (official && field.id === 'remoteUrl' ? 'readonly' : 'field') as Entry['kind'],
       fieldKind: field.kind,
       label: t(field.labelKey),
     })),
     // The password only matters when talking to a relay somebody else started;
-    // a local relay is configured with our own token automatically.
-    ...(draft.relay.mode === 'remote'
+    // a local relay is configured with our own token automatically, and the
+    // official one authenticates workstations by their own host token.
+    ...(draft.relay.mode === 'remote' && !official
       ? [{ id: 'password', kind: 'password' as const, label: t('relay.password') }]
       : []),
     // Saving needs a row of its own. Every field here only edits a draft, and
@@ -51,7 +58,7 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     // effect. It is also the only way to save with the mouse.
     { id: 'save', kind: 'action' as const, label: t('common.save') },
     { id: 'test', kind: 'action' as const, label: t('relay.test') },
-    ...(draft.relay.mode === 'remote'
+    ...(draft.relay.mode === 'remote' && !official
       ? [
         { id: 'reveal', kind: 'action' as const, label: revealTokens ? t('relay.hidePassword') : t('relay.showPassword') },
         { id: 'env', kind: 'action' as const, label: t('relay.envSnippet') },
@@ -101,6 +108,10 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
   const activate = (id: string) => {
     const entry = entries.find((candidate) => candidate.id === id);
     if (!entry) return;
+    if (entry.kind === 'readonly') {
+      ctx.notify(t('relay.officialFixed'), 'info');
+      return;
+    }
     if (entry.kind === 'field' || entry.kind === 'password') {
       ctx.setEditing(id);
       return;
@@ -153,18 +164,13 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
           ]}
           // Reflects the official relay as its own selection rather than as an
           // indistinguishable "self-hosted" row that happens to hold our URL.
-          current={draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL
-            ? 'official'
-            : draft.relay.mode}
+          current={selectedMode(draft)}
           onPick={(choice) => {
-            if (choice === 'official') {
-              // Fills in the address the same way the first-run wizard does, so
-              // switching over here needs no second trip to the URL field. Both
-              // fields move together — a mode with no URL is not a valid state.
-              applyFields([['mode', 'remote'], ['remoteUrl', OFFICIAL_RELAY_URL]]);
-              ctx.setEditing(null);
-              return;
-            }
+            // `official` is a mode the settings model understands: it sets the
+            // address along with the mode, and choosing the self-hosted relay
+            // clears it again. The screen does not have to keep the two fields
+            // in step by hand, which is what let the picker land on "official"
+            // while every row below still described a self-hosted relay.
             applyField('mode', choice);
             ctx.setEditing(null);
           }}
@@ -238,10 +244,14 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
                   }}
                   onCancel={() => ctx.setEditing(null)}
                 />
+              ) : entry.kind === 'readonly' ? (
+                // Fixed by us, so it is printed rather than offered for editing.
+                <Text color={theme.muted}>{`${getField(draft, entry.id)}  (${t('relay.locked')})`}</Text>
               ) : entry.fieldKind === 'choice' ? (
                 // Choice fields are picked from a list, never typed, so they
-                // show the translated label rather than the stored id.
-                <Text>{t(`mode.${getField(draft, entry.id)}`)}</Text>
+                // show the translated label rather than the stored id — and the
+                // official relay is named as itself, not as "self-hosted".
+                <Text>{t(`mode.${selectedMode(draft)}`)}</Text>
               ) : (
                 <TextField
                   value={getField(draft, entry.id)}
@@ -263,7 +273,7 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
 
       {draft.relay.mode === 'remote' ? (
         <Box marginTop={1}>
-          <Text color={theme.muted}>{t('relay.passwordHint')}</Text>
+          <Text color={theme.muted}>{official ? t('relay.officialHint') : t('relay.passwordHint')}</Text>
         </Box>
       ) : null}
 
@@ -280,9 +290,11 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
         </Box>
       ) : null}
 
-      <Box marginTop={1}>
-        <Text color={theme.muted}>{t('relay.docsHint')}</Text>
-      </Box>
+      {official ? null : (
+        <Box marginTop={1}>
+          <Text color={theme.muted}>{t('relay.docsHint')}</Text>
+        </Box>
+      )}
 
       <Message text={ctx.message?.text ?? null} level={ctx.message?.level ?? 'info'} />
     </Panel>

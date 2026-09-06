@@ -119,7 +119,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
           aria-expanded={false}
         >
           <span aria-hidden="true">▴</span>
-          <span aria-hidden="true">keys</span>
+          <span aria-hidden="true">{t('common.keyBar')}</span>
         </button>
       </div>
     );
@@ -154,10 +154,13 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       return <span>^C</span>;
     }
     if (keyDef.id === 'drawer_fn') {
+      // The drawer opens *above* this row, so the arrow points at where the
+      // keys will appear: up to open, down to put them away. It used to point
+      // right, at nothing, which is the one direction the drawer never uses.
       return (
         <span className="flex items-center gap-0.5">
           <span>Fn</span>
-          <span aria-hidden="true">{showFnKeys ? '▾' : '▸'}</span>
+          <span aria-hidden="true">{showFnKeys ? '▾' : '▴'}</span>
         </span>
       );
     }
@@ -322,6 +325,26 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
           compact ? 'px-1.5 py-1' : 'px-2 py-1.5'
         )}
       >
+        {/* The way out sits at the *left* end of the row. Enter is the key that
+            commits a command and belongs under the thumb at the right edge, as
+            it does on every physical keyboard; a collapse control parked there
+            would push it inwards and take the row's most reachable spot for
+            something nobody presses mid-session. */}
+        <button
+          type="button"
+          onClick={() => updateSettings({ toolbarVisible: false })}
+          className={cn(
+            CAP_BASE,
+            squareKeyClass,
+            'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text'
+          )}
+          title={t('virtualKeyboard.collapseToolbar')}
+          aria-label={t('virtualKeyboard.collapseToolbar')}
+          aria-expanded={true}
+        >
+          <span aria-hidden="true">▾</span>
+        </button>
+
         {configuredKeys.map((keyDef) => {
           const active = isKeyActive(keyDef);
           const isEnter = keyDef.id === 'enter';
@@ -348,21 +371,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
             </button>
           );
         })}
-
-        <button
-          type="button"
-          onClick={() => updateSettings({ toolbarVisible: false })}
-          className={cn(
-            CAP_BASE,
-            squareKeyClass,
-            'ml-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text'
-          )}
-          title={t('virtualKeyboard.collapseToolbar')}
-          aria-label={t('virtualKeyboard.collapseToolbar')}
-          aria-expanded={true}
-        >
-          <span aria-hidden="true">▾</span>
-        </button>
       </div>
     </div>
   );

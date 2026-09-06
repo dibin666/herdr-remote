@@ -1,35 +1,22 @@
-import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
+import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
-import { Button, GLYPH, Modal, Notice, StatusDot } from './tui';
+import { Row, StatusDot } from './tui';
 
 /**
- * Who holds the input lease, and the one control that changes it.
+ * What this window may do, and who else is looking at the same screen.
  *
- * The lease is the most consequential piece of state in the client — it decides
- * whether your keystrokes reach a live agent — so it is stated in words next to
- * a coloured dot, never encoded in a pill you have to have learnt. `●` in green
- * is control; `●` in yellow is read-only; `○` is a session that is not there.
+ * There is no control lease any more. Every window paired to a workstation is a
+ * view of one shared terminal with full input, so the question this line used to
+ * answer — "may I type?" — has one answer, and the question worth answering
+ * instead is how many other windows are watching what you type. A number is the
+ * whole story, so it is told as a line of text with a dot in front of it rather
+ * than as a control the user has to operate.
  */
 export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
-  const {
-    role,
-    controllerId,
-    assignedClientId,
-    connectionState,
-    claimControl,
-    releaseControl,
-    t,
-  } = useTerminal();
-
-  const [showTakeoverConfirm, setShowTakeoverConfirm] = useState(false);
+  const { role, connectionState, sharedWindowCount, assignedClientId, t } = useTerminal();
 
   const isConnected = connectionState === 'connected';
-  const isController = role === 'controller';
-  const hasActiveController = Boolean(controllerId);
-  const isAnotherController =
-    !isController && hasActiveController && controllerId !== assignedClientId;
 
   if (!isConnected) {
     return (
@@ -44,113 +31,43 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
     );
   }
 
-  const handleConfirmTakeover = () => {
-    setShowTakeoverConfirm(false);
-    claimControl(true);
-  };
+  // The server hands every paired window the controller role; anything else is
+  // an older relay, and saying so is more honest than pretending otherwise.
+  const canType = role === 'controller';
+  const shared = sharedWindowCount > 1;
+
+  const summary = (
+    <div
+      className={cn(
+        'inline-flex min-w-0 select-none items-center gap-1.5 text-tui uppercase',
+        canType ? 'text-tui-ok' : 'text-tui-warn'
+      )}
+      role="status"
+      aria-label={canType ? t('role.controllerMode') : t('role.viewerMode')}
+    >
+      <StatusDot level={canType ? 'ok' : 'warn'} />
+      <span className="truncate">
+        {canType ? t('role.sharedControl') : t('role.viewerReadOnly')}
+      </span>
+      {shared ? (
+        <span className="shrink-0 normal-case text-tui-muted">
+          {t('role.sharedWindows', { count: sharedWindowCount })}
+        </span>
+      ) : null}
+    </div>
+  );
+
+  if (compact) return summary;
 
   return (
-    <>
-      <div className={cn('flex items-center gap-2', !compact && 'w-full')}>
-        <div
-          className={cn(
-            'inline-flex min-w-0 select-none items-center gap-1.5 text-tui uppercase',
-            !compact && 'flex-1',
-            isController ? 'text-tui-ok' : 'text-tui-warn'
-          )}
-          role="status"
-          aria-label={isController ? t('role.controllerMode') : t('role.viewerMode')}
-        >
-          <StatusDot level={isController ? 'ok' : 'warn'} />
-          <span className={cn('truncate', compact && 'hidden lg:inline')}>
-            {isController
-              ? t('role.controlActive')
-              : compact
-                ? t('common.viewer')
-                : isAnotherController
-                  ? t('role.viewerWithController', { controllerId: controllerId || '' })
-                  : t('role.viewerReadOnly')}
-          </span>
-        </div>
-
-        {isController ? (
-          <Button
-            variant="ghost"
-            onClick={releaseControl}
-            aria-label={t('terminal.releaseControlAria')}
-            title={t('role.releaseControlTitle')}
-            className="shrink-0"
-          >
-            {t('role.releaseControl')}
-          </Button>
-        ) : isAnotherController ? (
-          <Button
-            variant="warn"
-            onClick={() => setShowTakeoverConfirm(true)}
-            aria-label={t('terminal.takeoverControlAria')}
-            title={t('role.takeoverControlTitle', { controllerId: controllerId || '' })}
-            className="shrink-0"
-          >
-            {t('role.takeoverControl')}
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            onClick={() => claimControl(false)}
-            aria-label={t('terminal.claimControlAria')}
-            title={t('role.claimControlTitle')}
-            className="shrink-0"
-          >
-            {t('role.claimControl')}
-          </Button>
-        )}
-      </div>
-
-      {/*
-       * The mobile control sheet has its own scroll container. A fixed
-       * descendant of that surface is clipped to the sheet instead of the
-       * visual viewport (the confirmation dialog would start below the phone's
-       * bottom edge). Keep the dialog in document.body so fixed really means
-       * viewport-fixed, regardless of which shell opened it.
-       */}
-      {showTakeoverConfirm &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <Modal
-            isOpen
-            onClose={() => setShowTakeoverConfirm(false)}
-            title={t('role.takeoverModalTitle')}
-            closeLabel={t('common.closeDialog')}
-            size="sm"
-            hints={[{ keys: 'esc', action: t('common.cancel') }]}
-            footer={
-              <>
-                <Button variant="ghost" onClick={() => setShowTakeoverConfirm(false)}>
-                  {t('common.cancel')}
-                </Button>
-                <Button variant="warn" onClick={handleConfirmTakeover}>
-                  {t('role.confirmTakeover')}
-                </Button>
-              </>
-            }
-          >
-            <div className="space-y-2">
-              <Notice tone="warn">{t('role.takeoverModalDesc')}</Notice>
-              <p className="pl-1 text-tui leading-snug text-tui-muted">
-                <span aria-hidden="true" className="mr-1 text-tui-faint">
-                  {GLYPH.arrowRight}
-                </span>
-                {t('role.takeoverModalWarning')}
-              </p>
-              {controllerId ? (
-                <p className="pl-1 text-tui-sm text-tui-faint">
-                  {t('role.takeoverControlTitle', { controllerId })}
-                </p>
-              ) : null}
-            </div>
-          </Modal>,
-          document.body
-        )}
-    </>
+    <div className="flex w-full flex-col gap-1">
+      {summary}
+      <p className="text-tui-sm leading-snug text-tui-faint">{t('role.sharedControlDesc')}</p>
+      {assignedClientId ? (
+        <Row label={t('role.thisWindow')} labelWidth={9} className="text-tui-sm">
+          <span className="truncate text-tui-muted">{assignedClientId}</span>
+        </Row>
+      ) : null}
+    </div>
   );
 };

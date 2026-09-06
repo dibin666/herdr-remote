@@ -381,3 +381,64 @@ test('choosing the official relay sets both the mode and the URL', async (t) => 
   assert.equal(saved.relay.mode, 'remote', 'the access mode must survive the second field write');
   assert.equal(saved.relay.remoteUrl, 'wss://herdr-remote.564616.xyz');
 });
+
+// Choosing the official relay used to leave every row below it describing a
+// self-hosted relay that merely happened to hold our address: the mode read
+// "Self-hosted relay", the URL sat in an editable box, and a password field
+// invited a credential the official relay does not take.
+test('the official relay is shown as itself, with a fixed address and no password', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({
+    ui: { language: 'en' },
+    relay: { mode: 'remote', remoteUrl: 'wss://herdr-remote.564616.xyz' },
+  });
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  t.after(() => instance.unmount());
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+  instance.stdin.write('4'); // Relay tab
+  await settle();
+
+  const frame = instance.lastFrame();
+  assert.match(frame, /Official relay/, 'the mode names the relay that is actually in use');
+  assert.doesNotMatch(frame, /Self-hosted relay/);
+  assert.match(frame, /wss:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/, 'the address is stated, not offered for editing');
+  assert.doesNotMatch(frame, /Relay password/, 'the official relay takes no password');
+  assert.match(frame, /no password is needed/);
+});
+
+test('switching from the official relay to a self-hosted one clears the address', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({
+    ui: { language: 'en' },
+    relay: { mode: 'remote', remoteUrl: 'wss://herdr-remote.564616.xyz' },
+  });
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  t.after(() => instance.unmount());
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+  instance.stdin.write('4'); // Relay tab
+  await settle();
+  instance.stdin.write('\r'); // open the access-mode chooser
+  await settle();
+  // The cursor starts on the current answer, which is the official relay.
+  instance.stdin.write('\u001B[B'); // self-hosted relay, the next row down
+  await settle();
+  instance.stdin.write('\r');
+  await settle();
+
+  const frame = instance.lastFrame();
+  assert.match(frame, /Self-hosted relay/);
+  // The address belongs to our server, not to theirs: it is cleared, and the
+  // field asks for one rather than presenting ours as if it were already set.
+  assert.doesNotMatch(frame, /wss:\/\/herdr-remote\.564616\.xyz/);
+  assert.match(frame, /Relay password/, 'a relay somebody else runs may need a password');
+});

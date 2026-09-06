@@ -12,6 +12,7 @@ import {
   listReachableAddresses,
   loadConfig,
   saveDraft,
+  selectedMode,
   setField,
   setRelayPassword,
   startAll,
@@ -184,21 +185,23 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
               description: t('mode.remote.description'),
             },
           ]}
-          current={draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL
-            ? 'official'
-            : draft.relay.mode}
+          current={selectedMode(draft)}
           onPick={(choice) => {
             if (choice === 'official') {
               // The official relay is "remote" with the address already known,
               // so the URL question is answered and skipped. It is a public
-              // relay, so there is no join password to ask for either.
-              if (!applyAll([['mode', 'remote'], ['remoteUrl', OFFICIAL_RELAY_URL]])) return;
+              // relay, so there is no join password to ask for either — and any
+              // password left over from a previous self-hosted answer would
+              // only be sent to a relay that does not want it.
+              if (!apply('mode', 'official')) return;
               setRelayPassword('');
               advance('access', stepsFor('remote', OFFICIAL_RELAY_URL));
               return;
             }
             if (apply('mode', choice)) {
-              advance('access', stepsFor(choice as AccessMode, draft.relay.remoteUrl));
+              // Leaving the official relay clears its address, so the URL step
+              // that follows starts empty rather than pre-loaded with ours.
+              advance('access', stepsFor(choice as AccessMode, choice === 'remote' ? '' : draft.relay.remoteUrl));
             }
           }}
           onCancel={back}

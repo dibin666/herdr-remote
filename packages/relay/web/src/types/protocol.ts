@@ -81,6 +81,8 @@ export interface ServerReadyMessage {
   hostId?: string;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
+  /** How many windows share this terminal, this one included. */
+  clientCount?: number;
 }
 
 export interface ServerPairedMessage {
@@ -95,6 +97,8 @@ export interface ServerControlStateMessage {
   type: 'control_state';
   role: ClientRole;
   controllerId?: string;
+  /** How many windows share this terminal, this one included. */
+  clientCount?: number;
 }
 
 export interface ServerControlRevokedMessage {
