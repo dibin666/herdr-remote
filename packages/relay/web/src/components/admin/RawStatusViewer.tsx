@@ -40,11 +40,16 @@ export const RawStatusViewer: React.FC<RawStatusViewerProps> = ({ data }) => {
           <span aria-hidden="true" className="text-tui-accent">
             {isOpen ? GLYPH.chevronDown : GLYPH.chevronRight}
           </span>
-          <span className="truncate text-tui font-bold uppercase text-tui-muted">
+          <span className="truncate text-tui font-bold text-tui-muted">
             {t('admin.rawPayloadTitle')}
           </span>
+          <code className="hidden shrink-0 text-tui-sm text-tui-faint sm:inline">
+            GET /api/status
+          </code>
         </span>
-        <span className="shrink-0 text-tui-sm text-tui-faint">{jsonString.length} bytes</span>
+        <span className="shrink-0 text-tui-sm text-tui-faint">
+          {t('admin.payloadBytes', { count: jsonString.length })}
+        </span>
       </button>
 
       {isOpen && (

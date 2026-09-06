@@ -50,6 +50,8 @@ export type TerminalOutputSink = (data: Uint8Array) => void;
 interface TerminalContextValue {
   connectionState: ConnectionState;
   stateDetail?: string;
+  /** The relay's machine-readable reason for the current state, if it gave one. */
+  stateCode?: string;
   role: ClientRole;
   controllerId?: string;
   hostId?: string;
@@ -131,6 +133,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [settings, setSettingsState] = useState<StoredSettings>(loadSettings);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [stateDetail, setStateDetail] = useState<string | undefined>();
+  const [stateCode, setStateCode] = useState<string | undefined>();
   const [role, setRole] = useState<ClientRole>('viewer');
   const [controllerId, setControllerId] = useState<string | undefined>();
   const [hostId, setHostId] = useState<string | undefined>();
@@ -343,13 +346,20 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     const newAdapter = new HerdrClientAdapter(buildConnectionConfig(settings));
     adapterRef.current = newAdapter;
 
-    newAdapter.on('stateChange', (state, detail) => {
+    newAdapter.on('stateChange', (state, detail, code) => {
       setConnectionState(state);
-      setStateDetail(detail);
+      setStateCode(code);
+      // The relay speaks English to its logs. Where it named a reason, this
+      // interface says the same thing in its own language and keeps the
+      // server's sentence only for reasons it has never heard of.
+      const key = code ? `serverErrors.${code}` : null;
+      const translated = key ? tRef.current(key) : null;
+      const described = translated && translated !== key ? translated : detail;
+      setStateDetail(described);
       if (state === 'connected') {
         addToast('success', tRef.current('toasts.connected'));
       } else if (state === 'error') {
-        addToast('error', detail || tRef.current('toasts.connectionError'));
+        addToast('error', described || tRef.current('toasts.connectionError'));
       }
     });
 
@@ -508,6 +518,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       value={{
         connectionState,
         stateDetail,
+        stateCode,
         role,
         controllerId,
         hostId,

@@ -23,7 +23,8 @@ function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
-  const { updateSettings, settings, connectionState, stateDetail, lastPairedAt } = useTerminal();
+  const { updateSettings, settings, connectionState, stateDetail, stateCode, lastPairedAt } =
+    useTerminal();
 
   /**
    * Phones get their own shell: the terminal takes the whole screen and every
@@ -161,9 +162,13 @@ function AppContent() {
 
   // Determine if we should show the friendly first-run onboarding screen
   const isUnpaired = !settings.token && !settings.pairCode && connectionState !== 'connected';
+  // The relay's reason code is the reliable signal; the sentence is matched
+  // only for relays too old to send one, and would not match at all once it has
+  // been translated out of English.
   const isAuthRequiredError =
     connectionState === 'error' &&
-    /auth|unauthor|forbidden|permission|token|pair/i.test(stateDetail || '');
+    (['auth_required', 'unauthorized', 'device_revoked'].includes(stateCode || '') ||
+      /auth|unauthor|forbidden|permission|token|pair/i.test(stateDetail || ''));
   const showOnboarding = isUnpaired || isAuthRequiredError;
 
   /**

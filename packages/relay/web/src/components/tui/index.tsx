@@ -3,8 +3,18 @@
  *
  * Every screen in this client is built from these pieces, so the browser UI and
  * the `herdr-remote` configuration TUI look like two views of one program
- * rather than two products. The rules they encode are the ones a terminal
- * interface has no choice about:
+ * rather than two products.
+ *
+ * The widget vocabulary is deliberately ratatui's — the toolkit Rust terminal
+ * dashboards are written with (https://ratatui.rs): a `Block` is a frame whose
+ * title is cut into its top rule and whose second title may sit right-aligned
+ * on the same rule; a `Gauge` is a filled bar with its label centred *inside*
+ * it; a `LineGauge` is one row of `━` with a figure at the end; a `Sparkline`
+ * is a row of `▁▂▃▄▅▆▇█`; `Tabs` are separated by `│`. Borrowing the
+ * vocabulary rather than inventing one means anyone who has seen a Rust TUI can
+ * already read this dashboard.
+ *
+ * The rules they encode are the ones a terminal interface has no choice about:
  *
  *   - one monospace family, one type size, everything on the character grid,
  *     and never any letter-spacing: a cell is a fixed box, and tracking a CJK
@@ -48,7 +58,20 @@ export const GLYPH = {
   /** Meter fill and track. */
   meterFull: '█',
   meterEmpty: '░',
+  /** ratatui's `LineGauge` symbols: a drawn line, filled and unfilled. */
+  lineFull: '━',
+  lineEmpty: '─',
+  /** ratatui's tab divider. */
+  tabDivider: '│',
 } as const;
+
+/**
+ * The eight heights a sparkline can draw, as ratatui's `Sparkline` does.
+ *
+ * A row of these is a chart that costs one line of the grid and needs no axes,
+ * no legend and no library — which is the only kind of chart a terminal has.
+ */
+export const SPARK_BARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'] as const;
 
 /**
  * What a colour is allowed to mean.
@@ -138,17 +161,29 @@ export const Panel: React.FC<PanelProps> = ({
 }) => (
   <fieldset
     className={cn(
-      'tui-panel min-w-0 border border-tui-border bg-tui-base',
+      'tui-panel tui-block relative min-w-0 border border-tui-border bg-tui-base',
       title ? 'px-3 pb-3 pt-1' : 'p-3',
       className
     )}
     {...rest}
   >
     {title ? (
+      /* Not uppercased: a title may carry a path or a URL, and `GET /API/STATUS`
+         is not a thing anyone can type. Weight and colour carry the heading. */
       <legend className={cn('flex items-center gap-2 text-tui font-bold', STATUS_TEXT[tone])}>
         <span>{title}</span>
-        {aside ? <span className="font-normal text-tui-faint">{aside}</span> : null}
       </legend>
+    ) : null}
+    {/*
+     * ratatui lets a Block carry a second title, right-aligned on the same
+     * rule. That is where a count, a rate or a timestamp belongs: it is about
+     * the frame, not about the content, and putting it inside the body would
+     * make it compete with the numbers it is describing.
+     */}
+    {aside ? (
+      <span className="pointer-events-none absolute -top-[10px] right-2 max-w-[60%] truncate bg-tui-base px-1 text-tui-sm text-tui-faint">
+        {aside}
+      </span>
     ) : null}
     <div className={cn('min-w-0', bodyClassName)}>{children}</div>
   </fieldset>
@@ -316,12 +351,19 @@ export const Tabs: React.FC<{
    */
   labelClassName?: string;
 }> = ({ tabs, activeId, onSelect, ariaLabel, className, labelClassName }) => (
-  <nav className={cn('flex items-center gap-3', className)} aria-label={ariaLabel}>
-    {tabs.map((tab) => {
+  <nav className={cn('flex items-center gap-2', className)} aria-label={ariaLabel}>
+    {tabs.map((tab, index) => {
       const active = tab.id === activeId;
       return (
+        <React.Fragment key={tab.id}>
+        {/* ratatui separates tabs with `│`, which is what stops a row of
+            numbered words from reading as one sentence. */}
+        {index > 0 ? (
+          <span aria-hidden="true" className="select-none text-tui-border">
+            {GLYPH.tabDivider}
+          </span>
+        ) : null}
         <button
-          key={tab.id}
           type="button"
           onClick={() => onSelect(tab.id)}
           aria-current={active ? 'page' : undefined}
@@ -343,6 +385,7 @@ export const Tabs: React.FC<{
             {tab.label}
           </span>
         </button>
+        </React.Fragment>
       );
     })}
   </nav>
@@ -576,6 +619,135 @@ export const Meter: React.FC<{
     >
       <span className={STATUS_TEXT[tone]}>{GLYPH.meterFull.repeat(filled)}</span>
       <span className="text-tui-border">{GLYPH.meterEmpty.repeat(Math.max(0, width - filled))}</span>
+    </span>
+  );
+};
+
+/* ------------------------------------------------------------------ gauge */
+
+const TONE_BG: Record<StatusLevel, string> = {
+  ok: 'bg-tui-ok',
+  warn: 'bg-tui-warn',
+  bad: 'bg-tui-bad',
+  idle: 'bg-tui-border',
+  accent: 'bg-tui-accent',
+  alt: 'bg-tui-alt',
+  info: 'bg-tui-info',
+};
+
+/**
+ * ratatui's `Gauge`: a bar filled to a ratio with its label *inside* it.
+ *
+ * The label sits over the bar rather than beside it, and inverts where the fill
+ * has reached it — which is how a terminal shows a figure and its progress in
+ * one row of cells instead of two. `mix-blend-difference` is what does the
+ * inverting: the same trick as printing the label in reverse video.
+ */
+export const Gauge: React.FC<{
+  /** 0…1. Values outside the range are clamped. */
+  ratio: number;
+  label?: React.ReactNode;
+  tone?: StatusLevel;
+  className?: string;
+  'aria-label'?: string;
+}> = ({ ratio, label, tone = 'accent', className, ...rest }) => {
+  const value = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0;
+  return (
+    <div
+      className={cn('relative h-[var(--tui-row)] w-full overflow-hidden border border-tui-border bg-tui-mantle', className)}
+      role="progressbar"
+      aria-valuenow={Math.round(value * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      {...rest}
+    >
+      <div
+        className={cn('absolute inset-y-0 left-0', TONE_BG[tone])}
+        style={{ width: `${value * 100}%` }}
+        aria-hidden="true"
+      />
+      {label !== undefined ? (
+        <span className="absolute inset-0 flex items-center justify-center whitespace-nowrap px-1 text-tui font-bold text-tui-text mix-blend-difference">
+          {label}
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
+/**
+ * ratatui's `LineGauge`: one row of rule, filled from the left, with the label
+ * in front of it and the figure at the end.
+ *
+ * Where `Gauge` is for the one number a panel is about, this is for the several
+ * that merely need comparing: a stack of them reads as a small bar chart
+ * without ever leaving the character grid.
+ */
+export const LineGauge: React.FC<{
+  label: React.ReactNode;
+  ratio: number;
+  value: React.ReactNode;
+  tone?: StatusLevel;
+  labelWidth?: number;
+  className?: string;
+}> = ({ label, ratio, value, tone = 'accent', labelWidth = 10, className }) => {
+  const filled = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0;
+  return (
+    <div className={cn('flex items-center gap-2 text-tui', className)}>
+      <span className="shrink-0 truncate text-tui-muted" style={{ width: `${labelWidth}ch` }}>
+        {label}
+      </span>
+      <span className="relative h-[3px] min-w-0 flex-1 bg-tui-border-dim" aria-hidden="true">
+        <span
+          className={cn('absolute inset-y-0 left-0', TONE_BG[tone])}
+          style={{ width: `${filled * 100}%` }}
+        />
+      </span>
+      <span className={cn('shrink-0 font-bold', STATUS_TEXT[tone])}>{value}</span>
+    </div>
+  );
+};
+
+/**
+ * ratatui's `Sparkline`: recent history as a row of block characters.
+ *
+ * It is text, so it costs one line, needs no measurement and survives any
+ * width. An empty history draws the baseline rather than collapsing, so a panel
+ * does not change height on its second sample.
+ */
+export const Sparkline: React.FC<{
+  values: number[];
+  /** How many samples to show; the newest are kept. */
+  width?: number;
+  /**
+   * The value that means "full height".
+   *
+   * Without it the series is scaled to its own peak, which is right for a rate
+   * nobody knows the ceiling of and wrong for a percentage: three samples of a
+   * quiet CPU would each be drawn as a full block, and a flat line would look
+   * like a wall. Pass the real ceiling wherever there is one.
+   */
+  max?: number;
+  tone?: StatusLevel;
+  className?: string;
+  'aria-label'?: string;
+}> = ({ values, width = 24, max, tone = 'accent', className, ...rest }) => {
+  const recent = values.slice(-width);
+  const padding = Math.max(0, width - recent.length);
+  const peak = max !== undefined ? max : Math.max(...recent, 0);
+  const bars = recent.map((sample) => {
+    if (!Number.isFinite(sample) || peak <= 0) return SPARK_BARS[0];
+    const index = Math.round((Math.min(sample, peak) / peak) * (SPARK_BARS.length - 1));
+    return SPARK_BARS[Math.min(SPARK_BARS.length - 1, Math.max(0, index))];
+  });
+  return (
+    <span
+      className={cn('select-none whitespace-pre leading-none', STATUS_TEXT[tone], className)}
+      role="img"
+      {...rest}
+    >
+      <span className="text-tui-border">{SPARK_BARS[0].repeat(padding)}</span>
+      {bars.join('')}
     </span>
   );
 };

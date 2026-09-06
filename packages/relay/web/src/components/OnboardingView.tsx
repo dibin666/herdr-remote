@@ -93,8 +93,18 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
   );
 
   return (
-    <div className="flex h-full w-full flex-1 items-start justify-start overflow-y-auto bg-tui-crust p-2 sm:p-4">
-      <div className="w-full max-w-5xl space-y-3">
+    /*
+     * Centred, both ways.
+     *
+     * This is the only thing on the screen and the only thing the visitor can
+     * do, so it belongs in the middle of the window rather than pinned to the
+     * top-left corner of an otherwise empty terminal. `my-auto` inside a
+     * scrolling column is what centres it without ever clipping it: on a short
+     * window the margins collapse and the panel scrolls normally, which
+     * `items-center` alone would not do.
+     */
+    <div className="flex h-full w-full flex-1 justify-center overflow-y-auto bg-tui-crust p-2 sm:p-4">
+      <div className="my-auto w-full max-w-3xl space-y-3">
         {/* Banner: the program announcing itself, as a terminal program does. */}
         <div className="border border-tui-border bg-tui-base px-3 py-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -127,7 +137,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
           </Notice>
         )}
 
-        <form onSubmit={handlePairSubmit} className="grid gap-3 md:grid-cols-2">
+        <form onSubmit={handlePairSubmit} className="grid gap-3">
           {/* Step 1 — run this on the workstation */}
           <Panel title={t('onboarding.step1Title')} className="min-w-0">
             <div className="space-y-2">
@@ -199,7 +209,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
             </div>
           </Panel>
 
-          <Button variant="primary" type="submit" block disabled={isConnecting} className="py-1.5 md:col-span-2">
+          <Button variant="primary" type="submit" block disabled={isConnecting} className="py-1.5">
             {isConnecting ? (
               <Spinner label={t('onboarding.connectingAndPairing')} />
             ) : (
@@ -208,7 +218,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
           </Button>
 
           {/* Advanced — folded away, the way a TUI folds a rarely-used section */}
-          <div className="border border-tui-border bg-tui-base md:col-span-2">
+          <div className="border border-tui-border bg-tui-base">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}

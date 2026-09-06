@@ -19,7 +19,15 @@ import {
 import { encodeStringToBytes } from './keyEncoder';
 
 export type AdapterEventMap = {
-  stateChange: (state: ConnectionState, detail?: string) => void;
+  /**
+   * `code` is the relay's own machine-readable reason, when it gave one.
+   *
+   * `detail` is the server's English sentence, which is the right thing to show
+   * an operator reading logs and the wrong thing to show a Chinese interface.
+   * Carrying the code alongside it lets the UI say the same thing in its own
+   * language and keep the original only as a fallback.
+   */
+  stateChange: (state: ConnectionState, detail?: string, code?: string) => void;
   roleChange: (role: ClientRole, controllerId?: string, hostId?: string, assignedClientId?: string) => void;
   ready: (payload: ServerReadyMessage) => void;
   paired: (payload: { token: string; deviceId?: string; hostId?: string; expiresAt?: number | string }) => void;
@@ -51,6 +59,7 @@ export class HerdrClientAdapter {
   private pingTimestamp: number | null = null;
   private isManuallyClosed = false;
   private authFailureDetail: string | null = null;
+  private authFailureCode: string | null = null;
 
   private listeners: {
     [K in keyof AdapterEventMap]: Set<AdapterEventMap[K]>;
@@ -132,10 +141,10 @@ export class HerdrClientAdapter {
     });
   }
 
-  private setState(newState: ConnectionState, detail?: string): void {
+  private setState(newState: ConnectionState, detail?: string, code?: string): void {
     if (this.state !== newState) {
       this.state = newState;
-      this.emit('stateChange', newState, detail);
+      this.emit('stateChange', newState, detail, code);
     }
   }
 
@@ -155,6 +164,7 @@ export class HerdrClientAdapter {
 
     this.isManuallyClosed = false;
     this.authFailureDetail = null;
+    this.authFailureCode = null;
     this.clearTimers();
     this.setState('connecting');
 
@@ -186,7 +196,11 @@ export class HerdrClientAdapter {
         this.handleClose(event);
       };
     } catch (err) {
-      this.setState('error', err instanceof Error ? err.message : 'Connection failed');
+      this.setState(
+        'error',
+        err instanceof Error ? err.message : 'Connection failed',
+        'connection_failed'
+      );
       this.scheduleReconnect();
     }
   }
@@ -243,6 +257,7 @@ export class HerdrClientAdapter {
     this.isManuallyClosed = false;
     this.reconnectAttempts = 0;
     this.authFailureDetail = null;
+    this.authFailureCode = null;
     this.connect();
   }
 
@@ -351,7 +366,8 @@ export class HerdrClientAdapter {
           msg.code === 403
         ) {
           this.authFailureDetail = msg.message;
-          this.setState('error', msg.message);
+          this.authFailureCode = String(msg.code);
+          this.setState('error', msg.message, this.authFailureCode);
         }
         this.emit('error', { code: msg.code, message: msg.message });
         break;
@@ -381,15 +397,15 @@ export class HerdrClientAdapter {
     this.ws = null;
 
     if (this.authFailureDetail) {
-      this.setState('error', this.authFailureDetail);
+      this.setState('error', this.authFailureDetail, this.authFailureCode ?? undefined);
       return;
     }
 
     if (!this.isManuallyClosed && this.config.autoReconnect) {
-      this.setState('reconnecting', `Connection closed (${event.code}). Retrying...`);
+      this.setState('reconnecting', `Connection closed (${event.code}). Retrying...`, 'connection_closed');
       this.scheduleReconnect();
     } else {
-      this.setState('disconnected', `Closed: ${event.reason || event.code}`);
+      this.setState('disconnected', `Closed: ${event.reason || event.code}`, 'connection_closed');
     }
   }
 

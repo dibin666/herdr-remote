@@ -110,7 +110,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           <span aria-hidden="true" className="text-tui">
             {GLYPH.chevronDown}
           </span>
-          <span aria-hidden="true">menu</span>
+          <span aria-hidden="true">{t('mobile.menu')}</span>
         </button>
       </div>
 

@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AdminStatusResponse, RelayInfoResponse } from '../../types/admin';
 import { useTerminal } from '../../context/TerminalContext';
-import { StatCard } from './StatCard';
-import { MetricGauge } from './MetricGauge';
 import { ClientsTable } from './ClientsTable';
 import { PtysTable } from './PtysTable';
 import { DevicesTable } from './DevicesTable';
@@ -14,14 +12,54 @@ import {
   Button,
   FieldLabel,
   GLYPH,
+  Gauge,
   Input,
+  LineGauge,
   Notice,
   Panel,
   Row,
   Rule,
   Select,
+  Sparkline,
   Spinner,
+  StatusDot,
+  StatusLevel,
 } from '../tui';
+
+/**
+ * How many samples the little charts keep.
+ *
+ * A dashboard that only ever shows the current reading cannot answer the
+ * question an operator actually has — "is this getting worse?" — so each poll
+ * is remembered and drawn as a sparkline. Sixty samples is five minutes at the
+ * default interval and costs one line of the grid.
+ */
+const HISTORY_LENGTH = 60;
+
+/** The event-loop delay a dashboard should treat as "the roof", in ms. */
+const EVENT_LOOP_CEILING_MS = 100;
+
+type MetricHistory = {
+  cpu: number[];
+  heap: number[];
+  loop: number[];
+  bytesIn: number[];
+  bytesOut: number[];
+};
+
+const EMPTY_HISTORY: MetricHistory = { cpu: [], heap: [], loop: [], bytesIn: [], bytesOut: [] };
+
+function pushSample(series: number[], sample: number): number[] {
+  const next = [...series, Number.isFinite(sample) ? sample : 0];
+  return next.length > HISTORY_LENGTH ? next.slice(next.length - HISTORY_LENGTH) : next;
+}
+
+/** Pressure is the reading, not a decoration: past 65% amber, past 85% red. */
+function pressureTone(percent: number, base: StatusLevel = 'accent'): StatusLevel {
+  if (percent > 85) return 'bad';
+  if (percent > 65) return 'warn';
+  return base;
+}
 
 interface AdminDashboardProps {
   onBackToTerminal?: () => void;
@@ -43,6 +81,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys' | 'devices'>('overview');
   const [copiedPairCmd, setCopiedPairCmd] = useState(false);
+  const [history, setHistory] = useState<MetricHistory>(EMPTY_HISTORY);
+  // Sampling is a side effect of polling, so it is recorded through a ref: the
+  // fetch callback must not be rebuilt (and the poll timer restarted) every
+  // time a sample lands.
+  const recordSample = useRef((payload: AdminStatusResponse) => {
+    setHistory((current) => ({
+      cpu: pushSample(current.cpu, payload.cpu?.cpuPercent || 0),
+      heap: pushSample(
+        current.heap,
+        payload.memory?.heapTotalBytes
+          ? ((payload.memory.heapUsedBytes || 0) / payload.memory.heapTotalBytes) * 100
+          : 0
+      ),
+      loop: pushSample(current.loop, payload.eventLoopDelay?.p50Ms || 0),
+      bytesIn: pushSample(current.bytesIn, payload.throughput?.bytesInPerSec || 0),
+      bytesOut: pushSample(current.bytesOut, payload.throughput?.bytesOutPerSec || 0),
+    }));
+  });
 
   // Relay Operator Token for GET /api/admin/status
   const [adminTokenInput, setAdminTokenInput] = useState(settings.adminToken || '');
@@ -171,6 +227,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         const json = (await res.json()) as AdminStatusResponse;
         setData(json);
+        recordSample.current(json);
         setError(null);
         setIsAuthError(false);
         setLastUpdated(new Date());
@@ -215,6 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const json = (await res.json()) as AdminStatusResponse;
       setData(json);
+      recordSample.current(json);
       setError(null);
       setIsAuthError(false);
       setLastUpdated(new Date());
@@ -297,14 +355,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsOperatorView(true);
   };
 
+  /**
+   * An uptime in the interface's own units.
+   *
+   * `1h 24m 1s` is English abbreviation, and it stayed English on a Chinese
+   * screen — which is exactly the kind of leftover that makes a translated UI
+   * read as half-translated.
+   */
   const formatUptime = (seconds: number): string => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (days > 0) return `${days}d ${hours}h ${mins}m`;
-    if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
-    return `${mins}m ${secs}s`;
+    const total = Math.max(0, Math.floor(seconds));
+    const days = Math.floor(total / 86400);
+    const hours = Math.floor((total % 86400) / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    const unit = (value: number, key: string) => `${value}${t(`admin.unit${key}`)}`;
+    if (days > 0) return [unit(days, 'Day'), unit(hours, 'Hour'), unit(mins, 'Minute')].join(' ');
+    if (hours > 0) return [unit(hours, 'Hour'), unit(mins, 'Minute'), unit(secs, 'Second')].join(' ');
+    return [unit(mins, 'Minute'), unit(secs, 'Second')].join(' ');
   };
 
   const formatBytes = (bytes: number): string => {
@@ -319,20 +386,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const remoteUrl = getRemoteAdminUrl();
     window.open(remoteUrl, '_blank', 'noopener,noreferrer');
   };
-
-  /** A small figure with its caption underneath, for the metric grids. */
-  const Cell: React.FC<{ label: string; value: React.ReactNode; tone?: string }> = ({
-    label,
-    value,
-    tone = 'text-tui-text',
-  }) => (
-    <div className="border border-tui-border-dim bg-tui-mantle px-2 py-1">
-      <span className="block truncate text-tui-sm uppercase text-tui-faint">
-        {label}
-      </span>
-      <span className={cn('block font-bold', tone)}>{value}</span>
-    </div>
-  );
 
   const tabs = data
     ? [
@@ -587,176 +640,231 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Display Live Dashboard Data when Available */}
       {data && (
         <>
-          {/* Headline figures */}
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <StatCard
-              title={t('admin.activeClients')}
-              value={data.clients?.length || 0}
-              subtitle={`${data.clients?.filter((c) => c.role === 'controller').length || 0} ${t('common.role')}`}
-              trend={t('admin.liveTrend')}
-              trendTone="ok"
-            />
-
-            <StatCard
-              title={t('admin.activePtys')}
-              value={data.ptys?.length || 0}
-              subtitle={t('admin.terminalShells')}
-            />
-
-            <StatCard
-              title={t('admin.activeController')}
-              value={data.activeControllerId || t('admin.none')}
-              subtitle={
-                data.activeHostId
-                  ? `${t('common.host')}: ${data.activeHostId}`
-                  : t('admin.noHost')
-              }
-              tone={data.activeControllerId ? 'ok' : 'idle'}
-            />
-
-            <StatCard
-              title={t('admin.uptime')}
-              value={formatUptime(data.uptimeSeconds || 0)}
-              subtitle={
-                data.startTime
-                  ? t('admin.startedAt', { time: new Date(data.startTime).toLocaleTimeString() })
-                  : t('admin.startedRecently')
-              }
-            />
-          </div>
-
           {/* Tab: Overview */}
           {activeTab === 'overview' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {/* CPU & Load */}
+            <div className="space-y-2">
+              {/*
+               * The board reads top-left to bottom-right, in the order the
+               * questions get asked: who is attached, then what that is costing
+               * the machine, then what the relay has been cleaning up. Each
+               * question is one framed block with its own title cut into the
+               * rule, as a ratatui `Block` draws it, and the figure the block is
+               * about is stated in words rather than blown up into a tile.
+               */}
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                <Panel
+                  title={t('admin.sessionPanel')}
+                  aside={formatUptime(data.uptimeSeconds || 0)}
+                  bodyClassName="space-y-0.5"
+                >
+                  <Row label={t('admin.activeClients')} labelWidth={14}>
+                    <span className="flex items-center gap-1.5">
+                      <StatusDot level={data.clients?.length ? 'ok' : 'idle'} />
+                      <span className="font-bold">{data.clients?.length || 0}</span>
+                      {data.clients?.length ? (
+                        <span className="text-tui-faint">{t('admin.sharedWindows')}</span>
+                      ) : null}
+                    </span>
+                  </Row>
+                  <Row label={t('admin.activePtys')} labelWidth={14}>
+                    <span className="font-bold">{data.ptys?.length || 0}</span>
+                    <span className="ml-1.5 text-tui-faint">{t('admin.terminalShells')}</span>
+                  </Row>
+                  <Row label={t('common.host')} labelWidth={14}>
+                    <span className={data.activeHostId ? 'text-tui-text' : 'text-tui-faint'}>
+                      {data.activeHostId || t('admin.noHost')}
+                    </span>
+                  </Row>
+                  <Row label={t('admin.uptime')} labelWidth={14}>
+                    <span className="text-tui-muted">
+                      {data.startTime
+                        ? t('admin.startedAt', {
+                            time: new Date(data.startTime).toLocaleTimeString(),
+                          })
+                        : t('admin.startedRecently')}
+                    </span>
+                  </Row>
+                </Panel>
+
+                {/* CPU: the gauge is the reading, the sparkline is the trend. */}
                 <Panel
                   title={t('admin.cpuAndLoad')}
                   aside={t('admin.cores', { count: data.cpu?.cores || 1 })}
-                  bodyClassName="space-y-2"
+                  bodyClassName="space-y-1.5"
                 >
-                  <MetricGauge
-                    label={t('admin.cpuUtilization')}
-                    value={data.cpu?.cpuPercent || 0}
-                    displayValue={`${(data.cpu?.cpuPercent || 0).toFixed(1)}%`}
+                  <Gauge
+                    ratio={(data.cpu?.cpuPercent || 0) / 100}
+                    tone={pressureTone(data.cpu?.cpuPercent || 0)}
+                    label={`${t('admin.cpuUtilization')}  ${(data.cpu?.cpuPercent || 0).toFixed(1)}%`}
+                    aria-label={t('admin.cpuUtilization')}
                   />
-
-                  <div className="grid grid-cols-3 gap-1">
-                    <Cell label={t('admin.load1m')} value={(data.cpu?.load1m || 0).toFixed(2)} />
-                    <Cell label={t('admin.load5m')} value={(data.cpu?.load5m || 0).toFixed(2)} />
-                    <Cell label={t('admin.load15m')} value={(data.cpu?.load15m || 0).toFixed(2)} />
+                  <div className="flex items-center gap-2">
+                    <Sparkline
+                      values={history.cpu}
+                      max={100}
+                      tone="accent"
+                      aria-label={t('admin.cpuUtilization')}
+                      className="min-w-0 flex-1 overflow-hidden"
+                    />
+                    <span className="shrink-0 text-tui-sm text-tui-faint">
+                      {t('admin.trendSamples', { count: history.cpu.length })}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <LineGauge
+                      label={t('admin.load1m')}
+                      ratio={(data.cpu?.load1m || 0) / Math.max(1, data.cpu?.cores || 1)}
+                      value={(data.cpu?.load1m || 0).toFixed(2)}
+                    />
+                    <LineGauge
+                      label={t('admin.load5m')}
+                      ratio={(data.cpu?.load5m || 0) / Math.max(1, data.cpu?.cores || 1)}
+                      value={(data.cpu?.load5m || 0).toFixed(2)}
+                    />
+                    <LineGauge
+                      label={t('admin.load15m')}
+                      ratio={(data.cpu?.load15m || 0) / Math.max(1, data.cpu?.cores || 1)}
+                      value={(data.cpu?.load15m || 0).toFixed(2)}
+                    />
                   </div>
                 </Panel>
 
-                {/* Memory */}
                 <Panel
                   title={t('admin.memory')}
                   aside={`RSS ${formatBytes(data.memory?.rssBytes || 0)}`}
-                  bodyClassName="space-y-2"
+                  bodyClassName="space-y-1.5"
                 >
                   {(() => {
                     const used = data.memory?.heapUsedBytes || 0;
                     const total = data.memory?.heapTotalBytes || 1;
-                    const pct = total > 0 ? (used / total) * 100 : 0;
+                    const percent = total > 0 ? (used / total) * 100 : 0;
                     return (
-                      <MetricGauge
-                        label={t('admin.heapUtilization')}
-                        value={pct}
-                        displayValue={`${formatBytes(used)} / ${formatBytes(total)}`}
-                        detail={`Process RSS: ${formatBytes(data.memory?.rssBytes || 0)}`}
-                        tone="ok"
-                      />
+                      <>
+                        <Gauge
+                          ratio={percent / 100}
+                          tone={pressureTone(percent, 'ok')}
+                          label={`${formatBytes(used)} / ${formatBytes(total)}`}
+                          aria-label={t('admin.heapUtilization')}
+                        />
+                        <Sparkline
+                          values={history.heap}
+                          max={100}
+                          tone="ok"
+                          aria-label={t('admin.heapUtilization')}
+                          className="block overflow-hidden"
+                        />
+                      </>
                     );
                   })()}
-
                   <Rule />
-
-                  <Row label={t('admin.external')} labelWidth={12}>
+                  <Row label={t('admin.processRss')} labelWidth={13}>
+                    <span className="font-bold">{formatBytes(data.memory?.rssBytes || 0)}</span>
+                  </Row>
+                  <Row label={t('admin.external')} labelWidth={13}>
                     <span className="font-bold">{formatBytes(data.memory?.externalBytes || 0)}</span>
                   </Row>
                 </Panel>
 
-                {/* Event loop */}
                 <Panel
                   title={t('admin.eventLoopDelay')}
                   aside={t('admin.liveTrend')}
-                  bodyClassName="space-y-2"
+                  bodyClassName="space-y-1.5"
                 >
-                  <div className="grid grid-cols-3 gap-1">
-                    <Cell
+                  <div className="space-y-0.5">
+                    <LineGauge
                       label={t('admin.metricP50')}
+                      ratio={(data.eventLoopDelay?.p50Ms || 0) / EVENT_LOOP_CEILING_MS}
                       value={`${(data.eventLoopDelay?.p50Ms || 0).toFixed(1)}ms`}
-                      tone="text-tui-ok"
+                      tone="ok"
                     />
-                    <Cell
+                    <LineGauge
                       label={t('admin.metricP99')}
+                      ratio={(data.eventLoopDelay?.p99Ms || 0) / EVENT_LOOP_CEILING_MS}
                       value={`${(data.eventLoopDelay?.p99Ms || 0).toFixed(1)}ms`}
-                      tone="text-tui-warn"
+                      tone="warn"
                     />
-                    <Cell
+                    <LineGauge
                       label={t('admin.metricMax')}
+                      ratio={(data.eventLoopDelay?.maxMs || 0) / EVENT_LOOP_CEILING_MS}
                       value={`${(data.eventLoopDelay?.maxMs || 0).toFixed(1)}ms`}
-                      tone="text-tui-accent"
+                      tone="accent"
                     />
                   </div>
-
+                  <Sparkline
+                    values={history.loop}
+                    max={EVENT_LOOP_CEILING_MS}
+                    tone="info"
+                    aria-label={t('admin.eventLoopDelay')}
+                    className="block overflow-hidden"
+                  />
                   <p className="text-tui-sm leading-snug text-tui-faint">
                     {t('admin.eventLoopDesc')}
                   </p>
                 </Panel>
 
-                {/* Throughput */}
                 <Panel
                   title={t('admin.throughput')}
-                  aside={`${formatBytes(data.throughput?.bytesOutPerSec || 0)}/s`}
-                  bodyClassName="space-y-0.5"
+                  aside={t('admin.perSecond', {
+                    value: formatBytes(data.throughput?.bytesOutPerSec || 0),
+                  })}
+                  bodyClassName="space-y-1"
                 >
-                  <Row label={t('admin.bytesInTotal')} labelWidth={14}>
-                    <span className="font-bold text-tui-accent">
-                      {formatBytes(data.throughput?.bytesIn || 0)}
-                    </span>
-                  </Row>
-                  <Row label={t('admin.bytesOutTotal')} labelWidth={14}>
-                    <span className="font-bold text-tui-ok">
-                      {formatBytes(data.throughput?.bytesOut || 0)}
-                    </span>
-                  </Row>
-                  <Row label={t('admin.frameRate')} labelWidth={14}>
+                  <div className="space-y-0.5">
+                    <Row label={t('admin.bytesInTotal')} labelWidth={13}>
+                      <span className="font-bold text-tui-accent">
+                        {formatBytes(data.throughput?.bytesIn || 0)}
+                      </span>
+                    </Row>
+                    <Sparkline
+                      values={history.bytesIn}
+                      tone="accent"
+                      aria-label={t('admin.bytesInTotal')}
+                      className="block overflow-hidden"
+                    />
+                    <Row label={t('admin.bytesOutTotal')} labelWidth={13}>
+                      <span className="font-bold text-tui-ok">
+                        {formatBytes(data.throughput?.bytesOut || 0)}
+                      </span>
+                    </Row>
+                    <Sparkline
+                      values={history.bytesOut}
+                      tone="ok"
+                      aria-label={t('admin.bytesOutTotal')}
+                      className="block overflow-hidden"
+                    />
+                  </div>
+                  <Row label={t('admin.frameRate')} labelWidth={13}>
                     <span className="font-bold">
-                      {(data.throughput?.framesOutPerSec || 0).toFixed(0)} fps
+                      {t('admin.framesPerSecond', {
+                        count: (data.throughput?.framesOutPerSec || 0).toFixed(0),
+                      })}
                     </span>
                   </Row>
                 </Panel>
-              </div>
 
-              {/* Housekeeping counters */}
-              <Panel
-                title={t('admin.gcCleanup')}
-                aside={
-                  data.cleanup?.lastCleanupAt
-                    ? new Date(data.cleanup.lastCleanupAt).toLocaleTimeString()
-                    : undefined
-                }
-              >
-                <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
-                  <Cell
-                    label={t('admin.staleClientsPurged')}
-                    value={data.cleanup?.staleClientsPurged || 0}
-                  />
-                  <Cell
-                    label={t('admin.closedPtysCleaned')}
-                    value={data.cleanup?.closedPtysCleaned || 0}
-                  />
-                  <Cell
-                    label={t('admin.deadConnections')}
-                    value={data.cleanup?.deadConnectionsClosed || 0}
-                  />
-                  <Cell
-                    label={t('admin.idleHostsTerminated')}
-                    value={data.cleanup?.idleHostsTerminated || 0}
-                  />
-                </div>
-              </Panel>
+                <Panel
+                  title={t('admin.gcCleanup')}
+                  aside={
+                    data.cleanup?.lastCleanupAt
+                      ? new Date(data.cleanup.lastCleanupAt).toLocaleTimeString()
+                      : undefined
+                  }
+                  bodyClassName="space-y-0.5"
+                >
+                  <Row label={t('admin.staleClientsPurged')} labelWidth={18}>
+                    <span className="font-bold">{data.cleanup?.staleClientsPurged || 0}</span>
+                  </Row>
+                  <Row label={t('admin.closedPtysCleaned')} labelWidth={18}>
+                    <span className="font-bold">{data.cleanup?.closedPtysCleaned || 0}</span>
+                  </Row>
+                  <Row label={t('admin.deadConnections')} labelWidth={18}>
+                    <span className="font-bold">{data.cleanup?.deadConnectionsClosed || 0}</span>
+                  </Row>
+                  <Row label={t('admin.idleHostsTerminated')} labelWidth={18}>
+                    <span className="font-bold">{data.cleanup?.idleHostsTerminated || 0}</span>
+                  </Row>
+                </Panel>
+              </div>
 
               <ClientsTable
                 clients={data.clients || []}

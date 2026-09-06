@@ -112,16 +112,21 @@ fieldset.tui-panel {
  * ── Box-drawing corners ──────────────────────────────────────────────────
  *
  * A 1px CSS border is a rule, not a character. These pseudo-elements put real
- * corner glyphs over the ends of a frame so a panel reads as terminal output
- * rather than as a web card. Purely decorative: they carry no text to a
- * screen reader.
+ * corner glyphs over the ends of a frame, the way ratatui's `Block` draws one,
+ * so a panel reads as terminal output rather than as a web card. The diagonal
+ * pair is enough to say "drawn box": a pseudo-element carries one glyph, and
+ * two further overlays would cost a wrapper element on every panel for a corner
+ * nobody looks at. Purely decorative: they carry no text to a screen reader.
  */
-.tui-corners {
+.tui-corners,
+.tui-block {
   position: relative;
 }
 
 .tui-corners::before,
-.tui-corners::after {
+.tui-corners::after,
+.tui-block::before,
+.tui-block::after {
   position: absolute;
   color: var(--tui-border);
   font-size: inherit;
@@ -129,13 +134,15 @@ fieldset.tui-panel {
   pointer-events: none;
 }
 
-.tui-corners::before {
+.tui-corners::before,
+.tui-block::before {
   content: '┌';
   top: -1px;
   left: -1px;
 }
 
-.tui-corners::after {
+.tui-corners::after,
+.tui-block::after {
   content: '┘';
   bottom: -1px;
   right: -1px;

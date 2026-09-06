@@ -18,12 +18,13 @@ export const SessionStatusLine: React.FC = () => {
     role,
     hostId,
     assignedClientId,
+    sharedWindowCount,
     settings,
     rttMs,
     t,
   } = useTerminal();
   const status = describeConnection(connectionState, t);
-  const roleTone = role === 'controller' ? 'ok' : 'warn';
+  const connected = connectionState === 'connected';
 
   return (
     <StatusLine
@@ -34,9 +35,19 @@ export const SessionStatusLine: React.FC = () => {
               <StatusDot level={status.level} />
               <span className="text-tui-text">{status.label}</span>
             </span>,
-            <Badge key="role" tone={roleTone}>
-              {role === 'controller' ? t('common.controller') : t('common.viewer')}
-            </Badge>,
+            // Nothing is being controlled while the session is down, so the
+            // line says nothing about it rather than claiming a role that has
+            // no session to apply to.
+            connected ? (
+              <Badge key="role" tone={role === 'controller' ? 'ok' : 'warn'}>
+                {role === 'controller' ? t('role.sharedControl') : t('common.viewer')}
+              </Badge>
+            ) : null,
+            connected && sharedWindowCount > 1 ? (
+              <span key="windows" className="text-tui-muted">
+                {t('role.sharedWindows', { count: sharedWindowCount })}
+              </span>
+            ) : null,
             hostId ? (
               <span key="host">
                 <span className="text-tui-faint">{t('common.host')}:</span>{' '}

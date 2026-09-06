@@ -297,6 +297,18 @@ export interface TranslationSchema {
     returnToTerminal: string;
     terminalShells: string;
     startedAt: string;
+    /** The overview block that answers "who is attached, since when". */
+    sessionPanel: string;
+    sharedWindows: string;
+    processRss: string;
+    trendSamples: string;
+    perSecond: string;
+    framesPerSecond: string;
+    payloadBytes: string;
+    unitDay: string;
+    unitHour: string;
+    unitMinute: string;
+    unitSecond: string;
     startedRecently: string;
     metricP50: string;
     metricP99: string;
@@ -418,6 +430,25 @@ export interface TranslationSchema {
     title: string;
     help: string;
     terminalInputNote: string;
+  };
+  /**
+   * The relay's own failure reasons, by the code it sends.
+   *
+   * The server's English sentence is for its log; a translated interface has to
+   * be able to say the same thing itself.
+   */
+  serverErrors: {
+    auth_required: string;
+    unauthorized: string;
+    host_offline: string;
+    host_disconnected: string;
+    stale_host: string;
+    too_many_clients: string;
+    rate_limited: string;
+    invalid_handshake: string;
+    device_revoked: string;
+    connection_closed: string;
+    connection_failed: string;
   };
   fontPresets: {
     system: string;
