@@ -69,7 +69,22 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: .github/scripts/plan-release.sh "${{ inputs.packages || 'auto' }}"
 
-      # Everything below is skipped when neither package changed, so a docs or
+      # The bump happens *before* the install, and that order is deliberate.
+      # `npm version` updates the workspace manifest and the root lockfile
+      # together, so the two never disagree — which is what `npm ci` refuses to
+      # install. Run afterwards, against a populated node_modules, it re-resolves
+      # the whole tree and rewrites far more of the lockfile than the version it
+      # was asked to change. `--no-git-tag-version` leaves the commit and the tag
+      # to the final step, where they can carry every package released here.
+      - name: Bump herdr-remote-relay
+        if: steps.plan.outputs.relay == 'true'
+        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote-relay --no-git-tag-version
+
+      - name: Bump herdr-remote
+        if: steps.plan.outputs.cli == 'true'
+        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
+
+      # Everything here is skipped when neither package changed, so a docs or
       # workflow commit costs one cheap run instead of a release.
       - name: Install dependencies
         if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
@@ -80,18 +95,6 @@ jobs:
         # compiler. The tarballs themselves are built by each package's
         # `prepack`, which `npm publish` runs.
         run: npm ci
-
-      # `npm version` updates the workspace manifest *and* the root lockfile, so
-      # the two never disagree — which is what `npm ci` refuses to install.
-      # `--no-git-tag-version` leaves the commit and the tag to the final step,
-      # where they can carry every package released in this run.
-      - name: Bump herdr-remote-relay
-        if: steps.plan.outputs.relay == 'true'
-        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote-relay --no-git-tag-version
-
-      - name: Bump herdr-remote
-        if: steps.plan.outputs.cli == 'true'
-        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
 
       - name: Test
         if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
@@ -138,6 +141,9 @@ jobs:
             released+=("herdr-remote@$(node -p "require('./packages/cli/package.json').version")")
           fi
 
+          # Only the manifests and the lockfile: an install may leave other
+          # things behind (npm marks `bin` entries executable, for one), and
+          # none of it belongs in a release commit.
           git add package-lock.json packages/cli/package.json packages/relay/package.json
           if git diff --cached --quiet; then
             echo "No version change to record — the release was already published."
@@ -152,8 +158,10 @@ jobs:
 
           # Another run may have landed while this one was publishing; rebasing
           # keeps the bump on top rather than failing the release that already
-          # reached npm.
-          git pull --rebase origin master
+          # reached npm. `autostash` is what makes that true unconditionally:
+          # the package has been published by this point, so nothing left in the
+          # working tree by the install may be allowed to fail the bookkeeping.
+          git -c rebase.autostash=true pull --rebase origin master
           git push origin HEAD:master --follow-tags
 
       - name: Summary
