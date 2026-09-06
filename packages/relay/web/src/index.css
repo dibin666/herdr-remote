@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Herdr Midnight: one dark shell with cyan/light-blue interaction states. */
+  --color-bg: #0b1120;
+  --color-surface: #111827;
+  --color-card: #172033;
+  --color-border: #334155;
+  --color-border-subtle: #1e293b;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  --color-accent: #7dd3fc;
+  --color-accent-hover: #38bdf8;
+  --color-accent-light: #082f49;
+  --color-accent-border: #075985;
+}
+
+/* Keep the class required by Tailwind's dark variant, but never expose a light
+   token set: the interface is intentionally dark-only. */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Shell height ladder, weakest first: percentage for ancient engines, dynamic
+   viewport units where supported, and finally the visualViewport-driven
+   variable — the only one that shrinks for the iOS soft keyboard, which is what
+   keeps the key toolbar above it instead of behind it. */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+  overscroll-behavior: none;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--color-bg);
+}
+
+/* xterm.js custom container tuning */
+.xterm {
+  height: 100%;
+  width: 100%;
+  /* No padding: the surface box is sized to exactly cellWidth*cols by
+     cellHeight*rows, and padding would push the last column/row outside the
+     scaled frame and get clipped. */
+  padding: 0;
+}
+
+.xterm .xterm-viewport {
+  overflow-y: scroll !important;
+  background-color: transparent !important;
+}
+
+@media (pointer: coarse) {
+  /* JS owns the gesture because Android's compositor does not reliably pan
+     this absolutely-positioned viewport inside the overflow-hidden shell. */
+  #terminal-container,
+  #terminal-surface .xterm,
+  #terminal-surface .xterm .xterm-viewport {
+    touch-action: none;
+  }
+
+  #terminal-surface .xterm .xterm-viewport {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* The surface is the terminal's whole coordinate space: it fills the frame and
+   is never transformed, so what a finger touches is what the renderer measured.
+   The min sizes keep xterm's own boxes from collapsing while the layer is
+   hidden behind the Admin view. */
+#terminal-surface {
+  width: 100%;
+  height: 100%;
+}
+
+#terminal-surface,
+#terminal-surface .xterm,
+#terminal-surface .xterm-screen {
+  min-width: 1px;
+  min-height: 1px;
+}
+
+/* On a finger-driven device the xterm helper textarea is the terminal's input
+   target, but it must never be hit directly by a tap on the rendered output.
+   The gesture controller focuses it only after a tap is classified as a tap;
+   vertical drags stay in the scroll path. The 16px font prevents iOS from
+   zooming the page when the terminal input is focused. */
+@media (pointer: coarse) {
+  #terminal-surface .xterm .xterm-rows {
+    /* Touch belongs to terminal clicks and scrollback, not browser text
+       selection. Copying is intentionally not triggered by an ordinary tap. */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .xterm .xterm-helper-textarea {
+    left: 0;
+    top: 0;
+    min-width: 1px;
+    min-height: 1px;
+    font-size: 16px;
+    opacity: 0;
+    pointer-events: none;
+    caret-color: transparent;
+  }
+}
+
+/* Phone control sheet. Written here rather than as an `animate-in` utility
+   because this build has no animation plugin, so those class names generate
+   nothing. */
+@keyframes herdr-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.herdr-sheet {
+  animation: herdr-sheet-in 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* The sheet scrolls itself; a flick inside it must not chain to the page. */
+  overscroll-behavior: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .herdr-sheet {
+    animation: none;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Utility to hide scrollbar */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

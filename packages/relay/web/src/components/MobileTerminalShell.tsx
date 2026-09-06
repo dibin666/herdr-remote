@@ -69,7 +69,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
       >
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-charcoal-700 dark:text-charcoal-200">
           <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-terracotta-300 bg-terracotta-100 text-terracotta-600 dark:border-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-300"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-herdr-300 bg-herdr-100 text-herdr-600 dark:border-herdr-700 dark:bg-herdr-950 dark:text-herdr-300"
             aria-hidden="true"
           >
             <TerminalIcon className="h-3.5 w-3.5" />
@@ -91,7 +91,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
               ? 'border-amber-400 dark:border-amber-600'
               : isController
                 ? 'border-sand-400/70 dark:border-charcoal-700'
-                : 'border-terracotta-400 dark:border-terracotta-700'
+                : 'border-herdr-400 dark:border-herdr-700'
           )}
         >
           <span className={cn('h-2 w-2 shrink-0 rounded-full', status.dotClass)} aria-hidden="true" />

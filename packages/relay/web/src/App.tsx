@@ -41,7 +41,7 @@ function AppContent() {
    */
   useEffect(() => observeViewportMetrics(), []);
 
-  // Sync colorMode with documentElement class and inline background
+  // Keep the dark-only document shell in sync before/after the app mounts
   useEffect(() => {
     applyDocumentTheme(effectiveColorMode);
   }, [effectiveColorMode]);

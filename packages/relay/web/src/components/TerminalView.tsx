@@ -3,7 +3,11 @@ import { Terminal } from '@xterm/xterm';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
-import { resolveTerminalTheme, terminalMinimumContrastRatio } from '../utils/theme';
+import {
+  resolveTerminalTheme,
+  terminalMinimumContrastRatio,
+  HERDR_BANNER_ANSI,
+} from '../utils/theme';
 import { encodeStringToBytes } from '../protocol/keyEncoder';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
@@ -437,12 +441,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     // Initial banner text
     const bannerTitle = tRef.current('terminal.bannerTitle');
     const bannerSubtitle = tRef.current('terminal.bannerSubtitle');
-    term.writeln(`\x1b[38;2;217;100;58m  ___ ___               .___      \x1b[0m`);
-    term.writeln(`\x1b[38;2;217;100;58m /   |   \\  ____ _______| _/______\x1b[0m   \x1b[1m${bannerTitle}\x1b[0m`);
-    term.writeln(`\x1b[38;2;217;100;58m/    ~    \\/ __ \\\\_  __ \\ __/  ___/\x1b[0m   \x1b[2m${bannerSubtitle}\x1b[0m`);
-    term.writeln(`\x1b[38;2;217;100;58m\\    Y    /  ___/ |  | \\/|_ \\___ \\ \x1b[0m`);
-    term.writeln(`\x1b[38;2;217;100;58m \\___|_  / \\___  >|__|  /___/____  >\x1b[0m`);
-    term.writeln(`\x1b[38;2;217;100;58m       \\/      \\/                \\/ \x1b[0m`);
+    term.writeln(`${HERDR_BANNER_ANSI}  ___ ___               .___      \x1b[0m`);
+    term.writeln(`${HERDR_BANNER_ANSI} /   |   \\  ____ _______| _/______\x1b[0m   \x1b[1m${bannerTitle}\x1b[0m`);
+    term.writeln(`${HERDR_BANNER_ANSI}/    ~    \\/ __ \\\\_  __ \\ __/  ___/\x1b[0m   \x1b[2m${bannerSubtitle}\x1b[0m`);
+    term.writeln(`${HERDR_BANNER_ANSI}\\    Y    /  ___/ |  | \\/|_ \\___ \\ \x1b[0m`);
+    term.writeln(`${HERDR_BANNER_ANSI} \\___|_  / \\___  >|__|  /___/____  >\x1b[0m`);
+    term.writeln(`${HERDR_BANNER_ANSI}       \\/      \\/                \\/ \x1b[0m`);
     term.writeln('');
 
     if (!isTouchDevice) {

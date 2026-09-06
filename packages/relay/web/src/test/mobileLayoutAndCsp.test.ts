@@ -56,14 +56,15 @@ describe('Mobile Terminal Typography Base Settings and CSP Compliance', () => {
     expect(htmlContent).not.toContain('user-scalable=no');
   });
 
-  it('initializes the saved color mode before the application module loads', () => {
+  it('initializes the dark-only shell before the application module loads', () => {
     const htmlPath = path.resolve(__dirname, '../../index.html');
     const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
-    expect(htmlContent).toContain('herdr_remote_session_view_v1');
-    expect(htmlContent).toContain("prefers-color-scheme: dark");
-    expect(htmlContent).toContain("classList.toggle('dark'");
-    expect(htmlContent.indexOf('classList.toggle(\'dark\''))
+    expect(htmlContent).toContain('<html lang="en" class="dark">');
+    expect(htmlContent).not.toContain('herdr_remote_session_view_v1');
+    expect(htmlContent).not.toContain('prefers-color-scheme');
+    expect(htmlContent).toContain("classList.add('dark'");
+    expect(htmlContent.indexOf("classList.add('dark'"))
       .toBeLessThan(htmlContent.indexOf('<script type="module"'));
   });
 

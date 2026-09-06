@@ -1,39 +1,28 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d9643a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='20' height='14' x='2' y='3' rx='2'/><line x1='8' x2='16' y1='21' y2='21'/><line x1='12' x2='12' y1='17' y2='21'/><polyline points='7 8 10 11 7 14'/><line x1='13' x2='17' y1='14' y2='14'/></svg>" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237dd3fc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='20' height='14' x='2' y='3' rx='2'/><line x1='8' x2='16' y1='21' y2='21'/><line x1='12' x2='12' y1='17' y2='21'/><polyline points='7 8 10 11 7 14'/><line x1='13' x2='17' y1='14' y2='14'/></svg>" />
     <!-- `interactive-widget=resizes-content` makes the soft keyboard shrink the
          layout viewport on Android, matching what the visualViewport-driven
          --app-height does for iOS, so the key toolbar stays above it on both. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#faf8f5" />
+    <meta name="theme-color" content="#0b1120" />
     <!-- `apple-mobile-web-app-capable` is the iOS spelling; the unprefixed name
          is the standard one every other engine reads, and Chrome warns when it
          is missing. Both are needed for a full-screen install. -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Mobile-first remote terminal WebUI for Herdr agent multiplexer" />
     <script>
-      // Apply the last per-window color mode before the module stylesheet and
-      // React mount, so system-dark users never see a light flash on startup.
+      // Establish the dark-only shell before the module stylesheet mounts so
+      // there is no light flash, regardless of OS or legacy stored settings.
       (() => {
-        let mode = 'light';
-        try {
-          const stored = JSON.parse(sessionStorage.getItem('herdr_remote_session_view_v1') || '{}');
-          if (stored.colorMode === 'light' || stored.colorMode === 'dark' || stored.colorMode === 'system') {
-            mode = stored.colorMode;
-          }
-        } catch {
-          // Storage can be unavailable in private/sandboxed browser contexts.
-        }
-        const dark = mode === 'dark'
-          || (mode === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
-        document.documentElement.classList.toggle('dark', Boolean(dark));
-        document.documentElement.classList.toggle('light', !dark);
-        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#181614' : '#faf8f5');
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+        document.documentElement.style.colorScheme = 'dark';
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0b1120');
       })();
     </script>
     <title>Herdr Remote WebUI</title>

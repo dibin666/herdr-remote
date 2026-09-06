@@ -321,7 +321,7 @@ describe('Phone control sheet', () => {
     setVisualViewport(null);
   });
 
-  it('reaches connection status, the control lease, theme, settings, pairing and Admin', async () => {
+  it('reaches connection status, the control lease, settings, pairing and Admin', async () => {
     await renderPhoneApp();
     openSession('viewer');
 
@@ -335,7 +335,6 @@ describe('Phone control sheet', () => {
       within(sheet).getByRole('button', { name: /Claim terminal control/i })
     ).toBeInTheDocument();
 
-    expect(within(sheet).getByRole('button', { name: /Toggle theme/i })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: /Terminal Settings/i })).toBeInTheDocument();
     expect(
       within(sheet).getByRole('button', { name: /Connection and Pairing Settings/i })
