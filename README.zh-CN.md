@@ -135,6 +135,25 @@ npm run test:web   # 运行 WebUI 测试
 npm run typecheck  # TypeScript 类型检查
 ```
 
+### 发版
+
+版本号不需要手改。只要向 `master` 推送了 `packages/cli/` 或
+`packages/relay/` 下的改动，*npm publish* 工作流就会把该包的补丁号 +0.0.1、
+发布到 npm，并把新版本提交回仓库，同时打上 `herdr-remote-v0.2.4` /
+`herdr-remote-relay-v0.2.2` 这类 tag。两个包各自递增，未改动的包不会被发布。
+
+需要其他发版方式时手动触发该工作流：`packages` 选择发哪些包（`auto`、
+`cli`、`relay`、`both`），`bump` 选择递增位（`patch`、`minor`、`major`）。
+
+在本地可以先看一次推送会发什么：
+
+```bash
+.github/scripts/plan-release.sh auto
+```
+
+工作流需要仓库 secret `NPM_TOKEN`（npm *automation* token，可绕过 2FA），
+以及向 `master` 推送的权限。
+
 ## 开源协议
 
 MIT

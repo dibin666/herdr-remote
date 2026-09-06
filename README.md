@@ -135,6 +135,27 @@ npm run test:web   # Run WebUI tests
 npm run typecheck  # TypeScript check
 ```
 
+### Releases
+
+Versions are not edited by hand. Pushing a change under `packages/cli/` or
+`packages/relay/` to `master` makes the *npm publish* workflow bump that
+package's patch version, publish it, and commit the new version back with a
+`herdr-remote-v0.2.4` / `herdr-remote-relay-v0.2.2` tag. Each package moves on
+its own; a package nothing touched is left alone.
+
+Run the workflow manually to release something else: `packages` picks which
+packages to release (`auto`, `cli`, `relay`, `both`) and `bump` picks the
+component (`patch`, `minor`, `major`).
+
+What a push would release can be checked from a clone:
+
+```bash
+.github/scripts/plan-release.sh auto
+```
+
+The workflow needs the `NPM_TOKEN` repository secret (an npm *automation*
+token, which bypasses 2FA) and permission to push to `master`.
+
 ## License
 
 MIT

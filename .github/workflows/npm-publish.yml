@@ -5,33 +5,57 @@ name: npm publish
 # schedules, and a CLI-only change should not mint a new image (nor a relay-only
 # change wait on the CLI).
 #
-# The trigger is the version field itself. Bump `version` in a package manifest,
-# push, and that package is published; leave it alone and the run is a no-op.
-# That keeps the registry as the single source of truth for what exists, so a
-# re-run, a revert or a merge commit can never double-publish.
+# The version is this workflow's *output*, not its input. Push a change to a
+# package and the workflow bumps that package's patch component, publishes it,
+# and commits the new version back to master with a `PKG-vX.Y.Z` tag. Nobody
+# edits a version field by hand, and nothing is published twice: the tag records
+# what was last released, and the publish step still asks the registry before
+# uploading.
+#
+# Each package moves on its own. `herdr-remote` depends on `herdr-remote-relay`
+# through a caret range, so a relay patch is picked up without touching the CLI.
 
 on:
   push:
     branches: [master]
     paths:
-      - 'packages/cli/package.json'
-      - 'packages/relay/package.json'
+      - 'packages/cli/**'
+      - 'packages/relay/**'
       - '.github/workflows/npm-publish.yml'
       - '.github/scripts/**'
   workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Which packages to release'
+        required: false
+        default: auto
+        type: choice
+        options: [auto, cli, relay, both]
+      bump:
+        description: 'Which version component to increment'
+        required: false
+        default: patch
+        type: choice
+        options: [patch, minor, major]
 
+# Two concurrent runs would compute the same next version and race to push the
+# same commit. Queue them instead, and never cancel a run that may already have
+# published.
 concurrency:
   group: npm-publish
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: publish changed packages
+    name: release changed packages
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # commit the version bump and push its tag
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release history lives in the tags
+          fetch-tags: true
 
       - uses: actions/setup-node@v4
         with:
@@ -39,37 +63,98 @@ jobs:
           cache: npm
           registry-url: 'https://registry.npmjs.org'
 
-      # A full install, unlike the image workflow's `--ignore-scripts` one: this
-      # workflow publishes the CLI, whose test suite drives a real pty, so the
-      # native node-pty module has to be compiled. Skipping it here would ship a
-      # release validated only against the parts that need no compiler.
-      # The tarballs themselves are built by each package's `prepack`, which
-      # `npm publish` runs.
+      - name: Plan the release
+        id: plan
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: .github/scripts/plan-release.sh "${{ inputs.packages || 'auto' }}"
+
+      # Everything below is skipped when neither package changed, so a docs or
+      # workflow commit costs one cheap run instead of a release.
       - name: Install dependencies
+        if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
+        # A full install, unlike the image workflow's `--ignore-scripts` one:
+        # this workflow publishes the CLI, whose test suite drives a real pty,
+        # so the native node-pty module has to be compiled. Skipping it here
+        # would ship a release validated only against the parts that need no
+        # compiler. The tarballs themselves are built by each package's
+        # `prepack`, which `npm publish` runs.
         run: npm ci
 
+      # `npm version` updates the workspace manifest *and* the root lockfile, so
+      # the two never disagree — which is what `npm ci` refuses to install.
+      # `--no-git-tag-version` leaves the commit and the tag to the final step,
+      # where they can carry every package released in this run.
+      - name: Bump herdr-remote-relay
+        if: steps.plan.outputs.relay == 'true'
+        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote-relay --no-git-tag-version
+
+      - name: Bump herdr-remote
+        if: steps.plan.outputs.cli == 'true'
+        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
+
       - name: Test
+        if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
         run: |
           npm test -w herdr-remote-relay
           npm test -w herdr-remote
           npm test -w herdr-remote-web
 
       - name: Typecheck
+        if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
         run: npm run typecheck
 
       # The relay is published first and unconditionally waited on: the CLI
       # depends on it by version range, so a CLI release that lands first would
       # be installable only once the relay caught up.
       - name: Publish herdr-remote-relay
-        id: relay
+        if: steps.plan.outputs.relay == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: .github/scripts/publish-if-new.sh packages/relay
 
       - name: Publish herdr-remote
+        if: steps.plan.outputs.cli == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: .github/scripts/publish-if-new.sh packages/cli
+
+      # Written back only after the registry has accepted the upload, so the
+      # repository never claims a version that was never published. `[skip ci]`
+      # is what stops this push from starting the workflow again.
+      - name: Record the release
+        if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          released=()
+          if [ "${{ steps.plan.outputs.relay }}" = "true" ]; then
+            released+=("herdr-remote-relay@$(node -p "require('./packages/relay/package.json').version")")
+          fi
+          if [ "${{ steps.plan.outputs.cli }}" = "true" ]; then
+            released+=("herdr-remote@$(node -p "require('./packages/cli/package.json').version")")
+          fi
+
+          git add package-lock.json packages/cli/package.json packages/relay/package.json
+          if git diff --cached --quiet; then
+            echo "No version change to record — the release was already published."
+            exit 0
+          fi
+
+          git commit -m "Release ${released[*]} [skip ci]"
+
+          for release in "${released[@]}"; do
+            git tag -a "${release/@/-v}" -m "$release"
+          done
+
+          # Another run may have landed while this one was publishing; rebasing
+          # keeps the bump on top rather than failing the release that already
+          # reached npm.
+          git pull --rebase origin master
+          git push origin HEAD:master --follow-tags
 
       - name: Summary
         run: |
@@ -79,6 +164,13 @@ jobs:
             for dir in packages/relay packages/cli; do
               name="$(node -p "require('./$dir/package.json').name")"
               version="$(node -p "require('./$dir/package.json').version")"
-              echo "- \`$name@$version\`"
+              key=relay
+              [ "$dir" = packages/cli ] && key=cli
+              if [ "$key" = relay ]; then released="${{ steps.plan.outputs.relay }}"; else released="${{ steps.plan.outputs.cli }}"; fi
+              if [ "$released" = "true" ]; then
+                echo "- \`$name@$version\` — published"
+              else
+                echo "- \`$name@$version\` — unchanged"
+              fi
             done
           } >> "$GITHUB_STEP_SUMMARY"
