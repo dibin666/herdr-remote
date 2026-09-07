@@ -9,7 +9,7 @@ const { URL } = require('node:url');
 const { WebSocketServer, WebSocket } = require('ws');
 const { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } = require('./relay-config');
 const { AuthStore } = require('./auth-store');
-const { RelayMetrics } = require('./metrics');
+const { RelayMetrics, countActiveUsers } = require('./metrics');
 const { unpackStreamFrame, packStreamFrame, sanitizeTerminalPalette } = require('./stream-frame');
 const { ensureDir } = require('./state');
 
@@ -1203,6 +1203,15 @@ class RelayServer {
       bytesSent: client.bytesSent,
       ip: client.ip,
     }));
+    // The roster is read once and used twice: the operator response carries it
+    // whole, and every response carries the per-host tally derived from it. A
+    // public caller learns how many devices a workstation has paired, never
+    // which ones.
+    const pairedDevices = this.auth.listDevices();
+    const pairedPerHost = new Map();
+    for (const device of pairedDevices) {
+      pairedPerHost.set(device.hostId, (pairedPerHost.get(device.hostId) || 0) + 1);
+    }
     const hosts = scopedHosts.map((host) => ({
       id: host.id,
       hostname: host.hostname,
@@ -1211,6 +1220,12 @@ class RelayServer {
       status: host.reconnecting ? 'reconnecting' : host.clients.size ? 'busy' : 'online',
       connectedAt: host.connectedAt,
       activePtyCount: host.ptys.length,
+      // Distinct devices attached to this workstation, not open sockets: a
+      // phone with two tabs open is one device on the operator's board.
+      connectedDeviceCount: countActiveUsers(
+        [...host.clients].map((id) => this.clients.get(id)).filter(Boolean)
+      ),
+      pairedDeviceCount: pairedPerHost.get(host.id) || 0,
       load: host.load,
     }));
     // The workstation counts one PTY per stream and cannot know how many
@@ -1225,9 +1240,19 @@ class RelayServer {
     // The paired-device roster identifies people's hardware, so it is served to
     // the relay operator only — never on /api/status, which any paired device
     // may read.
-    const devices = includeDevices ? this.auth.listDevices() : undefined;
+    const devices = includeDevices ? pairedDevices : undefined;
     return {
-      ...this.metrics.snapshot({ clients, hosts, ptys, sample, scopeHostId }),
+      ...this.metrics.snapshot({
+        clients,
+        hosts,
+        ptys,
+        sample,
+        scopeHostId,
+        // Counted from the unredacted records: the mapped rows above only carry
+        // `deviceId` for the operator, and a public caller must still see the
+        // same number of users the operator does.
+        activeUserCount: countActiveUsers(scopedClients),
+      }),
       ...(devices ? { devices } : {}),
       relayMode: this.relayMode,
       isRemoteRelay: this.relayMode === 'remote',

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { TerminalProvider } from '../context/TerminalContext';
 import { AdminDashboard } from '../components/admin/AdminDashboard';
 import { saveSettings } from '../utils/storage';
@@ -84,12 +84,18 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
       </TerminalProvider>
     );
 
+    // The overview is hosts and traffic now; the rows live behind their tabs.
     await waitFor(() => {
-      expect(screen.getAllByText('client-alice').length).toBeGreaterThan(0);
+      expect(screen.getByText('Active Users')).toBeInTheDocument();
     });
 
     expect(capturedHeaders).toBeDefined();
     expect(capturedHeaders?.['Authorization']).toBe('Bearer test-auth-token-123');
+
+    fireEvent.click(screen.getByLabelText('Clients (1)'));
+    expect(screen.getAllByText('client-alice').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByLabelText('PTY Sessions (1)'));
     expect(screen.getByText('pty-1')).toBeInTheDocument();
   });
 

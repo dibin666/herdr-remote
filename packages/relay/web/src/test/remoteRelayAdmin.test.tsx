@@ -77,15 +77,18 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('pty-1')).toBeInTheDocument();
+      expect(screen.getByText('Active Users')).toBeInTheDocument();
     });
 
     // Verify /api/status was called with Bearer device token
     expect(statusCalled).toBe(true);
     expect(authHeader).toBe('Bearer mock-device-token');
 
-    // Check stats are rendered
+    // Check the rows are rendered, each behind its own tab.
+    fireEvent.click(screen.getByLabelText('Clients (1)'));
     expect(screen.getAllByText('client-local-1').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByLabelText('PTY Sessions (1)'));
     expect(screen.getByText('pty-1')).toBeInTheDocument();
     expect(screen.queryByText(/Remote Relay Administration|远程 Relay 服务管理/i)).toBeNull();
   });
@@ -139,10 +142,11 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     expect(requestedEndpoints).not.toContain('/api/status');
     expect(requestedEndpoints).not.toContain('/api/admin/status');
 
-    // 2. Assert: Metric cards (CPU Utilization, Memory, Connected Clients) are NOT rendered
-    expect(screen.queryByText(/CPU Utilization|CPU 使用率/i)).toBeNull();
-    expect(screen.queryByText(/Active Clients|活跃客户端/i)).toBeNull();
-    expect(screen.queryByText(/Active PTYs|活动 PTY/i)).toBeNull();
+    // 2. Assert: no part of the status board (hosts, users, PTYs) is rendered
+    expect(screen.queryByText('Connected Hosts')).toBeNull();
+    expect(screen.queryByText('Active Users')).toBeNull();
+    expect(screen.queryByText('Active PTYs')).toBeNull();
+    expect(screen.queryByText(/^Hosts \(\d+\)$/)).toBeNull();
 
     // 3. Assert: Remote guidance view is rendered
     expect(screen.getByText('wss://relay.example.com/ws/client')).toBeInTheDocument();
@@ -239,7 +243,10 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
       // Assert: only X-Relay-Admin-Token is sent, never Bearer device token
       expect(requestedHeaders['X-Relay-Admin-Token']).toBe('secret-admin-pass');
       expect(requestedHeaders['Authorization']).toBeUndefined();
-      expect(screen.getByText('client-remote-op')).toBeInTheDocument();
+      expect(screen.getByText('Active Users')).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByLabelText('Clients (1)'));
+    expect(screen.getByText('client-remote-op')).toBeInTheDocument();
   });
 });

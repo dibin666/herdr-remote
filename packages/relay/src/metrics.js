@@ -12,6 +12,29 @@ function bytesPerSecond(current, previous, elapsedMs) {
   return Math.max(0, (current - previous) * 1000 / elapsedMs);
 }
 
+/**
+ * How many people are attached, rather than how many sockets are open.
+ *
+ * A phone and a laptop belonging to one person are two connections but one
+ * paired device each, and one person opening three browser windows is three
+ * connections and one device — so the distinct paired device is the closest
+ * thing the relay has to a user. Connections that predate device pairing carry
+ * no `deviceId`; they fall back to their own connection id so they still count
+ * once instead of collapsing into a single anonymous user.
+ */
+function countActiveUsers(clients = []) {
+  const identities = new Set();
+  for (const client of clients) {
+    if (!client) continue;
+    identities.add(
+      typeof client.deviceId === 'string' && client.deviceId
+        ? `device:${client.deviceId}`
+        : `client:${client.id}`
+    );
+  }
+  return identities.size;
+}
+
 class RelayMetrics {
   constructor({ version = '0.1.0', protocolVersion = 1 } = {}) {
     this.version = version;
@@ -143,7 +166,13 @@ class RelayMetrics {
     };
   }
 
-  snapshot({ clients = [], hosts = [], ptys = [], sample = true, scopeHostId = null } = {}) {
+  /**
+   * `activeUserCount` is passed in rather than derived from `clients`: the
+   * public `/api/status` rows deliberately omit `deviceId`, so only the caller
+   * still holding the full connection records can count devices correctly.
+   * Omitting it falls back to counting whatever the given rows identify.
+   */
+  snapshot({ clients = [], hosts = [], ptys = [], sample = true, scopeHostId = null, activeUserCount = null } = {}) {
     const now = Date.now();
     const elapsedMs = now - this.lastSample.at;
     const throughput = {
@@ -181,6 +210,7 @@ class RelayMetrics {
       clientCount: clients.length,
       hostCount: hosts.length,
       ptyCount: ptys.length,
+      activeUserCount: Number.isFinite(activeUserCount) ? activeUserCount : countActiveUsers(clients),
       throughput: scopedThroughput,
       cpu: {
         load1m: finite(load[0]),
@@ -208,4 +238,4 @@ class RelayMetrics {
   }
 }
 
-module.exports = { RelayMetrics };
+module.exports = { RelayMetrics, countActiveUsers };

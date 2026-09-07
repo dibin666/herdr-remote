@@ -25,6 +25,10 @@ export interface RelayMetadata {
 export interface ConnectedClientInfo {
   id: string;
   role: 'controller' | 'viewer';
+  /** Absent from a host-scoped response, where every row belongs to one host. */
+  hostId?: string;
+  /** Operator-only: which paired device this connection authenticated as. */
+  deviceId?: string;
   ip?: string;
   userAgent?: string;
   connectedAt: string;
@@ -48,14 +52,20 @@ export interface PairedDeviceInfo {
   lastIp?: string | null;
 }
 
+export type HostStatus = 'online' | 'busy' | 'reconnecting' | 'offline';
+
 export interface HostInfo {
   id: string;
   hostname: string;
   platform: string;
   arch?: string;
-  status: 'online' | 'busy' | 'reconnecting' | 'offline';
+  status: HostStatus;
   connectedAt: string;
   activePtyCount: number;
+  /** Distinct devices attached to this host right now, not open sockets. */
+  connectedDeviceCount?: number;
+  /** Devices holding a valid pairing token for this host, online or not. */
+  pairedDeviceCount?: number;
 }
 
 export interface PtyInfo {
@@ -124,6 +134,11 @@ export interface AdminStatusResponse {
   clients: ConnectedClientInfo[];
   hosts: HostInfo[];
   ptys: PtyInfo[];
+  /**
+   * Distinct people attached, counted by paired device rather than by socket,
+   * so several windows of one browser stay one user.
+   */
+  activeUserCount?: number;
   /** Operator-only roster of paired devices; absent from `/api/status`. */
   devices?: PairedDeviceInfo[];
   throughput: ThroughputMetrics;

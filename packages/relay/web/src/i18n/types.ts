@@ -313,11 +313,10 @@ export interface TranslationSchema {
     returnToTerminal: string;
     terminalShells: string;
     startedAt: string;
-    /** The overview block that answers "who is attached, since when". */
-    sessionPanel: string;
-    sharedWindows: string;
-    processRss: string;
-    trendSamples: string;
+    /** The overview block that answers "who is attached to what, since when". */
+    accessPanel: string;
+    /** Connections behind the user count: several windows can be one person. */
+    acrossWindows: string;
     perSecond: string;
     framesPerSecond: string;
     payloadBytes: string;
@@ -326,15 +325,13 @@ export interface TranslationSchema {
     unitMinute: string;
     unitSecond: string;
     startedRecently: string;
-    metricP50: string;
-    metricP99: string;
-    metricMax: string;
-    liveTrend: string;
     updatedAt: string;
     autoRefresh: string;
     paused: string;
     refreshNow: string;
-    activeClients: string;
+    connectedHosts: string;
+    /** Distinct people attached, counted by paired device rather than socket. */
+    activeUsers: string;
     activePtys: string;
     activeController: string;
     uptime: string;
@@ -344,27 +341,21 @@ export interface TranslationSchema {
     tabClients: string;
     tabPtys: string;
     tabDevices: string;
-    cpuAndLoad: string;
-    cpuUtilization: string;
-    cores: string;
-    load1m: string;
-    load5m: string;
-    load15m: string;
-    memory: string;
-    heapUtilization: string;
-    external: string;
-    eventLoopDelay: string;
-    eventLoopDesc: string;
     throughput: string;
     bytesInTotal: string;
     bytesOutTotal: string;
     frameRate: string;
-    gcCleanup: string;
-    staleClientsPurged: string;
-    closedPtysCleaned: string;
-    deadConnections: string;
-    idleHostsTerminated: string;
-    slowClientsDropped: string;
+    // The per-host board: which workstations this relay carries, and who is
+    // paired to each of them.
+    hostsTitle: string;
+    noHosts: string;
+    hostConnectedDevices: string;
+    hostPairedDevices: string;
+    hostStatusOnline: string;
+    hostStatusBusy: string;
+    hostStatusReconnecting: string;
+    hostStatusOffline: string;
+    hostRosterOperatorOnly: string;
     connectedClientsTitle: string;
     noClients: string;
     colClientId: string;

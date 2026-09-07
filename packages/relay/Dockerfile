@@ -7,8 +7,8 @@
 #
 #   docker build -f packages/relay/Dockerfile -t herdr-relay .
 #
-# The final stage is a bare alpine image plus the Node binary — no npm, no
-# package manager, no toolchain. The relay's only runtime dependency is `ws`.
+# The final stage is a bare alpine image plus Alpine's own `nodejs` package —
+# no npm, no toolchain. The relay's only runtime dependency is `ws`.
 
 # ---------------------------------------------------------------------------
 # Stage 1: install the web workspace and build the browser bundle.
@@ -56,21 +56,25 @@ RUN npm ci -w herdr-remote-relay --omit=dev --ignore-scripts \
     && rm -rf node_modules/.package-lock.json
 
 # ---------------------------------------------------------------------------
-# Stage 3: runtime. Alpine + the Node binary, nothing else.
+# Stage 3: runtime. Alpine + its own Node package, nothing else.
+#
+# `apk add nodejs` rather than copying the official image's `/usr/local/bin/node`:
+# Alpine's build links against the OpenSSL, c-ares, brotli, icu and zlib that
+# apk installs alongside it, whereas the official binary statically carries its
+# own copy of all of them. Sharing the distro's libraries roughly halves the
+# image, and it keeps a working shell — a relay nobody can `exec` into is not
+# one anybody can debug.
 # ---------------------------------------------------------------------------
 FROM alpine:3.21 AS runtime
 
-# libstdc++ is the only shared library the Node binary needs beyond musl.
-RUN apk add --no-cache libstdc++ \
+# apk resolves the interpreter for the *target* platform, unlike the builder
+# stages above, so the linux/arm64 leg installs the arm64 build with no
+# cross-architecture copying involved.
+RUN apk add --no-cache nodejs \
     && addgroup -g 10001 -S relay \
     && adduser -u 10001 -S -G relay -h /app relay \
     && mkdir -p /data \
     && chown relay:relay /data
-
-# Resolved for the *target* platform, unlike the builder stages above, so an
-# arm64 image gets the arm64 Node binary. Stripping it saves under 2 MB (the
-# official build is already stripped), so it is not worth the extra stage.
-COPY --from=node:22-alpine /usr/local/bin/node /usr/local/bin/node
 
 WORKDIR /app
 
@@ -95,6 +99,6 @@ EXPOSE 8787
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/node", "-e", "fetch(`http://127.0.0.1:${process.env.RELAY_PORT||8787}/healthz`).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    CMD ["/usr/bin/node", "-e", "fetch(`http://127.0.0.1:${process.env.RELAY_PORT||8787}/healthz`).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
-ENTRYPOINT ["/usr/local/bin/node", "/app/bin/herdr-remote-relay.js"]
+ENTRYPOINT ["/usr/bin/node", "/app/bin/herdr-remote-relay.js"]

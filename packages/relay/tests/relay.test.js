@@ -852,3 +852,77 @@ test('an operator can list paired devices and revoke one', async (t) => {
 
   assert.equal((await fetch(`${base}/api/admin/devices/device-nope`, { method: 'DELETE', headers: admin })).status, 404);
 });
+
+test('the status board counts devices and their hosts, not open sockets', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-board-'));
+  const relayConfig = config();
+  relayConfig.auth.adminToken = 'operator-secret-123456789';
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  const admin = { 'X-Relay-Admin-Token': 'operator-secret-123456789' };
+  const hostAAuth = { 'X-Herdr-Host-Id': 'host-a', 'X-Herdr-Host-Token': 'host-a-token-123456789' };
+  const hostBAuth = { 'X-Herdr-Host-Id': 'host-b', 'X-Herdr-Host-Token': 'host-b-token-123456789' };
+  t.after(async () => relay.close());
+
+  const hostA = await openWebSocket(`${wsBase}/ws/host`);
+  const hostB = await openWebSocket(`${wsBase}/ws/host`);
+  hostA.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-a', token: 'host-a-token-123456789' }));
+  hostB.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-b', token: 'host-b-token-123456789' }));
+  await Promise.all([
+    nextMessage(hostA, (message) => message.type === 'host_ready'),
+    nextMessage(hostB, (message) => message.type === 'host_ready'),
+  ]);
+
+  // One device on host-a, with two windows of the same browser open...
+  const pairingA = await postJson(`${base}/api/pair/start`, hostAAuth);
+  const windowOne = await openWebSocket(`${wsBase}/ws/client`);
+  const pairedOne = nextMessage(windowOne, (message) => message.type === 'paired');
+  const readyOne = nextMessage(windowOne, (message) => message.type === 'ready');
+  windowOne.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingA.code, clientId: 'browser-a', cols: 80, rows: 24 }));
+  await readyOne;
+  const deviceToken = (await pairedOne).value.token;
+
+  const windowTwo = await openWebSocket(`${wsBase}/ws/client`);
+  const readyTwo = nextMessage(windowTwo, (message) => message.type === 'ready');
+  windowTwo.send(JSON.stringify({ type: 'hello', protocol: 1, token: deviceToken, clientId: 'browser-a', cols: 80, rows: 24 }));
+  await readyTwo;
+
+  // ...and a second, separate device on host-b.
+  const pairingB = await postJson(`${base}/api/pair/start`, hostBAuth);
+  const otherDevice = await openWebSocket(`${wsBase}/ws/client`);
+  const readyOther = nextMessage(otherDevice, (message) => message.type === 'ready');
+  otherDevice.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingB.code, clientId: 'browser-b', cols: 80, rows: 24 }));
+  await readyOther;
+
+  const board = await (await fetch(`${base}/api/admin/status`, { headers: admin })).json();
+  // Three sockets, two people: the second window is the same person as the first.
+  assert.equal(board.clientCount, 3);
+  assert.equal(board.activeUserCount, 2);
+
+  const hostRow = (id) => board.hosts.find((host) => host.id === id);
+  assert.equal(hostRow('host-a').connectedDeviceCount, 1);
+  assert.equal(hostRow('host-a').pairedDeviceCount, 1);
+  assert.equal(hostRow('host-b').connectedDeviceCount, 1);
+  assert.equal(hostRow('host-b').pairedDeviceCount, 1);
+
+  // The counts are public; the roster they are derived from is not.
+  const scoped = await (await fetch(`${base}/api/status`, {
+    headers: { Authorization: `Bearer ${deviceToken}` },
+  })).json();
+  assert.equal(Object.hasOwn(scoped, 'devices'), false);
+  assert.equal(Object.hasOwn(scoped.clients[0] || {}, 'deviceId'), false);
+  assert.deepEqual(scoped.hosts.map((host) => host.id), ['host-a']);
+  assert.equal(scoped.hosts[0].pairedDeviceCount, 1);
+  // Two windows of one browser stay one user even on the scoped response,
+  // where the rows themselves no longer say which device they belong to.
+  assert.equal(scoped.clients.length, 2);
+  assert.equal(scoped.activeUserCount, 1);
+
+  windowOne.close();
+  windowTwo.close();
+  otherDevice.close();
+  hostA.close();
+  hostB.close();
+});
