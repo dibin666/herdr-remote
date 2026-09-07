@@ -319,7 +319,6 @@ export interface TranslationSchema {
     acrossWindows: string;
     perSecond: string;
     framesPerSecond: string;
-    payloadBytes: string;
     unitDay: string;
     unitHour: string;
     unitMinute: string;
@@ -381,8 +380,6 @@ export interface TranslationSchema {
     colGrid: string;
     colCwd: string;
     colViewers: string;
-    rawPayloadTitle: string;
-    copyJson: string;
     copiedJson: string;
     unauthorizedTitle: string;
     unauthorizedDesc: string;
@@ -431,7 +428,6 @@ export interface TranslationSchema {
     settingsReset: string;
     fontReset: string;
     commandCopied: string;
-    rawJsonCopied: string;
     keyLayoutReset: string;
   };
   shortcuts: {

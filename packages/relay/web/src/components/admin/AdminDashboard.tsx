@@ -5,7 +5,6 @@ import { ClientsTable } from './ClientsTable';
 import { HostsTable } from './HostsTable';
 import { PtysTable } from './PtysTable';
 import { DevicesTable } from './DevicesTable';
-import { RawStatusViewer } from './RawStatusViewer';
 import { cn } from '../../utils/cn';
 import {
   AppFrame,
@@ -718,8 +717,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <HostsTable hosts={data.hosts || []} devices={data.devices} />
-
-              <RawStatusViewer data={data} />
             </div>
           )}
 

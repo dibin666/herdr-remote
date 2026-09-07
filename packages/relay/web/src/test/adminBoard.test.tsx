@@ -373,6 +373,32 @@ describe('Admin status board', () => {
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
+  it('offers no raw payload viewer, which would smuggle the process readings back in', async () => {
+    renderDashboard('en');
+
+    await waitFor(() => expect(screen.getByText('workstation-alpha')).toBeInTheDocument());
+
+    // Removing the panels is not enough on its own: the raw-payload disclosure
+    // rendered the whole response, so one click put CPU, heap, event-loop delay
+    // and the GC tallies straight back on the overview.
+    expect(screen.queryByText('Raw status payload')).toBeNull();
+    expect(document.querySelector('[aria-expanded]')).toBeNull();
+
+    // The relay still reports those fields and may keep doing so; the overview
+    // simply never renders them, expanded or not.
+    const board = document.body.textContent || '';
+    for (const field of [
+      'cpuPercent',
+      'heapUsedBytes',
+      'externalBytes',
+      'eventLoopDelay',
+      'staleClientsPurged',
+      'load15m',
+    ]) {
+      expect(board, `raw field "${field}" should not reach the overview`).not.toContain(field);
+    }
+  });
+
   it('drops the Chinese performance labels too', async () => {
     renderDashboard('zh');
 
@@ -387,6 +413,7 @@ describe('Admin status board', () => {
       'GC 清理计数',
       '进程常驻内存',
       '已清理过期客户端',
+      '原始状态载荷',
     ]) {
       expect(screen.queryByText(gone), `"${gone}" should be gone from the board`).toBeNull();
     }
