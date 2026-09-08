@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<!-- The dark shell is established by the document itself, not by a script.
+     `color-scheme` and the crust background are inline style, which the strict
+     CSP allows (`style-src` carries 'unsafe-inline'; `script-src` does not), so
+     they apply while the markup is parsed — before the module stylesheet has
+     loaded and therefore before anything could flash white. -->
+<html lang="en" class="dark" style="color-scheme: dark; background-color: #11111b">
   <head>
     <meta charset="UTF-8" />
     <!-- A square-cornered prompt on Herdr's own base colour: the favicon is the
@@ -18,16 +23,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Mobile-first remote terminal WebUI for Herdr agent multiplexer" />
-    <script>
-      // Establish the dark-only shell before the module stylesheet mounts so
-      // there is no light flash, regardless of OS or legacy stored settings.
-      (() => {
-        document.documentElement.classList.add('dark');
-        document.documentElement.classList.remove('light');
-        document.documentElement.style.colorScheme = 'dark';
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#11111b');
-      })();
-    </script>
     <title>Herdr Remote WebUI</title>
   </head>
   <body class="bg-tui-crust text-tui-text font-mono antialiased overflow-hidden select-none m-0 p-0 h-[100dvh] w-screen">

@@ -56,16 +56,33 @@ describe('Mobile Terminal Typography Base Settings and CSP Compliance', () => {
     expect(htmlContent).not.toContain('user-scalable=no');
   });
 
-  it('initializes the dark-only shell before the application module loads', () => {
+  it('initializes the dark-only shell from the markup, not from a script', () => {
     const htmlPath = path.resolve(__dirname, '../../index.html');
     const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
-    expect(htmlContent).toContain('<html lang="en" class="dark">');
+    // The shell has to be established by the document itself. An inline script
+    // would be blocked by `script-src 'self'` and silently do nothing, which is
+    // exactly how this regressed before: the test asserted the script was
+    // present, never that it was allowed to run.
+    expect(htmlContent).toMatch(/<html[^>]*class="dark"/);
+    expect(htmlContent).toMatch(/<html[^>]*color-scheme:\s*dark/);
+    expect(htmlContent).toMatch(/<html[^>]*background-color:\s*#11111b/);
     expect(htmlContent).not.toContain('herdr_remote_session_view_v1');
     expect(htmlContent).not.toContain('prefers-color-scheme');
-    expect(htmlContent).toContain("classList.add('dark'");
-    expect(htmlContent.indexOf("classList.add('dark'"))
-      .toBeLessThan(htmlContent.indexOf('<script type="module"'));
+  });
+
+  it('serves no inline script, so nothing depends on a CSP exemption', () => {
+    const htmlPath = path.resolve(__dirname, '../../index.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+
+    // `script-src 'self'` admits external sources only. Every script tag must
+    // therefore carry a `src`; an inline one is dead code that ships a console
+    // error to every visitor.
+    const scriptTags = htmlContent.match(/<script\b[^>]*>/g) ?? [];
+    expect(scriptTags.length).toBeGreaterThan(0);
+    for (const tag of scriptTags) {
+      expect(tag).toMatch(/\ssrc=/);
+    }
   });
 
   it('sizes the app shell from the visual viewport, with dvh and % underneath', () => {
