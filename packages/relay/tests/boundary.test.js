@@ -80,3 +80,13 @@ test('the published file list carries the built web UI and nothing extra', () =>
   assert.equal(manifest.files.includes('web/src'), false);
   assert.equal(manifest.exports['./protocol'], './src/stream-frame.js');
 });
+
+// Listing `web/dist` is not the same as shipping it. `web/dist` is gitignored,
+// so on a clean checkout it does not exist, and npm drops a listed path that is
+// missing rather than failing — which is how the relay was published with no
+// web UI at all. `prepack` is what makes the directory exist before npm reads
+// the file list.
+test('the tarball is built before it is packed, so web/dist is not silently dropped', () => {
+  assert.equal(manifest.scripts.prepack, 'npm run build');
+  assert.equal(manifest.scripts.build, 'npm --prefix web run build');
+});
