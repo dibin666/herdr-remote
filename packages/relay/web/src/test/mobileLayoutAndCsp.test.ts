@@ -56,6 +56,20 @@ describe('Mobile Terminal Typography Base Settings and CSP Compliance', () => {
     expect(htmlContent).not.toContain('user-scalable=no');
   });
 
+  it('provides built-in Symbols Nerd Font Mono locally without external dependencies', () => {
+    const htmlPath = path.resolve(__dirname, '../../index.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+    const cssPath = path.resolve(__dirname, '../index.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf8');
+
+    // Font preload is local only
+    expect(htmlContent).toContain('/fonts/SymbolsNerdFontMono-Regular.woff2');
+    // CSS defines @font-face with Symbols Nerd Font Mono and unicode-range
+    expect(cssContent).toContain("font-family: 'Symbols Nerd Font Mono'");
+    expect(cssContent).toContain("url('/fonts/SymbolsNerdFontMono-Regular.woff2')");
+    expect(cssContent).toContain('unicode-range:');
+  });
+
   it('initializes the dark-only shell from the markup, not from a script', () => {
     const htmlPath = path.resolve(__dirname, '../../index.html');
     const htmlContent = fs.readFileSync(htmlPath, 'utf8');

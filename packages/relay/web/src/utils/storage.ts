@@ -3,6 +3,9 @@ import { Language } from '../i18n/types';
 import { ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
 
 export const DEFAULT_TERMINAL_FONT =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace';
+
+export const OLD_SYSTEM_DEFAULT_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
 export const LEGACY_DEFAULT_FONT =
@@ -341,9 +344,9 @@ export function loadSettings(): StoredSettings {
     safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionData));
   }
 
-  // Auto-migrate legacy default font to new system monospace font stack
+  // Auto-migrate legacy default font to new system monospace font stack (with Symbols Nerd Font Mono)
   let fontFamily = sessionData.fontFamily ?? localData.fontFamily ?? defaults.fontFamily;
-  if (!fontFamily || fontFamily === LEGACY_DEFAULT_FONT) {
+  if (!fontFamily || fontFamily === LEGACY_DEFAULT_FONT || fontFamily === OLD_SYSTEM_DEFAULT_FONT) {
     fontFamily = DEFAULT_TERMINAL_FONT;
   }
 

@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
-import { hostPaletteToTheme } from '../utils/theme';
+import { hostPaletteToTheme, resolveTerminalFontFamily } from '../utils/theme';
 import { encodeStringToBytes } from '../protocol/keyEncoder';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
@@ -372,7 +372,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     // color the Herdr host emits reaches the screen unaltered.
     const term = new Terminal({
       fontSize: initialVisualFontSize,
-      fontFamily: settings.fontFamily,
+      fontFamily: resolveTerminalFontFamily(settings.fontFamily),
       lineHeight: 1.15,
       ...(hostThemeRef.current ? { theme: { ...hostThemeRef.current } } : {}),
       allowProposedApi: true,
@@ -457,6 +457,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       }
     }
 
+    // Refresh terminal once webfont is loaded so Nerd Font glyphs render immediately
+    if (typeof document !== 'undefined' && 'fonts' in document && typeof (document.fonts as any)?.load === 'function') {
+      (document.fonts as any).load('13px "Symbols Nerd Font Mono"').then(() => {
+        if (!termRef.current) return;
+        try {
+          termRef.current.refresh(0, Math.max(0, termRef.current.rows - 1));
+        } catch {
+          // ignore
+        }
+        scheduleBoundedFit(5);
+      }).catch(() => {
+        // ignore
+      });
+    }
     // Handle user keyboard & mouse reporting input from xterm
     const dataDispose = term.onData((data) => {
       const bytes = encodeStringToBytes(data);
@@ -783,7 +797,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     const box = measureElementBox(containerRef.current, getViewportWidth(), getViewportHeight());
     term.options.fontSize = getEffectiveTerminalFontSize(settings.fontSize, box.width);
-    term.options.fontFamily = settings.fontFamily;
+    term.options.fontFamily = resolveTerminalFontFamily(settings.fontFamily);
 
     try {
       term.refresh(0, Math.max(0, term.rows - 1));

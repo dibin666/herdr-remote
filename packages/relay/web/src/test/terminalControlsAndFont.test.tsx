@@ -9,7 +9,7 @@ import {
   getDefaultSettings,
   loadSettings,
 } from '../utils/storage';
-import { FONT_PRESETS } from '../utils/theme';
+import { FONT_PRESETS, resolveTerminalFontFamily } from '../utils/theme';
 
 // Helper component to control terminal context from within tests
 const TestControlHelper: React.FC<{
@@ -168,5 +168,29 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.getByText(/2 windows/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Takeover|Claim Control|Release/i })).toBeNull();
     expect(screen.queryByText(/Confirm Control Takeover/i)).toBeNull();
+  });
+
+  describe('resolveTerminalFontFamily & Symbols Nerd Font Fallback', () => {
+    it('includes Symbols Nerd Font Mono by default in the system monospace stack', () => {
+      const resolved = resolveTerminalFontFamily(undefined);
+      expect(resolved).toContain('Symbols Nerd Font Mono');
+      expect(resolved).toContain('ui-monospace');
+      expect(resolved).toContain('monospace');
+    });
+
+    it('injects Symbols Nerd Font Mono before monospace for custom user fonts', () => {
+      const resolved = resolveTerminalFontFamily('"Fira Code", monospace');
+      expect(resolved).toBe('"Fira Code", "Symbols Nerd Font Mono", monospace');
+    });
+
+    it('leaves fonts that already specify Symbols Nerd Font untouched', () => {
+      const custom = 'MyFont, "Symbols Nerd Font Mono", monospace';
+      expect(resolveTerminalFontFamily(custom)).toBe(custom);
+    });
+
+    it('handles bare monospace or fonts without monospace fallback safely', () => {
+      expect(resolveTerminalFontFamily('monospace')).toBe('"Symbols Nerd Font Mono", monospace');
+      expect(resolveTerminalFontFamily('Consolas')).toBe('Consolas, "Symbols Nerd Font Mono", monospace');
+    });
   });
 });

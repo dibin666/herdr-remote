@@ -26,36 +26,58 @@ export const FONT_PRESETS = [
   {
     id: 'system',
     name: 'System Default (Recommended)',
-    font: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    font: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace',
   },
   {
     id: 'apple',
     name: 'Apple SF Mono / Menlo',
-    font: 'SFMono-Regular, Menlo, Monaco, monospace',
+    font: 'SFMono-Regular, Menlo, Monaco, "Symbols Nerd Font Mono", monospace',
   },
   {
     id: 'windows',
     name: 'Windows Consolas',
-    font: 'Consolas, "Lucida Console", monospace',
+    font: 'Consolas, "Lucida Console", "Symbols Nerd Font Mono", monospace',
   },
   {
     id: 'linux',
     name: 'Linux Liberation Mono',
-    font: '"Liberation Mono", "DejaVu Sans Mono", monospace',
+    font: '"Liberation Mono", "DejaVu Sans Mono", "Symbols Nerd Font Mono", monospace',
   },
   {
     id: 'courier',
     name: 'Courier New',
-    font: '"Courier New", Courier, monospace',
+    font: '"Courier New", Courier, "Symbols Nerd Font Mono", monospace',
   },
   {
     id: 'firacode',
     name: 'Fira Code (Ligatures)',
-    font: '"Fira Code", monospace',
+    font: '"Fira Code", "Symbols Nerd Font Mono", monospace',
   },
 ] as const;
 
 export type FontPresetId = typeof FONT_PRESETS[number]['id'];
+
+/**
+ * Ensures the terminal font stack always includes 'Symbols Nerd Font Mono' as a fallback
+ * for remote Nerd Font / Powerline icons, even with custom font strings.
+ */
+export function resolveTerminalFontFamily(fontFamily: string | null | undefined): string {
+  if (!fontFamily || typeof fontFamily !== 'string') {
+    return FONT_PRESETS[0].font;
+  }
+  const trimmed = fontFamily.trim();
+  if (trimmed.includes('Symbols Nerd Font')) {
+    return trimmed;
+  }
+  if (/^['"]?monospace['"]?$/i.test(trimmed)) {
+    return '"Symbols Nerd Font Mono", monospace';
+  }
+  const hasMonospace = /,\s*['"]?monospace['"]?\s*$/i;
+  if (hasMonospace.test(trimmed)) {
+    return trimmed.replace(hasMonospace, ', "Symbols Nerd Font Mono", monospace');
+  }
+  return `${trimmed}, "Symbols Nerd Font Mono", monospace`;
+}
 
 /**
  * Turns the palette the host reported into xterm's theme shape.
