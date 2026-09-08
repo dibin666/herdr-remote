@@ -145,3 +145,16 @@ test('remote mode plans a host connector only', () => {
   assert.equal(specs[0].env.RELAY_PASSWORD, 'hunter2');
   assert.equal(specs[0].env.RELAY_HOST_TOKEN, state.hostToken);
 });
+
+test('the plugin manifest version matches package.json', () => {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
+  );
+  const manifest = fs.readFileSync(
+    path.join(__dirname, '..', 'herdr-plugin.toml'),
+    'utf8'
+  );
+  const match = /^version\s*=\s*"([^"]+)"/m.exec(manifest);
+  assert.ok(match, 'herdr-plugin.toml is missing a version field');
+  assert.equal(match[1], packageJson.version);
+});

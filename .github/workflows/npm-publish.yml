@@ -84,6 +84,21 @@ jobs:
         if: steps.plan.outputs.cli == 'true'
         run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
 
+      - name: Sync herdr-plugin.toml version
+        if: steps.plan.outputs.cli == 'true'
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const { version } = require("./packages/cli/package.json");
+            const file = "packages/cli/herdr-plugin.toml";
+            const toml = fs.readFileSync(file, "utf8");
+            const updated = toml.replace(/^version\s*=\s*"[^"]*"/m, `version = "${version}"`);
+            if (updated === toml && !toml.includes(`version = "${version}"`)) {
+              throw new Error(`Failed to update version in ${file}`);
+            }
+            fs.writeFileSync(file, updated);
+          '
+
       # Everything here is skipped when neither package changed, so a docs or
       # workflow commit costs one cheap run instead of a release.
       - name: Install dependencies
