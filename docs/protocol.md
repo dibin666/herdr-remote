@@ -50,10 +50,11 @@ and `resize` messages back to the host.
 
 A host advertising `host_handoff` may temporarily disconnect without dropping
 already-authorized browser sockets. The relay sends `host_reconnecting`, keeps
-them for the configured grace period, and starts a fresh shared session after
-the host authenticates again. `session_restarted` tells browsers to clear the
-old terminal buffer before rendering the new PTY. Clients without the capability
-fall back to the original close-and-reconnect behavior.
+them for the configured grace period, and — once the host authenticates again —
+starts a fresh session for each window it held, one `session_start` per window.
+`session_restarted` tells each browser to clear the old terminal buffer before
+rendering its new PTY. Clients without the capability fall back to the original
+close-and-reconnect behavior.
 
 ### Terminal colors
 
@@ -108,32 +109,37 @@ any attached window, or raw ANSI output from the host. The relay adds a small
 internal routing header only on the host-side binary hop and removes it before
 forwarding bytes to the browser.
 
-### One terminal, many windows
+### One terminal per window
 
-Every window paired to a workstation is a view of the *same* PTY:
+Every window paired to a workstation gets a PTY of its own:
 
-- the first window to attach starts the session; the relay allocates one
-  `streamId` for the workstation and sends a single `session_start`;
-- output from the host is broadcast to every attached window, and the relay
-  keeps the last 512 KB of that stream so a window joining later is replayed
-  what has already been printed rather than facing a blank screen. This is a
-  catch-up, not a screen snapshot: the relay does not emulate a terminal, so a
-  window that joins mid-session sees a correct screen only once the program has
-  redrawn itself. The geometry change that follows the join is what usually
-  prompts that redraw, and a full-screen program that ignores `SIGWINCH` may
-  need a repaint (`^L`) before the two windows agree exactly;
-- input from any window is written to that one PTY — there is no control lease
-  and no read-only role. Pairing is the permission boundary; past it, every
-  window may type;
-- the shared grid is the *smallest* attached window, as it is in tmux: a column
-  a phone cannot show is a column the program must not paint, or every other
-  window sees wrapped output. A window joining or leaving re-computes it, and
-  the result is announced to the workstation *and* to every window as
-  `shared_resize`. A browser renders that grid rather than its own width, and
-  keeps reporting its own width in `resize` — which is the number the minimum
-  is computed from;
-- the PTY is stopped only when the last window has gone, so closing one tab
-  never kills the session another tab is still watching.
+- each window that attaches starts its own session; the relay allocates a
+  `streamId` per window and sends one `session_start` carrying that window's own
+  geometry, floored at 20×6 so a program always has something to draw in;
+- output is *routed*, not broadcast. The relay keeps a `streamId` → window map
+  and hands each host frame to the single window that owns it. Nothing is
+  replayed to a window joining later, because a late window is not joining
+  anything: it starts a fresh Herdr client, which paints its own first frame;
+- input from a window is stamped with that window's `streamId`. There is no
+  control lease and no read-only role — pairing is the permission boundary, and
+  past it every window types into its own terminal;
+- geometry is per window. A `resize` is forwarded straight through to that
+  window's stream, so a phone reporting 40 columns no longer shrinks the laptop
+  looking at the same workstation;
+- closing a window stops only its own PTY. The other windows are untouched.
+
+This is what Herdr 0.9.0 made possible. Before it, a Herdr server broadcast one
+view — one focused workspace, tab and pane — to every attached client, so two
+PTYs would only have produced two identical mirrors at two different sizes;
+collapsing them into one shared stream was the honest thing to do. Herdr 0.9.0
+moved the terminal UI into each client, and a client now carries its own focused
+tab and its own tab geometry. One PTY per window is what turns that into two
+windows that can genuinely look at different work.
+
+One caveat inherited from Herdr: when two windows sit on the *same* tab, that
+tab is sized by whichever client interacted with it last. Independent sizing
+follows from looking at different tabs, and no relay-side behavior can change
+that.
 
 `claim_control` and `release_control` remain answered — with a grant and a
 `control_state` respectively — so clients built against protocol 1 keep working,

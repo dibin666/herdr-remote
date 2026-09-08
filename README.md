@@ -16,6 +16,9 @@ herdr-remote
 
 Running `herdr-remote` launches the setup wizard and starts background services.
 
+Requires Herdr 0.9.0 or newer: each browser window drives its own Herdr client,
+which is only independent from the workstation's own terminal from 0.9.0 on.
+
 <img width="1237" height="665" alt="image" src="https://github.com/user-attachments/assets/cb57f108-d313-44b5-ac64-91a7ac95290a" />
 
 ## Packages
@@ -127,7 +130,7 @@ Authentication tokens and secrets are stored in `~/.local/state/herdr-remote/run
 - Device tokens are bound to one workstation. `/api/status` is workstation-scoped, ordinary users cannot enumerate other Herdr instances, and relay-wide status requires the operator token.
 - Relay brokers WebSocket streams without running shells or accessing local sockets directly.
 - Authentication tokens are hashed with SHA-256; terminal content is never written to disk.
-- Every paired window shares one terminal with full input; pairing, not a control lease, is the permission boundary.
+- Every paired window drives its own terminal with full input; pairing, not a control lease, is the permission boundary.
 - Pairing codes are single-use, rate-limited, and expire in 10 minutes.
 
 ## Development

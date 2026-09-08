@@ -16,6 +16,8 @@ herdr-remote
 
 运行 `herdr-remote` 启动配置向导并运行后台服务。
 
+需要 Herdr 0.9.0 或更高版本：每个浏览器窗口驱动各自的 Herdr 客户端，而客户端视图从 0.9.0 起才与工作站本机终端相互独立。
+
 <img width="1237" height="665" alt="image" src="https://github.com/user-attachments/assets/cb57f108-d313-44b5-ac64-91a7ac95290a" />
 
 ## 包含的包
@@ -127,7 +129,7 @@ herdr-remote plugin link
 - Relay 仅转发 WebSocket 数据流，不执行 Shell，不直接访问宿主机套接字。
 - 设备令牌只绑定一个工作站；`/api/status` 按工作站隔离，普通用户不能枚举或查看其他 Herdr 实例，relay 全局状态仅对管理员令牌开放。
 - 认证令牌保存为 SHA-256 哈希；终端输出内容永不落盘。
-- 所有已配对窗口共享同一个终端，均可输入；权限边界是配对本身，而非控制权租约。
+- 每个已配对窗口各自拥有一个终端，均可输入；权限边界是配对本身，而非控制权租约。
 - 一次性配对码设有限频与 10 分钟过期机制。
 
 ## 开发
