@@ -16,6 +16,7 @@ const {
   resolveHostRelayUrl,
   resolvePublicUrl,
   runsLocalRelay,
+  validate,
 } = require('../src/config');
 
 function withEnvironment(overrides, run) {
@@ -190,4 +191,21 @@ test('invalid values fall back to the defaults instead of throwing', () => {
     assert.equal(config.relay.port, 8787);
     assert.equal(config.ui.language, 'auto');
   });
+});
+
+test('a removed --no-session argument is stripped from herdr args while preserving others', () => {
+  withConfig({ herdr: { args: ['--foo', '--no-session', '--bar'] } }, () => {
+    const config = loadConfig();
+    assert.deepEqual(config.herdr.args, ['--foo', '--bar']);
+  });
+
+  const parsed = validate({
+    relay: { mode: 'local' },
+    ui: { language: 'auto' },
+    keepalive: { manager: 'auto' },
+    cleanup: {},
+    auth: {},
+    herdr: { args: ['--first', '--no-session', '--second'] },
+  });
+  assert.deepEqual(parsed.herdr.args, ['--first', '--second']);
 });

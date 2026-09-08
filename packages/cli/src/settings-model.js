@@ -204,7 +204,11 @@ function setField(draft, id, rawValue) {
       break;
     }
     case 'herdrArgs': {
-      next.herdr.args = value ? value.split(/\s+/).filter(Boolean) : [];
+      const args = value ? value.split(/\s+/).filter(Boolean) : [];
+      if (args.includes('--no-session')) {
+        return { draft, errorKey: 'error.removedHerdrArg' };
+      }
+      next.herdr.args = args;
       break;
     }
     case 'language': {

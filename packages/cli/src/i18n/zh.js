@@ -205,6 +205,7 @@ module.exports = {
   'error.invalidKeepalive': '未知的保活管理方式。',
   'error.unknownField': '未知的设置项。',
   'error.remoteUrlRequired': '自建 Relay 模式须填写 Relay 地址。',
+  'error.removedHerdrArg': 'Herdr 0.9.0 已移除 --no-session，请从附加参数中移除。',
   'error.saveFailed': '保存配置失败：{message}',
 
   'hint.navigate': '↑↓ 移动',

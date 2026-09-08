@@ -206,6 +206,7 @@ module.exports = {
   'error.invalidKeepalive': 'Unknown keep-alive manager.',
   'error.unknownField': 'Unknown setting.',
   'error.remoteUrlRequired': 'Relay URL is required for self-hosted relay mode.',
+  'error.removedHerdrArg': 'Herdr 0.9.0 removed --no-session; remove it from the extra arguments.',
   'error.saveFailed': 'Could not save configuration: {message}',
 
   'hint.navigate': '↑↓ move',

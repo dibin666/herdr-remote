@@ -273,6 +273,12 @@ function validate(config) {
   if (!Array.isArray(config.herdr.args) || !config.herdr.args.every((arg) => typeof arg === 'string')) {
     config.herdr.args = [];
   }
+  // Herdr 0.9.0 removed --no-session; retaining it in saved configs causes
+  // session creation to fail. Filter it out if present.
+  if (config.herdr.args.includes('--no-session')) {
+    config.herdr.args = config.herdr.args.filter((arg) => arg !== '--no-session');
+    process.stderr.write('herdr-remote: ignoring removed --no-session argument (removed in Herdr 0.9.0)\n');
+  }
   if (typeof config.herdr.socketPath !== 'string' || config.herdr.socketPath.length === 0) {
     config.herdr.socketPath = null;
   }

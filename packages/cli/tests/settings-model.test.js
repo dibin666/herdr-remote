@@ -161,3 +161,18 @@ test('fields are limited to the modes where they apply', () => {
 
   assert.ok(fieldsForMode('lan').map((field) => field.id).includes('lanHost'));
 });
+
+test('setting herdrArgs with --no-session is rejected and leaves the draft untouched', () => {
+  const draft = baseDraft();
+  const result = setField(draft, 'herdrArgs', '--no-session');
+  assert.equal(result.errorKey, 'error.removedHerdrArg');
+  assert.equal(result.draft, draft);
+});
+
+test('valid herdr arguments are accepted and written to the draft', () => {
+  const draft = baseDraft();
+  const result = setField(draft, 'herdrArgs', '--foo --bar');
+  assert.equal(result.errorKey, null);
+  assert.deepEqual(result.draft.herdr.args, ['--foo', '--bar']);
+  assert.equal(getField(result.draft, 'herdrArgs'), '--foo --bar');
+});
