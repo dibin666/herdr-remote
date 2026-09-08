@@ -17,19 +17,9 @@ const VERSION = require('../package.json').version;
 const { PROTOCOL_VERSION } = require('./stream-frame');
 const MAX_DIMENSION = 500;
 
-/**
- * How much recent PTY output the relay keeps per shared session.
- *
- * A browser that joins a session already in progress has missed everything
- * printed before it arrived. Replaying the tail of the stream is what makes
- * "every window shows the same thing" true on the *first* frame rather than
- * only after the next repaint.
- */
-const SESSION_REPLAY_BYTES = 512 * 1024;
-
-/** Never shrink a shared grid below something a program can still draw in. */
-const MIN_SHARED_COLS = 20;
-const MIN_SHARED_ROWS = 6;
+/** Never shrink an individual session grid below something a program can still draw in. */
+const MIN_SESSION_COLS = 20;
+const MIN_SESSION_ROWS = 6;
 
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
@@ -97,6 +87,7 @@ class RelayServer {
     this.relayMode = config.relay?.mode === 'local' ? 'local' : 'remote';
     this.hosts = new Map();
     this.clients = new Map();
+    this.streams = new Map();
     this.pairAttempts = new Map();
     this.clientHandshakeAttempts = new Map();
     this.hostHandshakeAttempts = new Map();
@@ -160,6 +151,7 @@ class RelayServer {
     this.cleanupTimer = null;
     for (const client of [...this.clients.values()]) this.detachClient(client, { notify: false });
     for (const host of [...this.hosts.values()]) this.detachHost(host, { notify: false });
+    this.streams.clear();
     this.pairAttempts.clear();
     this.clientHandshakeAttempts.clear();
     this.hostHandshakeAttempts.clear();
@@ -516,10 +508,6 @@ class RelayServer {
       arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
       connectedAt: new Date(pending.connectedAt).toISOString(),
       connectedAtMs: pending.connectedAt,
-      // One shared terminal per workstation. Every browser attached to this
-      // host reads and writes the same PTY, so what one of them shows is what
-      // all of them show.
-      session: null,
       terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
       lastSeenAt: Date.now(),
       clients,
@@ -555,7 +543,13 @@ class RelayServer {
     host.lastSeenAt = Date.now();
     host.load = {};
     host.ptys = [];
-    host.session = null;
+    for (const clientId of host.clients) {
+      const client = this.clients.get(clientId);
+      if (client?.session) {
+        this.streams.delete(client.session.streamId);
+        client.session = null;
+      }
+    }
     this.broadcastToClients(host, () => ({ type: 'host_reconnecting', code: reason }));
     host.reconnectTimer = setTimeout(() => {
       host.reconnectTimer = null;
@@ -598,10 +592,20 @@ class RelayServer {
           if (oldHost.reconnectTimer) clearTimeout(oldHost.reconnectTimer);
           oldHost.reconnectTimer = null;
           if (handoff) {
-            if (oldHost.session && isOpen(oldHost.ws)) {
-              jsonSend(oldHost.ws, { type: 'session_stop', clientId: oldHost.session.streamId, streamId: oldHost.session.streamId });
+            for (const clientId of oldHost.clients) {
+              const client = this.clients.get(clientId);
+              if (client?.session) {
+                if (isOpen(oldHost.ws)) {
+                  jsonSend(oldHost.ws, {
+                    type: 'session_stop',
+                    clientId: client.session.streamId,
+                    streamId: client.session.streamId,
+                  });
+                }
+                this.streams.delete(client.session.streamId);
+                client.session = null;
+              }
             }
-            oldHost.session = null;
             oldHost.load = {};
             oldHost.ptys = [];
             this.broadcastToClients(oldHost, () => ({ type: 'host_reconnecting', code: 'host_replaced' }));
@@ -624,7 +628,12 @@ class RelayServer {
           clientCount: host.clients.size,
         });
         this.notifyHostClientCount(host);
-        if (handoff) this.startSession(host, { restarted: true });
+        if (handoff) {
+          for (const clientId of host.clients) {
+            const client = this.clients.get(clientId);
+            if (client) this.startSession(host, client, { restarted: true });
+          }
+        }
         return;
       }
       this.handleHostMessage(pending.host, raw, isBinary);
@@ -660,16 +669,13 @@ class RelayServer {
         closeSocket(host.ws, 1003, error.message);
         return;
       }
-      // Output belongs to the workstation's one shared session, so it goes to
-      // every browser attached to it rather than to a single stream owner.
-      const session = host.session;
-      if (frame.type !== 'output' || !session || session.streamId !== frame.streamId) return;
-      this.rememberOutput(session, frame.payload);
-      for (const clientId of [...host.clients]) {
-        const client = this.clients.get(clientId);
-        if (!client || !isOpen(client.ws)) continue;
-        this.sendClientBinary(host, client, frame.payload);
-      }
+      // Output is routed to the single client owning the stream rather than broadcast.
+      if (frame.type !== 'output') return;
+      const clientId = this.streams.get(frame.streamId);
+      if (!clientId) return;
+      const client = this.clients.get(clientId);
+      if (!client || !isOpen(client.ws)) return;
+      this.sendClientBinary(host, client, frame.payload);
       return;
     }
     const message = parseJson(raw.toString());
@@ -684,28 +690,29 @@ class RelayServer {
       if (this.hosts.get(host.id) === host) this.detachHost(host, { notify: true, reason: 'host_shutdown' });
       return;
     }
-    // Session-level news concerns the whole room: the host talks about the one
-    // shared stream, and every attached browser has to hear it.
-    const session = host.session;
+    // Session events target the single client that owns this stream.
     const streamId = typeof message.clientId === 'string' ? message.clientId : message.streamId;
-    if (!session || (streamId && streamId !== session.streamId)) return;
+    const clientId = streamId ? this.streams.get(streamId) : null;
+    const client = clientId ? this.clients.get(clientId) : null;
+    if (!client) return;
+
     if (message.type === 'session_ready') {
-      session.ready = true;
-      this.broadcastToClients(host, (client) => ({ type: 'session_ready', clientId: client.id }));
+      if (client.session) client.session.ready = true;
+      jsonSend(client.ws, { type: 'session_ready', clientId: client.id });
     } else if (message.type === 'session_exit') {
       const code = Number.isInteger(message.code) ? message.code : null;
-      host.session = null;
-      this.broadcastToClients(host, () => ({ type: 'exit', code }));
-      for (const clientId of [...host.clients]) {
-        const client = this.clients.get(clientId);
-        if (client) this.detachClient(client, { notify: false });
+      jsonSend(client.ws, { type: 'exit', code });
+      if (client.session) {
+        this.streams.delete(client.session.streamId);
+        client.session = null;
       }
+      this.detachClient(client, { notify: false });
     } else if (message.type === 'error') {
-      this.broadcastToClients(host, () => ({
+      jsonSend(client.ws, {
         type: 'error',
         code: message.code || 'host_error',
         message: String(message.message || 'Host connector error'),
-      }));
+      });
     }
   }
 
@@ -749,147 +756,35 @@ class RelayServer {
     }
   }
 
-  /** Keep the tail of the shared stream so a late joiner can be caught up. */
-  rememberOutput(session, payload) {
-    session.replay.push(Buffer.from(payload));
-    session.replayBytes += payload.length;
-    while (session.replayBytes > SESSION_REPLAY_BYTES && session.replay.length > 1) {
-      session.replayBytes -= session.replay.shift().length;
-    }
-  }
-
-  /**
-   * The grid the shared PTY runs at.
-   *
-   * The smallest attached window wins, exactly as it does in tmux: a column a
-   * phone cannot show is a column the program must not paint, or every other
-   * window sees wrapped rubbish. Nothing else keeps a shared terminal legible
-   * on two different screens at once.
-   */
-  sharedDimensions(host) {
-    let cols = MAX_DIMENSION;
-    let rows = MAX_DIMENSION;
-    let found = false;
-    for (const clientId of host.clients) {
-      const client = this.clients.get(clientId);
-      if (!client) continue;
-      found = true;
-      cols = Math.min(cols, client.cols);
-      rows = Math.min(rows, client.rows);
-    }
-    if (!found) return null;
-    return {
-      cols: Math.max(MIN_SHARED_COLS, cols),
-      rows: Math.max(MIN_SHARED_ROWS, rows),
-    };
-  }
-
-  /** Start the one shared PTY for a host's currently attached clients. */
-  startSession(host, { restarted = false } = {}) {
-    const firstClientId = [...host.clients][0];
-    const firstClient = firstClientId ? this.clients.get(firstClientId) : null;
-    if (!firstClient || !isOpen(host.ws)) return;
-    host.session = {
-      streamId: randomId('session'),
-      cols: firstClient.cols,
-      rows: firstClient.rows,
+  /** Start a dedicated PTY session for one attached client. */
+  startSession(host, client, { restarted = false } = {}) {
+    if (!client || !isOpen(host.ws)) return;
+    const streamId = randomId('session');
+    client.session = {
+      streamId,
+      cols: client.cols,
+      rows: client.rows,
       ready: false,
-      replay: [],
-      replayBytes: 0,
     };
-    const dims = this.sharedDimensions(host) || { cols: firstClient.cols, rows: firstClient.rows };
-    host.session.cols = dims.cols;
-    host.session.rows = dims.rows;
+    this.streams.set(streamId, client.id);
     jsonSend(host.ws, {
       type: 'session_start',
-      clientId: host.session.streamId,
-      streamId: host.session.streamId,
-      cols: dims.cols,
-      rows: dims.rows,
+      clientId: streamId,
+      streamId,
+      cols: Math.max(MIN_SESSION_COLS, client.cols),
+      rows: Math.max(MIN_SESSION_ROWS, client.rows),
       role: 'controller',
     });
-    this.broadcastToClients(host, () => ({ type: 'shared_resize', cols: dims.cols, rows: dims.rows }));
     if (restarted) {
-      this.broadcastToClients(host, () => ({
+      jsonSend(client.ws, {
         type: 'session_restarted',
-        streamId: host.session.streamId,
-        cols: dims.cols,
-        rows: dims.rows,
+        streamId,
+        cols: client.cols,
+        rows: client.rows,
         hostname: host.hostname,
         terminalPalette: host.terminalPalette || null,
-      }));
-    }
-  }
-
-  /**
-   * Attach `client` to the workstation's shared terminal, starting it if this
-   * is the first browser through the door.
-   *
-   * A later arrival does not get its own PTY: it is handed the stream already
-   * running, the output that has been printed so far, and — once the geometry
-   * has settled — a repaint, so it lands on the same screen everyone else is
-   * looking at.
-   */
-  attachSession(host, client) {
-    if (!host.session) {
-      this.startSession(host);
-      return;
-    }
-
-    const session = host.session;
-    if (session.ready) jsonSend(client.ws, { type: 'session_ready', clientId: client.id });
-    for (const chunk of session.replay) {
-      if (!isOpen(client.ws)) break;
-      this.sendClientBinary(host, client, chunk);
-    }
-    // Geometry may now be smaller than it was; the resize doubles as the
-    // repaint that puts the newcomer on the same screen as everyone else.
-    this.syncDimensions(host, { force: true });
-  }
-
-  /**
-   * Push the shared grid to the workstation.
-   *
-   * `force` asks for a repaint even when the numbers did not move: a browser
-   * that just joined needs the program to draw itself again, and a resize is
-   * the only signal a PTY has for "paint everything".
-   */
-  syncDimensions(host, { force = false } = {}) {
-    const session = host.session;
-    if (!session) return;
-    const dims = this.sharedDimensions(host);
-    if (!dims) return;
-    const changed = dims.cols !== session.cols || dims.rows !== session.rows;
-    session.cols = dims.cols;
-    session.rows = dims.rows;
-    if (!changed && !force) return;
-    // Every window has to be told what the shared grid became, not just the
-    // workstation. A browser that keeps rendering at its own width would wrap
-    // a stream written for a narrower terminal, which is the one thing a
-    // shared session must not do: the same bytes have to look the same in
-    // every window.
-    this.broadcastToClients(host, () => ({
-      type: 'shared_resize',
-      cols: dims.cols,
-      rows: dims.rows,
-    }));
-    if (!changed && force) {
-      // A no-op resize is ignored by the PTY, so bounce one row and come back.
-      jsonSend(host.ws, {
-        type: 'resize',
-        clientId: session.streamId,
-        streamId: session.streamId,
-        cols: dims.cols,
-        rows: Math.max(MIN_SHARED_ROWS, dims.rows - 1),
       });
     }
-    jsonSend(host.ws, {
-      type: 'resize',
-      clientId: session.streamId,
-      streamId: session.streamId,
-      cols: dims.cols,
-      rows: dims.rows,
-    });
   }
 
   handleClientConnection(ws, req) {
@@ -915,12 +810,9 @@ class RelayServer {
         const host = this.hosts.get(device.hostId);
         if (!host || host.reconnecting || !isOpen(host.ws)) return this.rejectHandshake(ws, 'paired Herdr host is offline', host?.reconnecting ? 'host_reconnecting' : 'host_offline');
 
-        // Two tabs of one browser are two windows onto the same terminal, not
-        // rivals. Nothing is retired here: the relay used to close whichever
-        // session shared this browser's client id, which made two open tabs
-        // evict each other in a loop that never converged — each eviction
-        // triggered the other tab's auto-reconnect, which evicted this one
-        // back, forever.
+        // Two tabs of one browser are separate windows with their own PTY sessions,
+        // not rivals. Nothing is retired here: each connection gets its own stream
+        // without evicting existing clients.
         if (host.clients.size >= this.config.relay.maxClientsPerHost) return this.rejectHandshake(ws, 'host client limit reached', 'too_many_clients');
         clearTimeout(deadline);
         this.finishHandshake(ws);
@@ -934,9 +826,10 @@ class RelayServer {
           // same browser rather than a genuinely separate viewer.
           browserClientId: typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
           handoffCapable: Array.isArray(message.capabilities) && message.capabilities.includes('host_handoff'),
-          // Every paired window may type. Pairing is the permission boundary;
-          // once a device is through it, holding a second window read-only
-          // serves nobody — they are all views of one shared terminal.
+          session: null,
+          // Every paired window gets its own interactive PTY session. Pairing
+          // is the permission boundary; once a device is through it, every
+          // window can type into its own terminal.
           role: 'controller',
           controllerId: null,
           connectedAt: new Date().toISOString(),
@@ -985,7 +878,7 @@ class RelayServer {
           terminalPalette: host.terminalPalette || null,
           clientCount: host.clients.size,
         });
-        this.attachSession(host, client);
+        this.startSession(host, client);
         this.broadcastControlState(host);
         return;
       }
@@ -1004,11 +897,10 @@ class RelayServer {
     if (!host) return this.detachClient(client, { notify: true, reason: 'host_offline' });
     if (isBinary) {
       if (raw.length > this.config.relay.maxPayloadBytes) return;
-      const session = host.session;
-      if (!session) return;
-      // Every window writes into the one shared terminal, so input is stamped
-      // with the session's stream id rather than the sender's.
-      const frame = packStreamFrame('input', session.streamId, raw);
+      if (!client.session) return;
+      // Each window owns its own PTY session, so input is stamped with the
+      // client's dedicated stream id.
+      const frame = packStreamFrame('input', client.session.streamId, raw);
       if (isOpen(host.ws)) {
         try {
           host.ws.send(frame);
@@ -1029,11 +921,23 @@ class RelayServer {
       client.lastPingAt = new Date().toISOString();
       jsonSend(client.ws, { type: 'pong' });
     } else if (message.type === 'resize') {
-      // The shared grid is the smallest attached window, so one client's resize
-      // is recomputed across the room rather than applied on its own.
+      // Each client owns its own PTY session, so resizing directly forwards
+      // the new geometry for this client's stream to the host.
       client.cols = clampDimension(message.cols, client.cols);
       client.rows = clampDimension(message.rows, client.rows);
-      this.syncDimensions(host);
+      if (client.session) {
+        client.session.cols = client.cols;
+        client.session.rows = client.rows;
+        if (isOpen(host.ws)) {
+          jsonSend(host.ws, {
+            type: 'resize',
+            clientId: client.session.streamId,
+            streamId: client.session.streamId,
+            cols: Math.max(MIN_SESSION_COLS, client.cols),
+            rows: Math.max(MIN_SESSION_ROWS, client.rows),
+          });
+        }
+      }
     } else if (message.type === 'claim_control') {
       // Control is no longer a lease. Answering the old request keeps clients
       // built against the previous protocol working.
@@ -1089,26 +993,22 @@ class RelayServer {
     if (!client || !this.clients.has(client.id)) return;
     this.clients.delete(client.id);
     const host = this.hosts.get(client.hostId);
+    // Each window has its own PTY session. Tearing down the client immediately
+    // stops its backing session on the host and cleans up its stream mapping.
+    if (client.session) {
+      const streamId = client.session.streamId;
+      this.streams.delete(streamId);
+      if (host && isOpen(host.ws)) {
+        jsonSend(host.ws, { type: 'session_stop', clientId: streamId, streamId });
+      }
+      client.session = null;
+    }
     if (host) {
       host.clients.delete(client.id);
-      // The shared terminal outlives any one window: it is torn down only when
-      // the last of them has gone, so closing a tab never kills the session the
-      // other tabs are still watching.
+      this.notifyHostClientCount(host);
+      this.broadcastControlState(host);
       if (host.clients.size === 0) {
-        if (host.session) {
-          if (isOpen(host.ws)) {
-            jsonSend(host.ws, { type: 'session_stop', clientId: host.session.streamId, streamId: host.session.streamId });
-          }
-          host.session = null;
-        }
         host.controllerId = null;
-      } else {
-        this.notifyHostClientCount(host);
-        this.syncDimensions(host);
-        this.broadcastControlState(host);
-      }
-      if (host.clients.size === 0) {
-        this.notifyHostClientCount(host);
         if (host.reconnecting) this.detachHost(host, { notify: false, reason: 'no_clients' });
       }
     }
@@ -1126,6 +1026,10 @@ class RelayServer {
       const client = this.clients.get(clientId);
       if (!client) continue;
       this.clients.delete(client.id);
+      if (client.session) {
+        this.streams.delete(client.session.streamId);
+        client.session = null;
+      }
       if (notify) jsonSend(client.ws, { type: 'error', code: reason, message: 'Herdr host disconnected' });
       closeSocket(client.ws, 1012, reason);
     }

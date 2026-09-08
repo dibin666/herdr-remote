@@ -41,8 +41,6 @@ export type AdapterEventMap = {
   status: (payload: Record<string, unknown>) => void;
   /** How many windows currently share this terminal, this one included. */
   peerCount: (count: number) => void;
-  /** The grid the shared terminal now runs at. */
-  sharedResize: (cols: number, rows: number) => void;
   /** The authenticated host socket is temporarily reconnecting. */
   hostReconnecting: (code?: string) => void;
   /** A new PTY was created after a host handoff or profile switch. */
@@ -84,7 +82,6 @@ export class HerdrClientAdapter {
     controlDenied: new Set(),
     status: new Set(),
     peerCount: new Set(),
-    sharedResize: new Set(),
     hostReconnecting: new Set(),
     sessionRestarted: new Set(),
     error: new Set(),
@@ -346,18 +343,6 @@ export class HerdrClientAdapter {
       case 'session_restarted': {
         this.setState('reconnecting', 'Herdr session is restarting', 'session_restarted');
         this.emit('sessionRestarted', msg.cols, msg.rows, msg.terminalPalette, msg.hostname);
-        break;
-      }
-
-      case 'shared_resize': {
-        // Deliberately not stored as this adapter's own geometry: `terminalCols`
-        // is what this window can *show*, and that is what the relay needs on
-        // the next hello to compute the shared minimum. Adopting the shared
-        // grid here would ratchet every window down to the smallest one that
-        // was ever attached.
-        if (Number.isFinite(msg.cols) && Number.isFinite(msg.rows)) {
-          this.emit('sharedResize', msg.cols, msg.rows);
-        }
         break;
       }
 

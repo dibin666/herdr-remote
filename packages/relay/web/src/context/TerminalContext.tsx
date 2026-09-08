@@ -64,21 +64,8 @@ interface TerminalContextValue {
   activeProfileId: string;
   activeProfile?: ConnectionProfile;
   isController: boolean;
-  /**
-   * How many windows share this terminal, this one included.
-   *
-   * Every paired window is a view of one shared session with full input, so the
-   * only thing left to report is how many of them are watching.
-   */
+  /** How many windows currently connect to this host, this one included. */
   sharedWindowCount: number;
-  /**
-   * The grid the shared terminal runs at, or null before the relay has said.
-   *
-   * This is what the renderer must paint; `terminalDimensions` stays what this
-   * window could show, which is what the relay is told so it can pick the
-   * smallest.
-   */
-  sharedGrid: { cols: number; rows: number } | null;
   /** Incremented when a profile/session needs the xterm buffer reset. */
   terminalResetVersion: number;
   rttMs: number | null;
@@ -165,7 +152,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [sharedWindowCount, setSharedWindowCount] = useState(1);
-  const [sharedGrid, setSharedGrid] = useState<{ cols: number; rows: number } | null>(null);
   const [terminalResetVersion, setTerminalResetVersion] = useState(0);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
@@ -283,7 +269,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     setAssignedClientId(undefined);
     setRttMs(null);
     setSharedWindowCount(1);
-    setSharedGrid(null);
     setStatusPayload(null);
     clearPendingOutput();
     if (resetTerminal) setTerminalResetVersion((value) => value + 1);
@@ -589,17 +574,15 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setHostPalette(null);
       setRttMs(null);
       setSharedWindowCount(1);
-      setSharedGrid(null);
       setStatusPayload(null);
       clearPendingOutput();
     });
 
-    newAdapter.on('sessionRestarted', (cols, rows, palette, nextHostname) => {
+    newAdapter.on('sessionRestarted', (_cols, _rows, palette, nextHostname) => {
       clearPendingOutput();
       setHostname(nextHostname);
       noteReadyProfile({ hostId: newAdapter.getHostId(), hostname: nextHostname });
       setHostPalette(palette || null);
-      setSharedGrid(Number.isFinite(cols) && Number.isFinite(rows) ? { cols: cols as number, rows: rows as number } : null);
       setTerminalResetVersion((value) => value + 1);
     });
 
@@ -665,10 +648,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     newAdapter.on('peerCount', (count) => {
       setSharedWindowCount(Math.max(1, count));
-    });
-
-    newAdapter.on('sharedResize', (cols, rows) => {
-      setSharedGrid({ cols, rows });
     });
 
     newAdapter.on('sessionReady', () => {
@@ -771,7 +750,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         activeProfile,
         isController: role === 'controller',
         sharedWindowCount,
-        sharedGrid,
         terminalResetVersion,
         rttMs,
         statusPayload,

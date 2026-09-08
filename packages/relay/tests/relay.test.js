@@ -337,12 +337,11 @@ test('workstation status remains scoped away from the operator token', async (t)
   assert.equal(response.status, 401);
 });
 
-// Every window paired to a workstation is a view of the *same* terminal: one
-// PTY, one screen, and no lease to pass around. A second window that opened its
-// own shell would show a different screen from the first, which is exactly what
-// somebody watching the same agent from a phone and a laptop does not want.
-test('every paired window shares one terminal and all of them may type', async (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-shared-'));
+// Every window paired to a workstation gets its own terminal: a dedicated
+// PTY stream and its own geometry, without being constrained by other windows.
+test('every paired window gets its own terminal and all of them may type', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-dedicated-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
@@ -358,59 +357,58 @@ test('every paired window shares one terminal and all of them may type', async (
   const firstSession = nextMessage(host, (message) => message.type === 'session_start');
   first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing1.code, clientId: 'first', cols: 80, rows: 24 }));
   const firstReadyValue = (await firstReady).value;
-  const streamId = (await firstSession).value.streamId;
+  const firstStreamId = (await firstSession).value.streamId;
   const tokenMessage = (await firstPair).value;
 
   const second = await openWebSocket(`${wsBase}/ws/client`);
   const secondReady = nextMessage(second, (message) => message.type === 'ready');
+  const secondSession = nextMessage(host, (message) => message.type === 'session_start');
   second.send(JSON.stringify({ type: 'hello', protocol: 1, token: tokenMessage.token, clientId: 'second', cols: 80, rows: 24 }));
   const secondReadyValue = (await secondReady).value;
+  const secondStreamId = (await secondSession).value.streamId;
 
-  // No second shell is started, and nobody is demoted.
   assert.equal(firstReadyValue.role, 'controller');
   assert.equal(secondReadyValue.role, 'controller');
-  assert.equal(relay.hosts.get('host-1').session.streamId, streamId);
-  assert.equal([...relay.clients.values()].every((client) => client.role === 'controller'), true);
+  assert.notEqual(firstStreamId, secondStreamId);
 
-  // One byte from the workstation lands on every screen.
-  const output = Buffer.from('shared\r\n', 'utf8');
+  // Output written to stream A reaches only window A, never window B.
+  const outputA = Buffer.from('output-for-first\r\n', 'utf8');
+  let secondReceivedOutput = false;
+  const onSecondMessage = (data, isBinary) => {
+    if (isBinary && Buffer.compare(data, outputA) === 0) secondReceivedOutput = true;
+  };
+  second.on('message', onSecondMessage);
+
   const onFirst = nextMessage(first, (_message, isBinary) => isBinary);
-  const onSecond = nextMessage(second, (_message, isBinary) => isBinary);
-  host.send(packStreamFrame('output', streamId, output));
-  assert.deepEqual((await onFirst).value, output);
-  assert.deepEqual((await onSecond).value, output);
+  host.send(packStreamFrame('output', firstStreamId, outputA));
+  assert.deepEqual((await onFirst).value, outputA);
 
-  // And both windows type into it, on the one stream.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  second.off('message', onSecondMessage);
+  assert.equal(secondReceivedOutput, false, 'second window must not receive output meant for first window');
+
+  // Both windows type into their own terminals, stamped with their own stream ids.
   const nextInputFrame = () =>
     nextMessage(host, (message, isBinary) => isBinary && unpackStreamFrame(message).type === 'input');
-  for (const [socket, keystroke] of [[first, 'a'], [second, 'b']]) {
-    const arrival = nextInputFrame();
-    socket.send(Buffer.from(keystroke, 'binary'));
-    const frame = unpackStreamFrame((await arrival).value);
-    assert.equal(frame.streamId, streamId);
-    assert.deepEqual(frame.payload, Buffer.from(keystroke, 'binary'));
-  }
 
-  // The old lease request is still answered, so an older client keeps working.
-  const granted = nextMessage(second, (message) => message.type === 'control_granted');
-  second.send(JSON.stringify({ type: 'claim_control' }));
-  assert.equal((await granted).value.type, 'control_granted');
+  const arrival1 = nextInputFrame();
+  first.send(Buffer.from('a', 'binary'));
+  const frame1 = unpackStreamFrame((await arrival1).value);
+  assert.equal(frame1.streamId, firstStreamId);
+  assert.deepEqual(frame1.payload, Buffer.from('a', 'binary'));
 
-  // Closing one window leaves the terminal running for the other.
-  const firstClosed = new Promise((resolve) => first.once('close', resolve));
+  const arrival2 = nextInputFrame();
+  second.send(Buffer.from('b', 'binary'));
+  const frame2 = unpackStreamFrame((await arrival2).value);
+  assert.equal(frame2.streamId, secondStreamId);
+  assert.deepEqual(frame2.payload, Buffer.from('b', 'binary'));
+
   first.close();
-  await firstClosed;
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.ok(relay.hosts.get('host-1').session, 'the shared terminal outlives any one window');
-
   second.close();
   host.close();
 });
 
-// A shared terminal has one grid, and it has to be one every attached window
-// can draw: the smallest. A column a phone cannot show is a column the program
-// must not paint, or the laptop watching the same session sees wrapped rubbish.
-test('the shared grid follows the smallest attached window', async (t) => {
+test('each window drives its own grid without shrinking the others', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-resize-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
@@ -427,137 +425,83 @@ test('the shared grid follows the smallest attached window', async (t) => {
   const laptop = await openWebSocket(`${wsBase}/ws/client`);
   const laptopPair = nextMessage(laptop, (message) => message.type === 'paired');
   const laptopReady = nextMessage(laptop, (message) => message.type === 'ready');
-  const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
-  laptop.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'laptop', cols: 120, rows: 40 }));
+  const laptopSession = nextMessage(host, (message) => message.type === 'session_start');
+  laptop.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'laptop', cols: 80, rows: 24 }));
   await laptopReady;
-  const started = (await sessionStart).value;
-  const streamId = started.streamId;
-  assert.equal(started.cols, 120);
-  assert.equal(started.rows, 40);
+  const laptopStreamId = (await laptopSession).value.streamId;
   const token = (await laptopPair).value.token;
 
-  // A phone joins: the session shrinks to what the phone can show, and the
-  // resize doubles as the repaint that puts both windows on the same screen.
-  const phoneJoined = nextMessage(host, (message) => message.type === 'resize');
   const phone = await openWebSocket(`${wsBase}/ws/client`);
   const phoneReady = nextMessage(phone, (message) => message.type === 'ready');
-  phone.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'phone', cols: 49, rows: 46 }));
+  const phoneSession = nextMessage(host, (message) => message.type === 'session_start');
+  phone.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'phone', cols: 80, rows: 24 }));
   await phoneReady;
-  const shrunk = (await phoneJoined).value;
-  assert.equal(shrunk.streamId, streamId);
-  assert.equal(shrunk.cols, 49);
-  assert.equal(shrunk.rows, 40);
+  const phoneStreamId = (await phoneSession).value.streamId;
 
-  // Either window may resize; the smallest of the two still wins.
-  const afterLaptop = nextMessage(host, (message) => message.type === 'resize');
-  laptop.send(JSON.stringify({ type: 'resize', cols: 100, rows: 30 }));
-  const narrowed = (await afterLaptop).value;
-  assert.equal(narrowed.cols, 49);
-  assert.equal(narrowed.rows, 30);
+  const resizes = [];
+  const onHostMessage = (data, isBinary) => {
+    if (!isBinary) {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'resize') resizes.push(msg);
+      } catch {}
+    }
+  };
+  host.on('message', onHostMessage);
 
-  // When the phone closes its window the grid grows back to the laptop's.
-  const afterPhoneLeft = nextMessage(host, (message) => message.type === 'resize');
-  phone.close();
-  const restored = (await afterPhoneLeft).value;
-  assert.equal(restored.cols, 100);
-  assert.equal(restored.rows, 30);
+  const laptopResized = nextMessage(host, (msg) => msg.type === 'resize' && msg.streamId === laptopStreamId);
+  laptop.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
+  const laptopMsg = (await laptopResized).value;
+  assert.equal(laptopMsg.streamId, laptopStreamId);
+  assert.equal(laptopMsg.cols, 120);
+  assert.equal(laptopMsg.rows, 40);
 
-  laptop.close();
-  host.close();
-});
+  const phoneResized = nextMessage(host, (msg) => msg.type === 'resize' && msg.streamId === phoneStreamId);
+  phone.send(JSON.stringify({ type: 'resize', cols: 40, rows: 20 }));
+  const phoneMsg = (await phoneResized).value;
+  assert.equal(phoneMsg.streamId, phoneStreamId);
+  assert.equal(phoneMsg.cols, 40);
+  assert.equal(phoneMsg.rows, 20);
 
-// A shared terminal has one grid, and every window has to be *told* what it is.
-// Telling only the workstation left each browser rendering at its own width: the
-// same bytes then wrapped in one window and not in another, which is the one
-// thing a shared session must not do.
-test('every window is told the grid the shared terminal runs at', async (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-grid-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
-  const address = await relay.listen(0, '127.0.0.1');
-  const base = `http://127.0.0.1:${address.port}`;
-  const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
-
-  const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
-  await nextMessage(host, (message) => message.type === 'host_ready');
-
-  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
-  const laptop = await openWebSocket(`${wsBase}/ws/client`);
-  const laptopPair = nextMessage(laptop, (message) => message.type === 'paired');
-  const laptopReady = nextMessage(laptop, (message) => message.type === 'ready');
-  laptop.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'laptop', cols: 120, rows: 40 }));
-  await laptopReady;
-  const token = (await laptopPair).value.token;
-
-  // A phone joins: both windows hear the same new geometry.
-  const laptopTold = nextMessage(laptop, (message) => message.type === 'shared_resize');
-  const phone = await openWebSocket(`${wsBase}/ws/client`);
-  const phoneTold = nextMessage(phone, (message) => message.type === 'shared_resize');
-  phone.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'phone', cols: 49, rows: 46 }));
-
-  const onLaptop = (await laptopTold).value;
-  const onPhone = (await phoneTold).value;
-  assert.deepEqual(
-    { cols: onLaptop.cols, rows: onLaptop.rows },
-    { cols: 49, rows: 40 },
-    'the grid is the smallest attached window',
-  );
-  assert.deepEqual({ cols: onPhone.cols, rows: onPhone.rows }, { cols: onLaptop.cols, rows: onLaptop.rows });
-
-  laptop.close();
-  phone.close();
-  host.close();
-});
-
-// A window that comes back after the session was torn down and started again
-// would otherwise keep painting the grid of the session that is gone, because
-// the geometry is only announced when it *changes*.
-test('a window opening a fresh session is told its grid straight away', async (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-first-grid-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
-  const address = await relay.listen(0, '127.0.0.1');
-  const base = `http://127.0.0.1:${address.port}`;
-  const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
-
-  const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
-  await nextMessage(host, (message) => message.type === 'host_ready');
-
-  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
-  const first = await openWebSocket(`${wsBase}/ws/client`);
-  const firstPaired = nextMessage(first, (message) => message.type === 'paired');
-  const firstGrid = nextMessage(first, (message) => message.type === 'shared_resize');
-  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'only', cols: 100, rows: 30 }));
-  const opened = (await firstGrid).value;
-  assert.deepEqual({ cols: opened.cols, rows: opened.rows }, { cols: 100, rows: 30 });
-  const { token } = (await firstPaired).value;
-
-  // The only window goes away, taking the session with it, and comes back at a
-  // different size: it is told the new grid rather than left on the old one.
-  const closed = new Promise((resolve) => first.once('close', resolve));
-  first.close();
-  await closed;
   await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(relay.hosts.get('host-1').session, null, 'the last window closes the session');
+  host.off('message', onHostMessage);
+  const laptopResizes = resizes.filter((r) => r.streamId === laptopStreamId);
+  assert.equal(laptopResizes.length, 1);
+  assert.equal(laptopResizes[0].cols, 120);
+  assert.equal(laptopResizes[0].rows, 40);
 
-  const again = await openWebSocket(`${wsBase}/ws/client`);
-  const againGrid = nextMessage(again, (message) => message.type === 'shared_resize');
-  again.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'only', cols: 60, rows: 20 }));
-  const reopened = (await againGrid).value;
-  assert.deepEqual({ cols: reopened.cols, rows: reopened.rows }, { cols: 60, rows: 20 });
-
-  again.close();
+  laptop.close();
+  phone.close();
   host.close();
 });
 
-// A window that joins a session already in progress has missed everything
-// printed before it arrived. Replaying the tail of the stream is what makes
-// "every window shows the same thing" true from its first painted frame.
-test('a window joining late is caught up with what has already been printed', async (t) => {
+test('a window opening a session gets its own stream id and geometry', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-session-grid-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
+  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'only', cols: 100, rows: 30 }));
+  const started = (await sessionStart).value;
+  assert.ok(typeof started.streamId === 'string' && started.streamId.startsWith('session-'));
+  assert.equal(started.cols, 100);
+  assert.equal(started.rows, 30);
+
+  client.close();
+  host.close();
+});
+
+test('a window joining late starts its own session instead of replaying another window', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-replay-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
@@ -574,29 +518,120 @@ test('a window joining late is caught up with what has already been printed', as
   const first = await openWebSocket(`${wsBase}/ws/client`);
   const firstPair = nextMessage(first, (message) => message.type === 'paired');
   const firstReady = nextMessage(first, (message) => message.type === 'ready');
-  const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
+  const sessionStartA = nextMessage(host, (message) => message.type === 'session_start');
   first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
   await firstReady;
-  const streamId = (await sessionStart).value.streamId;
+  const streamIdA = (await sessionStartA).value.streamId;
   const token = (await firstPair).value.token;
 
-  host.send(JSON.stringify({ type: 'session_ready', clientId: streamId }));
-  const printed = Buffer.from('already on screen\r\n', 'utf8');
+  host.send(JSON.stringify({ type: 'session_ready', clientId: streamIdA }));
+  const printed = Buffer.from('already on screen for A\r\n', 'utf8');
   const seenByFirst = nextMessage(first, (_message, isBinary) => isBinary);
-  host.send(packStreamFrame('output', streamId, printed));
-  await seenByFirst;
+  host.send(packStreamFrame('output', streamIdA, printed));
+  assert.deepEqual((await seenByFirst).value, printed);
 
   const late = await openWebSocket(`${wsBase}/ws/client`);
-  const replayed = nextMessage(late, (_message, isBinary) => isBinary);
-  const lateSessionReady = nextMessage(late, (message) => message.type === 'session_ready');
+  let lateGotOutput = false;
+  const onLateMessage = (data, isBinary) => {
+    if (isBinary && Buffer.compare(data, printed) === 0) lateGotOutput = true;
+  };
+  late.on('message', onLateMessage);
+
+  const sessionStartB = nextMessage(host, (message) => message.type === 'session_start');
+  const lateReady = nextMessage(late, (message) => message.type === 'ready');
   late.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'late', cols: 80, rows: 24 }));
-  assert.deepEqual((await replayed).value, printed);
-  // It is told the terminal is live too, rather than waiting for a start it
-  // will never see because the session was opened before it arrived.
-  await lateSessionReady;
+  await lateReady;
+  const streamIdB = (await sessionStartB).value.streamId;
+
+  assert.notEqual(streamIdB, streamIdA);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  late.off('message', onLateMessage);
+  assert.equal(lateGotOutput, false, 'late window must not replay output from another session');
 
   first.close();
   late.close();
+  host.close();
+});
+
+test('input from one window never reaches another window stream', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-stream-isolation-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const first = await openWebSocket(`${wsBase}/ws/client`);
+  const firstPair = nextMessage(first, (message) => message.type === 'paired');
+  const firstReady = nextMessage(first, (message) => message.type === 'ready');
+  const sessionStart1 = nextMessage(host, (message) => message.type === 'session_start');
+  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  await firstReady;
+  const streamId1 = (await sessionStart1).value.streamId;
+  const token = (await firstPair).value.token;
+
+  const second = await openWebSocket(`${wsBase}/ws/client`);
+  const secondReady = nextMessage(second, (message) => message.type === 'ready');
+  const sessionStart2 = nextMessage(host, (message) => message.type === 'session_start');
+  second.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'second', cols: 80, rows: 24 }));
+  await secondReady;
+  const streamId2 = (await sessionStart2).value.streamId;
+  assert.notEqual(streamId1, streamId2);
+
+  const nextInputFrame = () =>
+    nextMessage(host, (message, isBinary) => isBinary && unpackStreamFrame(message).type === 'input');
+
+  const arrival1 = nextInputFrame();
+  first.send(Buffer.from('keystroke-1', 'utf8'));
+  const frame1 = unpackStreamFrame((await arrival1).value);
+  assert.equal(frame1.streamId, streamId1);
+  assert.deepEqual(frame1.payload, Buffer.from('keystroke-1', 'utf8'));
+
+  const arrival2 = nextInputFrame();
+  second.send(Buffer.from('keystroke-2', 'utf8'));
+  const frame2 = unpackStreamFrame((await arrival2).value);
+  assert.equal(frame2.streamId, streamId2);
+  assert.deepEqual(frame2.payload, Buffer.from('keystroke-2', 'utf8'));
+
+  const arrival3 = nextInputFrame();
+  first.send(Buffer.from('keystroke-3', 'utf8'));
+  const frame3 = unpackStreamFrame((await arrival3).value);
+  assert.equal(frame3.streamId, streamId1);
+  assert.deepEqual(frame3.payload, Buffer.from('keystroke-3', 'utf8'));
+
+  first.close();
+  second.close();
+  host.close();
+});
+
+test('a session is never started below the minimum usable grid', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-min-grid-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
+  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'tiny', cols: 5, rows: 3 }));
+  const started = (await sessionStart).value;
+  assert.equal(started.cols, 20);
+  assert.equal(started.rows, 6);
+
+  client.close();
   host.close();
 });
 

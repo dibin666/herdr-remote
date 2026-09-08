@@ -1,17 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 
 /**
- * The grid is the session's, not the window's.
+ * Each window runs its own PTY session and drives its own grid.
  *
- * Every browser attached to a workstation paints the same grid, because the
- * workstation wrapped the stream for the smallest of them. A window that kept
- * rendering at its own width would show something none of the others is
- * showing — and it must still *report* its own width, or the relay could never
- * work out what the smallest one is.
+ * Every attached browser measures its own container, paints to that capacity,
+ * and announces its dimensions to the relay via sendResize. No window shrinks
+ * to fit another, and there is no shared grid imposed across windows.
  */
 
 const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
@@ -21,36 +19,18 @@ const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }
   onReady(ctx);
   return (
     <span data-testid="grid">
-      {ctx.sharedGrid ? `${ctx.sharedGrid.cols}x${ctx.sharedGrid.rows}` : 'none'}
+      {('sharedGrid' in (ctx as unknown as Record<string, unknown>)) ? 'external' : 'per-window'}
     </span>
   );
 };
 
-describe('Shared terminal grid', () => {
+describe('Per-window terminal grid', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
   });
 
-  it('adopts the grid the relay announces for the shared session', () => {
-    let ctx: ReturnType<typeof useTerminal> | undefined;
-    render(
-      <TerminalProvider>
-        <Probe onReady={(value) => { ctx = value; }} />
-      </TerminalProvider>
-    );
-
-    expect(screen.getByTestId('grid').textContent).toBe('none');
-
-    act(() => {
-      // @ts-expect-error the adapter's emitter is exercised directly here
-      ctx?.adapter?.emit('sharedResize', 49, 40);
-    });
-
-    expect(screen.getByTestId('grid').textContent).toBe('49x40');
-  });
-
-  it('keeps announcing this window’s own capacity, not the shared grid', () => {
+  it('announces the window’s own measured grid to the relay via sendResize', () => {
     const sent: string[] = [];
     const adapter = new HerdrClientAdapter({
       wsUrl: '/ws/client',
@@ -62,7 +42,7 @@ describe('Shared terminal grid', () => {
       token: 'token',
     });
 
-    // Stand in for a live socket so `sendHello` has somewhere to write.
+    // Stand in for a live socket so sendResize has somewhere to write.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (adapter as any).ws = {
       readyState: 1,
@@ -71,13 +51,50 @@ describe('Shared terminal grid', () => {
 
     adapter.sendResize(120, 40);
 
-    // The relay announces a smaller shared grid, because a phone joined.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (adapter as any).processJsonMessage({ type: 'shared_resize', cols: 49, rows: 40 });
+    const resize = sent.map((frame) => JSON.parse(frame)).find((msg) => msg.type === 'resize');
+    expect(resize).toMatchObject({ type: 'resize', cols: 120, rows: 40 });
 
     adapter.sendHello();
-
     const hello = sent.map((frame) => JSON.parse(frame)).find((msg) => msg.type === 'hello');
     expect(hello).toMatchObject({ cols: 120, rows: 40 });
+  });
+
+  it('does not expose or impose any external shared grid on this window', () => {
+    let ctx: ReturnType<typeof useTerminal> | undefined;
+    render(
+      <TerminalProvider>
+        <Probe onReady={(value) => { ctx = value; }} />
+      </TerminalProvider>
+    );
+
+    expect(ctx).toBeDefined();
+    // @ts-expect-error verifying sharedGrid is no longer present on context
+    expect(ctx?.sharedGrid).toBeUndefined();
+    expect(screen.getByTestId('grid').textContent).toBe('per-window');
+  });
+
+  it('gracefully ignores obsolete shared_resize messages from older relays', () => {
+    const adapter = new HerdrClientAdapter({
+      wsUrl: '/ws/client',
+      clientId: 'window-1',
+      autoReconnect: false,
+      reconnectIntervalMs: 1000,
+      maxReconnectAttempts: 0,
+      pingIntervalMs: 10000,
+      token: 'token',
+    });
+
+    adapter.sendResize(120, 40);
+
+    // Older relays might still broadcast shared_resize; ensure processing it is a safe no-op.
+    expect(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (adapter as any).processJsonMessage({ type: 'shared_resize', cols: 40, rows: 20 });
+    }).not.toThrow();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((adapter as any).terminalCols).toBe(120);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((adapter as any).terminalRows).toBe(40);
   });
 });
