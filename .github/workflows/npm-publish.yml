@@ -159,7 +159,7 @@ jobs:
           # Only the manifests and the lockfile: an install may leave other
           # things behind (npm marks `bin` entries executable, for one), and
           # none of it belongs in a release commit.
-          git add package-lock.json packages/cli/package.json packages/relay/package.json
+          git add package-lock.json packages/cli/package.json packages/relay/package.json packages/cli/herdr-plugin.toml
           if git diff --cached --quiet; then
             echo "No version change to record — the release was already published."
             exit 0
