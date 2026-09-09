@@ -25,6 +25,12 @@ import {
 } from '../utils/storage';
 import { translate, Language } from '../i18n';
 import { applyDocumentTheme } from '../utils/theme';
+import {
+  compressAndPrepareImage,
+  PreparedImagePaste,
+  ImageUploadProgress,
+  IDLE_IMAGE_UPLOAD_PROGRESS,
+} from '../utils/imagePaste';
 
 export interface ToastItem {
   id: string;
@@ -122,6 +128,9 @@ interface TerminalContextValue {
   getPendingOutputChunkCount: () => number;
   sendPasteFile: (mime: string, dataBase64: string) => boolean;
   subscribeToPasteFileReady: (handler: (path: string) => void) => () => void;
+  uploadProgress: ImageUploadProgress;
+  uploadImage: (file: Blob | File | PreparedImagePaste) => Promise<boolean>;
+  resetUploadProgress: () => void;
 }
 
 const TerminalContext = createContext<TerminalContextValue | null>(null);
@@ -174,6 +183,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const dimensionsRef = useRef(terminalDimensions);
   dimensionsRef.current = terminalDimensions;
   const pasteFileReadyListenersRef = useRef<Set<(path: string) => void>>(new Set());
+  const [uploadProgress, setUploadProgress] = useState<ImageUploadProgress>(IDLE_IMAGE_UPLOAD_PROGRESS);
+  const activeUploadTaskIdRef = useRef<number | null>(null);
+  const uploadTaskIdCounterRef = useRef<number>(0);
+  const uploadTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const t = useCallback(
     (path: string, params?: Record<string, string | number>) => {
@@ -642,6 +655,14 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('error', (err) => {
+      if (activeUploadTaskIdRef.current !== null) {
+        if (uploadTimeoutTimerRef.current) {
+          clearTimeout(uploadTimeoutTimerRef.current);
+          uploadTimeoutTimerRef.current = null;
+        }
+        activeUploadTaskIdRef.current = null;
+        setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+      }
       const codeStr = String(err.code);
       const key = `serverErrors.${codeStr}`;
       const translated = tRef.current(key);
@@ -650,6 +671,28 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('pasteFileReady', (path) => {
+      const currentTaskId = activeUploadTaskIdRef.current;
+      if (currentTaskId !== null) {
+        if (uploadTimeoutTimerRef.current) {
+          clearTimeout(uploadTimeoutTimerRef.current);
+          uploadTimeoutTimerRef.current = null;
+        }
+        setUploadProgress({
+          active: true,
+          phase: 'completed' as const,
+          ratio: 1.0,
+          percent: 100,
+          statusText: tRef.current('virtualKeyboard.uploadProgressCompleted'),
+        });
+
+        setTimeout(() => {
+          if (activeUploadTaskIdRef.current === currentTaskId) {
+            activeUploadTaskIdRef.current = null;
+            setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+          }
+        }, 1200);
+      }
+
       for (const listener of pasteFileReadyListenersRef.current) {
         try {
           listener(path);
@@ -773,6 +816,168 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   }, []);
 
+  const resetUploadProgress = useCallback(() => {
+    if (uploadTimeoutTimerRef.current) {
+      clearTimeout(uploadTimeoutTimerRef.current);
+      uploadTimeoutTimerRef.current = null;
+    }
+    activeUploadTaskIdRef.current = null;
+    setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+  }, []);
+
+  useEffect(() => {
+    if (connectionState !== 'connected' && activeUploadTaskIdRef.current !== null) {
+      if (uploadTimeoutTimerRef.current) {
+        clearTimeout(uploadTimeoutTimerRef.current);
+        uploadTimeoutTimerRef.current = null;
+      }
+      activeUploadTaskIdRef.current = null;
+      setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+    }
+  }, [connectionState]);
+
+  useEffect(() => {
+    return () => {
+      if (uploadTimeoutTimerRef.current) {
+        clearTimeout(uploadTimeoutTimerRef.current);
+      }
+    };
+  }, []);
+
+  const uploadImage = useCallback(
+    async (input: Blob | File | PreparedImagePaste): Promise<boolean> => {
+      if (role !== 'controller') {
+        warnViewerMode();
+        return false;
+      }
+
+      if (!adapterRef.current || connectionState !== 'connected') {
+        addToast('error', t('serverErrors.host_offline'));
+        return false;
+      }
+
+      if (activeUploadTaskIdRef.current !== null) {
+        return false;
+      }
+
+      const taskId = ++uploadTaskIdCounterRef.current;
+      activeUploadTaskIdRef.current = taskId;
+
+      if (uploadTimeoutTimerRef.current) {
+        clearTimeout(uploadTimeoutTimerRef.current);
+        uploadTimeoutTimerRef.current = null;
+      }
+
+      const isPrepared = 'dataBase64' in input && typeof (input as any).dataBase64 === 'string';
+
+      try {
+        let prepared: PreparedImagePaste;
+
+        if (isPrepared) {
+          prepared = input as PreparedImagePaste;
+        } else {
+          const blob = input as Blob | File;
+          setUploadProgress({
+            active: true,
+            phase: 'reading',
+            ratio: 0.1,
+            percent: 10,
+            statusText: t('virtualKeyboard.uploadProgressReading'),
+          });
+
+          if (!blob || blob.size === 0) {
+            addToast('error', t('clipboard.fileEmpty'));
+            activeUploadTaskIdRef.current = null;
+            setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+            return false;
+          }
+
+          if (blob.type && !blob.type.startsWith('image/')) {
+            addToast('error', t('clipboard.unsupportedType'));
+            activeUploadTaskIdRef.current = null;
+            setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+            return false;
+          }
+
+          setUploadProgress({
+            active: true,
+            phase: 'processing',
+            ratio: 0.35,
+            percent: 35,
+            statusText: t('virtualKeyboard.uploadProgressProcessing'),
+          });
+
+          const res = await compressAndPrepareImage(blob);
+          if (activeUploadTaskIdRef.current !== taskId) {
+            return false;
+          }
+
+          if (!res) {
+            addToast('error', t('clipboard.imageTooLarge'));
+            activeUploadTaskIdRef.current = null;
+            setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+            return false;
+          }
+
+          prepared = res;
+          setUploadProgress({
+            active: true,
+            phase: 'processing',
+            ratio: 0.6,
+            percent: 60,
+            statusText: t('virtualKeyboard.uploadProgressProcessing'),
+          });
+        }
+
+        setUploadProgress({
+          active: true,
+          phase: 'sending',
+          ratio: 0.75,
+          percent: 75,
+          statusText: t('virtualKeyboard.uploadProgressSending'),
+        });
+
+        const sent = sendPasteFile(prepared.mime, prepared.dataBase64);
+        if (activeUploadTaskIdRef.current !== taskId) {
+          return false;
+        }
+
+        if (!sent) {
+          activeUploadTaskIdRef.current = null;
+          setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+          return false;
+        }
+
+        setUploadProgress({
+          active: true,
+          phase: 'waitingHost',
+          ratio: 0.88,
+          percent: 88,
+          statusText: t('virtualKeyboard.uploadProgressWaitingHost'),
+        });
+
+        uploadTimeoutTimerRef.current = setTimeout(() => {
+          if (activeUploadTaskIdRef.current === taskId) {
+            activeUploadTaskIdRef.current = null;
+            addToast('error', t('serverErrors.paste_file_write_failed'));
+            setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+          }
+        }, 30000);
+
+        return true;
+      } catch (err) {
+        console.error('Failed to process/upload image:', err);
+        if (activeUploadTaskIdRef.current === taskId) {
+          activeUploadTaskIdRef.current = null;
+          addToast('error', t('clipboard.imageTooLarge'));
+          setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+        }
+        return false;
+      }
+    },
+    [role, connectionState, warnViewerMode, addToast, t, sendPasteFile]
+  );
+
   return (
     <TerminalContext.Provider
       value={{
@@ -820,6 +1025,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         getPendingOutputChunkCount,
         sendPasteFile,
         subscribeToPasteFileReady,
+        uploadProgress,
+        uploadImage,
+        resetUploadProgress,
       }}
     >
       {children}

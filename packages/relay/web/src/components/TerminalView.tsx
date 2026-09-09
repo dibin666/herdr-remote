@@ -38,7 +38,7 @@ import {
   PaneColumnBand,
 } from '../utils/terminalSelection';
 import { copyText, readClipboardText, readClipboardImage, extractImageFromClipboardEvent } from '../utils/clipboard';
-import { compressAndPrepareImage, PreparedImagePaste } from '../utils/imagePaste';
+import { PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
 
@@ -148,8 +148,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     warnViewerMode,
     connect,
     subscribeToOutput,
-    sendPasteFile,
     subscribeToPasteFileReady,
+    uploadImage,
     t,
   } = useTerminal();
 
@@ -178,8 +178,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   const sendResizeRef = useRef(sendResize);
   sendResizeRef.current = sendResize;
-  const sendPasteFileRef = useRef(sendPasteFile);
-  sendPasteFileRef.current = sendPasteFile;
+  const uploadImageRef = useRef(uploadImage);
+  uploadImageRef.current = uploadImage;
 
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
@@ -356,12 +356,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     try {
       const imageResult = await readClipboardImage();
       if (imageResult.ok) {
-        const prepared = await compressAndPrepareImage(imageResult.blob);
-        if (!prepared) {
-          addToastRef.current('error', tRef.current('clipboard.imageTooLarge'));
-          return;
-        }
-        sendPasteFileRef.current(prepared.mime, prepared.dataBase64);
+        await uploadImageRef.current(imageResult.blob);
         return;
       }
     } catch {
@@ -405,7 +400,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       warnViewerModeRef.current();
       return;
     }
-    sendPasteFileRef.current(image.mime, image.dataBase64);
+    uploadImageRef.current(image);
   }, []);
 
   useEffect(() => {
@@ -682,12 +677,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           warnViewerModeRef.current();
           return;
         }
-        const prepared = await compressAndPrepareImage(imageBlob);
-        if (!prepared) {
-          addToastRef.current('error', tRef.current('clipboard.imageTooLarge'));
-          return;
-        }
-        sendPasteFileRef.current(prepared.mime, prepared.dataBase64);
+        await uploadImageRef.current(imageBlob);
       }
     };
     term.textarea?.addEventListener('paste', handleNativePaste);

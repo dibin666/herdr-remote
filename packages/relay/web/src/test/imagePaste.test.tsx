@@ -521,12 +521,16 @@ describe('TerminalView image paste integration (End-to-End)', () => {
     const term = xtermInstances[0];
     term.paste = vi.fn();
 
+    const lastWs = webSocketInstances[webSocketInstances.length - 1];
+    act(() => {
+      lastWs.simulateOpen();
+      capturedCtx?.adapter?.emit('sessionReady', {});
+    });
+
     // Give control so paste option appears in menu
     act(() => {
       capturedCtx?.adapter?.emit('controlGranted');
     });
-
-    const lastWs = webSocketInstances[webSocketInstances.length - 1];
 
     // Trigger long press gesture to open selection menu
     const container = document.querySelector('#terminal-container') as HTMLElement;
@@ -655,6 +659,8 @@ describe('TerminalView image paste integration (End-to-End)', () => {
     const lastWs = webSocketInstances[webSocketInstances.length - 1];
     act(() => {
       lastWs.simulateOpen();
+      // A real image upload is only allowed after the terminal session is ready.
+      capturedCtx?.adapter?.emit('sessionReady', {});
     });
 
     act(() => {

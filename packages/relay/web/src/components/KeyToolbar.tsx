@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { ANSI_KEYS, encodeKeyWithModifiers } from '../protocol/keyEncoder';
 import { cn } from '../utils/cn';
 import { ToolbarKeyDef, DEFAULT_TOOLBAR_KEYS, getLocalizedKeyTitle } from '../utils/virtualKeys';
+import { Gauge } from './tui';
 
 interface KeyToolbarProps {
   /**
@@ -36,23 +37,26 @@ const CAP_COMMIT =
   'border-tui-ok bg-transparent text-tui-ok hover:bg-tui-ok hover:text-tui-crust font-bold';
 
 export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
-  const { sendKey, settings, updateSettings, isController, warnViewerMode, t } = useTerminal();
+  const {
+    sendKey,
+    settings,
+    updateSettings,
+    isController,
+    warnViewerMode,
+    t,
+    uploadProgress,
+    uploadImage,
+  } = useTerminal();
 
   // One key metric everywhere: 36px is the smallest comfortable touch target,
   // and a uniform height is what stops the row reading as a jumble.
   const keyClass = 'h-9 min-w-[2.25rem] px-2';
   const squareKeyClass = 'h-9 w-9';
   const drawerToggleClass = 'h-9 px-2';
+  const imageKeyClass = 'min-h-[44px] min-w-[44px] px-2.5 gap-1 touch-manipulation';
 
-  // Modifier latch states
-  const [ctrlLatched, setCtrlLatched] = useState(false);
-  const [altLatched, setAltLatched] = useState(false);
-  const [shiftLatched, setShiftLatched] = useState(false);
-
-  // Expandable drawers
-  const [showFnKeys, setShowFnKeys] = useState(false);
-  const [showSymbols, setShowSymbols] = useState(false);
-  const [showQuickChords, setShowQuickChords] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   const vibrate = useCallback(() => {
     if (settings.vibrateOnKeyPress && typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -63,6 +67,111 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       }
     }
   }, [settings.vibrateOnKeyPress]);
+  const handleImageClick = useCallback(() => {
+    vibrate();
+    if (!isController) {
+      warnViewerMode();
+      return;
+    }
+    if (uploadProgress.active) {
+      return;
+    }
+    fileInputRef.current?.click();
+  }, [vibrate, isController, warnViewerMode, uploadProgress.active]);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      const file = files && files[0];
+      e.target.value = '';
+      if (!file) return;
+      uploadImage(file);
+    },
+    [uploadImage]
+  );
+
+  const renderFileInputs = () => (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+        className="hidden"
+        data-testid="key-toolbar-file-input"
+        onChange={handleFileInputChange}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+        capture="environment"
+        className="hidden"
+        data-testid="key-toolbar-camera-input"
+        onChange={handleFileInputChange}
+      />
+    </>
+  );
+
+  const renderProgressBar = (collapsed = false) => {
+    if (!uploadProgress.active) return null;
+    return (
+      <div
+        data-testid={collapsed ? 'key-toolbar-progress-collapsed' : 'key-toolbar-progress'}
+        className="w-full border-b border-tui-border-dim bg-tui-crust px-2 py-1"
+      >
+        <Gauge
+          ratio={uploadProgress.ratio}
+          label={uploadProgress.statusText}
+          tone={
+            uploadProgress.phase === 'completed'
+              ? 'ok'
+              : uploadProgress.phase === 'error'
+              ? 'bad'
+              : 'accent'
+          }
+          aria-label={uploadProgress.statusText}
+        />
+      </div>
+    );
+  };
+
+  const renderImageButton = (collapsed = false) => {
+    const isUploading = uploadProgress.active;
+    return (
+      <button
+        type="button"
+        data-testid={collapsed ? 'image-upload-btn-collapsed' : 'image-upload-btn'}
+        onClick={handleImageClick}
+        disabled={isUploading}
+        className={cn(
+          CAP_BASE,
+          collapsed
+            ? 'min-h-[44px] min-w-[44px] px-2 text-tui-xs gap-1 touch-manipulation'
+            : imageKeyClass,
+          isUploading
+            ? 'border-tui-border-dim bg-tui-surface opacity-60 cursor-not-allowed'
+            : CAP_IDLE
+        )}
+        title={isUploading ? uploadProgress.statusText : t('virtualKeyboard.uploadImageTitle')}
+        aria-label={t('virtualKeyboard.uploadImage')}
+      >
+        <span aria-hidden="true">🖼️</span>
+        <span className={cn('font-medium', collapsed ? 'text-tui-xs' : 'text-tui-sm')}>
+          {isUploading ? `${uploadProgress.percent}%` : t('virtualKeyboard.image')}
+        </span>
+      </button>
+    );
+  };
+
+  // Modifier latch states
+  const [ctrlLatched, setCtrlLatched] = useState(false);
+  const [altLatched, setAltLatched] = useState(false);
+  const [shiftLatched, setShiftLatched] = useState(false);
+
+  // Expandable drawers
+  const [showFnKeys, setShowFnKeys] = useState(false);
+  const [showSymbols, setShowSymbols] = useState(false);
+  const [showQuickChords, setShowQuickChords] = useState(false);
 
   const handleKeyPress = useCallback(
     (keySeq: string, isPlainChar = false) => {
@@ -108,19 +217,24 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     return (
       <div
         data-testid="key-toolbar-collapsed"
-        className="z-20 flex shrink-0 justify-center border-t border-tui-border bg-tui-mantle pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]"
+        className="z-20 flex shrink-0 flex-col border-t border-tui-border bg-tui-mantle pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]"
       >
-        <button
-          type="button"
-          onClick={() => updateSettings({ toolbarVisible: true })}
-          className="tui-focusable flex h-6 w-28 items-center justify-center gap-1 text-tui uppercase text-tui-faint transition-colors hover:text-tui-accent"
-          title={t('virtualKeyboard.expandToolbar')}
-          aria-label={t('virtualKeyboard.expandToolbar')}
-          aria-expanded={false}
-        >
-          <span aria-hidden="true">▴</span>
-          <span aria-hidden="true">{t('common.keyBar')}</span>
-        </button>
+        {renderFileInputs()}
+        {renderProgressBar(true)}
+        <div className="flex items-center justify-center gap-2 px-2 py-0.5">
+          <button
+            type="button"
+            onClick={() => updateSettings({ toolbarVisible: true })}
+            className="tui-focusable flex h-6 w-28 items-center justify-center gap-1 text-tui uppercase text-tui-faint transition-colors hover:text-tui-accent"
+            title={t('virtualKeyboard.expandToolbar')}
+            aria-label={t('virtualKeyboard.expandToolbar')}
+            aria-expanded={false}
+          >
+            <span aria-hidden="true">▴</span>
+            <span aria-hidden="true">{t('common.keyBar')}</span>
+          </button>
+          {renderImageButton(true)}
+        </div>
       </div>
     );
   }
@@ -262,6 +376,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       role="toolbar"
       aria-label={t('virtualKeyboard.touchKeyboardShortcuts')}
     >
+      {renderFileInputs()}
+      {renderProgressBar(false)}
       {/* Function keys */}
       {showFnKeys && (
         <div className="grid grid-cols-6 gap-1 border-b border-tui-border-dim bg-tui-crust p-1.5 sm:grid-cols-12">
@@ -353,7 +469,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
 
           const localizedTitle = getLocalizedKeyTitle(keyDef, t);
 
-          return (
+          const keyBtn = (
             <button
               key={keyDef.id}
               type="button"
@@ -370,7 +486,19 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
               {renderKeyIconOrLabel(keyDef)}
             </button>
           );
+
+          if (isEnter) {
+            return (
+              <React.Fragment key="enter-with-image">
+                {renderImageButton(false)}
+                {keyBtn}
+              </React.Fragment>
+            );
+          }
+
+          return keyBtn;
         })}
+        {!configuredKeys.some((k) => k.id === 'enter') && renderImageButton(false)}
       </div>
     </div>
   );

@@ -47,6 +47,31 @@ export interface PreparedImagePaste {
   width: number;
   height: number;
 }
+export type ImageUploadPhase =
+  | 'idle'
+  | 'reading'
+  | 'processing'
+  | 'sending'
+  | 'waitingHost'
+  | 'completed'
+  | 'error';
+
+export interface ImageUploadProgress {
+  active: boolean;
+  phase: ImageUploadPhase;
+  ratio: number; // 0..1
+  percent: number; // 0..100
+  statusText: string;
+  error?: string;
+}
+
+export const IDLE_IMAGE_UPLOAD_PROGRESS: ImageUploadProgress = {
+  active: false,
+  phase: 'idle',
+  ratio: 0,
+  percent: 0,
+  statusText: '',
+};
 
 /**
  * Calculates proportional dimensions keeping aspect ratio intact,

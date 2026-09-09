@@ -218,6 +218,15 @@ export interface TranslationSchema {
     badgeEnd: string;
     badgeKill: string;
     keyEnter: string;
+    uploadImage: string;
+    uploadImageTitle: string;
+    image: string;
+    uploadProgressReading: string;
+    uploadProgressProcessing: string;
+    uploadProgressSending: string;
+    uploadProgressWaitingHost: string;
+    uploadProgressCompleted: string;
+    uploadProgressFailed: string;
   };
   profiles: {
     title: string;
