@@ -62,7 +62,10 @@ const DEFAULTS = {
     publicUrl: '',
     // Operator-run relay, e.g. wss://herdr.example.com (mode "remote" only).
     remoteUrl: '',
-    maxPayloadBytes: 1024 * 1024,
+    // Kept in step with the relay package's own default: the CLI starts a
+    // relay of its own, and a smaller ceiling here would reject an upload the
+    // hosted relay accepts.
+    maxPayloadBytes: 5 * 1024 * 1024,
     maxClientsPerHost: 16,
     maxHosts: 1024,
     maxPendingHandshakes: 1024,

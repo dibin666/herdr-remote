@@ -67,14 +67,19 @@ export interface ClientResizeMessage {
 export interface ClientPingMessage {
   type: 'ping';
 }
+export interface ClientPasteFileMessage {
+  type: 'paste_file';
+  mime: string;
+  dataBase64: string;
+}
 
 export type ClientJsonMessage =
   | ClientHelloMessage
   | ClientClaimControlMessage
   | ClientReleaseControlMessage
   | ClientResizeMessage
-  | ClientPingMessage;
-
+  | ClientPingMessage
+  | ClientPasteFileMessage;
 export interface ServerReadyMessage {
   type: 'ready';
   role: ClientRole;
@@ -158,6 +163,11 @@ export interface ServerPongMessage {
   type: 'pong';
 }
 
+export interface ServerPasteFileReadyMessage {
+  type: 'paste_file_ready';
+  path: string;
+}
+
 export type ServerJsonMessage =
   | ServerReadyMessage
   | ServerPairedMessage
@@ -171,8 +181,8 @@ export type ServerJsonMessage =
   | ServerControlDeniedMessage
   | ServerStatusMessage
   | ServerErrorMessage
-  | ServerPongMessage;
-
+  | ServerPongMessage
+  | ServerPasteFileReadyMessage;
 export type ConnectionState =
   | 'disconnected'
   | 'connecting'

@@ -71,6 +71,57 @@ function tokenMatches(candidate, expected) {
   return crypto.timingSafeEqual(candidateHash, expectedHash);
 }
 
+function verifyImageMagicBytes(mime, dataBase64) {
+  if (typeof dataBase64 !== 'string' || dataBase64.length === 0) return false;
+  let headerBuf;
+  try {
+    headerBuf = Buffer.from(dataBase64.slice(0, 32), 'base64');
+  } catch {
+    return false;
+  }
+  if (headerBuf.length === 0) return false;
+
+  switch (mime) {
+    case 'image/png':
+      return (
+        headerBuf.length >= 8 &&
+        headerBuf[0] === 0x89 &&
+        headerBuf[1] === 0x50 &&
+        headerBuf[2] === 0x4e &&
+        headerBuf[3] === 0x47
+      );
+    case 'image/jpeg':
+      return (
+        headerBuf.length >= 3 &&
+        headerBuf[0] === 0xff &&
+        headerBuf[1] === 0xd8 &&
+        headerBuf[2] === 0xff
+      );
+    case 'image/webp':
+      return (
+        headerBuf.length >= 12 &&
+        headerBuf[0] === 0x52 &&
+        headerBuf[1] === 0x49 &&
+        headerBuf[2] === 0x46 &&
+        headerBuf[3] === 0x46 &&
+        headerBuf[8] === 0x57 &&
+        headerBuf[9] === 0x45 &&
+        headerBuf[10] === 0x42 &&
+        headerBuf[11] === 0x50
+      );
+    case 'image/gif':
+      return (
+        headerBuf.length >= 6 &&
+        headerBuf[0] === 0x47 &&
+        headerBuf[1] === 0x49 &&
+        headerBuf[2] === 0x46 &&
+        headerBuf[3] === 0x38
+      );
+    default:
+      return false;
+  }
+}
+
 class RelayServer {
   constructor(config = loadRelayConfig().config, options = {}) {
     this.config = {
@@ -707,6 +758,11 @@ class RelayServer {
         client.session = null;
       }
       this.detachClient(client, { notify: false });
+    } else if (message.type === 'paste_file_ready') {
+      jsonSend(client.ws, {
+        type: 'paste_file_ready',
+        path: message.path,
+      });
     } else if (message.type === 'error') {
       jsonSend(client.ws, {
         type: 'error',
@@ -947,6 +1003,82 @@ class RelayServer {
       // Nothing to release: the window keeps its input either way, and saying
       // so beats a silence an older client would wait on.
       jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: null });
+    }
+    else if (message.type === 'paste_file') {
+      if (client.role === 'viewer') {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'viewer_mode',
+          message: 'Viewer mode cannot paste to terminal',
+        });
+        return;
+      }
+      const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+      if (typeof message.mime !== 'string' || !allowedMimes.has(message.mime)) {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'paste_file_unsupported',
+          message: 'Unsupported paste image format',
+        });
+        return;
+      }
+      if (typeof message.dataBase64 !== 'string') {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'paste_file_unsupported',
+          message: 'Invalid paste image payload',
+        });
+        return;
+      }
+      const MAX_PASTE_BYTES = 3 * 1024 * 1024;
+      const rawLength = Buffer.byteLength(message.dataBase64, 'base64');
+      if (rawLength === 0) {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'paste_file_empty',
+          message: 'Pasted image payload is empty',
+        });
+        return;
+      }
+      if (rawLength > MAX_PASTE_BYTES) {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'paste_file_too_large',
+          message: 'Pasted image exceeds 3 MB limit',
+        });
+        return;
+      }
+      if (!verifyImageMagicBytes(message.mime, message.dataBase64)) {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'paste_file_unsupported',
+          message: 'Pasted image content does not match declared MIME type',
+        });
+        return;
+      }
+      if (!isOpen(host?.ws)) {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'host_offline',
+          message: 'Host is offline or disconnected',
+        });
+        return;
+      }
+      if (!client.session) {
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'no_session',
+          message: 'Terminal session is not ready',
+        });
+        return;
+      }
+      jsonSend(host.ws, {
+        type: 'paste_file',
+        clientId: client.session.streamId,
+        streamId: client.session.streamId,
+        mime: message.mime,
+        dataBase64: message.dataBase64,
+      });
     }
   }
 

@@ -27,8 +27,18 @@ import {
   isCoarsePointerDevice,
   MOBILE_BREAKPOINT_PX,
 } from '../utils/terminalLayout';
-import { pointToCell, wordRangeAt, screenText } from '../utils/terminalSelection';
-import { copyText, readClipboardText } from '../utils/clipboard';
+import {
+  pointToCell,
+  wordRangeAt,
+  screenText,
+  paneColumnBand,
+  clampRectToBand,
+  rectText,
+  TerminalSelectionRect,
+  PaneColumnBand,
+} from '../utils/terminalSelection';
+import { copyText, readClipboardText, readClipboardImage, extractImageFromClipboardEvent } from '../utils/clipboard';
+import { compressAndPrepareImage, PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
 
@@ -138,6 +148,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     warnViewerMode,
     connect,
     subscribeToOutput,
+    sendPasteFile,
+    subscribeToPasteFileReady,
     t,
   } = useTerminal();
 
@@ -166,6 +178,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   const sendResizeRef = useRef(sendResize);
   sendResizeRef.current = sendResize;
+  const sendPasteFileRef = useRef(sendPasteFile);
+  sendPasteFileRef.current = sendPasteFile;
 
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
@@ -178,46 +192,78 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const selectionMenuRef = useRef<{ x: number; y: number } | null>(null);
   selectionMenuRef.current = selectionMenu;
 
-  const [isExtendingSelection, setIsExtendingSelection] = useState(false);
-  const isExtendingRef = useRef(false);
+  // Rectangular selection state (closed interval: startCol, endCol, startRow, endRow)
+  const [selectionRect, setSelectionRect] = useState<TerminalSelectionRect | null>(null);
+  const selectionRectRef = useRef<TerminalSelectionRect | null>(null);
+  selectionRectRef.current = selectionRect;
+
+  // Snapshot of extracted text at the moment of selection / extension
+  const [selectionSnapshot, setSelectionSnapshot] = useState<string>('');
+  const selectionSnapshotRef = useRef<string>('');
+  selectionSnapshotRef.current = selectionSnapshot;
+
+  // Visibility of the rectangular selection overlay (invalidated upon intersecting onRender)
+  const [isHighlightVisible, setIsHighlightVisible] = useState(false);
+  const isHighlightVisibleRef = useRef(false);
+  isHighlightVisibleRef.current = isHighlightVisible;
+  // Content change flag driven by xterm's onWriteParsed. Prevents internal refresh() calls
+  // (e.g. resize, theme switch, visibility change) from falsely wiping out active highlights.
+  const contentChangedRef = useRef(false);
+
+  // Active terminal viewport row offset for continuous positioning across scrolls
+  const [viewportY, setViewportY] = useState(0);
+
+  // Gesture coordinate tracking for delayed menu presentation on finger release
+  const longPressPointRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const lastExtendPointRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const selectionAnchorRef = useRef<{ col: number; bufferRow: number } | null>(null);
+  const selectionBandRef = useRef<PaneColumnBand | null>(null);
 
   const [isPasteFallbackOpen, setIsPasteFallbackOpen] = useState(false);
-
-  const selectionAnchorRef = useRef<{ col: number; bufferRow: number } | null>(null);
-  const selectionFocusRef = useRef<{ col: number; bufferRow: number } | null>(null);
 
   const handleLongPress = useCallback((point: { clientX: number; clientY: number }) => {
     const term = termRef.current;
     if (!term) return;
 
-    const screenEl = surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null;
+    const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
     const cellPos = pointToCell(point, term, screenEl, currentScaleRef.current);
 
     if (cellPos) {
       selectionAnchorRef.current = cellPos;
-      selectionFocusRef.current = cellPos;
+      const band = paneColumnBand(term, cellPos.col, cellPos.bufferRow);
+      selectionBandRef.current = band;
+
       const range = wordRangeAt(term, cellPos.col, cellPos.bufferRow);
       if (range) {
-        term.select(range.startCol, cellPos.bufferRow, range.length);
+        const rawRect: TerminalSelectionRect = {
+          startCol: range.startCol,
+          endCol: range.startCol + range.length - 1,
+          startRow: cellPos.bufferRow,
+          endRow: cellPos.bufferRow,
+        };
+        const clamped = clampRectToBand(rawRect, band);
+        const snapshot = rectText(term, clamped);
+        setSelectionRect(clamped);
+        setSelectionSnapshot(snapshot);
+        setIsHighlightVisible(true);
       } else {
-        term.clearSelection();
+        setSelectionRect(null);
+        setSelectionSnapshot('');
+        setIsHighlightVisible(false);
+        selectionAnchorRef.current = null;
+        selectionBandRef.current = null;
       }
     } else {
+      setSelectionRect(null);
+      setSelectionSnapshot('');
+      setIsHighlightVisible(false);
       selectionAnchorRef.current = null;
-      selectionFocusRef.current = null;
-      term.clearSelection();
+      selectionBandRef.current = null;
     }
 
-    if (mainRef.current) {
-      const mainRect = mainRef.current.getBoundingClientRect();
-      const x = point.clientX - mainRect.left;
-      const y = point.clientY - mainRect.top;
-      setSelectionMenu({ x, y });
-      selectionMenuRef.current = { x, y };
-    }
-    setIsExtendingSelection(false);
-    isExtendingRef.current = false;
+    // Record point for menu anchoring on pointerup, but do NOT open menu while finger is held down!
+    longPressPointRef.current = point;
+    lastExtendPointRef.current = null;
   }, []);
 
   const handleSelectionExtend = useCallback((point: { clientX: number; clientY: number }) => {
@@ -225,33 +271,24 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const anchor = selectionAnchorRef.current;
     if (!term || !anchor) return;
 
-    if (!isExtendingRef.current) {
-      isExtendingRef.current = true;
-      setIsExtendingSelection(true);
-    }
     lastExtendPointRef.current = point;
 
-    const screenEl = surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null;
+    const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
     const currentCell = pointToCell(point, term, screenEl, currentScaleRef.current);
     if (!currentCell) return;
 
-    selectionFocusRef.current = currentCell;
-
-    if (anchor.bufferRow === currentCell.bufferRow) {
-      const startCol = Math.min(anchor.col, currentCell.col);
-      const endCol = Math.max(anchor.col, currentCell.col);
-      term.select(startCol, anchor.bufferRow, endCol - startCol + 1);
-    } else {
-      const forward =
-        currentCell.bufferRow > anchor.bufferRow ||
-        (currentCell.bufferRow === anchor.bufferRow && currentCell.col >= anchor.col);
-
-      const from = forward ? anchor : currentCell;
-      const to = forward ? currentCell : anchor;
-
-      const totalLength = (to.bufferRow - from.bufferRow) * term.cols + (to.col - from.col + 1);
-      term.select(from.col, from.bufferRow, Math.max(1, totalLength));
-    }
+    const band = selectionBandRef.current ?? paneColumnBand(term, anchor.col, anchor.bufferRow);
+    const rawRect: TerminalSelectionRect = {
+      startCol: Math.min(anchor.col, currentCell.col),
+      endCol: Math.max(anchor.col, currentCell.col),
+      startRow: Math.min(anchor.bufferRow, currentCell.bufferRow),
+      endRow: Math.max(anchor.bufferRow, currentCell.bufferRow),
+    };
+    const clamped = clampRectToBand(rawRect, band);
+    const snapshot = rectText(term, clamped);
+    setSelectionRect(clamped);
+    setSelectionSnapshot(snapshot);
+    setIsHighlightVisible(true);
   }, []);
 
   const handleLongPressRef = useRef(handleLongPress);
@@ -260,9 +297,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   handleSelectionExtendRef.current = handleSelectionExtend;
 
   const handleCopySelection = useCallback(async () => {
-    const term = termRef.current;
-    if (!term) return;
-    const text = term.getSelection();
+    // Copy the snapshot captured at selection time, never re-reading the active buffer
+    const text = selectionSnapshotRef.current;
     if (!text) return;
     const result = await copyText(text);
     if (result === 'failed') {
@@ -275,9 +311,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const handleCopyLine = useCallback(async () => {
     const term = termRef.current;
     if (!term) return;
-    const bufferRow = selectionAnchorRef.current?.bufferRow ?? term.buffer.active.viewportY;
-    const line = term.buffer.active.getLine(bufferRow);
-    const text = line ? line.translateToString(true) : '';
+    const active = term.buffer?.active;
+    if (!active) return;
+    const bufferRow =
+      selectionRectRef.current?.startRow ?? selectionAnchorRef.current?.bufferRow ?? active.viewportY;
+    const band =
+      selectionBandRef.current ??
+      paneColumnBand(term, selectionAnchorRef.current?.col ?? 0, bufferRow);
+    const lineRect: TerminalSelectionRect = {
+      startCol: band.startCol,
+      endCol: band.endCol,
+      startRow: bufferRow,
+      endRow: bufferRow,
+    };
+    const text = rectText(term, lineRect);
     const result = await copyText(text);
     if (result === 'failed') {
       addToastRef.current('error', tRef.current('clipboard.copyFailed'));
@@ -305,15 +352,39 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       warnViewerModeRef.current();
       return;
     }
-    const result = await readClipboardText();
-    if (result.ok) {
-      term.paste(result.text);
-      addToastRef.current('success', tRef.current('clipboard.pasted'));
-    } else if (result.reason === 'empty') {
-      addToastRef.current('info', tRef.current('clipboard.pasteUnavailable'));
-    } else {
-      setIsPasteFallbackOpen(true);
+    // 1. Best-effort probe clipboard for images (HTTPS or localhost)
+    try {
+      const imageResult = await readClipboardImage();
+      if (imageResult.ok) {
+        const prepared = await compressAndPrepareImage(imageResult.blob);
+        if (!prepared) {
+          addToastRef.current('error', tRef.current('clipboard.imageTooLarge'));
+          return;
+        }
+        sendPasteFileRef.current(prepared.mime, prepared.dataBase64);
+        return;
+      }
+    } catch {
+      // Best-effort image probe; do not throw or toast on denial/insecure
     }
+
+    // 2. Best-effort probe clipboard for plain text
+    try {
+      const result = await readClipboardText();
+      if (result.ok) {
+        term.paste(result.text);
+        addToastRef.current('success', tRef.current('clipboard.pasted'));
+        return;
+      } else if (result.reason === 'empty') {
+        addToastRef.current('info', tRef.current('clipboard.pasteUnavailable'));
+        return;
+      }
+    } catch {
+      // Fall through to manual modal
+    }
+
+    // 3. Fallback modal: Reliable universal interface for text and image entry
+    setIsPasteFallbackOpen(true);
   }, []);
 
   const handleFallbackPasteSend = useCallback((text: string) => {
@@ -326,6 +397,27 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     term.paste(text);
     addToastRef.current('success', tRef.current('clipboard.pasted'));
   }, []);
+
+  const handleFallbackImageSend = useCallback((image: PreparedImagePaste) => {
+    const term = termRef.current;
+    if (!term) return;
+    if (!isControllerRef.current) {
+      warnViewerModeRef.current();
+      return;
+    }
+    sendPasteFileRef.current(image.mime, image.dataBase64);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToPasteFileReady((path) => {
+      const term = termRef.current;
+      if (term) {
+        term.paste(path);
+        addToastRef.current('success', tRef.current('clipboard.pasted'));
+      }
+    });
+    return unsubscribe;
+  }, [subscribeToPasteFileReady]);
 
 
   /** Debounced, change-gated PTY resize notification. */
@@ -581,6 +673,25 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       };
       syncFocusState();
     }
+    const handleNativePaste = async (e: ClipboardEvent) => {
+      const imageBlob = extractImageFromClipboardEvent(e);
+      if (imageBlob) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isControllerRef.current) {
+          warnViewerModeRef.current();
+          return;
+        }
+        const prepared = await compressAndPrepareImage(imageBlob);
+        if (!prepared) {
+          addToastRef.current('error', tRef.current('clipboard.imageTooLarge'));
+          return;
+        }
+        sendPasteFileRef.current(prepared.mime, prepared.dataBase64);
+      }
+    };
+    term.textarea?.addEventListener('paste', handleNativePaste);
+    container.addEventListener('paste', handleNativePaste);
 
     const renderer = attachTerminalRenderer(term, {
       coarsePointer: isTouchDevice,
@@ -650,6 +761,45 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       if (!isControllerRef.current && !isWheelOnlyInput(bytes)) return;
       sendBinaryRef.current(bytes);
     });
+
+    // Track terminal render updates and scroll events to invalidate highlight on redraw
+    // while keeping viewportY in sync across buffer scrolling.
+    const writeParsedDispose =
+      typeof term.onWriteParsed === 'function'
+        ? term.onWriteParsed(() => {
+            contentChangedRef.current = true;
+          })
+        : { dispose: () => {} };
+
+    const renderDispose =
+      typeof term.onRender === 'function'
+        ? term.onRender((e: { start: number; end: number }) => {
+            const currentViewportY = term.buffer.active.viewportY ?? 0;
+            setViewportY(currentViewportY);
+
+            const currentRect = selectionRectRef.current;
+            if (currentRect && isHighlightVisibleRef.current) {
+              const selStart = currentRect.startRow - currentViewportY;
+              const selEnd = currentRect.endRow - currentViewportY;
+              // Invalidate highlight only when incoming stream content actually changed
+              // AND the redrawn rows intersect with the active selection rectangle.
+              if (contentChangedRef.current && e.start <= selEnd && e.end >= selStart) {
+                setIsHighlightVisible(false);
+                contentChangedRef.current = false;
+              }
+            } else {
+              contentChangedRef.current = false;
+            }
+          })
+        : { dispose: () => {} };
+
+    const scrollDispose =
+      typeof term.onScroll === 'function'
+        ? term.onScroll(() => {
+            const currentViewportY = term.buffer.active.viewportY ?? 0;
+            setViewportY(currentViewportY);
+          })
+        : { dispose: () => {} };
 
     const pointerController = new TerminalPointerController({
       getTerminal: () => termRef.current,
@@ -757,6 +907,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         if (selectionMenuRef.current) {
           setSelectionMenu(null);
           selectionMenuRef.current = null;
+          setSelectionRect(null);
+          selectionRectRef.current = null;
+          setSelectionSnapshot('');
+          selectionSnapshotRef.current = '';
+          setIsHighlightVisible(false);
+          longPressPointRef.current = null;
+          lastExtendPointRef.current = null;
           if (e.cancelable) e.preventDefault();
           e.stopPropagation();
           return;
@@ -773,27 +930,39 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const onPointerUp = (e: PointerEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markPointerEvent('pointerup');
-        if (isExtendingRef.current) {
-          isExtendingRef.current = false;
-          setIsExtendingSelection(false);
-          if (lastExtendPointRef.current && mainRef.current) {
+
+        // CRITICAL: Inspect longpress state BEFORE calling handlePointerUp(e).
+        // Calling handlePointerUp resets controller state to 'idle'.
+        const wasLongPress = pointerController.getState() === 'longpress';
+        if (wasLongPress && mainRef.current) {
+          const menuPoint = lastExtendPointRef.current ?? longPressPointRef.current;
+          if (menuPoint) {
             const mainRect = mainRef.current.getBoundingClientRect();
-            const x = lastExtendPointRef.current.clientX - mainRect.left;
-            const y = lastExtendPointRef.current.clientY - mainRect.top;
+            const x = menuPoint.clientX - mainRect.left;
+            const y = menuPoint.clientY - mainRect.top;
             setSelectionMenu({ x, y });
             selectionMenuRef.current = { x, y };
           }
         }
+
         pointerController.handlePointerUp(e);
         if (e.pointerType !== 'mouse') e.stopPropagation();
       };
       const onPointerCancel = (e: PointerEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markPointerEvent('pointercancel');
-        if (isExtendingRef.current) {
-          isExtendingRef.current = false;
-          setIsExtendingSelection(false);
-        }
+
+        // Interrupted gesture: clear menu, selection and highlight without opening menu
+        setSelectionMenu(null);
+        selectionMenuRef.current = null;
+        setSelectionRect(null);
+        selectionRectRef.current = null;
+        setSelectionSnapshot('');
+        selectionSnapshotRef.current = '';
+        setIsHighlightVisible(false);
+        longPressPointRef.current = null;
+        lastExtendPointRef.current = null;
+
         pointerController.handlePointerCancel(e);
         if (e.pointerType !== 'mouse') e.stopPropagation();
       };
@@ -858,6 +1027,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         if (selectionMenuRef.current) {
           setSelectionMenu(null);
           selectionMenuRef.current = null;
+          setSelectionRect(null);
+          selectionRectRef.current = null;
+          setSelectionSnapshot('');
+          selectionSnapshotRef.current = '';
+          setIsHighlightVisible(false);
+          longPressPointRef.current = null;
+          lastExtendPointRef.current = null;
           if (e.cancelable) e.preventDefault();
           e.stopPropagation();
           return;
@@ -874,27 +1050,38 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const onTouchEnd = (e: TouchEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markTouchEvent('touchend');
-        if (isExtendingRef.current) {
-          isExtendingRef.current = false;
-          setIsExtendingSelection(false);
-          if (lastExtendPointRef.current && mainRef.current) {
+
+        // CRITICAL: Determine whether this gesture was a longpress BEFORE pointerController.handleTouchEnd(e).
+        const wasLongPress = pointerController.getState() === 'longpress';
+        if (wasLongPress && mainRef.current) {
+          const menuPoint = lastExtendPointRef.current ?? longPressPointRef.current;
+          if (menuPoint) {
             const mainRect = mainRef.current.getBoundingClientRect();
-            const x = lastExtendPointRef.current.clientX - mainRect.left;
-            const y = lastExtendPointRef.current.clientY - mainRect.top;
+            const x = menuPoint.clientX - mainRect.left;
+            const y = menuPoint.clientY - mainRect.top;
             setSelectionMenu({ x, y });
             selectionMenuRef.current = { x, y };
           }
         }
+
         e.stopPropagation();
         pointerController.handleTouchEnd(e);
       };
       const onTouchCancel = (e: TouchEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markTouchEvent('touchcancel');
-        if (isExtendingRef.current) {
-          isExtendingRef.current = false;
-          setIsExtendingSelection(false);
-        }
+
+        // Cancellation: clear menu, selection and highlight without opening menu
+        setSelectionMenu(null);
+        selectionMenuRef.current = null;
+        setSelectionRect(null);
+        selectionRectRef.current = null;
+        setSelectionSnapshot('');
+        selectionSnapshotRef.current = '';
+        setIsHighlightVisible(false);
+        longPressPointRef.current = null;
+        lastExtendPointRef.current = null;
+
         e.stopPropagation();
         pointerController.handleTouchCancel();
       };
@@ -964,6 +1151,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     return () => {
       dataDispose.dispose();
       binaryDispose.dispose();
+      renderDispose.dispose();
+      scrollDispose.dispose();
+      writeParsedDispose.dispose();
       pointerController.handlePointerCancel();
       for (const detach of detachInput) detach();
       resizeObserver.disconnect();
@@ -988,6 +1178,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         boundedFitRafRef.current = null;
       }
       removeTouchDebugFocusListeners();
+      term.textarea?.removeEventListener('paste', handleNativePaste);
+      container.removeEventListener('paste', handleNativePaste);
       renderer.dispose();
       term.dispose();
       termRef.current = null;
@@ -1162,10 +1354,47 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         </pre>
       )}
 
-      {isTouchDevice && selectionMenu && !isExtendingSelection && (
+      {/* Rectangular selection overlay div */}
+      {isTouchDevice && selectionRect && isHighlightVisible && (() => {
+        const term = termRef.current;
+        if (!term || !mainRef.current) return null;
+        const cell = measureCellDimensions(term);
+        if (cell.cellWidth <= 0 || cell.cellHeight <= 0) return null;
+
+        const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
+        if (!screenEl) return null;
+        const screenRect = screenEl.getBoundingClientRect();
+        const mainRect = mainRef.current.getBoundingClientRect();
+
+        const startRowRel = selectionRect.startRow - viewportY;
+        const endRowRel = selectionRect.endRow - viewportY;
+
+        // Hide if completely scrolled out of the visible viewport
+        if (endRowRel < 0 || startRowRel >= term.rows) return null;
+
+        const top = (screenRect.top - mainRect.top) + startRowRel * cell.cellHeight;
+        const left = (screenRect.left - mainRect.left) + selectionRect.startCol * cell.cellWidth;
+        const width = (selectionRect.endCol - selectionRect.startCol + 1) * cell.cellWidth;
+        const height = (selectionRect.endRow - selectionRect.startRow + 1) * cell.cellHeight;
+
+        return (
+          <div
+            data-testid="terminal-selection-overlay"
+            className="pointer-events-none absolute z-20 bg-tui-accent/35"
+            style={{
+              top: `${top}px`,
+              left: `${left}px`,
+              width: `${width}px`,
+              height: `${height}px`,
+            }}
+          />
+        );
+      })()}
+
+      {isTouchDevice && selectionMenu && (
         <TerminalSelectionMenu
           anchorPoint={selectionMenu}
-          hasSelection={termRef.current?.hasSelection() ?? false}
+          hasSelection={Boolean(selectionSnapshot)}
           isController={isController}
           vibrateOnKeyPress={settings.vibrateOnKeyPress}
           onCopySelection={handleCopySelection}
@@ -1175,6 +1404,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           onClose={() => {
             setSelectionMenu(null);
             selectionMenuRef.current = null;
+            setSelectionRect(null);
+            selectionRectRef.current = null;
+            setSelectionSnapshot('');
+            selectionSnapshotRef.current = '';
+            setIsHighlightVisible(false);
           }}
         />
       )}
@@ -1184,6 +1418,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           isOpen={isPasteFallbackOpen}
           onClose={() => setIsPasteFallbackOpen(false)}
           onSend={handleFallbackPasteSend}
+          onSendImage={handleFallbackImageSend}
         />
       )}
     </main>

@@ -9,6 +9,7 @@ import {
   ClientReleaseControlMessage,
   ClientResizeMessage,
   ClientPingMessage,
+  ClientJsonMessage,
   ServerJsonMessage,
   ServerReadyMessage,
   ServerSessionReadyMessage,
@@ -48,6 +49,7 @@ export type AdapterEventMap = {
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
+  pasteFileReady: (path: string) => void;
 };
 
 export class HerdrClientAdapter {
@@ -87,6 +89,7 @@ export class HerdrClientAdapter {
     error: new Set(),
     binaryData: new Set(),
     rttUpdate: new Set(),
+    pasteFileReady: new Set(),
   };
 
   private terminalCols = 80;
@@ -416,6 +419,11 @@ export class HerdrClientAdapter {
         break;
       }
 
+      case 'paste_file_ready': {
+        this.emit('pasteFileReady', msg.path);
+        break;
+      }
+
       default:
         break;
     }
@@ -554,7 +562,15 @@ export class HerdrClientAdapter {
     this.sendJson(msg);
   }
 
-  public sendJson(msg: ClientHelloMessage | ClientClaimControlMessage | ClientReleaseControlMessage | ClientResizeMessage | ClientPingMessage): void {
+  public sendPasteFile(mime: string, dataBase64: string): void {
+    this.sendJson({
+      type: 'paste_file',
+      mime,
+      dataBase64,
+    });
+  }
+
+  public sendJson(msg: ClientJsonMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }

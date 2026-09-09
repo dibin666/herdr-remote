@@ -15,6 +15,7 @@ const { resolveHerdrCommand, verifyHerdrCommand, herdrNotFoundMessage } = requir
 const { packStreamFrame, unpackStreamFrame, PROTOCOL_VERSION } = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
+const { savePastedFile, cleanPastedDir } = require('./pasted-files');
 
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
@@ -89,6 +90,7 @@ class HostConnector {
       || process.env.HERDR_REMOTE_HOST_LOCK
       || path.join(stateDir(), 'host-connector.lock');
     this.lockFd = null;
+    try { cleanPastedDir(); } catch {}
   }
 
   acquireLock() {
@@ -280,6 +282,7 @@ class HostConnector {
     if (message.type === 'session_start') this.startSession(message);
     else if (message.type === 'session_stop') this.stopSession(message.clientId || message.streamId);
     else if (message.type === 'resize') this.resizeSession(message);
+    else if (message.type === 'paste_file') this.handlePasteFile(message);
   }
 
   /**
@@ -417,6 +420,28 @@ class HostConnector {
     session.cols = Number.isInteger(message.cols) ? Math.min(500, Math.max(2, message.cols)) : session.cols;
     session.rows = Number.isInteger(message.rows) ? Math.min(500, Math.max(2, message.rows)) : session.rows;
     session.pty.resize(session.cols, session.rows);
+  }
+
+  handlePasteFile(message) {
+    const streamId = message.clientId || message.streamId;
+    try {
+      const savedPath = savePastedFile({
+        mime: message.mime,
+        dataBase64: message.dataBase64,
+      });
+      sendJson(this.ws, {
+        type: 'paste_file_ready',
+        clientId: streamId,
+        path: savedPath,
+      });
+    } catch (error) {
+      sendJson(this.ws, {
+        type: 'error',
+        clientId: streamId,
+        code: 'paste_file_write_failed',
+        message: error.message || 'Failed to save pasted file',
+      });
+    }
   }
 
   destroySessions() {

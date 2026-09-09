@@ -191,3 +191,113 @@ export async function readClipboardText(): Promise<ClipboardReadResult> {
     return { ok: false, reason: 'denied' };
   }
 }
+
+export type ClipboardReadImageFailureReason = 'empty' | 'insecure' | 'denied' | 'unsupported';
+
+export type ClipboardReadImageResult =
+  | { ok: true; blob: Blob }
+  | { ok: false; reason: ClipboardReadImageFailureReason };
+
+/**
+ * Reads an image from the system clipboard using the asynchronous Clipboard API.
+ *
+ * In modern browsers over secure contexts (HTTPS or localhost), `navigator.clipboard.read()`
+ * returns an array of `ClipboardItem` objects. We inspect the available MIME types on each
+ * item for image types (`image/*`), retrieve the raw Blob via `getType()`, and return it.
+ *
+ * If the context is insecure (e.g. plain HTTP on LAN), `read()` does not exist or throws
+ * SecurityError, returning `{ ok: false, reason: 'insecure' }` so the UI can pop the fallback.
+ */
+export async function readClipboardImage(): Promise<ClipboardReadImageResult> {
+  const isSecure = typeof window === 'undefined' || window.isSecureContext !== false;
+
+  if (
+    !isSecure ||
+    typeof navigator === 'undefined' ||
+    !navigator.clipboard ||
+    typeof navigator.clipboard.read !== 'function'
+  ) {
+    return { ok: false, reason: 'insecure' };
+  }
+
+  try {
+    const items = await navigator.clipboard.read();
+    if (!items || items.length === 0) {
+      return { ok: false, reason: 'empty' };
+    }
+    for (const item of items) {
+      const imageType = item.types.find((t) => t.startsWith('image/'));
+      if (imageType) {
+        const blob = await item.getType(imageType);
+        if (blob && blob.size > 0) {
+          return { ok: true, blob };
+        }
+      }
+    }
+    return { ok: false, reason: 'empty' };
+  } catch (err: unknown) {
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      return { ok: false, reason: 'insecure' };
+    }
+    const errorName = (err as { name?: string })?.name;
+    if (errorName === 'SecurityError') {
+      return { ok: false, reason: 'insecure' };
+    }
+    if (errorName === 'NotAllowedError') {
+      return { ok: false, reason: 'denied' };
+    }
+    return { ok: false, reason: 'empty' };
+  }
+}
+
+/**
+ * Extracts an image Blob from a DOM or synthetic ClipboardEvent.
+ *
+ * Chrome and mobile browsers refuse to paste images into standard `<textarea>` elements,
+ * surfacing errors like "Chrome does not support pasting images here". When pasting into
+ * a `contenteditable` container, the image payload appears in `event.clipboardData.files`
+ * or `event.clipboardData.items`.
+ */
+export function extractImageFromClipboardEvent(
+  event: { clipboardData?: DataTransfer | null }
+): Blob | null {
+  const data = event.clipboardData;
+  if (!data) return null;
+
+  // Check files collection first (standard for desktop and mobile copy/paste)
+  if (data.files && data.files.length > 0) {
+    for (let i = 0; i < data.files.length; i++) {
+      const file = data.files[i];
+      if (file && file.type.startsWith('image/')) {
+        return file;
+      }
+    }
+  }
+
+  // Check items collection (fallback for drag-and-drop or certain mobile keyboards)
+  if (data.items && data.items.length > 0) {
+    for (let i = 0; i < data.items.length; i++) {
+      const item = data.items[i];
+      if (item && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) return file;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extracts the first image File from a file input element's FileList.
+ */
+export function extractImageFromFileList(files: FileList | null): File | null {
+  if (!files || files.length === 0) return null;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file && (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(file.name))) {
+      return file;
+    }
+  }
+  return null;
+}

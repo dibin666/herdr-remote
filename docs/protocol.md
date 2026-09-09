@@ -178,3 +178,81 @@ set).
 
 Pairing and device records are stored as hashes; terminal content is never
 persisted by the relay.
+
+## Pasted image files
+
+Browsers can transfer clipboard images to the workstation. Because PTY streams only consume text,
+the image payload is saved to host state storage and the resulting local file path is pasted
+into the active terminal.
+
+### Client to relay (`paste_file`)
+
+Sent as a JSON message over `/ws/client`:
+
+```json
+{
+  "type": "paste_file",
+  "mime": "image/png",
+  "dataBase64": "..."
+}
+```
+
+- Allowed MIME types: `image/png`, `image/jpeg`, `image/webp`, `image/gif`.
+- Size limit: 3 MB decoded raw binary (base64 payload must not exceed ~4 MB).
+- Error codes returned on client error:
+  - `paste_file_unsupported`: MIME type is not in the whitelist or payload is malformed.
+  - `paste_file_too_large`: Decoded payload exceeds 3 MB. The connection remains open.
+
+### Relay to host
+
+The relay validates the MIME whitelist and 3 MB payload cap, stamps the message with the
+originating client's `streamId`, and forwards it over `/ws/host`:
+
+```json
+{
+  "type": "paste_file",
+  "clientId": "stream-id-1",
+  "streamId": "stream-id-1",
+  "mime": "image/png",
+  "dataBase64": "..."
+}
+```
+
+### Host processing & security
+
+The host connector performs strict independent security checks before writing:
+1. **Pinned directory**: Files are written strictly to `<stateDir>/pasted` (directory mode `0o700`).
+2. **Unpredictable filename**: Generated via `crypto.randomUUID()`; client-supplied names are never used.
+3. **Whitelisted extension**: Derived directly from the validated MIME (`.png`, `.jpg`, `.webp`, `.gif`).
+4. **Host size re-validation**: The host independently enforces the 3 MB ceiling.
+5. **Magic bytes sniffing**: Raw binary headers are validated against declared MIME:
+   - PNG: `89 50 4E 47`
+   - JPEG: `FF D8 FF`
+   - GIF: `47 49 46 38`
+   - WebP: `RIFF` (bytes 0..3) and `WEBP` (bytes 8..11)
+   Mismatches are rejected to prevent file-type spoofing.
+6. **File mode**: Created with mode `0o600`.
+7. **Retention and pruning**: Caps at 20 files and 50 MB (oldest deleted first). Residual files older than 24 hours are deleted upon startup.
+
+If writing or validation fails, the host returns an error over the existing channel:
+```json
+{
+  "type": "error",
+  "clientId": "stream-id-1",
+  "code": "paste_file_write_failed",
+  "message": "..."
+}
+```
+
+### Host to relay and client (`paste_file_ready`)
+
+Upon successfully saving the file, the host returns:
+```json
+{
+  "type": "paste_file_ready",
+  "clientId": "stream-id-1",
+  "path": "/home/user/.local/state/herdr-remote/pasted/uuid.png"
+}
+```
+
+The relay routes `paste_file_ready` exclusively to the initiating client window.

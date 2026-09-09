@@ -155,6 +155,8 @@ export interface MockTerminalInstance {
   };
   /** Drives `isMouseTrackingActive`, i.e. whether an app wants SGR reports. */
   modes: { mouseTrackingMode: string };
+  emitRender?: (e: { start: number; end: number }) => void;
+  emitWriteParsed?: () => void;
   [key: string]: unknown;
 }
 
@@ -166,6 +168,8 @@ const xtermInstances: MockTerminalInstance[] = [];
 // calling `vi.restoreAllMocks()` cannot strip its implementation.
 vi.mock('@xterm/xterm', () => ({
   Terminal: function MockTerminal(opts: Record<string, unknown> = {}) {
+    const renderCallbacks: Array<(e: { start: number; end: number }) => void> = [];
+    const writeParsedCallbacks: Array<() => void> = [];
     const instance: MockTerminalInstance = {
       options: { ...opts },
       cols: typeof opts.cols === 'number' ? opts.cols : 80,
@@ -230,7 +234,31 @@ vi.mock('@xterm/xterm', () => ({
       clear: vi.fn(),
       onData: vi.fn(() => ({ dispose: vi.fn() })),
       onBinary: vi.fn(() => ({ dispose: vi.fn() })),
-      onRender: vi.fn(() => ({ dispose: vi.fn() })),
+      onRender: vi.fn((cb: (e: { start: number; end: number }) => void) => {
+        renderCallbacks.push(cb);
+        return {
+          dispose: () => {
+            const idx = renderCallbacks.indexOf(cb);
+            if (idx !== -1) renderCallbacks.splice(idx, 1);
+          },
+        };
+      }),
+      emitRender: (e: { start: number; end: number }) => {
+        for (const cb of [...renderCallbacks]) cb(e);
+      },
+      onWriteParsed: vi.fn((cb: () => void) => {
+        writeParsedCallbacks.push(cb);
+        return {
+          dispose: () => {
+            const idx = writeParsedCallbacks.indexOf(cb);
+            if (idx !== -1) writeParsedCallbacks.splice(idx, 1);
+          },
+        };
+      }),
+      emitWriteParsed: () => {
+        for (const cb of [...writeParsedCallbacks]) cb();
+      },
+      onScroll: vi.fn(() => ({ dispose: vi.fn() })),
       onResize: vi.fn(() => ({ dispose: vi.fn() })),
       unicode: { activeVersion: '11' },
       // Stand-in for the render service the fit path measures cells from.

@@ -459,6 +459,13 @@ export interface TranslationSchema {
     slow_client: string;
     client_send_failed: string;
     too_many_hosts: string;
+    paste_file_unsupported: string;
+    paste_file_too_large: string;
+    paste_file_write_failed: string;
+    paste_file_empty: string;
+    paste_file_corrupt: string;
+    viewer_mode: string;
+    no_session: string;
   };
   fontPresets: {
     system: string;
@@ -481,5 +488,16 @@ export interface TranslationSchema {
     pasteUnavailable: string;
     pasteTitle: string;
     pasted: string;
+    chooseImage: string;
+    takePhoto: string;
+    imageTooLarge: string;
+    imageCompressedSize: string;
+    fileEmpty: string;
+    decodeFailed: string;
+    unsupportedType: string;
+    imageSectionTitle: string;
+    textSectionTitle: string;
+    imageCompressing: string;
+    removeImage: string;
   };
 }

@@ -271,10 +271,26 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       });
       container.dispatchEvent(downEvent);
     });
-
     // Wait for 500ms long press timer
     await act(async () => {
       await new Promise((r) => setTimeout(r, 520));
+    });
+
+    // NEW CRITICAL ASSERTION: While finger is still held down, menu must NOT exist yet!
+    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
+
+    // Finger lifts up (pointerup) -> menu appears now
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: 100,
+          clientY: 100,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
     });
 
     // Menu should now be in the DOM
@@ -312,17 +328,42 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     renderMobileTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
     const term = xtermInstances[0];
-    term.getSelection = vi.fn().mockReturnValue('echo hello');
-    term.hasSelection = vi.fn().mockReturnValue(true);
+
+    // Populate terminal buffer line with readable word "echo" at touch position
+    const lineContent = 'echo hello world';
+    term.buffer.active.getLine = vi.fn().mockImplementation((_y: number) => {
+      return {
+        isWrapped: false,
+        length: 80,
+        getCell: (x: number) => {
+          if (x < lineContent.length) {
+            return {
+              getWidth: () => 1,
+              getChars: () => lineContent[x],
+              getCode: () => lineContent.charCodeAt(x),
+            };
+          }
+          return {
+            getWidth: () => 1,
+            getChars: () => ' ',
+            getCode: () => 32,
+          };
+        },
+        translateToString: (trimRight = false, startCol = 0, endCol = 80) => {
+          const slice = lineContent.slice(startCol, endCol);
+          return trimRight ? slice.trimEnd() : slice;
+        },
+      };
+    });
 
     const container = document.querySelector('#terminal-container') as HTMLElement;
 
-    // Trigger long press to open menu
+    // Trigger long press on col 1 (where "echo" lives)
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerdown', {
-          clientX: 100,
-          clientY: 100,
+          clientX: 10,
+          clientY: 10,
           pointerType: 'touch',
           isPrimary: true,
           bubbles: true,
@@ -334,13 +375,27 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       await new Promise((r) => setTimeout(r, 520));
     });
 
+    // Finger lifts up -> menu opens
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: 10,
+          clientY: 10,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+
     const copyBtn = screen.getByRole('menuitem', { name: /复制选中/i });
     act(() => {
       fireEvent.click(copyBtn);
     });
 
     await waitFor(() => {
-      expect(copyTextSpy).toHaveBeenCalledWith('echo hello');
+      expect(copyTextSpy).toHaveBeenCalledWith('echo');
     });
   });
 
@@ -362,7 +417,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
 
     const container = document.querySelector('#terminal-container') as HTMLElement;
 
-    // Trigger long press to open menu
+    // Trigger long press
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerdown', {
@@ -377,6 +432,20 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     });
     await act(async () => {
       await new Promise((r) => setTimeout(r, 520));
+    });
+
+    // Finger lifts up -> menu appears
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: 100,
+          clientY: 100,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
     });
 
     const pasteBtn = screen.getByRole('menuitem', { name: /粘贴/i });
@@ -435,6 +504,20 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       await new Promise((r) => setTimeout(r, 520));
     });
 
+    // Finger lifts up -> menu appears
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: 100,
+          clientY: 100,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+
     const pasteBtn = screen.getByRole('menuitem', { name: /粘贴/i });
     act(() => {
       fireEvent.click(pasteBtn);
@@ -445,5 +528,178 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       await new Promise((r) => setTimeout(r, 50));
     });
     expect(screen.queryByText('长按此处粘贴，然后按发送')).toBeNull();
+  });
+
+  it('CRITICAL NEW REQUIREMENT: menu does NOT exist while finger is held down at longpress; appears only upon lifting finger (pointerup)', async () => {
+    renderMobileTerminal();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    const term = xtermInstances[0];
+
+    const container = document.querySelector('#terminal-container') as HTMLElement;
+
+    // Touch down
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          clientX: 60,
+          clientY: 60,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+
+    // Wait for 520ms (longpress timer triggers at 500ms)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 520));
+    });
+
+    // 1. WHILE FINGER IS HELD DOWN: menu MUST NOT EXIST in the DOM!
+    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
+
+    // 2. FINGER LIFTS (pointerup): menu now pops up at the touch position!
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: 60,
+          clientY: 60,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+
+    expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
+    // Non-focus invariant: lifting finger after longpress must NOT focus terminal textarea
+    expect(term.focus).not.toHaveBeenCalled();
+  });
+
+  it('CRITICAL B2: onRender redraw intersecting with selection invalidates highlight overlay while preserving menu and snapshot', async () => {
+    const copyTextSpy = vi.spyOn(clipboardModule, 'copyText').mockResolvedValue('clipboard');
+
+    renderMobileTerminal();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    const term = xtermInstances[0];
+
+    // Set readable content on row 0
+    const lineContent = 'alpha beta gamma';
+    term.buffer.active.getLine = vi.fn().mockImplementation(() => ({
+      isWrapped: false,
+      length: 80,
+      getCell: (x: number) => ({
+        getWidth: () => 1,
+        getChars: () => (x < lineContent.length ? lineContent[x] : ' '),
+        getCode: () => (x < lineContent.length ? lineContent.charCodeAt(x) : 32),
+      }),
+      translateToString: (_trim = false, startCol = 0, endCol = 80) => {
+        return lineContent.slice(startCol, endCol).trimEnd();
+      },
+    }));
+
+    const container = document.querySelector('#terminal-container') as HTMLElement;
+
+    // Longpress on "alpha" (col 1, row 0)
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          clientX: 10,
+          clientY: 10,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+        })
+      );
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 520));
+    });
+
+    // Highlight overlay should be visible before finger lift
+    expect(screen.getAllByTestId('terminal-selection-overlay').length).toBeGreaterThan(0);
+
+    // Lift finger -> menu opens
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: 10,
+          clientY: 10,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+        })
+      );
+    });
+
+    const copyBtn = screen.getByRole('menuitem', { name: /复制选中/i });
+    expect(copyBtn).toBeInTheDocument();
+
+    // 1. Pure refresh() scenario (e.g. rotation, visibility change, resize fit):
+    // onRender fires without onWriteParsed. Highlight MUST REMAIN VISIBLE!
+    act(() => {
+      term.emitRender?.({ start: 0, end: 1 });
+    });
+    expect(screen.getByTestId('terminal-selection-overlay')).toBeInTheDocument();
+
+    // 2. Real data arrived from stream: onWriteParsed fires, then onRender redraws intersecting row
+    act(() => {
+      term.emitWriteParsed?.();
+      term.emitRender?.({ start: 0, end: 1 });
+    });
+
+    // Invariant: Highlight overlay MUST be removed because screen content was overwritten
+    expect(screen.queryByTestId('terminal-selection-overlay')).toBeNull();
+
+    // Invariant: Menu MUST still remain open and snapshot text MUST still be copied!
+    expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
+    act(() => {
+      fireEvent.click(copyBtn);
+    });
+    await waitFor(() => {
+      expect(copyTextSpy).toHaveBeenCalledWith('alpha');
+    });
+  });
+
+  it('CRITICAL D5: pointercancel clears selection, highlight and does NOT open menu', async () => {
+    renderMobileTerminal();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+
+    const container = document.querySelector('#terminal-container') as HTMLElement;
+
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          clientX: 10,
+          clientY: 10,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+        })
+      );
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 520));
+    });
+
+    // Gesture canceled by browser or multi-touch
+    act(() => {
+      container.dispatchEvent(
+        new PointerEvent('pointercancel', {
+          clientX: 10,
+          clientY: 10,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+        })
+      );
+    });
+
+    // Menu must never open
+    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
+    // Overlay must be gone
+    expect(screen.queryByTestId('terminal-selection-overlay')).toBeNull();
   });
 });

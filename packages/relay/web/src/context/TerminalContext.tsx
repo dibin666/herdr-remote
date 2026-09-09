@@ -120,6 +120,8 @@ interface TerminalContextValue {
   subscribeToOutput: (sink: TerminalOutputSink) => () => void;
   /** Number of chunks currently buffered (diagnostics / tests). */
   getPendingOutputChunkCount: () => number;
+  sendPasteFile: (mime: string, dataBase64: string) => boolean;
+  subscribeToPasteFileReady: (handler: (path: string) => void) => () => void;
 }
 
 const TerminalContext = createContext<TerminalContextValue | null>(null);
@@ -171,6 +173,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const hasEstablishedConnectionRef = useRef(false);
   const dimensionsRef = useRef(terminalDimensions);
   dimensionsRef.current = terminalDimensions;
+  const pasteFileReadyListenersRef = useRef<Set<(path: string) => void>>(new Set());
 
   const t = useCallback(
     (path: string, params?: Record<string, string | number>) => {
@@ -639,7 +642,21 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('error', (err) => {
-      addToast('error', `[${err.code}] ${err.message}`);
+      const codeStr = String(err.code);
+      const key = `serverErrors.${codeStr}`;
+      const translated = tRef.current(key);
+      const message = translated && translated !== key ? translated : (err.message || `[${err.code}]`);
+      addToast('error', message);
+    });
+
+    newAdapter.on('pasteFileReady', (path) => {
+      for (const listener of pasteFileReadyListenersRef.current) {
+        try {
+          listener(path);
+        } catch (err) {
+          console.error('Error in pasteFileReady listener:', err);
+        }
+      }
     });
 
     newAdapter.on('rttUpdate', (rtt) => {
@@ -734,6 +751,28 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   }, []);
 
+  const sendPasteFile = useCallback(
+    (mime: string, dataBase64: string) => {
+      if (role !== 'controller') {
+        warnViewerMode();
+        return false;
+      }
+      if (adapterRef.current) {
+        adapterRef.current.sendPasteFile(mime, dataBase64);
+        return true;
+      }
+      return false;
+    },
+    [role, warnViewerMode]
+  );
+
+  const subscribeToPasteFileReady = useCallback((handler: (path: string) => void) => {
+    pasteFileReadyListenersRef.current.add(handler);
+    return () => {
+      pasteFileReadyListenersRef.current.delete(handler);
+    };
+  }, []);
+
   return (
     <TerminalContext.Provider
       value={{
@@ -779,6 +818,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         warnViewerMode,
         subscribeToOutput,
         getPendingOutputChunkCount,
+        sendPasteFile,
+        subscribeToPasteFileReady,
       }}
     >
       {children}

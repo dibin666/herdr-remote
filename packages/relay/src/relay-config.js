@@ -31,7 +31,10 @@ const DEFAULTS = {
     host: '127.0.0.1',
     port: 8787,
     publicUrl: 'http://127.0.0.1:8787',
-    maxPayloadBytes: 1024 * 1024,
+    // Sized for a pasted image, not for keystrokes. `ws` closes a connection
+    // that receives an oversized frame (1009) rather than dropping the frame,
+    // so this ceiling is what a client's own upload cap has to stay under.
+    maxPayloadBytes: 5 * 1024 * 1024,
     maxClientsPerHost: 16,
     maxHosts: 1024,
     maxPendingHandshakes: 1024,
