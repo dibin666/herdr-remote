@@ -154,7 +154,7 @@ module.exports = {
   'herdr.registerDone': 'Registered: {path}',
   'herdr.unregisterDone': 'Plugin unregistered.',
   'herdr.registerFailed': 'Registration failed: {message}',
-  'herdr.cliMissing': 'Command herdr not found in PATH.',
+  'herdr.cliMissing': 'Command herdr not found. Set HERDR_BIN_PATH to its full path.',
 
   'about.title': 'Language & about',
   'about.language': 'Interface language',

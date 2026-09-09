@@ -45,6 +45,18 @@ herdr-remote plugin link
 - Settings: `~/.config/herdr-remote/config.json`
 - Runtime state: `~/.local/state/herdr-remote/runtime.json` (mode `0600`)
 
+## Locating Herdr
+
+The `herdr` binary is looked up in `HERDR_BIN_PATH`, then `PATH`, then the usual
+install directories (`~/.local/bin`, `~/.cargo/bin`, `~/bin`, `/opt/homebrew/bin`,
+`/usr/local/bin`, …). `herdr-remote keepalive install` writes the binary it found
+and the current `PATH` into the systemd unit or launchd agent, because a service
+manager does not inherit your shell's environment.
+
+`herdr-remote status --json` reports `host.herdrCommand` and `host.herdrCommandFound`.
+If it was not found, set `HERDR_BIN_PATH` to the full path and reinstall the
+keep-alive service.
+
 ## License
 
 MIT

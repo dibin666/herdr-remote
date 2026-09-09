@@ -9,7 +9,7 @@ const { loadConfig, hostWebSocketUrl, resolveHostRelayUrl, stateDir } = require(
 const { ensureDir } = require('./state');
 const { resolveSocketPath, inspectSocket } = require('./socket-discovery');
 const { PtySession } = require('./pty-session');
-const { resolveHerdrCommand } = require('./herdr-command');
+const { resolveHerdrCommand, verifyHerdrCommand, herdrNotFoundMessage } = require('./herdr-command');
 // The wire format lives in the relay package so both ends of the protocol are
 // generated from one definition.
 const { packStreamFrame, unpackStreamFrame, PROTOCOL_VERSION } = require('herdr-remote-relay/protocol');
@@ -40,6 +40,14 @@ function pidAlive(pid) {
 }
 
 class HostConnector {
+  /**
+   * A session that dies this fast never really started. Anything longer is a
+   * session the user actually used and then left.
+   */
+  static FAST_FAILURE_MS = 1500;
+  /** How many broken starts in a row before we stop calling them exits. */
+  static FAST_FAILURE_LIMIT = 3;
+
   constructor(options = {}) {
     const config = options.config || loadConfig();
     this.config = config;
@@ -50,7 +58,10 @@ class HostConnector {
     // Optional; a relay without a password accepts any workstation.
     this.relayPassword = options.relayPassword ?? process.env.RELAY_PASSWORD ?? '';
     this.socketPath = options.socketPath || resolveSocketPath(config.herdr.socketPath);
-    this.herdrCommand = options.herdrCommand || resolveHerdrCommand();
+    // Where to look for Herdr when the command has to be resolved again; the
+    // real environment unless a caller narrows it.
+    this.herdrLookup = options.herdrLookup || {};
+    this.herdrCommand = options.herdrCommand || resolveHerdrCommand(this.herdrLookup);
     this.herdrArgs = options.herdrArgs || config.herdr.args;
     this.cwd = options.cwd || config.herdr.cwd;
     /**
@@ -65,6 +76,7 @@ class HostConnector {
       : resolveHostPalette();
     this.ws = null;
     this.sessions = new Map();
+    this.fastFailures = 0;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     this.reconnectAttempts = 0;
@@ -270,10 +282,39 @@ class HostConnector {
     else if (message.type === 'resize') this.resizeSession(message);
   }
 
+  /**
+   * Confirm Herdr is really there before the name reaches `pty.spawn`.
+   *
+   * node-pty resolves the command with `execvp(3)` inside the forked child, so
+   * a missing binary is not a spawn error anyone can catch: the child writes
+   * "execvp(3) failed.: No such file or directory" into the PTY and exits. The
+   * `session_exit` that follows makes the relay drop the browser's socket, the
+   * browser reconnects into the same broken start, and that is the reconnect
+   * loop of issue #1. Refusing to start keeps the socket up and puts the actual
+   * reason in front of the user.
+   *
+   * Re-resolved per session rather than cached from the constructor: a service
+   * that started before Herdr was installed should pick it up without a restart.
+   */
+  ensureHerdrCommand() {
+    const resolved = verifyHerdrCommand(this.herdrCommand, this.herdrLookup);
+    if (resolved.found) {
+      this.herdrCommand = resolved.command;
+      return null;
+    }
+    return herdrNotFoundMessage(this.herdrLookup);
+  }
+
   startSession(message) {
     const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
     if (!streamId) return;
     this.stopSession(streamId);
+    const missingHerdr = this.ensureHerdrCommand();
+    if (missingHerdr) {
+      process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
+      sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_not_found', message: missingHerdr });
+      return;
+    }
     const socketInfo = inspectSocket(this.socketPath);
     if (!socketInfo.ok) {
       sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: socketInfo.reason });
@@ -291,6 +332,7 @@ class HostConnector {
       cols: Number(message.cols) || PtySession.DEFAULT_COLS,
       rows: Number(message.rows) || PtySession.DEFAULT_ROWS,
       createdAt: new Date().toISOString(),
+      startedAtMs: Date.now(),
       clientId: streamId,
     };
     try {
@@ -304,7 +346,7 @@ class HostConnector {
         onExit: ({ exitCode }) => {
           if (this.sessions.get(streamId) !== session) return;
           this.sessions.delete(streamId);
-          sendJson(this.ws, { type: 'session_exit', clientId: streamId, code: exitCode });
+          this.reportSessionExit(session, exitCode);
           this.sendHeartbeat();
         },
       });
@@ -316,6 +358,32 @@ class HostConnector {
     this.sessions.set(streamId, session);
     sendJson(this.ws, { type: 'session_ready', clientId: streamId });
     this.sendHeartbeat();
+  }
+
+  /**
+   * Tell the relay how a session ended.
+   *
+   * `session_exit` is the honest answer for a session that ran, and the relay
+   * closes the browser's socket on it so the window can start a fresh one. That
+   * is also what turns a start that keeps failing into a reconnect loop: exit,
+   * close, reconnect, exit. Once a few starts in a row have died immediately
+   * with a non-zero code the failure is systemic, not a session ending, so it is
+   * reported as an error — which the relay forwards without dropping the socket,
+   * leaving the user with a message instead of a spinner.
+   */
+  reportSessionExit(session, exitCode) {
+    const streamId = session.id;
+    const lifetimeMs = Date.now() - session.startedAtMs;
+    const failedFast = exitCode !== 0 && lifetimeMs < HostConnector.FAST_FAILURE_MS;
+    this.fastFailures = failedFast ? this.fastFailures + 1 : 0;
+    if (this.fastFailures < HostConnector.FAST_FAILURE_LIMIT) {
+      sendJson(this.ws, { type: 'session_exit', clientId: streamId, code: exitCode });
+      return;
+    }
+    const message = `"${this.herdrCommand}" exited immediately with code ${exitCode} on ${this.fastFailures} attempts in a row. `
+      + 'Check that it runs from a terminal, and see the host connector log for what it printed.';
+    process.stderr.write(`herdr-remote host connector: ${message}\n`);
+    sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_start_failed', message });
   }
 
   stopSession(streamId) {

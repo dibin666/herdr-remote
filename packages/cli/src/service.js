@@ -26,7 +26,7 @@ const {
 } = require('./terminal-palette');
 const { resolveSocketPath } = require('./socket-discovery');
 const { preferredLanAddress } = require('./net-interfaces');
-const { resolveHerdrCommand } = require('./herdr-command');
+const { findHerdrCommand, resolveHerdrCommand } = require('./herdr-command');
 
 const RUNTIME_VERSION = 2;
 
@@ -415,6 +415,9 @@ async function statusServices() {
     health = { ok: false, message: error.message };
   }
   const socketPath = resolveSocketPath(config.herdr.socketPath);
+  // Where Herdr was found, and whether it was found at all: under a service
+  // manager this is the first thing to check when sessions will not start.
+  const herdr = findHerdrCommand();
   return {
     ok: true,
     mode: config.relay.mode,
@@ -433,6 +436,9 @@ async function statusServices() {
       hostId: state.hostId || null,
       socketPath,
       socketExists: Boolean(socketPath) && fs.existsSync(socketPath),
+      herdrCommand: herdr.command,
+      herdrCommandFound: herdr.found,
+      herdrCommandSource: herdr.source,
     },
     publicUrl: resolvePublicUrl(config, lanAddress),
     startedAt: state.startedAt || null,

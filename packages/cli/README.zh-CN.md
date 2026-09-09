@@ -45,6 +45,16 @@ herdr-remote plugin link
 - 配置文件：`~/.config/herdr-remote/config.json`
 - 运行状态：`~/.local/state/herdr-remote/runtime.json` (权限 `0600`)
 
+## herdr 命令的查找方式
+
+依次查找 `HERDR_BIN_PATH`、`PATH`，以及常见安装目录（`~/.local/bin`、`~/.cargo/bin`、
+`~/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 等）。服务管理器不会继承 shell 环境，
+因此 `herdr-remote keepalive install` 会把找到的可执行文件路径和当前 `PATH` 写入
+systemd unit 或 launchd plist。
+
+`herdr-remote status --json` 会输出 `host.herdrCommand` 与 `host.herdrCommandFound`。
+若显示未找到，请将 `HERDR_BIN_PATH` 设为完整路径后重新安装保活服务。
+
 ## 开源协议
 
 MIT

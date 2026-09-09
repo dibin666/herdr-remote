@@ -153,7 +153,7 @@ module.exports = {
   'herdr.registerDone': '已注册：{path}',
   'herdr.unregisterDone': '已取消注册。',
   'herdr.registerFailed': '注册失败：{message}',
-  'herdr.cliMissing': 'PATH 中未找到 herdr 命令。',
+  'herdr.cliMissing': '未找到 herdr 命令，可将 HERDR_BIN_PATH 设为其完整路径。',
 
   'about.title': '语言与关于',
   'about.language': '界面语言',

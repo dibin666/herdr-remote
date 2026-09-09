@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { PACKAGE_ROOT } = require('./config');
+const { resolveHerdrCommand } = require('./herdr-command');
 
 const PLUGIN_ID = 'herdr.remote.web';
 const MANIFEST_NAME = 'herdr-plugin.toml';
@@ -18,13 +19,16 @@ function manifestPath() {
   return path.join(PACKAGE_ROOT, MANIFEST_NAME);
 }
 
+// Registration also runs from `herdr plugin` actions and from the service
+// manager, neither of which is guaranteed the PATH the user installed with, so
+// the command is resolved rather than named.
 function herdrAvailable() {
-  const result = spawnSync('herdr', ['--version'], { stdio: 'ignore' });
+  const result = spawnSync(resolveHerdrCommand(), ['--version'], { stdio: 'ignore' });
   return result.status === 0 || result.status === 1;
 }
 
 function runHerdr(args, { timeout = 15_000 } = {}) {
-  const result = spawnSync('herdr', args, { encoding: 'utf8', timeout });
+  const result = spawnSync(resolveHerdrCommand(), args, { encoding: 'utf8', timeout });
   if (result.error && result.error.code === 'ENOENT') {
     const error = new Error('herdr command not found');
     error.code = 'HERDR_NOT_FOUND';

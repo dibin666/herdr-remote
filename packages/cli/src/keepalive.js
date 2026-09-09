@@ -15,6 +15,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const { PACKAGE_ROOT, loadConfig, stateDir } = require('./config');
 const { ensureDir, readJson, writeJsonAtomic } = require('./state');
 const { logPath, pidAlive } = require('./service');
+const { findHerdrCommand } = require('./herdr-command');
 
 const SYSTEMD_UNIT_NAME = 'herdr-remote.service';
 const LAUNCHD_LABEL = 'dev.herdr.remote';
@@ -72,12 +73,64 @@ function detectManager(preference = 'auto') {
 }
 
 // ---------------------------------------------------------------------------
+// The environment a supervised copy needs
+// ---------------------------------------------------------------------------
+
+/**
+ * `PATH` for the unit: the one that is resolving commands right now, plus the
+ * directory Herdr was found in.
+ *
+ * A service manager does not inherit the shell's environment. `systemd --user`
+ * hands a unit something close to `/usr/local/bin:/usr/bin:/bin` and `launchd`
+ * is no more generous, so a copy that works from a terminal loses `~/.local/bin`
+ * — and with it `herdr` — the moment it is installed as a service. Freezing the
+ * installing shell's `PATH` into the unit keeps the supervised copy able to find
+ * Herdr, and Herdr able to find the tools it spawns in turn.
+ */
+function servicePath({ env = process.env, herdrCommand = null } = {}) {
+  const entries = String(env.PATH || '')
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  // The override already pins the exact binary; this is only so the session
+  // itself can still reach it by name.
+  if (herdrCommand) entries.push(path.dirname(herdrCommand));
+  const seen = new Set();
+  const unique = entries.filter((entry) => (seen.has(entry) ? false : seen.add(entry)));
+  return unique.join(path.delimiter);
+}
+
+/**
+ * What has to be written into the unit file for a supervised start to behave
+ * like the one the user just ran by hand.
+ */
+function serviceEnvironment({ env = process.env, home = os.homedir(), directories } = {}) {
+  const environment = {};
+  const herdr = findHerdrCommand({ env, home, ...(directories ? { directories } : {}) });
+  if (herdr.found) environment.HERDR_BIN_PATH = herdr.command;
+  const searchPath = servicePath({ env, herdrCommand: herdr.found ? herdr.command : null });
+  if (searchPath) environment.PATH = searchPath;
+  return environment;
+}
+
+// ---------------------------------------------------------------------------
 // Unit file rendering (pure, so it can be asserted in tests)
 // ---------------------------------------------------------------------------
 
+/**
+ * One `KEY=value` per directive. An unquoted systemd value ends at the first
+ * space, and `%` starts a specifier, so a `PATH` with either in it would be
+ * silently truncated or rewritten.
+ */
+function systemdEnvironmentLine(key, value) {
+  const text = String(value).replace(/[\r\n]+/g, ' ').replace(/%/g, '%%');
+  if (/^[\w@+=:,./-]*$/.test(text)) return `Environment=${key}=${text}`;
+  return `Environment="${key}=${text.replace(/([\\"])/g, '\\$1')}"`;
+}
+
 function renderSystemdUnit({ nodePath = process.execPath, entryPoint = cliEntryPoint(), environment = {} } = {}) {
   const environmentLines = Object.entries(environment)
-    .map(([key, value]) => `Environment=${key}=${value}`)
+    .map(([key, value]) => systemdEnvironmentLine(key, value))
     .join('\n');
   return `[Unit]
 Description=Herdr Remote (relay and host connector)
@@ -179,7 +232,7 @@ function systemdStatus() {
 function systemdInstall() {
   const unitPath = systemdUnitPath();
   ensureDir(path.dirname(unitPath));
-  fs.writeFileSync(unitPath, renderSystemdUnit(), { mode: 0o644 });
+  fs.writeFileSync(unitPath, renderSystemdUnit({ environment: serviceEnvironment() }), { mode: 0o644 });
   const reload = systemctl(['daemon-reload']);
   if (reload.status !== 0) {
     throw new Error(`systemctl --user daemon-reload failed: ${String(reload.stderr || '').trim()}`);
@@ -227,7 +280,7 @@ function launchdInstall() {
   const plistPath = launchdPlistPath();
   ensureDir(path.dirname(plistPath));
   ensureDir(stateDir());
-  fs.writeFileSync(plistPath, renderLaunchdPlist(), { mode: 0o644 });
+  fs.writeFileSync(plistPath, renderLaunchdPlist({ environment: serviceEnvironment() }), { mode: 0o644 });
   // bootout first so a re-install picks up the rewritten plist.
   spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { stdio: 'ignore' });
   const result = spawnSync('launchctl', ['bootstrap', launchdDomainTarget(), plistPath], { encoding: 'utf8' });
@@ -275,7 +328,7 @@ function fallbackInstall() {
   try {
     const child = spawn(process.execPath, [cliEntryPoint(), 'run', '--daemon'], {
       cwd: PACKAGE_ROOT,
-      env: { ...process.env, HERDR_REMOTE_SERVICE: '1' },
+      env: { ...process.env, HERDR_REMOTE_SERVICE: '1', ...serviceEnvironment() },
       detached: true,
       stdio: ['ignore', logFd, logFd],
     });
@@ -394,6 +447,9 @@ module.exports = {
   renderSystemdUnit,
   renderLaunchdPlist,
   escapeXml,
+  servicePath,
+  serviceEnvironment,
+  systemdEnvironmentLine,
   status,
   install,
   uninstall,
