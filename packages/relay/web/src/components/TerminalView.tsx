@@ -27,6 +27,10 @@ import {
   isCoarsePointerDevice,
   MOBILE_BREAKPOINT_PX,
 } from '../utils/terminalLayout';
+import { pointToCell, wordRangeAt, screenText } from '../utils/terminalSelection';
+import { copyText, readClipboardText } from '../utils/clipboard';
+import { TerminalSelectionMenu } from './TerminalSelectionMenu';
+import { PasteFallbackModal } from './PasteFallbackModal';
 
 export { MOBILE_BREAKPOINT_PX };
 
@@ -168,6 +172,160 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   const tRef = useRef(t);
   tRef.current = t;
+
+  const mainRef = useRef<HTMLElement | null>(null);
+  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number } | null>(null);
+  const selectionMenuRef = useRef<{ x: number; y: number } | null>(null);
+  selectionMenuRef.current = selectionMenu;
+
+  const [isExtendingSelection, setIsExtendingSelection] = useState(false);
+  const isExtendingRef = useRef(false);
+  const lastExtendPointRef = useRef<{ clientX: number; clientY: number } | null>(null);
+
+  const [isPasteFallbackOpen, setIsPasteFallbackOpen] = useState(false);
+
+  const selectionAnchorRef = useRef<{ col: number; bufferRow: number } | null>(null);
+  const selectionFocusRef = useRef<{ col: number; bufferRow: number } | null>(null);
+
+  const handleLongPress = useCallback((point: { clientX: number; clientY: number }) => {
+    const term = termRef.current;
+    if (!term) return;
+
+    const screenEl = surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null;
+    const cellPos = pointToCell(point, term, screenEl, currentScaleRef.current);
+
+    if (cellPos) {
+      selectionAnchorRef.current = cellPos;
+      selectionFocusRef.current = cellPos;
+      const range = wordRangeAt(term, cellPos.col, cellPos.bufferRow);
+      if (range) {
+        term.select(range.startCol, cellPos.bufferRow, range.length);
+      } else {
+        term.clearSelection();
+      }
+    } else {
+      selectionAnchorRef.current = null;
+      selectionFocusRef.current = null;
+      term.clearSelection();
+    }
+
+    if (mainRef.current) {
+      const mainRect = mainRef.current.getBoundingClientRect();
+      const x = point.clientX - mainRect.left;
+      const y = point.clientY - mainRect.top;
+      setSelectionMenu({ x, y });
+      selectionMenuRef.current = { x, y };
+    }
+    setIsExtendingSelection(false);
+    isExtendingRef.current = false;
+  }, []);
+
+  const handleSelectionExtend = useCallback((point: { clientX: number; clientY: number }) => {
+    const term = termRef.current;
+    const anchor = selectionAnchorRef.current;
+    if (!term || !anchor) return;
+
+    if (!isExtendingRef.current) {
+      isExtendingRef.current = true;
+      setIsExtendingSelection(true);
+    }
+    lastExtendPointRef.current = point;
+
+    const screenEl = surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null;
+    const currentCell = pointToCell(point, term, screenEl, currentScaleRef.current);
+    if (!currentCell) return;
+
+    selectionFocusRef.current = currentCell;
+
+    if (anchor.bufferRow === currentCell.bufferRow) {
+      const startCol = Math.min(anchor.col, currentCell.col);
+      const endCol = Math.max(anchor.col, currentCell.col);
+      term.select(startCol, anchor.bufferRow, endCol - startCol + 1);
+    } else {
+      const forward =
+        currentCell.bufferRow > anchor.bufferRow ||
+        (currentCell.bufferRow === anchor.bufferRow && currentCell.col >= anchor.col);
+
+      const from = forward ? anchor : currentCell;
+      const to = forward ? currentCell : anchor;
+
+      const totalLength = (to.bufferRow - from.bufferRow) * term.cols + (to.col - from.col + 1);
+      term.select(from.col, from.bufferRow, Math.max(1, totalLength));
+    }
+  }, []);
+
+  const handleLongPressRef = useRef(handleLongPress);
+  handleLongPressRef.current = handleLongPress;
+  const handleSelectionExtendRef = useRef(handleSelectionExtend);
+  handleSelectionExtendRef.current = handleSelectionExtend;
+
+  const handleCopySelection = useCallback(async () => {
+    const term = termRef.current;
+    if (!term) return;
+    const text = term.getSelection();
+    if (!text) return;
+    const result = await copyText(text);
+    if (result === 'failed') {
+      addToastRef.current('error', tRef.current('clipboard.copyFailed'));
+    } else {
+      addToastRef.current('success', tRef.current('clipboard.copied'));
+    }
+  }, []);
+
+  const handleCopyLine = useCallback(async () => {
+    const term = termRef.current;
+    if (!term) return;
+    const bufferRow = selectionAnchorRef.current?.bufferRow ?? term.buffer.active.viewportY;
+    const line = term.buffer.active.getLine(bufferRow);
+    const text = line ? line.translateToString(true) : '';
+    const result = await copyText(text);
+    if (result === 'failed') {
+      addToastRef.current('error', tRef.current('clipboard.copyFailed'));
+    } else {
+      addToastRef.current('success', tRef.current('clipboard.copied'));
+    }
+  }, []);
+
+  const handleCopyScreen = useCallback(async () => {
+    const term = termRef.current;
+    if (!term) return;
+    const text = screenText(term);
+    const result = await copyText(text);
+    if (result === 'failed') {
+      addToastRef.current('error', tRef.current('clipboard.copyFailed'));
+    } else {
+      addToastRef.current('success', tRef.current('clipboard.copied'));
+    }
+  }, []);
+
+  const handlePaste = useCallback(async () => {
+    const term = termRef.current;
+    if (!term) return;
+    if (!isControllerRef.current) {
+      warnViewerModeRef.current();
+      return;
+    }
+    const result = await readClipboardText();
+    if (result.ok) {
+      term.paste(result.text);
+      addToastRef.current('success', tRef.current('clipboard.pasted'));
+    } else if (result.reason === 'empty') {
+      addToastRef.current('info', tRef.current('clipboard.pasteUnavailable'));
+    } else {
+      setIsPasteFallbackOpen(true);
+    }
+  }, []);
+
+  const handleFallbackPasteSend = useCallback((text: string) => {
+    const term = termRef.current;
+    if (!term) return;
+    if (!isControllerRef.current) {
+      warnViewerModeRef.current();
+      return;
+    }
+    term.paste(text);
+    addToastRef.current('success', tRef.current('clipboard.pasted'));
+  }, []);
 
 
   /** Debounced, change-gated PTY resize notification. */
@@ -564,6 +722,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       longPressDelayMs: 500,
       dragThresholdPx: 8,
       scrollLineHeightPx: 18,
+      onLongPress: isTouchDevice ? ((p) => handleLongPressRef.current?.(p)) : undefined,
+      onSelectionExtend: isTouchDevice ? ((p) => handleSelectionExtendRef.current?.(p)) : undefined,
     });
 
     // The gesture is driven from PointerEvent wherever it exists. Measured on
@@ -594,6 +754,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const onPointerDown = (e: PointerEvent) => {
         if (!eventIsInTerminal(e)) return;
         markPointerEvent('pointerdown');
+        if (selectionMenuRef.current) {
+          setSelectionMenu(null);
+          selectionMenuRef.current = null;
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         const handled = pointerController.handlePointerDown(e, container);
         if (handled) e.stopPropagation();
       };
@@ -606,12 +773,27 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const onPointerUp = (e: PointerEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markPointerEvent('pointerup');
+        if (isExtendingRef.current) {
+          isExtendingRef.current = false;
+          setIsExtendingSelection(false);
+          if (lastExtendPointRef.current && mainRef.current) {
+            const mainRect = mainRef.current.getBoundingClientRect();
+            const x = lastExtendPointRef.current.clientX - mainRect.left;
+            const y = lastExtendPointRef.current.clientY - mainRect.top;
+            setSelectionMenu({ x, y });
+            selectionMenuRef.current = { x, y };
+          }
+        }
         pointerController.handlePointerUp(e);
         if (e.pointerType !== 'mouse') e.stopPropagation();
       };
       const onPointerCancel = (e: PointerEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markPointerEvent('pointercancel');
+        if (isExtendingRef.current) {
+          isExtendingRef.current = false;
+          setIsExtendingSelection(false);
+        }
         pointerController.handlePointerCancel(e);
         if (e.pointerType !== 'mouse') e.stopPropagation();
       };
@@ -673,6 +855,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const onTouchStart = (e: TouchEvent) => {
         if (!eventIsInTerminal(e)) return;
         markTouchEvent('touchstart');
+        if (selectionMenuRef.current) {
+          setSelectionMenu(null);
+          selectionMenuRef.current = null;
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (e.touches.length === 1) e.stopPropagation();
         pointerController.handleTouchStart(e, container);
       };
@@ -685,12 +874,27 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       const onTouchEnd = (e: TouchEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markTouchEvent('touchend');
+        if (isExtendingRef.current) {
+          isExtendingRef.current = false;
+          setIsExtendingSelection(false);
+          if (lastExtendPointRef.current && mainRef.current) {
+            const mainRect = mainRef.current.getBoundingClientRect();
+            const x = lastExtendPointRef.current.clientX - mainRect.left;
+            const y = lastExtendPointRef.current.clientY - mainRect.top;
+            setSelectionMenu({ x, y });
+            selectionMenuRef.current = { x, y };
+          }
+        }
         e.stopPropagation();
         pointerController.handleTouchEnd(e);
       };
       const onTouchCancel = (e: TouchEvent) => {
         if (!eventIsInTerminal(e, true)) return;
         markTouchEvent('touchcancel');
+        if (isExtendingRef.current) {
+          isExtendingRef.current = false;
+          setIsExtendingSelection(false);
+        }
         e.stopPropagation();
         pointerController.handleTouchCancel();
       };
@@ -901,6 +1105,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   return (
     <main
+      ref={mainRef}
       className="flex-1 w-full min-w-0 min-h-0 overflow-hidden relative flex flex-col"
       onContextMenu={suppressBrowserMenu}
       aria-label={t('terminal.windowAriaLabel')}
@@ -955,6 +1160,31 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           {`mode: ${touchDebug.scrollMode} calls: ${touchDebug.scrollCalls} lines: ${touchDebug.lastScrollLines ?? '-'} mouse: ${touchDebug.mouseTracking}\n`}
           {`event: ${touchDebug.lastInputEvent || '-'}  pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}`}
         </pre>
+      )}
+
+      {isTouchDevice && selectionMenu && !isExtendingSelection && (
+        <TerminalSelectionMenu
+          anchorPoint={selectionMenu}
+          hasSelection={termRef.current?.hasSelection() ?? false}
+          isController={isController}
+          vibrateOnKeyPress={settings.vibrateOnKeyPress}
+          onCopySelection={handleCopySelection}
+          onCopyLine={handleCopyLine}
+          onCopyScreen={handleCopyScreen}
+          onPaste={handlePaste}
+          onClose={() => {
+            setSelectionMenu(null);
+            selectionMenuRef.current = null;
+          }}
+        />
+      )}
+
+      {isTouchDevice && (
+        <PasteFallbackModal
+          isOpen={isPasteFallbackOpen}
+          onClose={() => setIsPasteFallbackOpen(false)}
+          onSend={handleFallbackPasteSend}
+        />
       )}
     </main>
   );

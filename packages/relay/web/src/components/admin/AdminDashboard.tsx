@@ -6,6 +6,7 @@ import { HostsTable } from './HostsTable';
 import { PtysTable } from './PtysTable';
 import { DevicesTable } from './DevicesTable';
 import { cn } from '../../utils/cn';
+import { copyText } from '../../utils/clipboard';
 import {
   AppFrame,
   Badge,
@@ -84,7 +85,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [activeRelayOrigin]);
 
   const handleCopyPairCmd = () => {
-    navigator.clipboard.writeText(PAIR_COMMAND).then(() => {
+    copyText(PAIR_COMMAND).then((res) => {
+      if (res === 'failed') {
+        addToast('error', t('clipboard.copyFailed'));
+        return;
+      }
       setCopiedPairCmd(true);
       addToast('success', t('toasts.commandCopied'));
       setTimeout(() => setCopiedPairCmd(false), 2000);

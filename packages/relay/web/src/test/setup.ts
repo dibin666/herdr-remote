@@ -149,6 +149,8 @@ export interface MockTerminalInstance {
       cursorY: number;
       viewportY: number;
       baseY: number;
+      length?: number;
+      getLine?: (y: number) => unknown;
     };
   };
   /** Drives `isMouseTrackingActive`, i.e. whether an app wants SGR reports. */
@@ -181,6 +183,17 @@ vi.mock('@xterm/xterm', () => ({
           cursorY: 0,
           viewportY: 0,
           baseY: 0,
+          length: 24,
+          getLine: vi.fn((_y: number) => ({
+            isWrapped: false,
+            length: 80,
+            getCell: vi.fn(() => ({
+              getWidth: () => 1,
+              getChars: () => ' ',
+              getCode: () => 32,
+            })),
+            translateToString: vi.fn(() => 'mock-line-content'),
+          })),
         },
       },
       modes: { mouseTrackingMode: 'none' },
@@ -211,6 +224,9 @@ vi.mock('@xterm/xterm', () => ({
       hasSelection: vi.fn(() => false),
       selectAll: vi.fn(),
       clearSelection: vi.fn(),
+      select: vi.fn(),
+      selectLines: vi.fn(),
+      paste: vi.fn(),
       clear: vi.fn(),
       onData: vi.fn(() => ({ dispose: vi.fn() })),
       onBinary: vi.fn(() => ({ dispose: vi.fn() })),

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
+import { copyText } from '../utils/clipboard';
 import {
   Button,
   FieldLabel,
@@ -44,7 +45,11 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
     'herdr plugin pane open --plugin herdr.remote.web --entrypoint config --placement zoomed --focus';
 
   const handleCopyCommand = (cmd: string) => {
-    navigator.clipboard.writeText(cmd).then(() => {
+    copyText(cmd).then((res) => {
+      if (res === 'failed') {
+        addToast('error', t('clipboard.copyFailed'));
+        return;
+      }
       setCopiedCommand(cmd);
       addToast('success', t('toasts.commandCopied'));
       setTimeout(() => setCopiedCommand(null), 2000);

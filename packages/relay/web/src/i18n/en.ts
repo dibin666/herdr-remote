@@ -449,4 +449,18 @@ export const en: TranslationSchema = {
     courier: 'Courier New',
     firacode: 'Fira Code',
   },
+  clipboard: {
+    copySelection: 'Copy Selection',
+    copyLine: 'Copy Line',
+    copyScreen: 'Copy Screen',
+    paste: 'Paste',
+    cancel: 'Cancel',
+    copied: 'Copied to clipboard',
+    copyFailed: 'Failed to copy',
+    pasteHint: 'Long-press here to paste, then tap Send',
+    pasteSend: 'Send',
+    pasteUnavailable: 'Clipboard is empty or unavailable',
+    pasteTitle: 'Paste Content',
+    pasted: 'Pasted',
+  },
 };

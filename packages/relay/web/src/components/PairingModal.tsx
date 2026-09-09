@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { describeConnection } from '../utils/connectionStatus';
+import { copyText } from '../utils/clipboard';
 import {
   Button,
   Checkbox,
@@ -119,7 +120,11 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose, isA
       url.searchParams.set('pairCode', pairCode.trim().toUpperCase());
     }
     // NEVER include long-lived tokens in share URL
-    navigator.clipboard.writeText(url.toString()).then(() => {
+    copyText(url.toString()).then((res) => {
+      if (res === 'failed') {
+        addToast('error', t('clipboard.copyFailed'));
+        return;
+      }
       setCopiedLink(true);
       addToast('success', t('toasts.pairingLinkCopied'));
       setTimeout(() => setCopiedLink(false), 2000);

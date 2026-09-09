@@ -608,5 +608,96 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       );
       expect(controller.getState()).toBe('idle');
     });
+
+    describe('mobile longpress selection and extension', () => {
+      it('triggers onLongPress with start coordinates after long press delay', async () => {
+        const onLongPress = vi.fn();
+        const onSelectionExtend = vi.fn();
+        const controller = makeController({
+          longPressDelayMs: 50,
+          onLongPress,
+          onSelectionExtend,
+        });
+
+        controller.handlePointerDown(
+          pointer('pointerdown', { clientX: 120, clientY: 80 }),
+          mockContainer
+        );
+        expect(controller.getState()).toBe('pending');
+        expect(onLongPress).not.toHaveBeenCalled();
+
+        await new Promise((r) => setTimeout(r, 70));
+        expect(controller.getState()).toBe('longpress');
+        expect(onLongPress).toHaveBeenCalledTimes(1);
+        expect(onLongPress).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
+      });
+
+      it('triggers onSelectionExtend on drag after longpress and NEVER calls term.scrollLines', async () => {
+        const onLongPress = vi.fn();
+        const onSelectionExtend = vi.fn();
+        const controller = makeController({
+          longPressDelayMs: 50,
+          onLongPress,
+          onSelectionExtend,
+        });
+
+        controller.handlePointerDown(
+          pointer('pointerdown', { clientX: 100, clientY: 100 }),
+          mockContainer
+        );
+        await new Promise((r) => setTimeout(r, 70));
+        expect(controller.getState()).toBe('longpress');
+
+        // Large vertical finger drag (80px), which would trigger scrollLines in a normal gesture
+        const moveEvent = pointer('pointermove', { clientX: 110, clientY: 180 });
+        const preventDefaultSpy = vi.spyOn(moveEvent, 'preventDefault');
+        controller.handlePointerMove(moveEvent);
+
+        // Must trigger selection extension and prevent default
+        expect(onSelectionExtend).toHaveBeenCalledTimes(1);
+        expect(onSelectionExtend).toHaveBeenCalledWith({ clientX: 110, clientY: 180 });
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        // State stays longpress, never transitioned to scrolling
+        expect(controller.getState()).toBe('longpress');
+        // CRITICAL: Must NEVER trigger scrollLines
+        expect(mockTerm.scrollLines).not.toHaveBeenCalled();
+      });
+
+      it('does NOT call term.focus or emit mousedown/mouseup reports on pointer up after longpress', async () => {
+        const onFocus = vi.fn();
+        const onLongPress = vi.fn();
+        const mousedownSpy = vi.fn();
+        const mouseupSpy = vi.fn();
+        mockScreen.addEventListener('mousedown', mousedownSpy);
+        mockScreen.addEventListener('mouseup', mouseupSpy);
+
+        // App in mouse reporting mode and cursor on row 8 (which normal tap hits to focus)
+        mockTerm.modes.mouseTrackingMode = 'any-event';
+        mockTerm.buffer.active.cursorY = 8;
+
+        const controller = makeController({
+          longPressDelayMs: 50,
+          onFocus,
+          onLongPress,
+        });
+
+        controller.handlePointerDown(
+          pointer('pointerdown', { clientX: 50, clientY: 50 }),
+          mockContainer
+        );
+        await new Promise((r) => setTimeout(r, 70));
+        expect(controller.getState()).toBe('longpress');
+
+        // Lift finger after long press
+        controller.handlePointerUp(pointer('pointerup', { clientX: 50, clientY: 50 }));
+
+        // State returns to idle without dispatching focus or mouse clicks
+        expect(controller.getState()).toBe('idle');
+        expect(onFocus).not.toHaveBeenCalled();
+        expect(mockTerm.focus).not.toHaveBeenCalled();
+        expect(mousedownSpy).not.toHaveBeenCalled();
+        expect(mouseupSpy).not.toHaveBeenCalled();
+      });
+    });
   });
 });

@@ -99,8 +99,15 @@ export function hostPaletteToTheme(palette: HostTerminalPalette | null | undefin
   if (palette.foreground) theme.foreground = palette.foreground;
   if (palette.cursor) theme.cursor = palette.cursor;
   if (palette.ansi) Object.assign(theme, palette.ansi);
+  if (Object.keys(theme).length === 0) return null;
 
-  return Object.keys(theme).length > 0 ? theme : null;
+  // Semi-transparent selection overlay floor (rgba(137, 180, 250, 0.35)) based on --tui-accent.
+  // This is a readability floor rather than a design choice: when a host reports a custom
+  // palette without an explicit selection color, xterm's fallback or an opaque block could obscure
+  // dark text on light host themes. A translucent accent overlay guarantees legible text on both
+  // light and dark backgrounds.
+  theme.selectionBackground = 'rgba(137, 180, 250, 0.35)';
+  return theme;
 }
 
 /** Applies the single dark appearance to the document and browser chrome. */

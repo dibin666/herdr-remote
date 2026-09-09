@@ -6,6 +6,7 @@ import { cn } from '../utils/cn';
 import { translate } from '../i18n';
 import { Button, GLYPH, Panel, Row, StatusDot } from './tui';
 import { HostSwitcher } from './HostSwitcher';
+import { copyText } from '../utils/clipboard';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
@@ -83,7 +84,11 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   };
 
   const copyClientId = () => {
-    navigator.clipboard.writeText(settings.clientId).then(() => {
+    copyText(settings.clientId).then((res) => {
+      if (res === 'failed') {
+        addToast('error', t('clipboard.copyFailed'));
+        return;
+      }
       setCopiedClientId(true);
       addToast('info', t('toasts.clientIdCopied', { id: settings.clientId }));
       setTimeout(() => setCopiedClientId(false), 2000);

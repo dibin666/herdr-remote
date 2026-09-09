@@ -468,4 +468,18 @@ export interface TranslationSchema {
     courier: string;
     firacode: string;
   };
+  clipboard: {
+    copySelection: string;
+    copyLine: string;
+    copyScreen: string;
+    paste: string;
+    cancel: string;
+    copied: string;
+    copyFailed: string;
+    pasteHint: string;
+    pasteSend: string;
+    pasteUnavailable: string;
+    pasteTitle: string;
+    pasted: string;
+  };
 }

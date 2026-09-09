@@ -449,4 +449,18 @@ export const zh: TranslationSchema = {
     courier: 'Courier New',
     firacode: 'Fira Code',
   },
+  clipboard: {
+    copySelection: '复制选中',
+    copyLine: '复制本行',
+    copyScreen: '复制整屏',
+    paste: '粘贴',
+    cancel: '取消',
+    copied: '已复制到剪贴板',
+    copyFailed: '复制失败',
+    pasteHint: '长按此处粘贴，然后按发送',
+    pasteSend: '发送',
+    pasteUnavailable: '剪贴板为空或不可用',
+    pasteTitle: '粘贴内容',
+    pasted: '已粘贴',
+  },
 };

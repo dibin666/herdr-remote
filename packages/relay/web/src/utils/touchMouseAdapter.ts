@@ -30,6 +30,8 @@ export interface TouchMouseOptions {
   getIsController: () => boolean;
   getScale?: () => number;
   getSurfaceElement?: () => HTMLElement | null;
+  onLongPress?: (point: { clientX: number; clientY: number }) => void;
+  onSelectionExtend?: (point: { clientX: number; clientY: number }) => void;
   /**
    * Touch input must never fall back to DOM mousedown events: xterm handles
    * those by focusing its hidden textarea, which lets an arbitrary tap summon
@@ -589,6 +591,7 @@ export class TerminalPointerController {
     this.longPressTimer = setTimeout(() => {
       if (this.state === 'pending') {
         this.setGestureState('longpress');
+        this.options.onLongPress?.({ clientX: this.startX, clientY: this.startY });
         // The pointer-down handler already canceled the browser's default
         // selection gesture. Keep the capture so a long press cannot turn into
         // a synthetic click when the finger is finally released.
@@ -597,7 +600,12 @@ export class TerminalPointerController {
   }
 
   private moveGesture(point: GesturePoint, event?: CancellableEvent): void {
-    if (this.state === 'longpress' || this.state === 'idle') return;
+    if (this.state === 'longpress') {
+      this.options.onSelectionExtend?.({ clientX: point.clientX, clientY: point.clientY });
+      if (event?.cancelable) event.preventDefault?.();
+      return;
+    }
+    if (this.state === 'idle') return;
 
     const dx = point.clientX - this.startX;
     const dy = point.clientY - this.startY;
