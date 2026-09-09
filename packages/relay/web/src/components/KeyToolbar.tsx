@@ -53,7 +53,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
   const keyClass = 'h-9 min-w-[2.25rem] px-2';
   const squareKeyClass = 'h-9 w-9';
   const drawerToggleClass = 'h-9 px-2';
-  const imageKeyClass = 'min-h-[44px] min-w-[44px] px-2.5 gap-1 touch-manipulation';
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -135,19 +134,17 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     );
   };
 
-  const renderImageButton = (collapsed = false) => {
+  const renderImageButton = () => {
     const isUploading = uploadProgress.active;
     return (
       <button
         type="button"
-        data-testid={collapsed ? 'image-upload-btn-collapsed' : 'image-upload-btn'}
+        data-testid="image-upload-btn"
         onClick={handleImageClick}
         disabled={isUploading}
         className={cn(
           CAP_BASE,
-          collapsed
-            ? 'min-h-[44px] min-w-[44px] px-2 text-tui-xs gap-1 touch-manipulation'
-            : imageKeyClass,
+          keyClass,
           isUploading
             ? 'border-tui-border-dim bg-tui-surface opacity-60 cursor-not-allowed'
             : CAP_IDLE
@@ -155,8 +152,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
         title={isUploading ? uploadProgress.statusText : t('virtualKeyboard.uploadImageTitle')}
         aria-label={t('virtualKeyboard.uploadImage')}
       >
-        <span aria-hidden="true">🖼️</span>
-        <span className={cn('font-medium', collapsed ? 'text-tui-xs' : 'text-tui-sm')}>
+        <span className="font-medium">
           {isUploading ? `${uploadProgress.percent}%` : t('virtualKeyboard.image')}
         </span>
       </button>
@@ -221,7 +217,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       >
         {renderFileInputs()}
         {renderProgressBar(true)}
-        <div className="flex items-center justify-center gap-2 px-2 py-0.5">
+        <div className="flex items-center justify-center px-2 py-0.5">
           <button
             type="button"
             onClick={() => updateSettings({ toolbarVisible: true })}
@@ -233,7 +229,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
             <span aria-hidden="true">▴</span>
             <span aria-hidden="true">{t('common.keyBar')}</span>
           </button>
-          {renderImageButton(true)}
         </div>
       </div>
     );
@@ -490,7 +485,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
           if (isEnter) {
             return (
               <React.Fragment key="enter-with-image">
-                {renderImageButton(false)}
+                {renderImageButton()}
                 {keyBtn}
               </React.Fragment>
             );
@@ -498,7 +493,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
 
           return keyBtn;
         })}
-        {!configuredKeys.some((k) => k.id === 'enter') && renderImageButton(false)}
+        {!configuredKeys.some((k) => k.id === 'enter') && renderImageButton()}
       </div>
     </div>
   );

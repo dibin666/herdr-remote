@@ -101,6 +101,11 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(desktopBtn).toHaveAttribute('aria-label', '上传图片');
     expect(desktopBtn).toHaveAttribute('title', '选择图片并上传至终端');
     expect(desktopBtn.textContent).toContain('图片');
+    // Does not render emoji square 🖼️
+    expect(desktopBtn.textContent).not.toContain('🖼️');
+    // Shares the same standard key class (CAP_BASE + keyClass) instead of standalone large button
+    expect(desktopBtn.className).toContain('h-9');
+    expect(desktopBtn.className).not.toContain('min-h-[44px]');
 
     unmount();
 
@@ -115,6 +120,9 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(compactBtn).toBeInTheDocument();
     expect(compactBtn).toHaveAttribute('aria-label', '上传图片');
     expect(compactBtn.textContent).toContain('图片');
+    expect(compactBtn.textContent).not.toContain('🖼️');
+    expect(compactBtn.className).toContain('h-9');
+    expect(compactBtn.className).not.toContain('min-h-[44px]');
   });
 
   it('supports English localization for image button labels and titles', () => {
@@ -380,7 +388,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(screen.queryByTestId('key-toolbar-progress')).toBeNull();
   });
 
-  it('collapsed toolbar preserves accessible image upload button and renders progress when collapsed', async () => {
+  it('collapsed toolbar shows handle and does NOT render standalone image upload button', () => {
     saveSettings({ toolbarVisible: false, language: 'zh' });
     let capturedCtx: ReturnType<typeof useTerminal> | null = null;
     const ContextCollector = () => {
@@ -402,45 +410,92 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const collapsedContainer = screen.getByTestId('key-toolbar-collapsed');
     expect(collapsedContainer).toBeInTheDocument();
 
-    const collapsedBtn = screen.getByTestId('image-upload-btn-collapsed');
-    expect(collapsedBtn).toBeInTheDocument();
-    expect(collapsedBtn).toHaveAttribute('aria-label', '上传图片');
+    // Collapsed toolbar should only show expand handle, no standalone image button
+    expect(screen.queryByTestId('image-upload-btn-collapsed')).toBeNull();
+    expect(screen.queryByTestId('image-upload-btn')).toBeNull();
 
-    // Clicking collapsed button triggers file input
-    const fileInput = screen.getByTestId('key-toolbar-file-input') as HTMLInputElement;
-    const clickSpy = vi.spyOn(fileInput, 'click');
-
-    fireEvent.click(collapsedBtn);
-    expect(clickSpy).toHaveBeenCalledTimes(1);
-
-    // Can also expand back to normal toolbar
+    // Can expand back to normal toolbar where image button appears
     const expandBtn = screen.getByRole('button', { name: /展开按键(条|栏)/i });
     fireEvent.click(expandBtn);
 
     expect(screen.getByTestId('key-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('image-upload-btn')).toBeInTheDocument();
   });
 
-  it('keeps Enter as the right-hand key and collapse as the left-hand key without breaking toolbar key layout', () => {
+  it('keeps Enter as the right-hand key and collapse as the left-hand key without breaking toolbar key layout in desktop and compact modes', () => {
+    // 1. Desktop mode
     saveSettings({ toolbarVisible: true, language: 'zh' });
-    render(
+    const { unmount } = render(
       <TerminalProvider>
         <KeyToolbar compact={false} />
       </TerminalProvider>
     );
 
-    const row = screen.getByTestId('key-toolbar-row');
-    const buttons = within(row).getAllByRole('button');
+    let row = screen.getByTestId('key-toolbar-row');
+    let buttons = within(row).getAllByRole('button');
 
     // First button is collapse
     expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/收起按键|collapse/i));
 
     // Last button is Enter
-    const last = buttons[buttons.length - 1];
+    let last = buttons[buttons.length - 1];
     expect(last).toHaveAttribute('aria-label', expect.stringMatching(/回车|enter/i));
 
-    // Image upload button sits right before Enter
-    const imageBtn = buttons[buttons.length - 2];
+    // Image upload button sits right before Enter in the same row
+    let imageBtn = buttons[buttons.length - 2];
     expect(imageBtn).toHaveAttribute('data-testid', 'image-upload-btn');
     expect(imageBtn).toHaveAttribute('aria-label', expect.stringMatching(/上传图片|Upload Image/i));
+    expect(imageBtn.textContent).not.toContain('🖼️');
+    expect(imageBtn.className).toContain('h-9');
+    expect(imageBtn.className).not.toContain('min-h-[44px]');
+
+    // Enter button also shares h-9 metric
+    expect(last.className).toContain('h-9');
+
+    unmount();
+
+    // 2. Compact mode
+    render(
+      <TerminalProvider>
+        <KeyToolbar compact={true} />
+      </TerminalProvider>
+    );
+
+    row = screen.getByTestId('key-toolbar-row');
+    buttons = within(row).getAllByRole('button');
+
+    // First button is collapse
+    expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/收起按键|collapse/i));
+
+    // Last button is Enter
+    last = buttons[buttons.length - 1];
+    expect(last).toHaveAttribute('aria-label', expect.stringMatching(/回车|enter/i));
+
+    // Image upload button sits right before Enter in compact row
+    imageBtn = buttons[buttons.length - 2];
+    expect(imageBtn).toHaveAttribute('data-testid', 'image-upload-btn');
+    expect(imageBtn).toHaveAttribute('aria-label', expect.stringMatching(/上传图片|Upload Image/i));
+    expect(imageBtn.textContent).not.toContain('🖼️');
+    expect(imageBtn.className).toContain('h-9');
+    expect(imageBtn.className).not.toContain('min-h-[44px]');
+  });
+
+  it('renders progress bar inside collapsed toolbar when upload is active', async () => {
+    const { getCtx } = setupTestSession('controller', 'zh');
+    const ctx = getCtx();
+    act(() => {
+      ctx?.updateSettings({ toolbarVisible: false });
+    });
+
+    expect(screen.getByTestId('key-toolbar-collapsed')).toBeInTheDocument();
+    expect(screen.queryByTestId('key-toolbar-progress-collapsed')).toBeNull();
+
+    // Simulate active upload progress
+    act(() => {
+      ctx?.uploadImage(new File(['test-bytes'], 'test.png', { type: 'image/png' }));
+    });
+
+    expect(await screen.findByTestId('key-toolbar-progress-collapsed')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 });
