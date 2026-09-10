@@ -161,6 +161,11 @@ export interface TranslationSchema {
     fontSizeLarge: string;
     mobileFontNote: string;
     colorPassthroughNote: string;
+    predictiveEchoLabel: string;
+    predictiveEchoAuto: string;
+    predictiveEchoAlways: string;
+    predictiveEchoOff: string;
+    predictiveEchoDesc: string;
     touchKeyToolbar: string;
     touchKeyToolbarDesc: string;
     touchHaptics: string;

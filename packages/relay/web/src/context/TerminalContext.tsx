@@ -782,7 +782,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
     if (adapterRef.current) {
-      adapterRef.current.sendBinary(data);
+      adapterRef.current.sendInput(data);
     }
   }, [role]);
 

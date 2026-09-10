@@ -39,7 +39,20 @@ class MemoryStorageShim implements Storage {
 }
 
 describe('Per-Window View State & Font Zoom Isolation', () => {
+  const originalLocalStorage = window.localStorage;
+  const originalSessionStorage = window.sessionStorage;
+
   beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      value: originalLocalStorage,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window, 'sessionStorage', {
+      value: originalSessionStorage,
+      writable: true,
+      configurable: true,
+    });
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -252,5 +265,41 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     saveSettings({ fontSize: 19 });
     const loaded = loadSettings();
     expect(loaded.fontSize).toBe(19);
+  });
+
+  it('loads predictiveEcho as "auto" for legacy data without the field and supports all three modes', () => {
+    // Simulate legacy persisted data without predictiveEcho
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({
+        wsUrl: '/ws/client',
+        fontSize: 14,
+      })
+    );
+    sessionStorage.clear();
+
+    // Fallback to default "auto"
+    let loaded = loadSettings();
+    expect(loaded.predictiveEcho).toBe('auto');
+
+    // Save and load 'off'
+    saveSettings({ predictiveEcho: 'off' });
+    loaded = loadSettings();
+    expect(loaded.predictiveEcho).toBe('off');
+
+    // Save and load 'always'
+    saveSettings({ predictiveEcho: 'always' });
+    loaded = loadSettings();
+    expect(loaded.predictiveEcho).toBe('always');
+
+    // Save and load 'auto'
+    saveSettings({ predictiveEcho: 'auto' });
+    loaded = loadSettings();
+    expect(loaded.predictiveEcho).toBe('auto');
+
+    // Corrupt value gracefully falls back to 'auto'
+    saveSettings({ predictiveEcho: 'invalid-mode' as any });
+    loaded = loadSettings();
+    expect(loaded.predictiveEcho).toBe('auto');
   });
 });

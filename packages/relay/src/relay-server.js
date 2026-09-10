@@ -10,7 +10,13 @@ const { WebSocketServer, WebSocket } = require('ws');
 const { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } = require('./relay-config');
 const { AuthStore } = require('./auth-store');
 const { RelayMetrics, countActiveUsers } = require('./metrics');
-const { unpackStreamFrame, packStreamFrame, sanitizeTerminalPalette } = require('./stream-frame');
+const {
+  unpackStreamFrame,
+  packStreamFrame,
+  packStreamFrameV2,
+  FRAME_TYPE_INPUT,
+  sanitizeTerminalPalette,
+} = require('./stream-frame');
 const { ensureDir } = require('./state');
 
 const VERSION = require('../package.json').version;
@@ -149,6 +155,15 @@ class RelayServer {
     this.password = options.password ?? config.auth?.password ?? null;
     this.adminToken = options.adminToken ?? config.auth?.adminToken ?? null;
     this.trustProxy = Boolean(options.trustProxy ?? config.relay.trustProxy);
+    // Development-only artificial latency switch for local responsiveness profiling.
+    // When unset or 0, this incurs zero overhead and avoids entering the delayed path.
+    // RELAY_DEV_LATENCY_MS specifies round-trip delay, so each one-way leg
+    // (host -> browser and browser -> host) is delayed by half.
+    const devLatencyRaw = options.devLatencyMs ?? config.relay?.devLatencyMs ?? process.env.RELAY_DEV_LATENCY_MS;
+    this.devLatencyMs = devLatencyRaw ? Math.max(0, parseInt(devLatencyRaw, 10) || 0) : 0;
+    this.devDelayMs = this.devLatencyMs > 0 ? Math.round(this.devLatencyMs / 2) : 0;
+    this.sendQueues = new WeakMap();
+    this.activeDelayTimers = new Set();
     this.auth = options.auth || new AuthStore({
       stateFile: this.stateFile,
       pairingTtlMs: config.auth.pairingTtlMs,
@@ -161,9 +176,18 @@ class RelayServer {
       noServer: true,
       clientTracking: false,
       maxPayload: config.relay.maxPayloadBytes,
-      // Terminal data is already compact and latency-sensitive. Compression
-      // adds CPU and buffering without helping the usual ANSI payloads.
-      perMessageDeflate: false,
+      // Frames below 1024 bytes bypass compression completely, ensuring single
+      // keystrokes and small echoes incur zero CPU and zero buffering delay.
+      // Keeping context across messages (NoContextTakeover=false) maximizes
+      // compression ratios on highly repetitive full-screen ratatui/ANSI redraws;
+      // level 3 provides low CPU cost and low latency over peak compression.
+      perMessageDeflate: {
+        threshold: 1024,
+        zlibDeflateOptions: { level: 3 },
+        serverNoContextTakeover: false,
+        clientNoContextTakeover: false,
+        concurrencyLimit: 10,
+      },
     });
     this.heartbeatTimer = null;
     this.cleanupTimer = null;
@@ -200,6 +224,10 @@ class RelayServer {
     if (this.cleanupTimer) clearInterval(this.cleanupTimer);
     this.heartbeatTimer = null;
     this.cleanupTimer = null;
+    if (this.activeDelayTimers) {
+      for (const timer of this.activeDelayTimers) clearTimeout(timer);
+      this.activeDelayTimers.clear();
+    }
     for (const client of [...this.clients.values()]) this.detachClient(client, { notify: false });
     for (const host of [...this.hosts.values()]) this.detachHost(host, { notify: false });
     this.streams.clear();
@@ -569,8 +597,24 @@ class RelayServer {
       reconnectTimer: null,
       connectionGeneration: randomId('host-connection'),
       handoffCapable: capabilities.includes('host_handoff'),
+      binaryFrameV2: capabilities.includes('binary_frame_v2'),
+      streamIndices: new Map(),
+      nextStreamIndex: 0,
       shutdownRequested: false,
     };
+  }
+
+  allocateStreamIndex(host) {
+    if (!host) return null;
+    const totalPossible = 65536;
+    for (let i = 0; i < totalPossible; i++) {
+      const candidate = host.nextStreamIndex;
+      host.nextStreamIndex = (host.nextStreamIndex + 1) & 0xffff;
+      if (!host.streamIndices.has(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   canHandoffHost(host) {
@@ -597,6 +641,9 @@ class RelayServer {
     for (const clientId of host.clients) {
       const client = this.clients.get(clientId);
       if (client?.session) {
+        if (client.session.streamIndex !== null && client.session.streamIndex !== undefined) {
+          host.streamIndices.delete(client.session.streamIndex);
+        }
         this.streams.delete(client.session.streamId);
         client.session = null;
       }
@@ -652,6 +699,9 @@ class RelayServer {
                     clientId: client.session.streamId,
                     streamId: client.session.streamId,
                   });
+                }
+                if (client.session.streamIndex !== null && client.session.streamIndex !== undefined) {
+                  oldHost.streamIndices.delete(client.session.streamIndex);
                 }
                 this.streams.delete(client.session.streamId);
                 client.session = null;
@@ -720,9 +770,16 @@ class RelayServer {
         closeSocket(host.ws, 1003, error.message);
         return;
       }
+      // Postel's law: be conservative in what you send, liberal in what you accept.
+      // We strictly send v2 only to hosts that negotiated binary_frame_v2, but we accept
+      // both v1 and v2 on receipt: a v2-capable host falls back to v1 if stream indices
+      // were exhausted for a session, and an unnegotiated host sending v2 simply finds
+      // no routed client instead of having its entire connection severed.
       // Output is routed to the single client owning the stream rather than broadcast.
       if (frame.type !== 'output') return;
-      const clientId = this.streams.get(frame.streamId);
+      const clientId = frame.version === 2
+        ? host.streamIndices.get(frame.streamIndex)
+        : this.streams.get(frame.streamId);
       if (!clientId) return;
       const client = this.clients.get(clientId);
       if (!client || !isOpen(client.ws)) return;
@@ -754,6 +811,9 @@ class RelayServer {
       const code = Number.isInteger(message.code) ? message.code : null;
       jsonSend(client.ws, { type: 'exit', code });
       if (client.session) {
+        if (client.session.streamIndex !== null && client.session.streamIndex !== undefined) {
+          host.streamIndices.delete(client.session.streamIndex);
+        }
         this.streams.delete(client.session.streamId);
         client.session = null;
       }
@@ -791,14 +851,72 @@ class RelayServer {
       this.detachClient(client, { notify: true, reason: 'slow_client', closeCode: 1013 });
       return false;
     }
-    try {
-      client.ws.send(payload);
-      client.bytesSent += payload.length;
-      this.metrics.recordOut(payload.length, host.id);
-      return true;
-    } catch {
-      this.detachClient(client, { notify: false, reason: 'client_send_failed', closeCode: 1011 });
-      return false;
+    let sent = false;
+    const doSend = () => {
+      if (!isOpen(client.ws)) return;
+      try {
+        client.ws.send(payload);
+        client.bytesSent += payload.length;
+        this.metrics.recordOut(payload.length, host.id);
+        sent = true;
+      } catch {
+        this.detachClient(client, { notify: false, reason: 'client_send_failed', closeCode: 1011 });
+      }
+    };
+    if (this.devLatencyMs > 0) this.enqueueDelayedSend(client.ws, doSend);
+    else doSend();
+    return this.devLatencyMs > 0 ? true : sent;
+  }
+
+  /**
+   * Queue artificial delay per-socket rather than using naked setTimeout calls.
+   * Concurrent timers experience event loop jitter that can deliver frames out of order;
+   * a single FIFO queue per socket guarantees strict in-order delivery of terminal frames.
+   */
+  enqueueDelayedSend(socket, task) {
+    let queue = this.sendQueues.get(socket);
+    if (!queue) {
+      queue = { items: [], timer: null };
+      this.sendQueues.set(socket, queue);
+      socket.once('close', () => {
+        if (queue.timer) {
+          clearTimeout(queue.timer);
+          this.activeDelayTimers.delete(queue.timer);
+          queue.timer = null;
+        }
+        queue.items = [];
+      });
+    }
+    const sendAt = Date.now() + this.devDelayMs;
+    queue.items.push({ sendAt, task });
+    if (!queue.timer) {
+      const timer = setTimeout(() => this.flushSendQueue(socket, queue), this.devDelayMs);
+      queue.timer = timer;
+      this.activeDelayTimers.add(timer);
+    }
+  }
+
+  /**
+   * Drain ready frames in FIFO order up to the current timestamp, then schedule the
+   * single next timer if items remain. Ensures only one timer runs per socket at a time.
+   */
+  flushSendQueue(socket, queue) {
+    if (queue.timer) {
+      this.activeDelayTimers.delete(queue.timer);
+      queue.timer = null;
+    }
+    const now = Date.now();
+    while (queue.items.length > 0 && queue.items[0].sendAt <= now) {
+      const item = queue.items.shift();
+      try {
+        item.task();
+      } catch {}
+    }
+    if (queue.items.length > 0 && !queue.timer) {
+      const nextDelay = Math.max(0, queue.items[0].sendAt - Date.now());
+      const timer = setTimeout(() => this.flushSendQueue(socket, queue), nextDelay);
+      queue.timer = timer;
+      this.activeDelayTimers.add(timer);
     }
   }
 
@@ -816,8 +934,16 @@ class RelayServer {
   startSession(host, client, { restarted = false } = {}) {
     if (!client || !isOpen(host.ws)) return;
     const streamId = randomId('session');
+    let streamIndex = null;
+    if (host.binaryFrameV2) {
+      streamIndex = this.allocateStreamIndex(host);
+      if (streamIndex !== null) {
+        host.streamIndices.set(streamIndex, client.id);
+      }
+    }
     client.session = {
       streamId,
+      streamIndex,
       cols: client.cols,
       rows: client.rows,
       ready: false,
@@ -830,6 +956,7 @@ class RelayServer {
       cols: Math.max(MIN_SESSION_COLS, client.cols),
       rows: Math.max(MIN_SESSION_ROWS, client.rows),
       role: 'controller',
+      ...(streamIndex !== null ? { streamIndex } : {}),
     });
     if (restarted) {
       jsonSend(client.ws, {
@@ -955,16 +1082,23 @@ class RelayServer {
       if (raw.length > this.config.relay.maxPayloadBytes) return;
       if (!client.session) return;
       // Each window owns its own PTY session, so input is stamped with the
-      // client's dedicated stream id.
-      const frame = packStreamFrame('input', client.session.streamId, raw);
+      // client's dedicated stream id or streamIndex.
+      const frame = host.binaryFrameV2 && typeof client.session.streamIndex === 'number'
+        ? packStreamFrameV2(FRAME_TYPE_INPUT, client.session.streamIndex, raw)
+        : packStreamFrame('input', client.session.streamId, raw);
       if (isOpen(host.ws)) {
-        try {
-          host.ws.send(frame);
-          client.bytesReceived += raw.length;
-          this.metrics.recordIn(raw.length, host.id);
-        } catch {
-          this.beginHostReconnect(host, 'host_send_failed');
-        }
+        const doSend = () => {
+          if (!isOpen(host.ws)) return;
+          try {
+            host.ws.send(frame);
+            client.bytesReceived += raw.length;
+            this.metrics.recordIn(raw.length, host.id);
+          } catch {
+            this.beginHostReconnect(host, 'host_send_failed');
+          }
+        };
+        if (this.devLatencyMs > 0) this.enqueueDelayedSend(host.ws, doSend);
+        else doSend();
       }
       return;
     }
@@ -1129,6 +1263,9 @@ class RelayServer {
     // stops its backing session on the host and cleans up its stream mapping.
     if (client.session) {
       const streamId = client.session.streamId;
+      if (client.session.streamIndex !== null && client.session.streamIndex !== undefined && host) {
+        host.streamIndices.delete(client.session.streamIndex);
+      }
       this.streams.delete(streamId);
       if (host && isOpen(host.ws)) {
         jsonSend(host.ws, { type: 'session_stop', clientId: streamId, streamId });
@@ -1159,6 +1296,9 @@ class RelayServer {
       if (!client) continue;
       this.clients.delete(client.id);
       if (client.session) {
+        if (client.session.streamIndex !== null && client.session.streamIndex !== undefined) {
+          host.streamIndices.delete(client.session.streamIndex);
+        }
         this.streams.delete(client.session.streamId);
         client.session = null;
       }

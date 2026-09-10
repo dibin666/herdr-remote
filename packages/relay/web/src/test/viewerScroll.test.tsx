@@ -114,6 +114,7 @@ describe('A viewer scrolls its own stream without holding the control lease', ()
 
     // xterm emits the wheel report for a scroll in an alternate-screen app...
     act(() => emitTerminalData(term, `${ESC}[<65;12;5M`));
+    await Promise.resolve();
     const afterWheel = binaryFrames();
     expect(afterWheel.length).toBe(before + 1);
     expect(isWheelOnlyInput(afterWheel[afterWheel.length - 1])).toBe(true);
@@ -141,6 +142,7 @@ describe('A viewer scrolls its own stream without holding the control lease', ()
     const term = xtermInstances[0];
     const before = binaryFrames().length;
     act(() => emitTerminalData(term, 'x'));
+    await Promise.resolve();
 
     expect(binaryFrames().length).toBe(before + 1);
     expect(warnings()).toHaveLength(0);

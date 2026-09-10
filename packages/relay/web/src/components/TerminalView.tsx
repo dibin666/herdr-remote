@@ -7,7 +7,7 @@ import { hostPaletteToTheme, resolveTerminalFontFamily } from '../utils/theme';
 import { encodeStringToBytes } from '../protocol/keyEncoder';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
-import { attachTerminalRenderer } from '../utils/terminalRenderer';
+import { attachTerminalRenderer, AttachedRenderer } from '../utils/terminalRenderer';
 import {
   computeContainerGridFit,
   measureCellDimensions,
@@ -41,8 +41,31 @@ import { copyText, readClipboardText, readClipboardImage, extractImageFromClipbo
 import { PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
+import { PredictiveEcho } from '../utils/predictiveEcho';
+import { PredictionOverlay } from '../utils/predictionOverlay';
 
 export { MOBILE_BREAKPOINT_PX };
+
+/**
+ * Latency threshold below which local predictive echo is suppressed in "auto" mode.
+ * Human visual reaction and typing perception under ~40ms feels instantaneous,
+ * making speculative characters unnecessary visual noise on local/LAN connections.
+ */
+export const PREDICTIVE_ECHO_AUTO_THRESHOLD_MS = 40;
+
+/**
+ * Evaluates whether predictive echo characters should be displayed on screen
+ * given the user preference and smoothed round-trip time.
+ */
+export function shouldShowPredictiveEcho(
+  mode: 'auto' | 'always' | 'off',
+  srttMs: number | null
+): boolean {
+  if (mode === 'off') return false;
+  if (mode === 'always') return true;
+  // 'auto': only render speculative characters when smoothed RTT exceeds the imperceptible latency threshold
+  return srttMs !== null && srttMs > PREDICTIVE_ECHO_AUTO_THRESHOLD_MS;
+}
 
 /**
  * Resize notifications to the PTY are coalesced over this window. The mobile
@@ -135,6 +158,30 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     pointerEvents: 0,
     touchEvents: 0,
   });
+  const [inboundMetrics, setInboundMetrics] = useState({ framesPerSec: 0, bytesPerSec: 0 });
+  const [rendererKind, setRendererKind] = useState<string | null>(null);
+  const rendererRef = useRef<AttachedRenderer | null>(null);
+  const initialBannerWrittenRef = useRef<boolean>(false);
+  const firstResizeVerifiedRef = useRef<boolean>(false);
+  const inboundStatsRef = useRef<{ time: number; bytes: number }[]>([]);
+
+  useEffect(() => {
+    if (!touchDebugEnabled) return;
+    const interval = setInterval(() => {
+      const now = performance.now();
+      const cutoff = now - 1000;
+      const stats = inboundStatsRef.current;
+      while (stats.length > 0 && stats[0].time < cutoff) {
+        stats.shift();
+      }
+      let bytes = 0;
+      for (let i = 0; i < stats.length; i++) {
+        bytes += stats[i].bytes;
+      }
+      setInboundMetrics({ framesPerSec: stats.length, bytesPerSec: bytes });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [touchDebugEnabled]);
 
   const {
     isController,
@@ -151,6 +198,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     subscribeToPasteFileReady,
     uploadImage,
     t,
+    rttMs,
   } = useTerminal();
 
   /**
@@ -184,8 +232,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
 
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
   const tRef = useRef(t);
   tRef.current = t;
+  const predictorRef = useRef<PredictiveEcho | null>(null);
+  const overlayRef = useRef<PredictionOverlay | null>(null);
 
   const mainRef = useRef<HTMLElement | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number } | null>(null);
@@ -367,6 +420,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     try {
       const result = await readClipboardText();
       if (result.ok) {
+        predictorRef.current?.reset('paste');
+        overlayRef.current?.clear();
         term.paste(result.text);
         addToastRef.current('success', tRef.current('clipboard.pasted'));
         return;
@@ -389,6 +444,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       warnViewerModeRef.current();
       return;
     }
+    predictorRef.current?.reset('paste');
+    overlayRef.current?.clear();
     term.paste(text);
     addToastRef.current('success', tRef.current('clipboard.pasted'));
   }, []);
@@ -407,6 +464,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const unsubscribe = subscribeToPasteFileReady((path) => {
       const term = termRef.current;
       if (term) {
+        predictorRef.current?.reset('paste');
+        overlayRef.current?.clear();
         term.paste(path);
         addToastRef.current('success', tRef.current('clipboard.pasted'));
       }
@@ -441,6 +500,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       }
       lastSentDimensionsRef.current = pending;
       sendResizeRef.current(pending.cols, pending.rows);
+      predictorRef.current?.reset('resize');
+      overlayRef.current?.clear();
     }, RESIZE_NOTIFY_DEBOUNCE_MS);
   }, []);
 
@@ -518,6 +579,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         } catch (err) {
           console.debug('Error resizing terminal grid:', err);
         }
+      }
+
+      if (
+        initialBannerWrittenRef.current &&
+        !firstResizeVerifiedRef.current &&
+        (boxChanged || term.cols !== fit.cols || term.rows !== fit.rows)
+      ) {
+        firstResizeVerifiedRef.current = true;
+        void rendererRef.current?.verify();
       }
 
       // The very first fits run against the estimate, because the renderer has
@@ -643,6 +713,38 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     term.open(surfaceRef.current);
     termRef.current = term;
 
+    const predictor = new PredictiveEcho({
+      getTerminal: () => termRef.current,
+    });
+    predictorRef.current = predictor;
+
+    const overlay = new PredictionOverlay({
+      getTerminal: () => termRef.current,
+      getStyle: () => {
+        const color = hostThemeRef.current?.foreground ?? termRef.current?.options.theme?.foreground;
+        const background = hostThemeRef.current?.background ?? termRef.current?.options.theme?.background;
+        const srtt = predictorRef.current?.getEchoSrttMs() ?? null;
+        const underline = srtt !== null && srtt > PREDICTIVE_ECHO_AUTO_THRESHOLD_MS;
+        return { color, background, underline };
+      },
+    });
+    overlayRef.current = overlay;
+
+    const syncPredictiveOverlay = () => {
+      const predictor = predictorRef.current;
+      const overlay = overlayRef.current;
+      if (!predictor || !overlay) return;
+
+      const mode = settingsRef.current.predictiveEcho;
+      const srtt = predictor.getEchoSrttMs();
+      if (!shouldShowPredictiveEcho(mode, srtt)) {
+        overlay.clear();
+        return;
+      }
+
+      overlay.sync(predictor.getVisiblePredictions());
+    };
+
     // The xterm helper is the real terminal input on touch devices. Make its
     // mobile keyboard intent explicit; it is focused only after the gesture
     // controller has classified a terminal touch as a tap.
@@ -669,6 +771,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       syncFocusState();
     }
     const handleNativePaste = async (e: ClipboardEvent) => {
+      predictorRef.current?.reset('paste');
+      overlayRef.current?.clear();
       const imageBlob = extractImageFromClipboardEvent(e);
       if (imageBlob) {
         e.preventDefault();
@@ -685,7 +789,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     const renderer = attachTerminalRenderer(term, {
       coarsePointer: isTouchDevice,
-      onRendererSwapped: () => {
+      onRendererSwapped: (kind) => {
+        if (container) {
+          container.dataset.renderer = kind;
+        }
+        setRendererKind(kind);
         try {
           term.refresh(0, Math.max(0, term.rows - 1));
         } catch {
@@ -693,9 +801,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         }
       },
     });
+    rendererRef.current = renderer;
     if (container) {
       container.dataset.renderer = renderer.kind;
     }
+    setRendererKind(renderer.kind);
 
     // Initial banner text
     const bannerTitle = tRef.current('terminal.bannerTitle');
@@ -707,6 +817,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     term.writeln(' \\___|_  / \\___  >|__|  /___/____  >');
     term.writeln('       \\/      \\/                \\/ ');
     term.writeln('');
+
+    initialBannerWrittenRef.current = true;
+    void renderer.verify();
 
     if (!isTouchDevice) {
       try {
@@ -740,6 +853,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         warnViewerModeRef.current();
         return;
       }
+      predictorRef.current?.handleUserInput(bytes);
+      syncPredictiveOverlay();
       sendBinaryRef.current(bytes);
     });
 
@@ -758,6 +873,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       typeof term.onWriteParsed === 'function'
         ? term.onWriteParsed(() => {
             contentChangedRef.current = true;
+            predictorRef.current?.onServerOutput();
+            syncPredictiveOverlay();
           })
         : { dispose: () => {} };
 
@@ -788,6 +905,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         ? term.onScroll(() => {
             const currentViewportY = term.buffer.active.viewportY ?? 0;
             setViewportY(currentViewportY);
+            predictorRef.current?.reset('scroll');
+            overlayRef.current?.clear();
           })
         : { dispose: () => {} };
 
@@ -1144,6 +1263,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       renderDispose.dispose();
       scrollDispose.dispose();
       writeParsedDispose.dispose();
+      overlayRef.current?.dispose();
+      overlayRef.current = null;
+      predictorRef.current = null;
       pointerController.handlePointerCancel();
       for (const detach of detachInput) detach();
       resizeObserver.disconnect();
@@ -1171,6 +1293,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       term.textarea?.removeEventListener('paste', handleNativePaste);
       container.removeEventListener('paste', handleNativePaste);
       renderer.dispose();
+      rendererRef.current = null;
       term.dispose();
       termRef.current = null;
     };
@@ -1198,6 +1321,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     scheduleBoundedFit(10);
   }, [settings.fontSize, settings.fontFamily]);
 
+  // Immediately react to predictive echo preference changes (e.g. clearing active decorations on 'off')
+  useEffect(() => {
+    const predictor = predictorRef.current;
+    const overlay = overlayRef.current;
+    if (!predictor || !overlay) return;
+
+    const srtt = predictor.getEchoSrttMs();
+    if (!shouldShowPredictiveEcho(settings.predictiveEcho, srtt)) {
+      overlay.clear();
+    } else {
+      overlay.sync(predictor.getVisiblePredictions());
+    }
+  }, [settings.predictiveEcho]);
+
   // Switching profiles or rebuilding a PTY must never append new output to the
   // previous host's screen. Keep the xterm instance mounted for layout
   // stability, but explicitly reset its buffer at the generation boundary.
@@ -1205,6 +1342,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   useEffect(() => {
     if (appliedResetVersionRef.current === terminalResetVersion) return;
     appliedResetVersionRef.current = terminalResetVersion;
+    predictorRef.current?.reset('resetVersion');
+    overlayRef.current?.clear();
     const term = termRef.current as (Terminal & { reset?: () => void }) | null;
     if (!term) return;
     try {
@@ -1215,6 +1354,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       // ignore
     }
   }, [terminalResetVersion]);
+
+  // Wipe speculative echo when socket connection drops or reconnects.
+  useEffect(() => {
+    predictorRef.current?.reset('connectionState');
+    overlayRef.current?.clear();
+  }, [connectionState]);
 
   // The palette arrives with `ready`, which can land after xterm is open.
   useEffect(() => {
@@ -1238,10 +1383,19 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         throw new Error('terminal not ready');
       }
       term.write(data);
+      if (touchDebugEnabled) {
+        const now = performance.now();
+        const stats = inboundStatsRef.current;
+        stats.push({ time: now, bytes: data.byteLength });
+        const cutoff = now - 1000;
+        while (stats.length > 0 && stats[0].time < cutoff) {
+          stats.shift();
+        }
+      }
     });
 
     return unsubscribe;
-  }, [subscribeToOutput]);
+  }, [subscribeToOutput, touchDebugEnabled]);
 
   /**
    * Restore path when the view becomes active again (e.g. back from Admin).
@@ -1340,7 +1494,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           {`buffer: ${touchDebug.bufferType ?? '-'} base: ${touchDebug.baseY ?? '-'} cursor: ${touchDebug.cursorY ?? '-'} scrollback: ${touchDebug.hasScrollback ?? '-'}\n`}
           {`scroll: ${touchDebug.scrollTop ?? '-'} / ${touchDebug.scrollHeight ?? '-'} (h ${touchDebug.clientHeight ?? '-'}) moved: ${touchDebug.moved}\n`}
           {`mode: ${touchDebug.scrollMode} calls: ${touchDebug.scrollCalls} lines: ${touchDebug.lastScrollLines ?? '-'} mouse: ${touchDebug.mouseTracking}\n`}
-          {`event: ${touchDebug.lastInputEvent || '-'}  pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}`}
+          {`event: ${touchDebug.lastInputEvent || '-'}  pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}\n`}
+          {`rtt: ${rttMs !== null ? `${rttMs}ms` : '-'}  frames/s: ${inboundMetrics.framesPerSec}  bytes/s: ${inboundMetrics.bytesPerSec}  renderer: ${rendererKind ?? '-'}\n`}
+          {`prediction: ${predictorRef.current?.getState() ?? '-'}  mode: ${settings.predictiveEcho}  pending: ${predictorRef.current?.getVisiblePredictions().length ?? 0}  srtt: ${predictorRef.current?.getEchoSrttMs() !== null && predictorRef.current?.getEchoSrttMs() !== undefined ? `${Math.round(predictorRef.current.getEchoSrttMs()!)}ms` : '-'}`}
         </pre>
       )}
 

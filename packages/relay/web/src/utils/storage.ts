@@ -44,6 +44,7 @@ export interface StoredSettings {
   toolbarVisible: boolean;
   toolbarPosition: 'bottom' | 'top';
   vibrateOnKeyPress: boolean;
+  predictiveEcho: 'auto' | 'always' | 'off';
   virtualKeys: ToolbarKeyDef[];
   /** Per-window operator credentials keyed by the exact relay origin. */
   adminToken?: string;
@@ -184,6 +185,7 @@ export function getDefaultSettings(): StoredSettings {
     toolbarVisible: true,
     toolbarPosition: 'bottom',
     vibrateOnKeyPress: true,
+    predictiveEcho: 'auto',
     language: detectDefaultLanguage(),
     virtualKeys: getDefaultVirtualKeys(),
     adminToken: '',
@@ -213,6 +215,7 @@ const SESSION_KEYS: Array<keyof StoredSettings> = [
   'toolbarVisible',
   'toolbarPosition',
   'vibrateOnKeyPress',
+  'predictiveEcho',
   'virtualKeys',
   'adminToken',
   'adminTokens',
@@ -374,6 +377,11 @@ export function loadSettings(): StoredSettings {
   const toolbarVisible = sessionData.toolbarVisible ?? localData.toolbarVisible ?? defaults.toolbarVisible;
   const toolbarPosition = sessionData.toolbarPosition ?? localData.toolbarPosition ?? defaults.toolbarPosition;
   const vibrateOnKeyPress = sessionData.vibrateOnKeyPress ?? localData.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress;
+  const rawPredictiveEcho = sessionData?.predictiveEcho ?? localData?.predictiveEcho ?? defaults.predictiveEcho;
+  const predictiveEcho: 'auto' | 'always' | 'off' =
+    rawPredictiveEcho === 'always' || rawPredictiveEcho === 'off' || rawPredictiveEcho === 'auto'
+      ? rawPredictiveEcho
+      : 'auto';
   const adminToken = typeof sessionData.adminToken === 'string'
     ? sessionData.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH)
     : typeof localData.adminToken === 'string'
@@ -399,6 +407,7 @@ export function loadSettings(): StoredSettings {
     toolbarVisible,
     toolbarPosition,
     vibrateOnKeyPress,
+    predictiveEcho,
     virtualKeys,
     language,
     adminToken,
@@ -427,6 +436,14 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
 
   if (updates.fontSize !== undefined) {
     next.fontSize = clampFontSize(updates.fontSize);
+  }
+
+  if (updates.predictiveEcho !== undefined) {
+    if (updates.predictiveEcho === 'auto' || updates.predictiveEcho === 'always' || updates.predictiveEcho === 'off') {
+      next.predictiveEcho = updates.predictiveEcho;
+    } else {
+      next.predictiveEcho = 'auto';
+    }
   }
 
   // The profile list is the credential source of truth. Legacy connection

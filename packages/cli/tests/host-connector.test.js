@@ -8,6 +8,13 @@ const path = require('node:path');
 const net = require('node:net');
 const { WebSocket } = require('ws');
 const { HostConnector } = require('../src/host-connector');
+const {
+  packStreamFrameV2,
+  unpackStreamFrame,
+  FRAME_TYPE_INPUT,
+  FRAME_TYPE_OUTPUT,
+  FRAME_V2_MAGIC,
+} = require('herdr-remote-relay/protocol');
 
 function makeConnector(lockPath, overrides = {}) {
   return new HostConnector({
@@ -201,5 +208,78 @@ test('two sessions run side by side and are resized and stopped independently', 
   assert.equal(connector.sessions.has('session-1'), false);
   assert.equal(connector.sessions.has('session-2'), true);
   assert.equal(connector.sessions.size, 1);
+});
+
+test('host connector handles v2 binary frames and negotiation', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-v2-'));
+  const connector = makeConnector(path.join(directory, 'connector.lock'));
+  connector.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
+  const socketServer = net.createServer();
+  await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
+  t.after(() => {
+    socketServer.close();
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const sentBinary = [];
+  connector.ws = {
+    readyState: WebSocket.OPEN,
+    send(payload) {
+      if (Buffer.isBuffer(payload)) sentBinary.push(payload);
+    },
+    close() {},
+  };
+
+  // Start session with streamIndex: 7
+  connector.handleMessage(JSON.stringify({
+    type: 'session_start',
+    streamId: 'v2-stream',
+    streamIndex: 7,
+    cols: 80,
+    rows: 24,
+  }));
+
+  assert.equal(connector.sessions.size, 1);
+  assert.equal(connector.streamIndexToId.get(7), 'v2-stream');
+
+  const session = connector.sessions.get('v2-stream');
+  let writtenInput = null;
+  session.pty.write = (data) => { writtenInput = data; };
+
+  // Relay sends v2 input frame with streamIndex 7
+  const inputPayload = Buffer.from('hello-v2-input', 'utf8');
+  const v2Frame = packStreamFrameV2(FRAME_TYPE_INPUT, 7, inputPayload);
+  connector.handleMessage(v2Frame, true);
+  assert.deepEqual(writtenInput, inputPayload);
+
+  // Trigger output flush from session PTY output
+  session.pendingOutput.push(Buffer.from('hello-v2-output', 'utf8'));
+  // Simulate session flush timer
+  await new Promise((resolve) => {
+    session.flushImmediate = setImmediate(() => {
+      if (session.pendingOutput.length > 0) {
+        const payload = Buffer.concat(session.pendingOutput);
+        session.pendingOutput = [];
+        const frame = typeof session.streamIndex === 'number'
+          ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
+          : packStreamFrame('output', session.id, payload);
+        connector.ws.send(frame);
+      }
+      resolve();
+    });
+  });
+
+  assert.equal(sentBinary.length, 1);
+  assert.equal(sentBinary[0][0], FRAME_V2_MAGIC);
+  const unpacked = unpackStreamFrame(sentBinary[0]);
+  assert.equal(unpacked.version, 2);
+  assert.equal(unpacked.streamIndex, 7);
+  assert.deepEqual(unpacked.payload, Buffer.from('hello-v2-output', 'utf8'));
+
+  // Stop session cleans up streamIndex mapping
+  connector.stopSession('v2-stream');
+  assert.equal(connector.sessions.size, 0);
+  assert.equal(connector.streamIndexToId.has(7), false);
 });
 

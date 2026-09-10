@@ -8,6 +8,15 @@
 const PROTOCOL_VERSION = 1;
 const MAX_HEADER_BYTES = 8 * 1024;
 
+// Framing constants for compact binary frame protocol v2.
+// With permessage-deflate already enabled on the WebSocket connection, the repeated
+// JSON routing header in v1 frames was already compressed down to near-zero network overhead.
+// The actual motivation for v2 framing is reducing CPU consumption: eliminating the per-frame
+// JSON.stringify / JSON.parse serialization and string decoding overhead under heavy terminal output.
+const FRAME_V2_MAGIC = 0xff;
+const FRAME_TYPE_OUTPUT = 0;
+const FRAME_TYPE_INPUT = 1;
+
 /**
  * The sixteen ANSI slots a host may report, in index order. A palette is
  * all-or-nothing: half the host's colors mixed with half the browser's would
@@ -73,7 +82,7 @@ function packStreamFrame(type, streamId, payload = Buffer.alloc(0)) {
   return Buffer.concat([length, header, body]);
 }
 
-function unpackStreamFrame(value) {
+function unpackStreamFrameV1(value) {
   const frame = Buffer.isBuffer(value) ? value : Buffer.from(value);
   if (frame.length < 4) throw new Error('stream frame is truncated');
   const headerLength = frame.readUInt32BE(0);
@@ -90,17 +99,74 @@ function unpackStreamFrame(value) {
     throw new Error('stream frame header is missing routing fields');
   }
   return {
+    version: 1,
     type: header.type,
     streamId: header.streamId,
     payload: frame.subarray(4 + headerLength),
   };
 }
 
+function packStreamFrameV2(type, streamIndex, payload = Buffer.alloc(0)) {
+  let typeCode = type;
+  if (type === 'output') typeCode = FRAME_TYPE_OUTPUT;
+  else if (type === 'input') typeCode = FRAME_TYPE_INPUT;
+  if (typeCode !== FRAME_TYPE_OUTPUT && typeCode !== FRAME_TYPE_INPUT) {
+    throw new TypeError('type must be FRAME_TYPE_OUTPUT (0) or FRAME_TYPE_INPUT (1)');
+  }
+  if (!Number.isInteger(streamIndex) || streamIndex < 0 || streamIndex > 0xffff) {
+    throw new RangeError('streamIndex must be an unsigned 16-bit integer (0-65535)');
+  }
+  const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+  const frame = Buffer.allocUnsafe(4 + body.length);
+  frame.writeUInt8(FRAME_V2_MAGIC, 0);
+  frame.writeUInt8(typeCode, 1);
+  frame.writeUInt16BE(streamIndex, 2);
+  body.copy(frame, 4);
+  return frame;
+}
+
+function unpackStreamFrameV2(buffer) {
+  const frame = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  if (frame.length < 4) throw new Error('v2 stream frame is truncated');
+  const magic = frame.readUInt8(0);
+  if (magic !== FRAME_V2_MAGIC) {
+    throw new Error('invalid v2 stream frame magic byte');
+  }
+  const typeCode = frame.readUInt8(1);
+  if (typeCode !== FRAME_TYPE_OUTPUT && typeCode !== FRAME_TYPE_INPUT) {
+    throw new Error(`unknown v2 stream frame type: ${typeCode}`);
+  }
+  const streamIndex = frame.readUInt16BE(2);
+  return {
+    version: 2,
+    type: typeCode === FRAME_TYPE_OUTPUT ? 'output' : 'input',
+    typeCode,
+    streamIndex,
+    payload: frame.subarray(4),
+  };
+}
+
+function unpackStreamFrame(value) {
+  const frame = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  if (frame.length < 4) throw new Error('stream frame is truncated');
+  // v1's headerLength is a 32-bit big-endian integer bounded by MAX_HEADER_BYTES (8KB),
+  // so its first byte is always 0x00. A first byte of 0xFF unambiguously identifies v2 framing.
+  if (frame[0] === FRAME_V2_MAGIC) {
+    return unpackStreamFrameV2(frame);
+  }
+  return unpackStreamFrameV1(frame);
+}
+
 module.exports = {
   PROTOCOL_VERSION,
   MAX_HEADER_BYTES,
+  FRAME_V2_MAGIC,
+  FRAME_TYPE_OUTPUT,
+  FRAME_TYPE_INPUT,
   ANSI_PALETTE_KEYS,
   packStreamFrame,
   unpackStreamFrame,
+  packStreamFrameV2,
+  unpackStreamFrameV2,
   sanitizeTerminalPalette,
 };

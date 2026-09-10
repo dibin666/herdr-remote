@@ -12,7 +12,13 @@ const { PtySession } = require('./pty-session');
 const { resolveHerdrCommand, verifyHerdrCommand, herdrNotFoundMessage } = require('./herdr-command');
 // The wire format lives in the relay package so both ends of the protocol are
 // generated from one definition.
-const { packStreamFrame, unpackStreamFrame, PROTOCOL_VERSION } = require('herdr-remote-relay/protocol');
+const {
+  packStreamFrame,
+  unpackStreamFrame,
+  packStreamFrameV2,
+  FRAME_TYPE_OUTPUT,
+  PROTOCOL_VERSION,
+} = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 const { savePastedFile, cleanPastedDir } = require('./pasted-files');
@@ -77,6 +83,8 @@ class HostConnector {
       : resolveHostPalette();
     this.ws = null;
     this.sessions = new Map();
+    this.streamIndexToId = new Map();
+    this.PtySession = options.PtySession || PtySession;
     this.fastFailures = 0;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
@@ -170,6 +178,8 @@ class HostConnector {
     this.ws = ws;
     ws.isAlive = true;
     ws.on('open', () => {
+      // Disable Nagle's algorithm to prevent small frames from stalling ~40ms when delayed ACK is active.
+      try { ws._socket?.setNoDelay(true); } catch {}
       ws.isAlive = true;
       this.ready = false;
       this.authFailure = false;
@@ -183,7 +193,7 @@ class HostConnector {
         platform: process.platform,
         arch: process.arch,
         terminalPalette: this.terminalPalette || null,
-        capabilities: ['host_handoff', 'idle_heartbeat'],
+        capabilities: ['host_handoff', 'idle_heartbeat', 'binary_frame_v2'],
       });
       // The relay sends host_ready with the current browser count. No business
       // heartbeat is started until that message says somebody is watching.
@@ -246,7 +256,10 @@ class HostConnector {
         process.stderr.write(`herdr-remote host connector: invalid relay frame: ${error.message}\n`);
         return;
       }
-      if (frame.type === 'input') this.sessions.get(frame.streamId)?.pty.write(frame.payload);
+      if (frame.type === 'input') {
+        const streamId = frame.version === 2 ? this.streamIndexToId.get(frame.streamIndex) : frame.streamId;
+        if (streamId) this.sessions.get(streamId)?.pty.write(frame.payload);
+      }
       return;
     }
     let message;
@@ -312,6 +325,7 @@ class HostConnector {
     const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
     if (!streamId) return;
     this.stopSession(streamId);
+    const streamIndex = typeof message.streamIndex === 'number' ? message.streamIndex : null;
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
@@ -323,7 +337,7 @@ class HostConnector {
       sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: socketInfo.reason });
       return;
     }
-    const pty = new PtySession({
+    const pty = new this.PtySession({
       command: this.herdrCommand,
       args: this.herdrArgs,
       cwd: this.cwd,
@@ -331,34 +345,75 @@ class HostConnector {
     });
     const session = {
       id: streamId,
+      streamIndex,
       pty,
       cols: Number(message.cols) || PtySession.DEFAULT_COLS,
       rows: Number(message.rows) || PtySession.DEFAULT_ROWS,
       createdAt: new Date().toISOString(),
       startedAtMs: Date.now(),
       clientId: streamId,
+      pendingOutput: [],
+      flushImmediate: null,
+    };
+    const flushOutput = () => {
+      if (session.flushImmediate) {
+        clearImmediate(session.flushImmediate);
+        session.flushImmediate = null;
+      }
+      if (session.pendingOutput.length === 0) return;
+      const chunks = session.pendingOutput;
+      session.pendingOutput = [];
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        const payload = Buffer.concat(chunks);
+        const frame = typeof session.streamIndex === 'number'
+          ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
+          : packStreamFrame('output', streamId, payload);
+        this.ws.send(frame);
+      }
     };
     try {
       pty.start({
         cols: session.cols,
         rows: session.rows,
         onData: (data) => {
-          const payload = Buffer.from(data, 'utf8');
-          if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(packStreamFrame('output', streamId, payload));
+          const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
+          if (chunk.length === 0) return;
+          session.pendingOutput.push(chunk);
+          if (!session.flushImmediate) {
+            // Coalesce burst output from the same tick into a single frame to reduce
+            // packet overhead without introducing timer latency.
+            session.flushImmediate = setImmediate(flushOutput);
+          }
         },
         onExit: ({ exitCode }) => {
           if (this.sessions.get(streamId) !== session) return;
           this.sessions.delete(streamId);
+          if (typeof session.streamIndex === 'number') {
+            this.streamIndexToId.delete(session.streamIndex);
+          }
+          if (session.flushImmediate) {
+            clearImmediate(session.flushImmediate);
+            session.flushImmediate = null;
+          }
+          session.pendingOutput = [];
           this.reportSessionExit(session, exitCode);
           this.sendHeartbeat();
         },
       });
     } catch (error) {
+      if (session.flushImmediate) {
+        clearImmediate(session.flushImmediate);
+        session.flushImmediate = null;
+      }
+      session.pendingOutput = [];
       sendJson(this.ws, { type: 'error', clientId: streamId, code: 'pty_start_failed', message: error.message });
       pty.kill();
       return;
     }
     this.sessions.set(streamId, session);
+    if (typeof streamIndex === 'number') {
+      this.streamIndexToId.set(streamIndex, streamId);
+    }
     sendJson(this.ws, { type: 'session_ready', clientId: streamId });
     this.sendHeartbeat();
   }
@@ -393,6 +448,14 @@ class HostConnector {
     const session = this.sessions.get(streamId);
     if (!session) return;
     this.sessions.delete(streamId);
+    if (typeof session.streamIndex === 'number') {
+      this.streamIndexToId.delete(session.streamIndex);
+    }
+    if (session.flushImmediate) {
+      clearImmediate(session.flushImmediate);
+      session.flushImmediate = null;
+    }
+    session.pendingOutput = [];
     session.pty.kill();
     this.sendHeartbeat();
   }
@@ -445,8 +508,16 @@ class HostConnector {
   }
 
   destroySessions() {
-    for (const session of this.sessions.values()) session.pty.kill();
+    for (const session of this.sessions.values()) {
+      if (session.flushImmediate) {
+        clearImmediate(session.flushImmediate);
+        session.flushImmediate = null;
+      }
+      session.pendingOutput = [];
+      session.pty.kill();
+    }
     this.sessions.clear();
+    this.streamIndexToId.clear();
   }
 
   sendHeartbeat(force = false) {

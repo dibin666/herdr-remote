@@ -58,6 +58,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       fontFamily: defaults.fontFamily,
       toolbarVisible: defaults.toolbarVisible,
       vibrateOnKeyPress: defaults.vibrateOnKeyPress,
+      predictiveEcho: defaults.predictiveEcho,
       language: defaults.language,
       virtualKeys: defaults.virtualKeys,
     });
@@ -224,6 +225,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <p className="text-tui-sm leading-snug text-tui-faint">{t('settings.mobileFontNote')}</p>
             <p className="text-tui-sm leading-snug text-tui-faint">
               {t('settings.windowZoomSharedNote')}
+            </p>
+          </div>
+
+          <Rule />
+
+          {/* Predictive echo */}
+          <div className="space-y-1">
+            <FieldLabel>{t('settings.predictiveEchoLabel')}</FieldLabel>
+            <div className="grid gap-0.5 sm:grid-cols-3">
+              <Radio
+                name="predictive-echo"
+                checked={settings.predictiveEcho === 'auto'}
+                onChange={() => updateSettings({ predictiveEcho: 'auto' })}
+                label={t('settings.predictiveEchoAuto')}
+              />
+              <Radio
+                name="predictive-echo"
+                checked={settings.predictiveEcho === 'always'}
+                onChange={() => updateSettings({ predictiveEcho: 'always' })}
+                label={t('settings.predictiveEchoAlways')}
+              />
+              <Radio
+                name="predictive-echo"
+                checked={settings.predictiveEcho === 'off'}
+                onChange={() => updateSettings({ predictiveEcho: 'off' })}
+                label={t('settings.predictiveEchoOff')}
+              />
+            </div>
+            <p className="text-tui-sm leading-snug text-tui-faint">
+              {t('settings.predictiveEchoDesc')}
             </p>
           </div>
 

@@ -19,6 +19,7 @@ import {
   ConnectionConfig,
 } from '../types/protocol';
 import { encodeStringToBytes } from './keyEncoder';
+import { isWheelOnlyInput } from './scrollInput';
 
 export type AdapterEventMap = {
   /**
@@ -68,6 +69,8 @@ export class HerdrClientAdapter {
   private authFailureDetail: string | null = null;
   private authFailureCode: string | null = null;
   private temporaryFailureCode: string | null = null;
+  private pendingInputSegments: Uint8Array[] = [];
+  private isFlushScheduled = false;
 
   private listeners: {
     [K in keyof AdapterEventMap]: Set<AdapterEventMap[K]>;
@@ -232,6 +235,8 @@ export class HerdrClientAdapter {
    * would still see itself as stale.
    */
   private teardownSocket(code = 1000, reason = 'Client closed the connection'): void {
+    this.pendingInputSegments = [];
+    this.isFlushScheduled = false;
     const socket = this.ws;
     if (!socket) return;
     this.ws = null;
@@ -251,6 +256,8 @@ export class HerdrClientAdapter {
   public disconnect(): void {
     this.isManuallyClosed = true;
     this.clearTimers();
+    this.pendingInputSegments = [];
+    this.isFlushScheduled = false;
     this.teardownSocket(1000, 'User initiated disconnect');
     this.setState('disconnected');
   }
@@ -571,8 +578,58 @@ export class HerdrClientAdapter {
   }
 
   public sendJson(msg: ClientJsonMessage): void {
+    // Flush queued input before control messages so resize/control frames do
+    // not interleave ahead of earlier keystrokes.
+    this.flushInput();
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
+    }
+  }
+
+  public sendInput(data: Uint8Array | ArrayBuffer): void {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+    if (bytes.length === 0) return;
+    this.pendingInputSegments.push(bytes);
+    if (!this.isFlushScheduled) {
+      this.isFlushScheduled = true;
+      // Microtask executes before yielding to the event loop, ensuring zero added latency
+      // for single keystrokes while coalescing wheel events within the same macro gesture.
+      queueMicrotask(() => this.flushInput());
+    }
+  }
+
+  public flushInput(): void {
+    this.isFlushScheduled = false;
+    if (this.pendingInputSegments.length === 0) return;
+
+    let segments = this.pendingInputSegments;
+    this.pendingInputSegments = [];
+
+    // Drop wheel reports when under backpressure (>256KB queued), keeping keystrokes intact.
+    if (this.ws && (this.ws.bufferedAmount ?? 0) > 256 * 1024) {
+      segments = segments.filter((seg) => !isWheelOnlyInput(seg));
+    }
+
+    if (segments.length === 0) return;
+
+    let merged: Uint8Array;
+    if (segments.length === 1) {
+      merged = segments[0];
+    } else {
+      let totalLength = 0;
+      for (let i = 0; i < segments.length; i++) {
+        totalLength += segments[i].byteLength;
+      }
+      merged = new Uint8Array(totalLength);
+      let offset = 0;
+      for (let i = 0; i < segments.length; i++) {
+        merged.set(segments[i], offset);
+        offset += segments[i].byteLength;
+      }
+    }
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(merged);
     }
   }
 
@@ -584,7 +641,7 @@ export class HerdrClientAdapter {
 
   public sendText(text: string): void {
     const bytes = encodeStringToBytes(text);
-    this.sendBinary(bytes);
+    this.sendInput(bytes);
   }
 
   private resolveWsUrl(configuredUrl: string): string {

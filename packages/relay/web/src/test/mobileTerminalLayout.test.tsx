@@ -490,10 +490,8 @@ describe('Renderer selection', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it('uses DOM rows on a coarse-pointer device rather than a GPU surface', async () => {
-    // WebGL and canvas both fail blank rather than throwing on the mobile
-    // drivers that refuse them, and DOM rows are what lets the platform run its
-    // own touch selection over the terminal.
+  it('mounts CanvasAddon on a coarse-pointer device without attempting WebGL', async () => {
+    // Mobile terminals prefer CanvasAddon over WebGL for lower context loss risk.
     setPointerKind('coarse');
     setViewport(PHONE);
 
@@ -501,8 +499,8 @@ describe('Renderer selection', () => {
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
     expect(WebglAddon).not.toHaveBeenCalled();
-    expect(CanvasAddon).not.toHaveBeenCalled();
-    expect(elements().container.dataset.renderer).toBe('dom');
+    expect(CanvasAddon).toHaveBeenCalledTimes(1);
+    expect(elements().container.dataset.renderer).toBe('canvas');
   });
 
   it('keeps WebGL on a precise-pointer device for desktop throughput', async () => {

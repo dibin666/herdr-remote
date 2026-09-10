@@ -109,6 +109,27 @@ any attached window, or raw ANSI output from the host. The relay adds a small
 internal routing header only on the host-side binary hop and removes it before
 forwarding bytes to the browser.
 
+There are two framing formats on the host-relay hop:
+
+1. **Format v1 (legacy)**:
+   - Layout: `4-byte uint32BE headerLength` + `UTF-8 JSON header` + `raw payload`.
+   - The JSON header contains routing fields: `{"type":"output"|"input","streamId":"..."}`.
+   - Because `headerLength` is bounded by `MAX_HEADER_BYTES = 8192`, its first byte is always `0x00`.
+
+2. **Format v2 (compact binary framing)**:
+   - Layout: `1-byte magic (0xFF)` + `1-byte type` + `2-byte uint16BE streamIndex` + `raw payload` (4-byte fixed header).
+   - `type` is numeric: `0 = output`, `1 = input`.
+   - `streamIndex` is an unsigned 16-bit integer scoped per host.
+   - Unambiguous discrimination: the first byte of a v2 frame is always `0xFF`, whereas a v1 frame's first byte is always `0x00`.
+
+**Capability negotiation & compatibility**:
+- The host connector declares the `"binary_frame_v2"` capability in its `host_hello` message.
+- If declared, the relay allocates a per-host unique `streamIndex` (0–65535) and sends it in the `session_start` control message. Both sides then exclusively communicate using v2 binary frames for that host.
+- If not declared (or when communicating with older hosts), the relay continues to speak format v1, maintaining full backwards compatibility.
+
+**Motivation**:
+Because the relay already enables WebSocket `permessage-deflate`, repeated JSON headers in v1 frames were already compressed down to negligible bandwidth. The real benefit of v2 is saving CPU: eliminating per-frame `JSON.stringify` / `JSON.parse` and string allocations under intense terminal throughput.
+
 ### One terminal per window
 
 Every window paired to a workstation gets a PTY of its own:

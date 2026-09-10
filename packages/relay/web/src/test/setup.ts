@@ -157,6 +157,8 @@ export interface MockTerminalInstance {
   modes: { mouseTrackingMode: string };
   emitRender?: (e: { start: number; end: number }) => void;
   emitWriteParsed?: () => void;
+  registerMarker?: ReturnType<typeof vi.fn>;
+  registerDecoration?: ReturnType<typeof vi.fn>;
   [key: string]: unknown;
 }
 
@@ -260,6 +262,21 @@ vi.mock('@xterm/xterm', () => ({
       },
       onScroll: vi.fn(() => ({ dispose: vi.fn() })),
       onResize: vi.fn(() => ({ dispose: vi.fn() })),
+      registerMarker: vi.fn((cursorYOffset?: number) => ({
+        id: 1,
+        line: (instance.buffer.active.baseY ?? 0) + (instance.buffer.active.cursorY ?? 0) + (cursorYOffset ?? 0),
+        isDisposed: false,
+        onDispose: vi.fn(),
+        dispose: vi.fn(),
+      })),
+      registerDecoration: vi.fn((opts: unknown) => ({
+        marker: (opts as { marker?: unknown })?.marker,
+        element: document.createElement('div'),
+        isDisposed: false,
+        onRender: vi.fn(),
+        onDispose: vi.fn(),
+        dispose: vi.fn(),
+      })),
       unicode: { activeVersion: '11' },
       // Stand-in for the render service the fit path measures cells from.
       _core: {

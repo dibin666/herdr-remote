@@ -33,6 +33,15 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     expect(translate('en', 'role.controllerMode')).toBe('Controller mode active');
     expect(translate('zh', 'role.controllerMode')).toBe('控制模式');
+
+    expect(translate('en', 'settings.predictiveEchoLabel')).toBe('Predictive Echo');
+    expect(translate('zh', 'settings.predictiveEchoLabel')).toBe('预测回显');
+    expect(translate('en', 'settings.predictiveEchoAuto')).toBe('Auto');
+    expect(translate('zh', 'settings.predictiveEchoAuto')).toBe('自动');
+    expect(translate('en', 'settings.predictiveEchoAlways')).toBe('Always On');
+    expect(translate('zh', 'settings.predictiveEchoAlways')).toBe('始终开启');
+    expect(translate('en', 'settings.predictiveEchoOff')).toBe('Off');
+    expect(translate('zh', 'settings.predictiveEchoOff')).toBe('关闭');
   });
 
   it('handles parameter interpolation properly', () => {

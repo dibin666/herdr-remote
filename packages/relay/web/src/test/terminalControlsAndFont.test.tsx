@@ -170,6 +170,32 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.queryByText(/Confirm Control Takeover/i)).toBeNull();
   });
 
+  it('allows switching predictive echo mode via SettingsModal radio group and resets to default', () => {
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} />
+      </TerminalProvider>
+    );
+
+    const autoRadio = screen.getByRole('radio', { name: /Auto/i }) as HTMLInputElement;
+    const alwaysRadio = screen.getByRole('radio', { name: /Always On/i }) as HTMLInputElement;
+    const offRadio = screen.getByRole('radio', { name: /Off/i }) as HTMLInputElement;
+
+    expect(autoRadio.checked).toBe(true);
+    expect(alwaysRadio.checked).toBe(false);
+    expect(offRadio.checked).toBe(false);
+
+    fireEvent.click(offRadio);
+    expect(loadSettings().predictiveEcho).toBe('off');
+
+    fireEvent.click(alwaysRadio);
+    expect(loadSettings().predictiveEcho).toBe('always');
+
+    const resetButton = screen.getByRole('button', { name: /Reset to Defaults/i });
+    fireEvent.click(resetButton);
+    expect(loadSettings().predictiveEcho).toBe('auto');
+  });
+
   describe('resolveTerminalFontFamily & Symbols Nerd Font Fallback', () => {
     it('includes Symbols Nerd Font Mono by default in the system monospace stack', () => {
       const resolved = resolveTerminalFontFamily(undefined);
