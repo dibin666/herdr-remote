@@ -7,8 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const { WebSocket } = require('ws');
-const { unpackStreamFrame } = require('../src/stream-frame');
-const { HostConnector } = require('../../cli/src/host-connector');
+const { unpackStreamFrame } = require('herdr-remote-relay/protocol');
+const { HostConnector } = require('../src/host-connector');
 
 test('host connector coalesces multiple onData chunks emitted in the same tick into one frame', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-coalesce-'));

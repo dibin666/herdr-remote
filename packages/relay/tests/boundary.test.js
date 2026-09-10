@@ -6,6 +6,8 @@
 // single-package install was slow and fragile. These tests fail the moment that
 // separation is broken, because the breakage is otherwise invisible until
 // someone tries to install the relay on a machine without a compiler.
+// Relay test files are held to the same boundary as production code so that
+// test runs never require native compilation tools.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,6 +26,17 @@ function sourceFiles(directory) {
   });
 }
 
+function scannedFiles() {
+  return [
+    ...sourceFiles(path.join(PACKAGE_ROOT, 'src')),
+    ...sourceFiles(path.join(PACKAGE_ROOT, 'bin')),
+    ...sourceFiles(path.join(PACKAGE_ROOT, 'tests')),
+  ].filter((file) => {
+    // Exclude boundary.test.js itself because its regex patterns contain the forbidden literals.
+    return file !== __filename;
+  });
+}
+
 test('the relay depends on nothing but ws', () => {
   assert.deepEqual(Object.keys(manifest.dependencies), ['ws']);
   assert.equal(manifest.dependencies['node-pty'], undefined);
@@ -34,7 +47,7 @@ test('no relay source imports the workstation package', () => {
   const forbidden = [/require\(['"]herdr-remote['"]/, /require\(['"][^'"]*packages\/cli/, /require\(['"]node-pty['"]/];
   const offenders = [];
 
-  for (const file of [...sourceFiles(path.join(PACKAGE_ROOT, 'src')), ...sourceFiles(path.join(PACKAGE_ROOT, 'bin'))]) {
+  for (const file of scannedFiles()) {
     const contents = fs.readFileSync(file, 'utf8');
     for (const pattern of forbidden) {
       if (pattern.test(contents)) offenders.push(`${path.relative(PACKAGE_ROOT, file)} matches ${pattern}`);
@@ -48,7 +61,7 @@ test('no relay source reaches outside the package', () => {
   // A require that climbs above the package root would resolve during local
   // development and break in the published tarball.
   const offenders = [];
-  for (const file of [...sourceFiles(path.join(PACKAGE_ROOT, 'src')), ...sourceFiles(path.join(PACKAGE_ROOT, 'bin'))]) {
+  for (const file of scannedFiles()) {
     const contents = fs.readFileSync(file, 'utf8');
     const matches = contents.match(/require\(['"](\.\.?\/[^'"]+)['"]\)/g) || [];
     for (const match of matches) {
