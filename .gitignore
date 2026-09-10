@@ -18,3 +18,4 @@ packages/relay/web/dist/
 
 # Local agent tooling caches (skill packs), not project sources.
 .agents/
+AGENTS.md
