@@ -36,6 +36,19 @@ function closeSocket(ws, reason = 'host connector stopping') {
   try { ws.close(1000, reason); } catch {}
 }
 
+function terminateSocket(ws) {
+  if (!ws || ws.readyState === WebSocket.CLOSED) return;
+  try {
+    if (typeof ws.terminate === 'function') {
+      ws.terminate();
+    } else if (typeof ws.destroy === 'function') {
+      ws.destroy();
+    } else if (typeof ws.close === 'function') {
+      ws.close();
+    }
+  } catch {}
+}
+
 function pidAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -88,6 +101,7 @@ class HostConnector {
     this.fastFailures = 0;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
+    this.keepaliveTimer = null;
     this.reconnectAttempts = 0;
     this.clientCount = 0;
     this.legacyHeartbeat = false;
@@ -154,6 +168,7 @@ class HostConnector {
     this.stopping = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.stopKeepalive();
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     sendJson(this.ws, { type: 'host_shutdown' });
@@ -168,6 +183,7 @@ class HostConnector {
 
   connect() {
     if (this.stopping || (this.ws && [WebSocket.OPEN, WebSocket.CONNECTING].includes(this.ws.readyState))) return;
+    this.stopKeepalive();
     let ws;
     try {
       ws = new WebSocket(this.relayUrl);
@@ -208,6 +224,7 @@ class HostConnector {
       this.ws = null;
       if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+      this.stopKeepalive();
       this.ready = false;
       this.clientCount = 0;
       this.legacyHeartbeat = false;
@@ -276,6 +293,7 @@ class HostConnector {
     if (message.type === 'host_ready') {
       this.ready = true;
       this.reconnectAttempts = 0;
+      this.startKeepalive();
       if (Object.hasOwn(message, 'clientCount')) {
         this.legacyHeartbeat = false;
         this.setClientCount(message.clientCount);
@@ -458,6 +476,49 @@ class HostConnector {
     session.pendingOutput = [];
     session.pty.kill();
     this.sendHeartbeat();
+  }
+
+  startKeepalive() {
+    this.stopKeepalive();
+    if (!this.ws || this.stopping) return;
+    this.ws.isAlive = true;
+    const interval = this.config?.cleanup?.heartbeatIntervalMs || 30_000;
+    this.keepaliveTimer = setInterval(() => this.tickKeepalive(), interval);
+  }
+
+  stopKeepalive() {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
+    }
+  }
+
+  tickKeepalive() {
+    const ws = this.ws;
+    if (!ws || this.stopping) return;
+    if (ws.readyState === WebSocket.CLOSING) {
+      terminateSocket(ws);
+      return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) return;
+
+    if (!ws.isAlive) {
+      terminateSocket(ws);
+      return;
+    }
+
+    ws.isAlive = false;
+    try {
+      if (typeof ws.ping === 'function') ws.ping();
+    } catch {}
+
+    if (this.clientCount <= 0 && !this.legacyHeartbeat) {
+      sendJson(ws, {
+        type: 'heartbeat',
+        load: {},
+        ptys: [],
+      });
+    }
   }
 
   setClientCount(value) {

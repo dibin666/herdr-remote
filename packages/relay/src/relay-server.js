@@ -52,6 +52,17 @@ function closeSocket(socket, code = 1000, reason = '') {
   } catch {}
 }
 
+function terminateSocket(socket) {
+  if (!socket || socket.readyState === WebSocket.CLOSED) return;
+  try {
+    if (typeof socket.terminate === 'function') {
+      socket.terminate();
+    } else if (typeof socket.destroy === 'function') {
+      socket.destroy();
+    }
+  } catch {}
+}
+
 function parseJson(data) {
   if (typeof data !== 'string') return null;
   try {
@@ -668,6 +679,10 @@ class RelayServer {
       ws.isAlive = true;
       if (pending.host) pending.host.lastSeenAt = Date.now();
     });
+    ws.on('ping', () => {
+      ws.isAlive = true;
+      if (pending.host) pending.host.lastSeenAt = Date.now();
+    });
     ws.on('message', (raw, isBinary) => {
       if (!pending.authenticated) {
         if (isBinary) return this.rejectHandshake(ws, 'host hello must be JSON');
@@ -975,6 +990,21 @@ class RelayServer {
     const deadline = setTimeout(() => {
       if (!pending.authenticated) closeSocket(ws, 1008, 'client hello timeout');
     }, 10000);
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+      if (pending.client) {
+        pending.client.lastSeenAt = Date.now();
+        pending.client.lastPingAt = new Date().toISOString();
+      }
+    });
+    ws.on('ping', () => {
+      ws.isAlive = true;
+      if (pending.client) {
+        pending.client.lastSeenAt = Date.now();
+        pending.client.lastPingAt = new Date().toISOString();
+      }
+    });
     ws.on('message', (raw, isBinary) => {
       if (!pending.authenticated) {
         if (isBinary) return this.rejectHandshake(ws, 'client hello must be JSON');
@@ -1036,11 +1066,6 @@ class RelayServer {
         host.clients.add(client.id);
         this.notifyHostClientCount(host);
         ws.isAlive = true;
-        ws.on('pong', () => {
-          ws.isAlive = true;
-          client.lastSeenAt = Date.now();
-          client.lastPingAt = new Date().toISOString();
-        });
         if (paired) jsonSend(ws, { type: 'paired', token: paired.token, deviceId: paired.deviceId, hostId: paired.hostId, expiresAt: paired.expiresAtIso });
         // Expose the relay-assigned connection id so clients can distinguish
         // their own controller lease from another device's lease. The browser
@@ -1255,7 +1280,7 @@ class RelayServer {
     return closed;
   }
 
-  detachClient(client, { notify = true, reason = 'client_disconnected', closeCode = 1000 } = {}) {
+  detachClient(client, { notify = true, reason = 'client_disconnected', closeCode = 1000, terminate = false } = {}) {
     if (!client || !this.clients.has(client.id)) return;
     this.clients.delete(client.id);
     const host = this.hosts.get(client.hostId);
@@ -1281,12 +1306,18 @@ class RelayServer {
         if (host.reconnecting) this.detachHost(host, { notify: false, reason: 'no_clients' });
       }
     }
-    if (notify) jsonSend(client.ws, { type: 'error', code: reason, message: reason === 'host_offline' ? 'Herdr host is offline' : 'connection closed' });
-    closeSocket(client.ws, closeCode, reason);
+    const clientSocket = client.ws;
+    client.ws = null;
+    if (notify) jsonSend(clientSocket, { type: 'error', code: reason, message: reason === 'host_offline' ? 'Herdr host is offline' : 'connection closed' });
+    if (terminate || clientSocket?.readyState === WebSocket.CLOSING) {
+      terminateSocket(clientSocket);
+    } else {
+      closeSocket(clientSocket, closeCode, reason);
+    }
     this.metrics.recordCleanup('closedPtysCleaned');
   }
 
-  detachHost(host, { notify = true, reason = 'host_disconnected' } = {}) {
+  detachHost(host, { notify = true, reason = 'host_disconnected', terminate = false } = {}) {
     if (!host || this.hosts.get(host.id) !== host) return;
     if (host.reconnectTimer) clearTimeout(host.reconnectTimer);
     host.reconnectTimer = null;
@@ -1302,25 +1333,41 @@ class RelayServer {
         this.streams.delete(client.session.streamId);
         client.session = null;
       }
-      if (notify) jsonSend(client.ws, { type: 'error', code: reason, message: 'Herdr host disconnected' });
-      closeSocket(client.ws, 1012, reason);
+      const clientSocket = client.ws;
+      client.ws = null;
+      if (notify) jsonSend(clientSocket, { type: 'error', code: reason, message: 'Herdr host disconnected' });
+      if (terminate || clientSocket?.readyState === WebSocket.CLOSING) {
+        terminateSocket(clientSocket);
+      } else {
+        closeSocket(clientSocket, 1012, reason);
+      }
     }
     host.clients.clear();
     this.metrics.forgetHost(host.id);
     const hostSocket = host.ws;
     host.ws = null;
-    closeSocket(hostSocket, 1000, reason);
+    if (terminate || hostSocket?.readyState === WebSocket.CLOSING) {
+      terminateSocket(hostSocket);
+    } else {
+      closeSocket(hostSocket, 1000, reason);
+    }
   }
 
   heartbeat() {
     const sockets = [
       ...[...this.hosts.values()].map((host) => host.ws),
       ...[...this.clients.values()].map((client) => client.ws),
-    ].filter(isOpen);
+    ].filter((socket) => socket && socket.readyState !== WebSocket.CLOSED);
     for (const socket of sockets) {
+      if (socket.readyState === WebSocket.CLOSING) {
+        this.metrics.recordCleanup('deadConnectionsClosed');
+        terminateSocket(socket);
+        continue;
+      }
+      if (socket.readyState !== WebSocket.OPEN) continue;
       if (!socket.isAlive) {
         this.metrics.recordCleanup('deadConnectionsClosed');
-        closeSocket(socket, 1001, 'heartbeat timeout');
+        terminateSocket(socket);
         continue;
       }
       socket.isAlive = false;
@@ -1345,14 +1392,14 @@ class RelayServer {
     for (const client of [...this.clients.values()]) {
       if (now - client.lastSeenAt > staleAfter) {
         this.metrics.recordCleanup('staleClientsPurged');
-        this.detachClient(client, { notify: false, reason: 'stale_client' });
+        this.detachClient(client, { notify: false, reason: 'stale_client', terminate: true });
       }
     }
     for (const host of [...this.hosts.values()]) {
       if (host.reconnecting) continue;
       if (now - host.lastSeenAt > staleAfter) {
         this.metrics.recordCleanup('deadConnectionsClosed');
-        this.detachHost(host, { notify: true, reason: 'stale_host' });
+        this.detachHost(host, { notify: true, reason: 'stale_host', terminate: true });
       }
     }
     const authCleanup = this.auth.cleanup(now);

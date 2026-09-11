@@ -43,9 +43,11 @@ workstation remains reachable only by whoever holds its host token.
 
 The relay responds with `host_ready` and an optional `clientCount`. It also
 sends `client_count` whenever the number of attached browser windows changes.
-The host sends `heartbeat` JSON messages containing load and PTY metadata only
-while `clientCount > 0`; when no browser is attached it keeps only the WebSocket
-ping/pong liveness connection. The relay sends `session_start`, `session_stop`,
+The host sends full `heartbeat` JSON messages containing load and PTY metadata only
+while `clientCount > 0`; when no browser is attached it pauses business telemetry while
+maintaining a low-frequency transport keepalive (minimal idle heartbeat alongside WebSocket
+ping/pong watchdog probes) so reverse proxies keep the connection active and the relay
+refreshes host liveness. The relay sends `session_start`, `session_stop`,
 and `resize` messages back to the host.
 
 A host advertising `host_handoff` may temporarily disconnect without dropping

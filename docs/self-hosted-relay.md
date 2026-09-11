@@ -87,11 +87,12 @@ A systemd unit is included: see `deploy/systemd/` in the package.
 
 ## Reverse proxy
 
-Whatever proxy you use, it must forward WebSocket upgrades and not time out idle
-connections — a terminal is idle between keystrokes. The relay disables WebSocket compression
-and enables TCP NoDelay for terminal frames. When no browser is attached, the workstation stops
-business heartbeats and keeps only the WebSocket liveness probe. Example configs for nginx and
-Cloudflare Tunnel are in `deploy/` in the package.
+Whatever proxy you use, it must forward WebSocket upgrades and maintain reasonable idle
+timeouts — a terminal is idle between keystrokes. The relay disables WebSocket compression
+and enables TCP NoDelay for terminal frames. When no browser is attached, the workstation pauses
+business heartbeats while maintaining low-frequency transport keepalive (minimal idle heartbeat
+and WebSocket ping/pong probes) to keep the proxy path open and relay liveness fresh. Example configs
+for nginx and Cloudflare Tunnel are in `deploy/` in the package.
 
 ## Connect your workstation
 

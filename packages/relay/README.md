@@ -51,7 +51,7 @@ docker run -d --name herdr-relay --restart unless-stopped \
 | `--host-reconnect-grace-ms` | `RELAY_HOST_RECONNECT_GRACE_MS` | `30000` | Host reconnect grace period |
 | `--config` | `HERDR_RELAY_CONFIG` | *(none)* | JSON configuration file path |
 
-Reverse proxies must pass WebSocket `Upgrade` headers and maintain long idle timeouts. The relay disables WebSocket compression and enables TCP NoDelay for terminal frames. When no browser is attached, business heartbeats stop and only WebSocket liveness probes remain. Deployment examples for nginx, systemd, and Docker Compose are in `deploy/`.
+Reverse proxies must pass WebSocket `Upgrade` headers and maintain reasonable idle timeouts. The relay disables WebSocket compression and enables TCP NoDelay for terminal frames. When no browser is attached, business heartbeats stop while low-frequency transport keepalive (minimal idle heartbeat and WebSocket ping/pong watchdog) remains active to prevent proxies from dropping idle connections. Deployment examples for nginx, systemd, and Docker Compose are in `deploy/`.
 
 ## Multiple workstations and isolation
 

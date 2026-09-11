@@ -87,10 +87,11 @@ herdr-remote-relay --public-url https://herdr.example.com --password 你的密�
 
 ## 反向代理
 
-不管用哪个代理，都要转发 WebSocket 升级请求，并且不要对空闲连接超时 —— 终端在
+不管用哪个代理，都要转发 WebSocket 升级请求，并设置合理的空闲超时时间 —— 终端在
 两次按键之间本来就是空闲的。包内 `deploy/` 里有 nginx 和 Cloudflare Tunnel 的
 示例配置。relay 会关闭 WebSocket 压缩并启用 TCP NoDelay；浏览器无人连接时，工作站
-会停止业务 heartbeat，只保留 WebSocket 存活探测以节省流量。
+会停止业务 heartbeat，同时保留低频 transport keepalive（最小空闲 heartbeat 与
+WebSocket ping/pong 探针）以防止反代断开空闲连接并维持 relay 存活。
 
 ## 让工作站连过来
 

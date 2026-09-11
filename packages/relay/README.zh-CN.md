@@ -51,7 +51,7 @@ docker run -d --name herdr-relay --restart unless-stopped \
 | `--host-reconnect-grace-ms` | `RELAY_HOST_RECONNECT_GRACE_MS` | `30000` | 工作站断线恢复宽限时间 |
 | `--config` | `HERDR_RELAY_CONFIG` | *(无)* | JSON 配置文件路径 |
 
-反向代理必须转发 WebSocket `Upgrade` 头，并设置较长空闲超时时间。relay 会关闭 WebSocket 压缩并启用 TCP NoDelay；没有浏览器连接时，工作站会停止业务 heartbeat，仅保留 WebSocket 存活探测以节省流量。`deploy/` 目录下提供 nginx、systemd 与 Docker Compose 示例。
+反向代理必须转发 WebSocket `Upgrade` 头，并设置合理的空闲超时时间。relay 会关闭 WebSocket 压缩并启用 TCP NoDelay；没有浏览器连接时，工作站会停止业务 heartbeat，同时保留低频 transport keepalive（最小空闲 heartbeat 与 WebSocket ping/pong 探针）以防止反代断开空闲连接并维持 relay 存活。`deploy/` 目录下提供 nginx、systemd 与 Docker Compose 示例。
 
 ## 多工作站与隔离
 

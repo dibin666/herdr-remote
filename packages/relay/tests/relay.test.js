@@ -961,3 +961,109 @@ test('the status board counts devices and their hosts, not open sockets', async 
   hostA.close();
   hostB.close();
 });
+
+test('idle heartbeat refreshes host lastSeenAt on relay', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-idle-heartbeat-'));
+  const relayConfig = config();
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({
+    type: 'host_hello',
+    protocol: 1,
+    hostId: 'host-idle-test',
+    token: 'host-token-123456789',
+    capabilities: ['host_handoff', 'idle_heartbeat'],
+  }));
+  await nextMessage(host, (m) => m.type === 'host_ready');
+
+  const hostRecord = relay.hosts.get('host-idle-test');
+  assert.ok(hostRecord);
+
+  // Artificially age the host lastSeenAt
+  hostRecord.lastSeenAt = Date.now() - 10_000;
+  const oldLastSeen = hostRecord.lastSeenAt;
+
+  // Send idle heartbeat
+  host.send(JSON.stringify({
+    type: 'heartbeat',
+    load: {},
+    ptys: [],
+  }));
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.ok(hostRecord.lastSeenAt > oldLastSeen, 'host lastSeenAt should be refreshed by idle heartbeat');
+  host.close();
+});
+
+test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-terminate-'));
+  const relayConfig = config();
+  relayConfig.cleanup.staleAfterMs = 500;
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const hostWs = await openWebSocket(`${wsBase}/ws/host`);
+  hostWs.send(JSON.stringify({
+    type: 'host_hello',
+    protocol: 1,
+    hostId: 'host-term-test',
+    token: 'host-token-123456789',
+    capabilities: ['host_handoff', 'idle_heartbeat'],
+  }));
+  await nextMessage(hostWs, (m) => m.type === 'host_ready');
+
+  const hostRecord = relay.hosts.get('host-term-test');
+  assert.ok(hostRecord);
+  const serverWs = hostRecord.ws;
+
+  // 1. Inactive socket in heartbeat: when isAlive is false, heartbeat terminates socket
+  let terminated = false;
+  const originalTerminate = serverWs.terminate;
+  serverWs.terminate = function (...args) {
+    terminated = true;
+    return originalTerminate.apply(this, args);
+  };
+  serverWs.isAlive = false;
+
+  relay.heartbeat();
+  assert.ok(terminated, 'heartbeat() should terminate inactive socket instead of only closing it');
+
+  // 2. CLOSING socket in heartbeat: terminated immediately
+  let closingTerminated = false;
+  const mockClosingSocket = {
+    readyState: WebSocket.CLOSING,
+    isAlive: true,
+    terminate() { closingTerminated = true; },
+  };
+  relay.hosts.set('mock-closing', { id: 'mock-closing', ws: mockClosingSocket, clients: new Set() });
+  relay.heartbeat();
+  assert.ok(closingTerminated, 'heartbeat() should terminate socket stuck in CLOSING');
+  relay.hosts.delete('mock-closing');
+
+  // 3. Stale host in sweep: terminates socket
+  let staleTerminated = false;
+  const mockStaleSocket = {
+    readyState: WebSocket.OPEN,
+    isAlive: true,
+    terminate() { staleTerminated = true; },
+    close() {},
+  };
+  relay.hosts.set('mock-stale', {
+    id: 'mock-stale',
+    ws: mockStaleSocket,
+    clients: new Set(),
+    reconnecting: false,
+    lastSeenAt: Date.now() - 10_000,
+  });
+  relay.sweep();
+  assert.ok(staleTerminated, 'sweep() should terminate stale host socket');
+  assert.equal(relay.hosts.has('mock-stale'), false, 'stale host should be detached');
+
+  hostWs.close();
+});

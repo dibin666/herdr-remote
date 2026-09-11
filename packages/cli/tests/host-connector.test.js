@@ -283,3 +283,136 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
   assert.equal(connector.streamIndexToId.has(7), false);
 });
 
+test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-keepalive-'));
+  const connector = makeConnector(path.join(directory, 'connector.lock'));
+  t.after(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const sent = [];
+  let pingCount = 0;
+  connector.ws = {
+    readyState: WebSocket.OPEN,
+    send(payload) { sent.push(JSON.parse(payload)); },
+    ping() { pingCount += 1; },
+    close() {},
+    terminate() {},
+  };
+
+  connector.handleMessage(JSON.stringify({ type: 'host_ready', clientCount: 0 }));
+  assert.ok(connector.keepaliveTimer, 'keepaliveTimer should be active');
+  assert.equal(connector.heartbeatTimer, null, 'heartbeatTimer should be null when clientCount is 0');
+
+  // Trigger keepalive tick
+  connector.tickKeepalive();
+  assert.equal(pingCount, 1, 'ping should be sent');
+  assert.equal(sent.length, 1, 'idle heartbeat should be sent');
+  assert.equal(sent[0].type, 'heartbeat');
+  assert.deepEqual(sent[0].load, {});
+  assert.deepEqual(sent[0].ptys, []);
+
+  // When clientCount becomes 1, keepalive tick does not duplicate full business heartbeat
+  connector.setClientCount(1);
+  assert.ok(connector.heartbeatTimer, 'heartbeatTimer should be active when clientCount > 0');
+  const sentCountBefore = sent.length;
+  connector.ws.isAlive = true;
+  connector.tickKeepalive();
+  assert.equal(pingCount, 2, 'ping should be sent on keepalive tick');
+  assert.equal(sent.length, sentCountBefore, 'no duplicate heartbeat from keepalive tick when active');
+});
+
+test('keepalive timer lifecycle: start, stop, close, and replacement isolation', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-timer-lifecycle-'));
+  const connector = makeConnector(path.join(directory, 'connector.lock'));
+  t.after(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const mockWs = {
+    readyState: WebSocket.OPEN,
+    send() {},
+    ping() {},
+    close() {},
+    terminate() {},
+  };
+  connector.ws = mockWs;
+
+  // 1. host_ready starts keepalive timer
+  connector.handleMessage(JSON.stringify({ type: 'host_ready', clientCount: 0 }));
+  assert.ok(connector.keepaliveTimer);
+
+  // 2. stop() clears keepalive timer
+  connector.stop();
+  assert.equal(connector.keepaliveTimer, null);
+
+  // 3. Reconnecting and receiving host_ready starts a new timer
+  connector.stopping = false;
+  connector.ws = mockWs;
+  connector.handleMessage(JSON.stringify({ type: 'host_ready', clientCount: 0 }));
+  const activeTimer = connector.keepaliveTimer;
+  assert.ok(activeTimer);
+
+  // 4. Stale close from an older socket does not clear the new timer
+  const oldWs = { ...mockWs };
+  connector.ws = mockWs;
+  if (connector.ws === oldWs) connector.stopKeepalive();
+  assert.equal(connector.keepaliveTimer, activeTimer, 'old socket close must not clear new timer');
+
+  // 5. Current socket closing clears keepalive timer
+  connector.stopKeepalive();
+  assert.equal(connector.keepaliveTimer, null);
+});
+
+test('watchdog terminates socket and schedules reconnect when pong is missed', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-watchdog-'));
+  const connector = makeConnector(path.join(directory, 'connector.lock'));
+  t.after(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  let terminated = false;
+  let closeListener = null;
+  const mockWs = {
+    readyState: WebSocket.OPEN,
+    isAlive: true,
+    send() {},
+    ping() {},
+    close() {},
+    terminate() {
+      terminated = true;
+      this.readyState = WebSocket.CLOSED;
+      if (closeListener) closeListener(1006, '');
+    },
+    on(event, handler) {
+      if (event === 'close') closeListener = handler;
+    },
+  };
+
+  connector.ws = mockWs;
+  mockWs.on('close', () => {
+    if (connector.ws !== mockWs) return;
+    connector.ws = null;
+    connector.stopKeepalive();
+    connector.scheduleReconnect();
+  });
+
+  connector.startKeepalive();
+  assert.ok(connector.keepaliveTimer);
+
+  // Cycle 1: tick sends ping, marks isAlive = false
+  connector.tickKeepalive();
+  assert.equal(mockWs.isAlive, false);
+  assert.equal(terminated, false);
+
+  // No pong arrives! Cycle 2: isAlive is still false, watchdog terminates
+  connector.tickKeepalive();
+  assert.equal(terminated, true, 'socket should be terminated by watchdog');
+  assert.equal(connector.ws, null, 'ws should be cleared after terminate');
+  assert.equal(connector.keepaliveTimer, null, 'keepalive timer should be cleared');
+  assert.ok(connector.reconnectTimer, 'reconnect timer should be scheduled');
+});
+
