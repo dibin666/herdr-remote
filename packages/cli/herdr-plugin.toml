@@ -1,6 +1,6 @@
 id = "herdr.remote.web"
 name = "Herdr Remote Web"
-version = "0.2.11"
+version = "0.2.12"
 min_herdr_version = "0.9.0"
 description = "Browser access to Herdr workspaces via local or self-hosted relay"
 platforms = ["linux", "macos"]
