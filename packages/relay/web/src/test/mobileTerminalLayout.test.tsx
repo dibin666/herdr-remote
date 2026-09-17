@@ -503,37 +503,24 @@ describe('Renderer selection', () => {
     expect(elements().container.dataset.renderer).toBe('canvas');
   });
 
-  it('keeps WebGL on a precise-pointer device for desktop throughput', async () => {
+  // A desktop browser used to get WebGL for throughput. On an Intel Iris Xe /
+  // Mesa / ANGLE stack that renderer draws solid blocks instead of glyphs, and
+  // the probe cannot see it — a screen full of blocks is a screen with content.
+  it('uses canvas on a precise-pointer device too, never WebGL', async () => {
     setPointerKind('fine');
     setViewport(DESKTOP);
 
     renderTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
-    expect(WebglAddon).toHaveBeenCalledTimes(1);
-    expect(elements().container.dataset.renderer).toBe('webgl');
-  });
-
-  it('falls back to canvas when WebGL cannot be constructed', async () => {
-    setPointerKind('fine');
-    setViewport(DESKTOP);
-    vi.mocked(WebglAddon).mockImplementationOnce(() => {
-      throw new Error('WebGL unavailable');
-    });
-
-    renderTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-
+    expect(WebglAddon).not.toHaveBeenCalled();
     expect(CanvasAddon).toHaveBeenCalledTimes(1);
     expect(elements().container.dataset.renderer).toBe('canvas');
   });
 
-  it('falls back to DOM rows when neither GPU renderer can be constructed', async () => {
+  it('falls back to DOM rows when canvas cannot be constructed', async () => {
     setPointerKind('fine');
     setViewport(DESKTOP);
-    vi.mocked(WebglAddon).mockImplementationOnce(() => {
-      throw new Error('WebGL unavailable');
-    });
     vi.mocked(CanvasAddon).mockImplementationOnce(() => {
       throw new Error('canvas unavailable');
     });

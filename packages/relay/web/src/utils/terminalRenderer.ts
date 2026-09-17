@@ -1,13 +1,28 @@
 /**
  * Renderer selection and probe-based fallback for xterm 5.5.
  *
- * Mobile/coarse-pointer devices:
- *  - Prefer the CanvasAddon over WebGL. Mobile WebGL implementations carry a much
- *    higher risk of context loss and driver-specific blank surfaces, whereas
- *    2D canvas offers smooth full-screen redraws with lower overhead.
- *  - Rather than preemptively abandoning GPU rendering on mobile, we adopt a
- *    "probe and degrade" strategy: mount CanvasAddon first, then verify pixel
- *    output once initial content (the startup banner) is drawn.
+ * Canvas everywhere, with the DOM renderer underneath it. There is no WebGL
+ * path any more.
+ *
+ * xterm's WebGL renderer draws glyphs from a texture atlas, and on at least one
+ * ordinary stack — Intel Iris Xe, Mesa, ANGLE — it draws solid blocks instead of
+ * text. Reproduced with @xterm/xterm 5.5.0 and @xterm/addon-webgl 0.18.0: the
+ * same bytes and the same font, rendered side by side, came out as blocks under
+ * WebGL and correct under both Canvas and DOM. It is not the atlas page merge
+ * (it happens well below that threshold), and it is not font coverage (a glyph
+ * that fails in one cell renders in another).
+ *
+ * That failure is invisible to the probe below, which is the reason WebGL is
+ * gone rather than merely demoted: the probe asks "did anything get drawn", and
+ * a screen full of blocks answers yes. A terminal that renders the wrong glyphs
+ * is worse than a slower one that renders the right ones, so the fast path is
+ * not worth keeping for a fault nothing can detect. If a later xterm fixes the
+ * WebGL renderer, this is the file that decides whether to trust it again.
+ *
+ * What remains, for every device:
+ *  - Mount CanvasAddon, then verify pixel output once initial content (the
+ *    startup banner) is drawn — "probe and degrade" rather than guessing from
+ *    the user agent.
  *  - Pixel verification MUST wait until content has been emitted into the terminal.
  *    An unpopulated buffer is uniformly blank by definition, which would cause a
  *    false-positive failure detection.
@@ -22,22 +37,14 @@
  *    Records automatically expire after 30 days to give driver updates an opportunity to recover.
  *  - Verification is repeated after the initial resize to catch driver failures
  *    triggered when backing-store dimensions change.
- *
- * Desktop/fine-pointer devices:
- *  - Retain WebGL for maximum throughput, with canvas as the context-loss fallback
- *    and the DOM renderer as the final safeguard. Every branch degrades rather than
- *    leaving the terminal blank.
  */
 
 import { Terminal } from '@xterm/xterm';
 import { CanvasAddon } from '@xterm/addon-canvas';
-import { WebglAddon } from '@xterm/addon-webgl';
 
-export type TerminalRendererKind = 'dom' | 'canvas' | 'webgl';
+export type TerminalRendererKind = 'dom' | 'canvas';
 
 export interface AttachRendererOptions {
-  /** Finger-driven device: prefer resilience and predictable touch over speed. */
-  coarsePointer: boolean;
   /** Called after a fallback swap so the caller can re-measure and repaint. */
   onRendererSwapped?: (kind: TerminalRendererKind) => void;
 }
@@ -224,152 +231,81 @@ export function waitForFrames(count = 2): Promise<void> {
 
 export function attachTerminalRenderer(
   term: Terminal,
-  options: AttachRendererOptions
+  options: AttachRendererOptions = {}
 ): AttachedRenderer {
-  if (options.coarsePointer) {
-    if (isCanvasProbeFailed()) {
-      return {
-        kind: 'dom',
-        dispose: () => {},
-        verify: async () => {},
-      };
-    }
-
-    try {
-      const canvasAddon = new CanvasAddon();
-      term.loadAddon(canvasAddon);
-      let currentKind: TerminalRendererKind = 'canvas';
-      let isDisposed = false;
-      let verifyPromise: Promise<void> | null = null;
-
-      const fallbackToDom = () => {
-        if (currentKind === 'dom') return;
-        recordCanvasProbeFailure();
-        try {
-          canvasAddon.dispose();
-        } catch {
-          // ignore
-        }
-        currentKind = 'dom';
-        options.onRendererSwapped?.('dom');
-      };
-
-      const verify = async (): Promise<void> => {
-        if (isDisposed || currentKind !== 'canvas') return;
-        if (verifyPromise) return verifyPromise;
-
-        verifyPromise = (async () => {
-          try {
-            await waitForFrames(2);
-            if (isDisposed || currentKind !== 'canvas') return;
-
-            // Strictly query the text layer. Do NOT fall back to generic "canvas"
-            // to avoid mistakenly sampling blank selection/cursor layers.
-            const canvas = term.element?.querySelector<HTMLCanvasElement>('canvas.xterm-text-layer');
-
-            const probeResult = checkCanvasContent(canvas);
-            if (probeResult === 'blank') {
-              fallbackToDom();
-            } else if (probeResult === 'inconclusive') {
-              console.debug('Canvas probe inconclusive; retaining canvas renderer without blacklisting');
-            }
-          } catch (err) {
-            console.debug('Canvas probe inconclusive: unexpected error during verify():', err);
-          } finally {
-            verifyPromise = null;
-          }
-        })();
-
-        return verifyPromise;
-      };
-
-      return {
-        get kind() {
-          return currentKind;
-        },
-        dispose: () => {
-          isDisposed = true;
-          try {
-            canvasAddon.dispose();
-          } catch {
-            // ignore
-          }
-        },
-        verify,
-      };
-    } catch (canvasError) {
-      console.debug('Canvas renderer constructor/addon load unavailable for coarse pointer, falling back to DOM:', canvasError);
-      recordCanvasProbeFailure();
-      return {
-        kind: 'dom',
-        dispose: () => {},
-        verify: async () => {},
-      };
-    }
+  if (isCanvasProbeFailed()) {
+    return {
+      kind: 'dom',
+      dispose: () => {},
+      verify: async () => {},
+    };
   }
 
   try {
-    const webglAddon = new WebglAddon();
-    let canvasFallback: CanvasAddon | null = null;
-    let currentKind: TerminalRendererKind = 'webgl';
+    const canvasAddon = new CanvasAddon();
+    term.loadAddon(canvasAddon);
+    let currentKind: TerminalRendererKind = 'canvas';
     let isDisposed = false;
+    let verifyPromise: Promise<void> | null = null;
 
-    webglAddon.onContextLoss(() => {
-      if (isDisposed) return;
+    const fallbackToDom = () => {
+      if (currentKind === 'dom') return;
+      recordCanvasProbeFailure();
       try {
-        webglAddon.dispose();
+        canvasAddon.dispose();
       } catch {
         // ignore
       }
-      try {
-        canvasFallback = new CanvasAddon();
-        term.loadAddon(canvasFallback);
-        currentKind = 'canvas';
-        options.onRendererSwapped?.('canvas');
-      } catch (e) {
-        console.debug('Canvas fallback failed after WebGL context loss:', e);
-        currentKind = 'dom';
-        options.onRendererSwapped?.('dom');
-      }
-    });
+      currentKind = 'dom';
+      options.onRendererSwapped?.('dom');
+    };
 
-    term.loadAddon(webglAddon);
+    const verify = async (): Promise<void> => {
+      if (isDisposed || currentKind !== 'canvas') return;
+      if (verifyPromise) return verifyPromise;
+
+      verifyPromise = (async () => {
+        try {
+          await waitForFrames(2);
+          if (isDisposed || currentKind !== 'canvas') return;
+
+          // Strictly query the text layer. Do NOT fall back to generic "canvas"
+          // to avoid mistakenly sampling blank selection/cursor layers.
+          const canvas = term.element?.querySelector<HTMLCanvasElement>('canvas.xterm-text-layer');
+
+          const probeResult = checkCanvasContent(canvas);
+          if (probeResult === 'blank') {
+            fallbackToDom();
+          } else if (probeResult === 'inconclusive') {
+            console.debug('Canvas probe inconclusive; retaining canvas renderer without blacklisting');
+          }
+        } catch (err) {
+          console.debug('Canvas probe inconclusive: unexpected error during verify():', err);
+        } finally {
+          verifyPromise = null;
+        }
+      })();
+
+      return verifyPromise;
+    };
+
     return {
       get kind() {
         return currentKind;
       },
       dispose: () => {
         isDisposed = true;
-        for (const addon of [canvasFallback, webglAddon]) {
-          try {
-            addon?.dispose();
-          } catch {
-            // ignore
-          }
-        }
-      },
-      verify: async () => {},
-    };
-  } catch (webglError) {
-    console.debug('WebGL renderer unavailable, falling back to canvas:', webglError);
-  }
-
-  try {
-    const canvasAddon = new CanvasAddon();
-    term.loadAddon(canvasAddon);
-    return {
-      kind: 'canvas',
-      dispose: () => {
         try {
           canvasAddon.dispose();
         } catch {
           // ignore
         }
       },
-      verify: async () => {},
+      verify,
     };
   } catch (canvasError) {
     console.debug('Canvas renderer unavailable, using the DOM renderer:', canvasError);
+    recordCanvasProbeFailure();
   }
 
   return {

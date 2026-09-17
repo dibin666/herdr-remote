@@ -164,7 +164,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
       const onRendererSwapped = vi.fn();
       const renderer = attachTerminalRenderer(term, {
-        coarsePointer: true,
         onRendererSwapped,
       });
 
@@ -185,7 +184,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
       const onRendererSwapped = vi.fn();
       const renderer = attachTerminalRenderer(term, {
-        coarsePointer: true,
         onRendererSwapped,
       });
 
@@ -210,7 +208,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       const onRendererSwapped1 = vi.fn();
 
       const renderer1 = attachTerminalRenderer(termMissingTextLayer, {
-        coarsePointer: true,
         onRendererSwapped: onRendererSwapped1,
       });
       expect(renderer1.kind).toBe('canvas');
@@ -232,7 +229,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
       const onRendererSwapped2 = vi.fn();
       const renderer2 = attachTerminalRenderer(termWithThrowingCanvas, {
-        coarsePointer: true,
         onRendererSwapped: onRendererSwapped2,
       });
 
@@ -263,7 +259,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
       const onRendererSwapped = vi.fn();
       const renderer = attachTerminalRenderer(term, {
-        coarsePointer: true,
         onRendererSwapped,
       });
 
@@ -284,7 +279,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       const onRendererSwapped = vi.fn();
 
       const renderer = attachTerminalRenderer(term, {
-        coarsePointer: true,
         onRendererSwapped,
       });
 
@@ -315,7 +309,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
       const onRendererSwapped = vi.fn();
       const renderer = attachTerminalRenderer(term, {
-        coarsePointer: true,
         onRendererSwapped,
       });
 
@@ -351,7 +344,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
         const onRendererSwapped = vi.fn();
         const renderer = attachTerminalRenderer(term, {
-          coarsePointer: true,
           onRendererSwapped,
         });
 
@@ -364,7 +356,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
         expect(isCanvasProbeFailed()).toBe(true);
 
         const term2 = createMockTerminal().term;
-        const renderer2 = attachTerminalRenderer(term2, { coarsePointer: true });
+        const renderer2 = attachTerminalRenderer(term2);
         expect(renderer2.kind).toBe('dom');
       } finally {
         localStorage.getItem = originalGet;
@@ -373,49 +365,32 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
     });
   });
 
-  describe('fine pointer (desktop)', () => {
-    it('preserves desktop WebGL renderer and keeps verify() as a no-op', async () => {
+  /**
+   * WebGL is not a renderer this app chooses any more.
+   *
+   * On an Intel Iris Xe / Mesa / ANGLE stack, xterm's WebGL renderer draws solid
+   * blocks where Canvas and DOM draw the same bytes correctly — and the probe
+   * above cannot tell, because it asks whether anything was drawn and a screen
+   * full of blocks says yes. The addon must therefore never be constructed,
+   * whatever the pointer type.
+   */
+  describe('no WebGL path', () => {
+    it('never constructs the WebGL addon', async () => {
       const { term } = createMockTerminal();
       const onRendererSwapped = vi.fn();
 
-      const renderer = attachTerminalRenderer(term, {
-        coarsePointer: false,
-        onRendererSwapped,
-      });
+      const renderer = attachTerminalRenderer(term, { onRendererSwapped });
 
-      expect(renderer.kind).toBe('webgl');
-      expect(WebglAddon).toHaveBeenCalledTimes(1);
-
-      await renderer.verify();
-      expect(renderer.kind).toBe('webgl');
-      expect(onRendererSwapped).not.toHaveBeenCalled();
+      expect(WebglAddon).not.toHaveBeenCalled();
+      expect(CanvasAddon).toHaveBeenCalledTimes(1);
+      expect(renderer.kind).toBe('canvas');
     });
 
-    it('falls back to canvas and then to dom on Webgl context loss', async () => {
-      let contextLossHandler: (() => void) | undefined;
-      vi.mocked(WebglAddon).mockImplementationOnce(() => ({
-        onContextLoss: vi.fn((cb: () => void) => {
-          contextLossHandler = cb;
-        }),
-        dispose: vi.fn(),
-      } as unknown as WebglAddon));
-
+    it('attaches without any options at all', () => {
       const { term } = createMockTerminal();
-      const onRendererSwapped = vi.fn();
 
-      const renderer = attachTerminalRenderer(term, {
-        coarsePointer: false,
-        onRendererSwapped,
-      });
-
-      expect(renderer.kind).toBe('webgl');
-      expect(contextLossHandler).toBeDefined();
-
-      // Trigger WebGL context loss
-      contextLossHandler!();
-
-      expect(renderer.kind).toBe('canvas');
-      expect(onRendererSwapped).toHaveBeenCalledWith('canvas');
+      expect(attachTerminalRenderer(term).kind).toBe('canvas');
+      expect(WebglAddon).not.toHaveBeenCalled();
     });
   });
 });

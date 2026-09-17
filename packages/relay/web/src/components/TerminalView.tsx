@@ -834,7 +834,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     container.addEventListener('paste', handleNativePaste);
 
     const renderer = attachTerminalRenderer(term, {
-      coarsePointer: isTouchDevice,
       onRendererSwapped: (kind) => {
         if (container) {
           container.dataset.renderer = kind;
