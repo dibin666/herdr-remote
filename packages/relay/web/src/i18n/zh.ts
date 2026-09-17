@@ -470,7 +470,16 @@ export const zh: TranslationSchema = {
     courier: 'Courier New',
     firacode: 'Fira Code',
   },
+  agents: {
+    title: '本工作站的智能体',
+    blocked: '待确认',
+    done: '已完成',
+    working: '运行中',
+    allIdle: '智能体空闲',
+  },
   clipboard: {
+    openLink: '打开链接',
+    openLinkFailed: '该链接无法在浏览器中打开',
     copySelection: '复制选中',
     copyLine: '复制本行',
     copyScreen: '复制整屏',

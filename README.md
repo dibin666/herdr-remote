@@ -16,8 +16,11 @@ herdr-remote
 
 Running `herdr-remote` launches the setup wizard and starts background services.
 
-Requires Herdr 0.9.0 or newer: each browser window drives its own Herdr client,
-which is only independent from the workstation's own terminal from 0.9.0 on.
+Requires Herdr 0.9.1 or newer. Each browser window drives its own Herdr client,
+which is only independent from the workstation's own terminal from 0.9.0 on, and
+0.9.1 is what makes that model behave in a browser: window titles follow each
+client's own view, activating a machine in the background no longer resizes
+somebody else's focused pane, and a large paste no longer drops the client.
 
 <img width="1237" height="665" alt="image" src="https://github.com/user-attachments/assets/cb57f108-d313-44b5-ac64-91a7ac95290a" />
 
@@ -38,6 +41,9 @@ which is only independent from the workstation's own terminal from 0.9.0 on.
 | **Local network / Tailscale** | Devices on LAN or Tailnet | No |
 | **Official relay** | Internet | No (`wss://herdr-remote.564616.xyz`) |
 | **Self-hosted relay** | Internet | Yes ([Guide](docs/self-hosted-relay.md) · [中文](docs/self-hosted-relay.zh-CN.md)) |
+
+Reading a workstation on a 40-column screen is worth a few settings of Herdr's
+own: see [Herdr on a phone screen](docs/herdr-on-a-phone.md).
 
 ## TUI
 

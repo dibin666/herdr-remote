@@ -26,7 +26,7 @@ const {
 } = require('./terminal-palette');
 const { resolveSocketPath } = require('./socket-discovery');
 const { preferredLanAddress } = require('./net-interfaces');
-const { findHerdrCommand, resolveHerdrCommand } = require('./herdr-command');
+const { MIN_HERDR_VERSION, findHerdrCommand, herdrVersion, resolveHerdrCommand } = require('./herdr-command');
 
 const RUNTIME_VERSION = 2;
 
@@ -418,6 +418,9 @@ async function statusServices() {
   // Where Herdr was found, and whether it was found at all: under a service
   // manager this is the first thing to check when sessions will not start.
   const herdr = findHerdrCommand();
+  // Only worth spawning when there is something to spawn; an unresolved command
+  // has already answered the question the version would.
+  const installed = herdr.found ? herdrVersion({ command: herdr.command }) : { version: null, supported: true };
   return {
     ok: true,
     mode: config.relay.mode,
@@ -439,6 +442,9 @@ async function statusServices() {
       herdrCommand: herdr.command,
       herdrCommandFound: herdr.found,
       herdrCommandSource: herdr.source,
+      herdrVersion: installed.version,
+      herdrVersionSupported: installed.supported,
+      herdrVersionMinimum: MIN_HERDR_VERSION,
     },
     publicUrl: resolvePublicUrl(config, lanAddress),
     startedAt: state.startedAt || null,

@@ -16,6 +16,7 @@ import {
   resolvePublicUrl,
   stateDir,
 } from '../../src/config.js';
+import { MIN_HERDR_VERSION } from '../../src/herdr-command.js';
 import { createTranslator, detectLocale as detectLocaleRaw } from '../../src/i18n/index.js';
 import { listReachableAddresses as listReachableAddressesRaw, preferredLanAddress } from '../../src/net-interfaces.js';
 import {
@@ -134,6 +135,7 @@ export function listReachableAddresses(options: { includeLoopback?: boolean; inc
 
 export {
   ACCESS_MODES,
+  MIN_HERDR_VERSION,
   SELECTABLE_MODES,
   OFFICIAL_RELAY_URL,
   isOfficialRelay,

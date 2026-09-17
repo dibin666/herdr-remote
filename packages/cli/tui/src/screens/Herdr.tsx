@@ -4,7 +4,7 @@ import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
 import { FieldRow, Message, Panel, Row, Selectable, StatusDot } from '../components/common.js';
 import { TextField } from '../components/TextField.js';
-import { getField, getFieldPlaceholder, herdrPlugin, saveDraft, setField } from '../api.js';
+import { MIN_HERDR_VERSION, getField, getFieldPlaceholder, herdrPlugin, saveDraft, setField } from '../api.js';
 
 type Registration = {
   available: boolean;
@@ -13,6 +13,9 @@ type Registration = {
   linkedPath?: string | null;
   stale?: boolean;
   packageRoot?: string;
+  /** Null when the installed Herdr could not be asked. */
+  version?: string | null;
+  versionSupported?: boolean;
 };
 
 export function HerdrScreen({ ctx }: { ctx: AppContext }) {
@@ -142,6 +145,19 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
           <Row label="">
             <Text color={theme.muted}>{registration.packageRoot}</Text>
           </Row>
+        ) : null}
+        {registration?.version ? (
+          <Row label={t('herdr.version')}>
+            <Box>
+              <StatusDot level={registration.versionSupported === false ? 'warn' : 'ok'} />
+              <Text>{` ${registration.version}`}</Text>
+            </Box>
+          </Row>
+        ) : null}
+        {registration?.versionSupported === false ? (
+          <Text color={theme.warn}>
+            {t('herdr.versionOutdated', { version: registration.version ?? '', minimum: MIN_HERDR_VERSION })}
+          </Text>
         ) : null}
         {registration && !registration.available ? (
           <Text color={theme.warn}>{t('herdr.cliMissing')}</Text>

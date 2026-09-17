@@ -489,7 +489,16 @@ export interface TranslationSchema {
     courier: string;
     firacode: string;
   };
+  agents: {
+    title: string;
+    blocked: string;
+    done: string;
+    working: string;
+    allIdle: string;
+  };
   clipboard: {
+    openLink: string;
+    openLinkFailed: string;
     copySelection: string;
     copyLine: string;
     copyScreen: string;

@@ -154,6 +154,8 @@ module.exports = {
   'herdr.unregisterDone': '已取消注册。',
   'herdr.registerFailed': '注册失败：{message}',
   'herdr.cliMissing': '未找到 herdr 命令，可将 HERDR_BIN_PATH 设为其完整路径。',
+  'herdr.version': 'Herdr 版本',
+  'herdr.versionOutdated': 'Herdr {version} 低于 {minimum}，请运行 “herdr update”：在该版本之前，浏览器窗口的标题、后台机器激活与大段粘贴都会出问题。',
 
   'about.title': '语言与关于',
   'about.language': '界面语言',

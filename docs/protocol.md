@@ -159,6 +159,12 @@ moved the terminal UI into each client, and a client now carries its own focused
 tab and its own tab geometry. One PTY per window is what turns that into two
 windows that can genuinely look at different work.
 
+Herdr 0.9.1 is what made the model behave rather than merely exist, and is the
+minimum this project supports: window titles follow each client's own view
+instead of another client's selection, activating a machine in the background no
+longer resizes somebody else's focused pane, and a large paste no longer
+disconnects the client — which is the path an image takes from a phone.
+
 One caveat inherited from Herdr: when two windows sit on the *same* tab, that
 tab is sized by whichever client interacted with it last. Independent sizing
 follows from looking at different tabs, and no relay-side behavior can change
@@ -279,3 +285,66 @@ Upon successfully saving the file, the host returns:
 ```
 
 The relay routes `paste_file_ready` exclusively to the initiating client window.
+
+## Agent status (`agent_status`)
+
+The one message that is not about a terminal. Everything else here carries bytes
+to and from a PTY; this carries what Herdr knows *about* the workstation, so a
+phone can answer "does anything need me?" without driving a TUI through a
+40-column viewport.
+
+The host connector reads it from Herdr's own socket API: `session.snapshot`
+every five seconds while at least one window is attached, on a fresh connection
+each time. Nothing about it can affect a PTY — Herdr's server can be restarted
+underneath a running herdr-remote and the terminals keep streaming while this
+quietly fails and is asked again five seconds later.
+
+Two things about that socket are worth writing down, because both were found
+the hard way:
+
+- **One request per connection.** Herdr answers and hangs up; a second request
+  written to the same socket meets `EPIPE`. A long-lived client that reconnects
+  when the server closes therefore becomes a connect-answer-close loop about
+  once a second, busy no matter how rarely it asks anything. `herdr-api.js` is a
+  function rather than a client for exactly this reason, and the `herdr` CLI
+  connects per command too.
+- **Subscriptions do not help here.** `events.subscribe` is the one call that
+  keeps a connection open, but `pane.agent_status_changed` — the event that
+  tracks what this message reports — is scoped to a single `pane_id`, and the
+  whole-session pane events that need no target (`pane.updated`,
+  `pane.agent_detected`, …) stayed silent through minutes of continuous agent
+  work. A subscription would also need its own connection, since the one it
+  holds stops answering requests.
+
+Five-second polling is the whole mechanism.
+
+Host to relay, sent only when the summary actually changed:
+
+```json
+{
+  "type": "agent_status",
+  "counts": { "blocked": 1, "done": 0, "working": 2, "idle": 0, "unknown": 0 },
+  "total": 3,
+  "agents": [
+    {
+      "paneId": "wM:p4",
+      "workspaceId": "wM",
+      "agent": "claude",
+      "title": "adopt-herdr-0.9.1",
+      "status": "blocked",
+      "focused": true
+    }
+  ]
+}
+```
+
+Unlike every other host message, this one is **broadcast**: it describes the
+workstation, not one stream, so the relay hands it to every window attached to
+that host rather than routing it by `streamId`. The relay re-clamps the counts
+and re-applies the 16-entry cap on the way through — the fields come from
+terminal titles, and they land in a status bar on every attached window.
+
+Browsers show it as a status-bar chip and nothing else. It is deliberately not a
+notification: the LAN relay is plain HTTP, where the Notification API does not
+exist, and an alert per state change is the flood a status line exists to
+replace.

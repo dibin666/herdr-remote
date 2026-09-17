@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
 import { hostPaletteToTheme, resolveTerminalFontFamily } from '../utils/theme';
@@ -38,6 +39,8 @@ import {
   PaneColumnBand,
 } from '../utils/terminalSelection';
 import { copyText, readClipboardText, readClipboardImage, extractImageFromClipboardEvent } from '../utils/clipboard';
+import { applyDocumentTitle, sanitizeTerminalTitle } from '../utils/documentTitle';
+import { linkAtCell, openTerminalLink } from '../utils/terminalLinks';
 import { PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
@@ -197,6 +200,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     subscribeToOutput,
     subscribeToPasteFileReady,
     uploadImage,
+    profiles,
+    activeProfileId,
     t,
     rttMs,
   } = useTerminal();
@@ -240,9 +245,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const predictorRef = useRef<PredictiveEcho | null>(null);
   const overlayRef = useRef<PredictionOverlay | null>(null);
 
+  /**
+   * What this window's own Herdr client calls itself, via OSC 2. Only this
+   * window's, which is what Herdr 0.9.1 guarantees; see `utils/documentTitle`.
+   */
+  const [terminalTitle, setTerminalTitle] = useState<string | null>(null);
+
   const mainRef = useRef<HTMLElement | null>(null);
-  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number } | null>(null);
-  const selectionMenuRef = useRef<{ x: number; y: number } | null>(null);
+  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; link?: string | null } | null>(null);
+  const selectionMenuRef = useRef<{ x: number; y: number; link?: string | null } | null>(null);
   selectionMenuRef.current = selectionMenu;
 
   // Rectangular selection state (closed interval: startCol, endCol, startRow, endRow)
@@ -273,6 +284,22 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const selectionBandRef = useRef<PaneColumnBand | null>(null);
 
   const [isPasteFallbackOpen, setIsPasteFallbackOpen] = useState(false);
+
+  /**
+   * The URL under a touch point, for the long-press menu.
+   *
+   * A tap is already spoken for — it is forwarded to the pane as a mouse
+   * report — so touch reaches a link through the menu instead of through
+   * xterm's own link layer.
+   */
+  const linkAtPoint = useCallback((point: { clientX: number; clientY: number }): string | null => {
+    const term = termRef.current;
+    if (!term) return null;
+    const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
+    const cellPos = pointToCell(point, term, screenEl, currentScaleRef.current);
+    if (!cellPos) return null;
+    return linkAtCell(term, cellPos.col, cellPos.bufferRow);
+  }, []);
 
   const handleLongPress = useCallback((point: { clientX: number; clientY: number }) => {
     const term = termRef.current;
@@ -699,6 +726,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       cols: initialGrid.cols,
       rows: initialGrid.rows,
       screenReaderMode: false,
+      // An OSC 8 hyperlink resolves in *this* browser. Herdr would open it on
+      // the workstation, which is no use to the phone reading it.
+      linkHandler: {
+        activate: (_event, uri) => { openTerminalLink(uri); },
+      },
     });
 
     try {
@@ -709,9 +741,23 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       console.debug('Unicode11 addon unavailable, using default width table:', e);
     }
 
+    try {
+      // Bare URLs printed as text, which is most of what an agent produces.
+      // While a pane has mouse reporting on, xterm hands clicks to the pane and
+      // this layer only answers with Shift held — the bypass every emulator
+      // shares. Touch has no Shift, which is what the long-press menu is for.
+      term.loadAddon(new WebLinksAddon((_event, uri) => { openTerminalLink(uri); }));
+    } catch (e) {
+      console.debug('WebLinks addon unavailable, URLs stay plain text:', e);
+    }
+
     // Open xterm in the surface element
     term.open(surfaceRef.current);
     termRef.current = term;
+
+    const titleDispose = term.onTitleChange((raw) => {
+      setTerminalTitle(sanitizeTerminalTitle(raw) || null);
+    });
 
     const predictor = new PredictiveEcho({
       getTerminal: () => termRef.current,
@@ -1049,8 +1095,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             const mainRect = mainRef.current.getBoundingClientRect();
             const x = menuPoint.clientX - mainRect.left;
             const y = menuPoint.clientY - mainRect.top;
-            setSelectionMenu({ x, y });
-            selectionMenuRef.current = { x, y };
+            const link = linkAtPoint(menuPoint);
+            setSelectionMenu({ x, y, link });
+            selectionMenuRef.current = { x, y, link };
           }
         }
 
@@ -1168,8 +1215,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             const mainRect = mainRef.current.getBoundingClientRect();
             const x = menuPoint.clientX - mainRect.left;
             const y = menuPoint.clientY - mainRect.top;
-            setSelectionMenu({ x, y });
-            selectionMenuRef.current = { x, y };
+            const link = linkAtPoint(menuPoint);
+            setSelectionMenu({ x, y, link });
+            selectionMenuRef.current = { x, y, link };
           }
         }
 
@@ -1263,6 +1311,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       renderDispose.dispose();
       scrollDispose.dispose();
       writeParsedDispose.dispose();
+      titleDispose.dispose();
       overlayRef.current?.dispose();
       overlayRef.current = null;
       predictorRef.current = null;
@@ -1298,6 +1347,33 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       termRef.current = null;
     };
   }, []); // Run once on mount
+
+  const activeProfileName = React.useMemo(
+    () => profiles.find((profile) => profile.id === activeProfileId)?.displayName ?? null,
+    [profiles, activeProfileId],
+  );
+
+  /**
+   * A dropped session takes its title with it.
+   *
+   * Reconnecting starts a *fresh* Herdr client rather than rejoining the old
+   * one, so the previous view's name is not something this window is still
+   * looking at. The profile name is the honest thing to show until the new
+   * client announces itself.
+   */
+  useEffect(() => {
+    if (connectionState !== 'connected') setTerminalTitle(null);
+  }, [connectionState]);
+
+  /**
+   * Only the visible terminal layer renames the tab. While the admin dashboard
+   * is up the terminal is still mounted and still receiving output, and a tab
+   * named after a session nobody is looking at would be a lie.
+   */
+  useEffect(() => {
+    const showing = isActive && connectionState === 'connected';
+    applyDocumentTitle(showing ? terminalTitle : null, activeProfileName);
+  }, [isActive, connectionState, terminalTitle, activeProfileName]);
 
   // Sync visual-only settings changes (fontSize, fontFamily) with the live terminal
   useEffect(() => {
@@ -1543,6 +1619,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           hasSelection={Boolean(selectionSnapshot)}
           isController={isController}
           vibrateOnKeyPress={settings.vibrateOnKeyPress}
+          linkUrl={selectionMenu.link ?? null}
+          onOpenLink={(url) => {
+            if (!openTerminalLink(url)) addToast('warning', t('clipboard.openLinkFailed'));
+          }}
           onCopySelection={handleCopySelection}
           onCopyLine={handleCopyLine}
           onCopyScreen={handleCopyScreen}

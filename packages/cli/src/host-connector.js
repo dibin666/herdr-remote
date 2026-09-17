@@ -9,7 +9,13 @@ const { loadConfig, hostWebSocketUrl, resolveHostRelayUrl, stateDir } = require(
 const { ensureDir } = require('./state');
 const { resolveSocketPath, inspectSocket } = require('./socket-discovery');
 const { PtySession } = require('./pty-session');
-const { resolveHerdrCommand, verifyHerdrCommand, herdrNotFoundMessage } = require('./herdr-command');
+const {
+  resolveHerdrCommand,
+  verifyHerdrCommand,
+  herdrNotFoundMessage,
+  herdrOutdatedMessage,
+  herdrVersion,
+} = require('./herdr-command');
 // The wire format lives in the relay package so both ends of the protocol are
 // generated from one definition.
 const {
@@ -20,8 +26,13 @@ const {
   PROTOCOL_VERSION,
 } = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
+const { requestHerdr } = require('./herdr-api');
+const { sameSummary, summarizeAgents } = require('./agent-status');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 const { savePastedFile, cleanPastedDir } = require('./pasted-files');
+
+/** How often the agent summary is re-read while a browser is watching. */
+const AGENT_STATUS_POLL_MS = 5_000;
 
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
@@ -82,6 +93,8 @@ class HostConnector {
     // real environment unless a caller narrows it.
     this.herdrLookup = options.herdrLookup || {};
     this.herdrCommand = options.herdrCommand || resolveHerdrCommand(this.herdrLookup);
+    this.readHerdrVersion = options.readHerdrVersion || herdrVersion;
+    this.herdrVersionWarned = false;
     this.herdrArgs = options.herdrArgs || config.herdr.args;
     this.cwd = options.cwd || config.herdr.cwd;
     /**
@@ -98,6 +111,11 @@ class HostConnector {
     this.sessions = new Map();
     this.streamIndexToId = new Map();
     this.PtySession = options.PtySession || PtySession;
+    /** The side channel that answers "does anything need me?"; see startAgentStatus. */
+    this.requestHerdr = options.requestHerdr || requestHerdr;
+    this.agentStatusTimer = null;
+    this.agentStatusPending = false;
+    this.lastAgentSummary = null;
     this.fastFailures = 0;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
@@ -169,6 +187,7 @@ class HostConnector {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.stopKeepalive();
+    this.stopAgentStatus();
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     sendJson(this.ws, { type: 'host_shutdown' });
@@ -225,6 +244,9 @@ class HostConnector {
       if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
       this.stopKeepalive();
+      // Nothing to report to, so stop asking Herdr. A reconnect brings the
+      // watcher back with the relay's next client count.
+      this.stopAgentStatus();
       this.ready = false;
       this.clientCount = 0;
       this.legacyHeartbeat = false;
@@ -334,9 +356,30 @@ class HostConnector {
     const resolved = verifyHerdrCommand(this.herdrCommand, this.herdrLookup);
     if (resolved.found) {
       this.herdrCommand = resolved.command;
+      this.warnIfHerdrOutdated();
       return null;
     }
     return herdrNotFoundMessage(this.herdrLookup);
+  }
+
+  /**
+   * Say once that the installed Herdr is older than this release expects.
+   *
+   * Never a refusal to start. An older Herdr still runs — it just misbehaves in
+   * ways a browser window notices — and the comment on `startSession` explains
+   * what a refused start does to a reconnecting browser.
+   */
+  warnIfHerdrOutdated() {
+    if (this.herdrVersionWarned) return;
+    const installed = this.readHerdrVersion({ command: this.herdrCommand });
+    if (installed.supported) {
+      // A version we could not read is checked again on the next session: the
+      // install may simply not have been finished writing.
+      if (installed.version) this.herdrVersionWarned = true;
+      return;
+    }
+    this.herdrVersionWarned = true;
+    process.stderr.write(`herdr-remote host connector: ${herdrOutdatedMessage(installed.version)}\n`);
   }
 
   startSession(message) {
@@ -535,6 +578,63 @@ class HostConnector {
       this.heartbeatTimer = null;
       if (wasActive) this.sendHeartbeat(true);
     }
+    // Nobody watching, nothing to ask Herdr about itself.
+    if (next > 0) this.startAgentStatus();
+    else this.stopAgentStatus();
+  }
+
+  /**
+   * Watch what the agents on this workstation are doing.
+   *
+   * A side channel, on its own socket, alive only while a browser is attached.
+   * Herdr's server can be restarted underneath a running herdr-remote — the
+   * PTYs survive it — so every failure here is a retry, never anything a
+   * terminal session notices.
+   *
+   * Polled, and one connection per poll: Herdr answers a socket request and
+   * hangs up, and its only long-lived connection — a subscription — carries no
+   * event that tracks agent state without naming a pane. See `herdr-api.js`.
+   */
+  startAgentStatus() {
+    if (this.agentStatusTimer || this.stopping) return;
+    this.agentStatusTimer = setInterval(() => this.readAgentStatus(), AGENT_STATUS_POLL_MS);
+    if (typeof this.agentStatusTimer.unref === 'function') this.agentStatusTimer.unref();
+    this.readAgentStatus();
+  }
+
+  stopAgentStatus() {
+    if (this.agentStatusTimer) {
+      clearInterval(this.agentStatusTimer);
+      this.agentStatusTimer = null;
+    }
+    this.lastAgentSummary = null;
+  }
+
+  /**
+   * Read the summary and forward it if it changed.
+   *
+   * A slow answer must not stack up behind the next tick, and a failed one
+   * leaves the last summary standing rather than blanking the browser's chip:
+   * Herdr's server not running is an ordinary state, not news.
+   */
+  async readAgentStatus() {
+    if (this.agentStatusPending || !this.agentStatusTimer) return;
+    this.agentStatusPending = true;
+    let snapshot;
+    try {
+      const result = await this.requestHerdr(this.socketPath, 'session.snapshot', {});
+      snapshot = result?.snapshot || result;
+    } catch {
+      return;
+    } finally {
+      this.agentStatusPending = false;
+    }
+    // Stopped while the answer was in flight; the browser it was for is gone.
+    if (!this.agentStatusTimer) return;
+    const summary = summarizeAgents(snapshot);
+    if (sameSummary(this.lastAgentSummary, summary)) return;
+    this.lastAgentSummary = summary;
+    sendJson(this.ws, { type: 'agent_status', ...summary });
   }
 
   resizeSession(message) {

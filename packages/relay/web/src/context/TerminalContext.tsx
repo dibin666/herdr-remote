@@ -12,6 +12,7 @@ import {
   ConnectionState,
   ConnectionConfig,
   HostTerminalPalette,
+  ServerAgentStatusMessage,
 } from '../types/protocol';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
@@ -76,6 +77,11 @@ interface TerminalContextValue {
   terminalResetVersion: number;
   rttMs: number | null;
   statusPayload: Record<string, unknown> | null;
+  /**
+   * What the workstation's agents are doing, or null before it has said.
+   * Read from Herdr's socket API by the host connector, not from the terminal.
+   */
+  agentStatus: ServerAgentStatusMessage | null;
   /**
    * Timestamp of the most recent successful pairing, or null if this session
    * has not paired. Consumers watch it to leave the pairing UI: the pairing
@@ -165,6 +171,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [sharedWindowCount, setSharedWindowCount] = useState(1);
   const [terminalResetVersion, setTerminalResetVersion] = useState(0);
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
+  /** Null until the workstation has reported; absence is not "no agents". */
+  const [agentStatus, setAgentStatus] = useState<ServerAgentStatusMessage | null>(null);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
   const [terminalDimensions, setTerminalDimensions] = useState<{ cols: number; rows: number }>({
     cols: 80,
@@ -557,6 +565,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       } else if (state === 'error') {
         addToast('error', described || tRef.current('toasts.connectionError'));
       }
+      // A count from a workstation this window is no longer talking to is worse
+      // than no count: it reads as current.
+      if (state !== 'connected') setAgentStatus(null);
     });
 
     newAdapter.on('ready', (readyMsg) => {
@@ -712,6 +723,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     newAdapter.on('sessionReady', () => {
       setConnectionState('connected');
+    });
+
+    // Deliberately state and not a toast: this changes whenever an agent picks
+    // up or finishes work, and a notification per change would be the flood the
+    // status bar exists to replace.
+    newAdapter.on('agentStatus', (status) => {
+      setAgentStatus(status);
     });
 
     // Single lifetime subscription: survives TerminalView unmount/hide so no
@@ -997,6 +1015,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         terminalResetVersion,
         rttMs,
         statusPayload,
+        agentStatus,
         lastPairedAt,
         settings,
         hostPalette,

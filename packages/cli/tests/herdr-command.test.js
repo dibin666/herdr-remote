@@ -7,9 +7,13 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   FALLBACK_DIRECTORIES,
+  MIN_HERDR_VERSION,
   fallbackDirectories,
   findHerdrCommand,
   herdrNotFoundMessage,
+  herdrVersion,
+  meetsMinimum,
+  parseHerdrVersion,
   resolveHerdrCommand,
   verifyHerdrCommand,
 } = require('../src/herdr-command');
@@ -156,6 +160,70 @@ test('verify keeps a still-valid absolute path and re-searches a broken one', (t
     verifyHerdrCommand(binary, { env: { PATH: '' }, home, directories: homeDirectories(home) }).found,
     false,
   );
+});
+
+/** A stub `herdr` whose `--version` prints `line` and exits with `status`. */
+function makeVersionStub(directory, line, { status = 0 } = {}) {
+  fs.mkdirSync(directory, { recursive: true });
+  const binary = path.join(directory, 'herdr');
+  fs.writeFileSync(binary, `#!/bin/sh\necho "${line}"\nexit ${status}\n`, { mode: 0o755 });
+  return binary;
+}
+
+test('the version is read from the install and compared against the minimum', (t) => {
+  const home = withTempHome(t);
+  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.1');
+
+  const installed = herdrVersion({ command: binary });
+
+  assert.deepEqual(installed, {
+    command: binary,
+    version: '0.9.1',
+    raw: 'herdr 0.9.1',
+    supported: true,
+    ok: true,
+  });
+});
+
+test('an older install is reported as unsupported, not as missing', (t) => {
+  const home = withTempHome(t);
+  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.0');
+
+  const installed = herdrVersion({ command: binary });
+
+  assert.equal(installed.version, '0.9.0');
+  assert.equal(installed.supported, false);
+  assert.equal(installed.ok, true);
+});
+
+test('an unreadable version is not treated as evidence of an old Herdr', (t) => {
+  const home = withTempHome(t);
+  const silent = makeVersionStub(path.join(home, '.local', 'bin'), '');
+
+  const installed = herdrVersion({ command: silent });
+
+  assert.equal(installed.version, null);
+  assert.equal(installed.supported, true);
+  assert.equal(installed.ok, true);
+
+  const missing = herdrVersion({ command: path.join(home, 'gone', 'herdr') });
+  assert.equal(missing.ok, false);
+  assert.equal(missing.supported, true);
+});
+
+test('version parsing and comparison cover the shapes Herdr prints', () => {
+  assert.equal(parseHerdrVersion('herdr 0.9.1'), '0.9.1');
+  assert.equal(parseHerdrVersion('herdr 0.10.0-preview.2'), '0.10.0');
+  assert.equal(parseHerdrVersion('nothing here'), null);
+
+  assert.equal(meetsMinimum('0.9.1'), true);
+  assert.equal(meetsMinimum('0.10.0'), true);
+  assert.equal(meetsMinimum('1.0.0'), true);
+  assert.equal(meetsMinimum('0.9.0'), false);
+  assert.equal(meetsMinimum('0.8.9'), false);
+  // Ten is not "older than nine": the comparison is numeric, not lexical.
+  assert.equal(meetsMinimum('0.9.10'), true);
+  assert.equal(MIN_HERDR_VERSION, '0.9.1');
 });
 
 test('the not-found message names the override and the directories tried', (t) => {

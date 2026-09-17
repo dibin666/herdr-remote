@@ -16,7 +16,7 @@ herdr-remote
 
 运行 `herdr-remote` 启动配置向导并运行后台服务。
 
-需要 Herdr 0.9.0 或更高版本：每个浏览器窗口驱动各自的 Herdr 客户端，而客户端视图从 0.9.0 起才与工作站本机终端相互独立。
+需要 Herdr 0.9.1 或更高版本。每个浏览器窗口驱动各自的 Herdr 客户端，客户端视图从 0.9.0 起才与工作站本机终端相互独立；而 0.9.1 才让这套模型在浏览器里真正可用：窗口标题跟随各自客户端的视图、后台激活机器不再改变他人聚焦窗格的尺寸、大段粘贴也不再断开客户端。
 
 <img width="1237" height="665" alt="image" src="https://github.com/user-attachments/assets/cb57f108-d313-44b5-ac64-91a7ac95290a" />
 
@@ -37,6 +37,9 @@ herdr-remote
 | **局域网 / Tailscale** | 局域网或 Tailnet 内设备 | 否 |
 | **官方 Relay** | 互联网任意网络 | 否（使用 `wss://herdr-remote.564616.xyz`） |
 | **自建 Relay** | 互联网任意网络 | 是（[自建指南](docs/self-hosted-relay.zh-CN.md) · [English](docs/self-hosted-relay.md)） |
+
+在 40 列的手机屏幕上读一台工作站，值得调整 Herdr 自身的几项设置：见
+[Herdr on a phone screen](docs/herdr-on-a-phone.md)。
 
 ## 终端界面 (TUI)
 

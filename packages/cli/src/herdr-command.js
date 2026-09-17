@@ -18,8 +18,24 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+// The same MAJOR.MINOR.PATCH comparison the self-updater uses. A second copy
+// would be a second place for 0.9.10 to sort below 0.9.9.
+const { compareVersions } = require('./updater');
 
 const COMMAND_NAME = 'herdr';
+
+/**
+ * The oldest Herdr this release is written against.
+ *
+ * 0.9.0 gave every client its own view, which is what one PTY per browser
+ * window rests on. 0.9.1 is what makes that model behave: window titles follow
+ * each client's own view instead of another client's selection, activating a
+ * machine in the background stops resizing somebody else's focused pane, and a
+ * large paste no longer disconnects the client — and pasting is how an image
+ * reaches an agent from a phone.
+ */
+const MIN_HERDR_VERSION = '0.9.1';
 
 /** Where a user-level install lands, in the order we trust it. */
 const FALLBACK_DIRECTORIES = [
@@ -138,6 +154,57 @@ function verifyHerdrCommand(command, options = {}) {
   return findHerdrCommand(options);
 }
 
+/** `herdr 0.9.1`, `herdr 0.10.0-preview.2` — the three numbers are all we compare. */
+function parseHerdrVersion(output) {
+  const match = /(\d+)\.(\d+)\.(\d+)/.exec(String(output || ''));
+  return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
+}
+
+/**
+ * Whether an install is new enough.
+ *
+ * An unreadable version counts as new enough. Not knowing is not evidence of an
+ * old Herdr, and a warning nobody can act on is worse than no warning.
+ */
+function meetsMinimum(version, minimum = MIN_HERDR_VERSION) {
+  if (!version) return true;
+  return compareVersions(version, minimum) >= 0;
+}
+
+/**
+ * Ask an install what it is.
+ *
+ * Deliberately the binary and not the socket: `--version` answers before the
+ * server is up, which is when the TUI and the plugin registration ask.
+ *
+ * `ok` is whether the command ran at all — the presence check registration has
+ * always used. `version` is null whenever the output could not be read, and
+ * `supported` is true in that case for the reason `meetsMinimum` explains.
+ */
+function herdrVersion({ command, timeout = 10_000, ...lookup } = {}) {
+  const resolved = command || resolveHerdrCommand(lookup);
+  const unknown = { command: resolved, version: null, raw: null, supported: true, ok: false };
+  let result;
+  try {
+    result = spawnSync(resolved, ['--version'], { encoding: 'utf8', timeout });
+  } catch {
+    return unknown;
+  }
+  // Status 1 has always counted as present: a binary that answers at all is
+  // installed, whatever it thinks of the flag.
+  if (result.error || (result.status !== 0 && result.status !== 1)) return unknown;
+  const raw = `${result.stdout || ''}${result.stderr || ''}`.trim();
+  const version = parseHerdrVersion(raw);
+  return { command: resolved, version, raw: raw || null, supported: meetsMinimum(version), ok: true };
+}
+
+/** The one line that tells a user why an older Herdr is a problem here. */
+function herdrOutdatedMessage(version) {
+  return `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. `
+    + 'Run "herdr update" — window titles, background machine activation and large pastes all '
+    + 'misbehave in browser windows before that release.';
+}
+
 /** The one message a user needs to fix a missing install themselves. */
 function herdrNotFoundMessage({ env = process.env, home = os.homedir(), directories = fallbackDirectories(home) } = {}) {
   const override = String(env.HERDR_BIN_PATH || '').trim();
@@ -151,9 +218,14 @@ function herdrNotFoundMessage({ env = process.env, home = os.homedir(), director
 module.exports = {
   COMMAND_NAME,
   FALLBACK_DIRECTORIES,
+  MIN_HERDR_VERSION,
   fallbackDirectories,
   findHerdrCommand,
   herdrNotFoundMessage,
+  herdrOutdatedMessage,
+  herdrVersion,
+  meetsMinimum,
+  parseHerdrVersion,
   resolveHerdrCommand,
   verifyHerdrCommand,
 };

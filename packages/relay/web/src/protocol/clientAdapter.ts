@@ -13,6 +13,7 @@ import {
   ServerJsonMessage,
   ServerReadyMessage,
   ServerSessionReadyMessage,
+  ServerAgentStatusMessage,
   ServerSessionRestartedMessage,
   ClientRole,
   ConnectionState,
@@ -51,6 +52,8 @@ export type AdapterEventMap = {
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
   pasteFileReady: (path: string) => void;
+  /** What the workstation's agents are doing; broadcast, not stream-scoped. */
+  agentStatus: (status: ServerAgentStatusMessage) => void;
 };
 
 export class HerdrClientAdapter {
@@ -93,6 +96,7 @@ export class HerdrClientAdapter {
     binaryData: new Set(),
     rttUpdate: new Set(),
     pasteFileReady: new Set(),
+    agentStatus: new Set(),
   };
 
   private terminalCols = 80;
@@ -428,6 +432,11 @@ export class HerdrClientAdapter {
 
       case 'paste_file_ready': {
         this.emit('pasteFileReady', msg.path);
+        break;
+      }
+
+      case 'agent_status': {
+        this.emit('agentStatus', msg);
         break;
       }
 

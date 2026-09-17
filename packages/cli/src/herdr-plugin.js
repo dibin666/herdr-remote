@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { PACKAGE_ROOT } = require('./config');
-const { resolveHerdrCommand } = require('./herdr-command');
+const { herdrVersion, resolveHerdrCommand } = require('./herdr-command');
 
 const PLUGIN_ID = 'herdr.remote.web';
 const MANIFEST_NAME = 'herdr-plugin.toml';
@@ -23,8 +23,7 @@ function manifestPath() {
 // manager, neither of which is guaranteed the PATH the user installed with, so
 // the command is resolved rather than named.
 function herdrAvailable() {
-  const result = spawnSync(resolveHerdrCommand(), ['--version'], { stdio: 'ignore' });
-  return result.status === 0 || result.status === 1;
+  return herdrVersion().ok;
 }
 
 function runHerdr(args, { timeout = 15_000 } = {}) {
@@ -68,6 +67,10 @@ function registrationStatus() {
   if (!fs.existsSync(manifestPath())) {
     return { available: false, registered: false, reason: 'manifest missing' };
   }
+  // Carried on every answer: the screen that shows registration is also the one
+  // that has to say the installed Herdr is too old for this plugin.
+  const { version, supported } = herdrVersion();
+  const installed = { version, versionSupported: supported };
   let result;
   try {
     result = runHerdr(['plugin', 'list']);
@@ -76,11 +79,11 @@ function registrationStatus() {
     throw error;
   }
   if (result.status !== 0) {
-    return { available: true, registered: false, reason: String(result.stderr || '').trim() };
+    return { available: true, registered: false, reason: String(result.stderr || '').trim(), ...installed };
   }
   const plugins = parsePluginList(result.stdout);
   const entry = plugins.find((plugin) => plugin.id === PLUGIN_ID);
-  if (!entry) return { available: true, registered: false, packageRoot: PACKAGE_ROOT };
+  if (!entry) return { available: true, registered: false, packageRoot: PACKAGE_ROOT, ...installed };
   return {
     available: true,
     registered: true,
@@ -90,6 +93,7 @@ function registrationStatus() {
     // switching from a source install to npm.
     stale: Boolean(entry.localPath) && path.resolve(entry.localPath) !== path.resolve(PACKAGE_ROOT),
     packageRoot: PACKAGE_ROOT,
+    ...installed,
   };
 }
 

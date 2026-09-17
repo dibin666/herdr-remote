@@ -19,6 +19,7 @@
 import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { GLYPH, Panel } from './tui';
 import { cn } from '../utils/cn';
+import { linkDisplayHost } from '../utils/terminalLinks';
 import { useTerminal } from '../context/TerminalContext';
 
 const actionRowClass =
@@ -36,6 +37,9 @@ export interface TerminalSelectionMenuProps {
   isController: boolean;
   /** Whether vibration on key press is enabled in settings. */
   vibrateOnKeyPress?: boolean;
+  /** The URL under the touch point, when the tapped row carries one. */
+  linkUrl?: string | null;
+  onOpenLink?: (url: string) => void;
   onCopySelection: () => void;
   onCopyLine: () => void;
   onCopyScreen: () => void;
@@ -48,6 +52,8 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
   hasSelection,
   isController,
   vibrateOnKeyPress = false,
+  linkUrl = null,
+  onOpenLink,
   onCopySelection,
   onCopyLine,
   onCopyScreen,
@@ -95,7 +101,7 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
     y = Math.max(8, Math.min(Math.max(8, containerHeight - menuHeight - 8), y));
 
     setCoords({ x, y });
-  }, [anchorPoint.x, anchorPoint.y, hasSelection, isController]);
+  }, [anchorPoint.x, anchorPoint.y, hasSelection, isController, linkUrl]);
 
   // Initial estimate to avoid off-screen jumping before layout measurement
   const initialX = Math.max(8, anchorPoint.x - 104);
@@ -124,6 +130,31 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
         className="border border-tui-border bg-tui-base p-1.5 shadow-lg"
         bodyClassName="flex flex-col gap-1"
       >
+        {/*
+          First, because it is the one action that is about the thing under the
+          finger rather than about the screen. The host is shown so the tap is
+          not a blind one; it shares the row so every row stays h-11.
+        */}
+        {linkUrl && onOpenLink && (
+          <button
+            type="button"
+            role="menuitem"
+            className={cn(actionRowClass, idleRowClass)}
+            onClick={() => {
+              onOpenLink(linkUrl);
+              onClose();
+            }}
+          >
+            <span aria-hidden="true" className="shrink-0 text-tui-faint group-hover:text-tui-accent">
+              {GLYPH.cursor}
+            </span>
+            <span className="truncate">{t('clipboard.openLink')}</span>
+            <span className="ml-auto max-w-[45%] truncate text-tui-faint">
+              {linkDisplayHost(linkUrl)}
+            </span>
+          </button>
+        )}
+
         {hasSelection && (
           <button
             type="button"

@@ -470,7 +470,16 @@ export const en: TranslationSchema = {
     courier: 'Courier New',
     firacode: 'Fira Code',
   },
+  agents: {
+    title: 'Agents on this workstation',
+    blocked: 'blocked',
+    done: 'done',
+    working: 'working',
+    allIdle: 'agents idle',
+  },
   clipboard: {
+    openLink: 'Open Link',
+    openLinkFailed: 'This link cannot be opened from the browser',
     copySelection: 'Copy Selection',
     copyLine: 'Copy Line',
     copyScreen: 'Copy Screen',

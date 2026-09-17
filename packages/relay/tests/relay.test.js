@@ -408,6 +408,60 @@ test('every paired window gets its own terminal and all of them may type', async
   host.close();
 });
 
+// Every other host message belongs to one stream. This one describes the
+// workstation, so it goes to every window watching it.
+test('agent status reaches every window, clamped on the way through', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-agents-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const first = await openWebSocket(`${wsBase}/ws/client`);
+  const firstPair = nextMessage(first, (message) => message.type === 'paired');
+  const firstSession = nextMessage(host, (message) => message.type === 'session_start');
+  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  await firstSession;
+  const { token } = (await firstPair).value;
+
+  const second = await openWebSocket(`${wsBase}/ws/client`);
+  const secondReady = nextMessage(second, (message) => message.type === 'ready');
+  second.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'second', cols: 80, rows: 24 }));
+  await secondReady;
+
+  const firstStatus = nextMessage(first, (message) => message.type === 'agent_status');
+  const secondStatus = nextMessage(second, (message) => message.type === 'agent_status');
+  host.send(JSON.stringify({
+    type: 'agent_status',
+    counts: { blocked: 1, working: 2, nonsense: 'lots' },
+    total: 3,
+    agents: [
+      { paneId: 'wM:p4', workspaceId: 'wM', agent: 'claude', title: 'x'.repeat(200), status: 'blocked', focused: true },
+      ...Array.from({ length: 40 }, (_unused, index) => ({ paneId: `p${index}`, status: 'working' })),
+    ],
+  }));
+
+  const delivered = (await firstStatus).value;
+  assert.equal((await secondStatus).value.total, 3);
+  assert.equal(delivered.counts.blocked, 1);
+  assert.equal(delivered.counts.working, 2);
+  assert.equal('nonsense' in delivered.counts, false, 'a count that is not a number is dropped');
+  assert.equal(delivered.agents.length, 16, 'the host cap is re-applied by the relay');
+  assert.equal(delivered.agents[0].title.length, 64, 'a title from a pane is clamped');
+  assert.equal(delivered.agents[1].agent, null);
+
+  first.close();
+  second.close();
+  host.close();
+});
+
 test('each window drives its own grid without shrinking the others', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-resize-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));

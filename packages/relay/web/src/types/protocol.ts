@@ -168,6 +168,32 @@ export interface ServerPasteFileReadyMessage {
   path: string;
 }
 
+/** Herdr's own vocabulary for what a pane's agent is doing. */
+export type AgentStatus = 'blocked' | 'done' | 'working' | 'idle' | 'unknown';
+
+export interface AgentStatusEntry {
+  paneId: string | null;
+  workspaceId: string | null;
+  agent: string | null;
+  title: string | null;
+  status: string | null;
+  focused: boolean;
+}
+
+/**
+ * What the workstation's agents are doing.
+ *
+ * Broadcast to every window watching this workstation rather than scoped to a
+ * stream: it is a fact about the machine, not about one terminal. The host
+ * reads it from Herdr's socket API; see `packages/cli/src/agent-status.js`.
+ */
+export interface ServerAgentStatusMessage {
+  type: 'agent_status';
+  counts: Partial<Record<AgentStatus, number>>;
+  total: number;
+  agents: AgentStatusEntry[];
+}
+
 export type ServerJsonMessage =
   | ServerReadyMessage
   | ServerPairedMessage
@@ -182,7 +208,8 @@ export type ServerJsonMessage =
   | ServerStatusMessage
   | ServerErrorMessage
   | ServerPongMessage
-  | ServerPasteFileReadyMessage;
+  | ServerPasteFileReadyMessage
+  | ServerAgentStatusMessage;
 export type ConnectionState =
   | 'disconnected'
   | 'connecting'

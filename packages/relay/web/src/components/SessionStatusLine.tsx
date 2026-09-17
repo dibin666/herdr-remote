@@ -2,6 +2,7 @@ import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { describeConnection } from '../utils/connectionStatus';
 import { Badge, Segments, StatusDot, StatusLine } from './tui';
+import { AgentStatusChip } from './AgentStatusChip';
 import { HostSwitcher } from './HostSwitcher';
 
 interface SessionStatusLineProps {
@@ -72,6 +73,7 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfi
       right={
         <Segments
           items={[
+            connected ? <AgentStatusChip key="agents" /> : null,
             rttMs !== null ? (
               <span key="rtt" className="text-tui-muted">
                 {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>

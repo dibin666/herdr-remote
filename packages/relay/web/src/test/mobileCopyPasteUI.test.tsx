@@ -54,6 +54,62 @@ describe('TerminalSelectionMenu Unit Tests', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // A tap is forwarded to the pane as a mouse report, so the long-press menu is
+  // the only way a finger reaches a link. The host is shown so the tap is not
+  // a blind one.
+  it('offers the link under the touch point first, named by its host', () => {
+    const onOpenLink = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <TerminalProvider>
+        <div style={{ position: 'relative', width: 400, height: 600 }}>
+          <TerminalSelectionMenu
+            anchorPoint={{ x: 200, y: 300 }}
+            hasSelection={false}
+            isController={true}
+            linkUrl="https://github.com/herdrdev/herdr"
+            onOpenLink={onOpenLink}
+            onCopySelection={vi.fn()}
+            onCopyLine={vi.fn()}
+            onCopyScreen={vi.fn()}
+            onPaste={vi.fn()}
+            onClose={onClose}
+          />
+        </div>
+      </TerminalProvider>
+    );
+
+    const items = screen.getAllByRole('menuitem');
+    expect(items[0]).toHaveTextContent('打开链接');
+    expect(items[0]).toHaveTextContent('github.com');
+
+    fireEvent.click(items[0]);
+    expect(onOpenLink).toHaveBeenCalledWith('https://github.com/herdrdev/herdr');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers nothing to open when the tapped row carries no link', () => {
+    render(
+      <TerminalProvider>
+        <div style={{ position: 'relative', width: 400, height: 600 }}>
+          <TerminalSelectionMenu
+            anchorPoint={{ x: 200, y: 300 }}
+            hasSelection={false}
+            isController={true}
+            onCopySelection={vi.fn()}
+            onCopyLine={vi.fn()}
+            onCopyScreen={vi.fn()}
+            onPaste={vi.fn()}
+            onClose={vi.fn()}
+          />
+        </div>
+      </TerminalProvider>
+    );
+
+    expect(screen.queryByText('打开链接')).not.toBeInTheDocument();
+  });
+
   it('omits "复制选中" when hasSelection is false', () => {
     render(
       <TerminalProvider>

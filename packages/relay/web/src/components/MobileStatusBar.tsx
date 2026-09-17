@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
+import { AgentStatusChip } from './AgentStatusChip';
 import { HostSwitcher } from './HostSwitcher';
 
 interface MobileStatusBarProps {
@@ -24,6 +25,13 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
     >
       <HostSwitcher statusBar onAddProfile={onAddProfile} />
       <span aria-hidden="true" className="shrink-0 text-tui-border">│</span>
+      {/*
+        Between the host and the latency, because "is anything waiting on me?"
+        is why a phone is looking at this bar at all. It renders nothing until
+        the workstation reports, so the row's spacing is unchanged when there is
+        nothing to say.
+      */}
+      <AgentStatusChip compact />
       <span className="flex shrink-0 items-center gap-1 px-1 text-tui-muted" title={t('header.latencyTitle')}>
         <span className="text-tui-faint">RTT</span>
         <span className={cn(rttMs === null ? 'text-tui-faint' : 'text-tui-text')}>

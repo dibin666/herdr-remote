@@ -157,6 +157,8 @@ export interface MockTerminalInstance {
   modes: { mouseTrackingMode: string };
   emitRender?: (e: { start: number; end: number }) => void;
   emitWriteParsed?: () => void;
+  /** Stand in for the OSC 2 title the host's Herdr client sets. */
+  emitTitleChange?: (title: string) => void;
   registerMarker?: ReturnType<typeof vi.fn>;
   registerDecoration?: ReturnType<typeof vi.fn>;
   [key: string]: unknown;
@@ -172,6 +174,7 @@ vi.mock('@xterm/xterm', () => ({
   Terminal: function MockTerminal(opts: Record<string, unknown> = {}) {
     const renderCallbacks: Array<(e: { start: number; end: number }) => void> = [];
     const writeParsedCallbacks: Array<() => void> = [];
+    const titleCallbacks: Array<(title: string) => void> = [];
     const instance: MockTerminalInstance = {
       options: { ...opts },
       cols: typeof opts.cols === 'number' ? opts.cols : 80,
@@ -259,6 +262,20 @@ vi.mock('@xterm/xterm', () => ({
       }),
       emitWriteParsed: () => {
         for (const cb of [...writeParsedCallbacks]) cb();
+      },
+      // What the host's Herdr client announces with OSC 2, and what names the
+      // browser tab.
+      onTitleChange: vi.fn((cb: (title: string) => void) => {
+        titleCallbacks.push(cb);
+        return {
+          dispose: () => {
+            const idx = titleCallbacks.indexOf(cb);
+            if (idx !== -1) titleCallbacks.splice(idx, 1);
+          },
+        };
+      }),
+      emitTitleChange: (title: string) => {
+        for (const cb of [...titleCallbacks]) cb(title);
       },
       onScroll: vi.fn(() => ({ dispose: vi.fn() })),
       onResize: vi.fn(() => ({ dispose: vi.fn() })),

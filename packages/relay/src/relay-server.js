@@ -27,8 +27,16 @@ const MAX_DIMENSION = 500;
 const MIN_SESSION_COLS = 20;
 const MIN_SESSION_ROWS = 6;
 
+/** Matches the host's own cap; the relay re-applies it rather than trusting it. */
+const MAX_AGENT_STATUS_ENTRIES = 16;
+
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
+}
+
+/** A bounded string, or null. For fields whose contents a pane decided. */
+function text(value, limit) {
+  return typeof value === 'string' && value.length > 0 ? value.slice(0, limit) : null;
 }
 
 function clampDimension(value, fallback) {
@@ -813,6 +821,12 @@ class RelayServer {
       if (this.hosts.get(host.id) === host) this.detachHost(host, { notify: true, reason: 'host_shutdown' });
       return;
     }
+    // What the workstation's agents are doing belongs to the workstation, not
+    // to one stream: every window watching it gets the same answer.
+    if (message.type === 'agent_status') {
+      this.broadcastAgentStatus(host, message);
+      return;
+    }
     // Session events target the single client that owns this stream.
     const streamId = typeof message.clientId === 'string' ? message.clientId : message.streamId;
     const clientId = streamId ? this.streams.get(streamId) : null;
@@ -1259,6 +1273,46 @@ class RelayServer {
         controllerId: null,
         clientCount: host.clients.size,
       });
+    }
+  }
+
+  /**
+   * Pass on what the workstation's agents are doing.
+   *
+   * Sanitised rather than forwarded: the host is trusted, but this is the one
+   * message whose contents come from terminal titles, and it lands in a status
+   * bar on every attached window. The counts are numbers and the list is
+   * bounded, so a workstation cannot grow a browser's memory by naming things
+   * carefully.
+   */
+  broadcastAgentStatus(host, message) {
+    const counts = {};
+    if (message.counts && typeof message.counts === 'object') {
+      for (const [status, value] of Object.entries(message.counts)) {
+        if (typeof status === 'string' && Number.isFinite(value)) {
+          counts[status.slice(0, 32)] = Math.max(0, Math.min(9999, Math.trunc(value)));
+        }
+      }
+    }
+    const agents = (Array.isArray(message.agents) ? message.agents : [])
+      .slice(0, MAX_AGENT_STATUS_ENTRIES)
+      .map((agent) => ({
+        paneId: text(agent?.paneId, 64),
+        workspaceId: text(agent?.workspaceId, 64),
+        agent: text(agent?.agent, 32),
+        title: text(agent?.title, 64),
+        status: text(agent?.status, 16),
+        focused: agent?.focused === true,
+      }));
+    const payload = {
+      type: 'agent_status',
+      counts,
+      total: Number.isFinite(message.total) ? Math.max(0, Math.trunc(message.total)) : agents.length,
+      agents,
+    };
+    for (const clientId of host.clients) {
+      const client = this.clients.get(clientId);
+      if (client) jsonSend(client.ws, payload);
     }
   }
 
