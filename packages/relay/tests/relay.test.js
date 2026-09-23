@@ -475,8 +475,22 @@ test('agent status reaches every window, clamped on the way through', async (t) 
   assert.equal(delivered.agents[0].title.length, 64, 'a title from a pane is clamped');
   assert.equal(delivered.agents[1].agent, null);
 
+  // A newly paired window needs the current focus immediately; waiting for a
+  // later pane event would leave its bar on Shell until somebody navigates.
+  const third = await openWebSocket(`${wsBase}/ws/client`);
+  const thirdReady = nextMessage(third, (message) => message.type === 'ready');
+  const thirdStatus = nextMessage(third, (message) => message.type === 'agent_status');
+  const thirdSession = nextMessage(host, (message) => message.type === 'session_start');
+  third.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'third', cols: 80, rows: 24 }));
+  await Promise.all([thirdReady, thirdSession]);
+  const replayed = (await thirdStatus).value;
+  assert.equal(replayed.focusedPaneId, 'p'.repeat(64));
+  assert.equal(replayed.focusedAgent, 'a'.repeat(32));
+  assert.equal(replayed.total, 3);
+
   first.close();
   second.close();
+  third.close();
   host.close();
 });
 

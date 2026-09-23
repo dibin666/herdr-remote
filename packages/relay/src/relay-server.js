@@ -607,6 +607,8 @@ class RelayServer {
       connectedAt: new Date(pending.connectedAt).toISOString(),
       connectedAtMs: pending.connectedAt,
       terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
+      /** The latest workstation snapshot is replayed when a browser joins late. */
+      agentStatus: null,
       lastSeenAt: Date.now(),
       clients,
       controllerId: null,
@@ -1100,6 +1102,7 @@ class RelayServer {
           terminalPalette: host.terminalPalette || null,
           clientCount: host.clients.size,
         });
+        if (host.agentStatus) jsonSend(ws, host.agentStatus);
         this.startSession(host, client);
         this.broadcastControlState(host);
         return;
@@ -1312,6 +1315,7 @@ class RelayServer {
       total: Number.isFinite(message.total) ? Math.max(0, Math.trunc(message.total)) : agents.length,
       agents,
     };
+    host.agentStatus = payload;
     for (const clientId of host.clients) {
       const client = this.clients.get(clientId);
       if (client) jsonSend(client.ws, payload);
