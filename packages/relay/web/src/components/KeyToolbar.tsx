@@ -46,6 +46,9 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     t,
     uploadProgress,
     uploadImage,
+    modifierLatch,
+    toggleModifierLatch,
+    consumeModifierLatch,
   } = useTerminal();
 
   // One key metric everywhere: 36px is the smallest comfortable touch target,
@@ -159,18 +162,18 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     );
   };
 
-  // Modifier latch states
-  const [ctrlLatched, setCtrlLatched] = useState(false);
-  const [altLatched, setAltLatched] = useState(false);
-  const [shiftLatched, setShiftLatched] = useState(false);
-
   // Expandable drawers
   const [showFnKeys, setShowFnKeys] = useState(false);
   const [showSymbols, setShowSymbols] = useState(false);
   const [showQuickChords, setShowQuickChords] = useState(false);
 
+  /**
+   * Sends one key, with whatever modifiers are latched. A latch applies to the
+   * next key of any kind — Ctrl+←, Shift+Enter, Shift+F5 — and a ready-made
+   * chord such as ^C just releases it, since the chord already says what it is.
+   */
   const handleKeyPress = useCallback(
-    (keySeq: string, isPlainChar = false) => {
+    (keySeq: string, modifiable = true) => {
       vibrate();
 
       if (!isController) {
@@ -178,33 +181,10 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
         return;
       }
 
-      let toSend = keySeq;
-
-      if (isPlainChar && (ctrlLatched || altLatched || shiftLatched)) {
-        toSend = encodeKeyWithModifiers(keySeq, {
-          ctrl: ctrlLatched,
-          alt: altLatched,
-          shift: shiftLatched,
-        });
-      }
-
-      sendKey(toSend);
-
-      // Auto un-latch modifiers after use
-      if (ctrlLatched) setCtrlLatched(false);
-      if (altLatched) setAltLatched(false);
-      if (shiftLatched) setShiftLatched(false);
+      const modifiers = consumeModifierLatch();
+      sendKey(modifiable && modifiers ? encodeKeyWithModifiers(keySeq, modifiers) : keySeq);
     },
-    [
-      isController,
-      ctrlLatched,
-      altLatched,
-      shiftLatched,
-      sendKey,
-      warnViewerMode,
-      vibrate,
-      t,
-    ]
+    [isController, sendKey, warnViewerMode, vibrate, consumeModifierLatch]
   );
 
   // Collapsed, the bar leaves a handle behind rather than vanishing: a key bar
@@ -281,12 +261,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
 
     // Modifier toggles
     if (keyDef.type === 'modifier') {
-      if (keyDef.modifierType === 'ctrl') {
-        setCtrlLatched(!ctrlLatched);
-      } else if (keyDef.modifierType === 'alt') {
-        setAltLatched(!altLatched);
-      } else if (keyDef.modifierType === 'shift') {
-        setShiftLatched(!shiftLatched);
+      if (keyDef.modifierType === 'ctrl' || keyDef.modifierType === 'alt' || keyDef.modifierType === 'shift') {
+        toggleModifierLatch(keyDef.modifierType);
       } else if (keyDef.modifierType === 'meta') {
         handleKeyPress(ANSI_KEYS.ESC);
       }
@@ -312,14 +288,14 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     }
 
     // Direct key send
-    handleKeyPress(keyDef.code, keyDef.isPlainChar || keyDef.type === 'symbol');
+    handleKeyPress(keyDef.code, keyDef.type !== 'chord');
   };
 
   const isKeyActive = (keyDef: ToolbarKeyDef) => {
     if (keyDef.type === 'modifier') {
-      if (keyDef.modifierType === 'ctrl') return ctrlLatched;
-      if (keyDef.modifierType === 'alt') return altLatched;
-      if (keyDef.modifierType === 'shift') return shiftLatched;
+      if (keyDef.modifierType === 'ctrl') return modifierLatch.ctrl;
+      if (keyDef.modifierType === 'alt') return modifierLatch.alt;
+      if (keyDef.modifierType === 'shift') return modifierLatch.shift;
     }
     if (keyDef.type === 'drawer') {
       if (keyDef.drawerType === 'fn') return showFnKeys;
@@ -342,7 +318,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
   ) => (
     <button
       type="button"
-      onClick={() => handleKeyPress(code)}
+      onClick={() => handleKeyPress(code, false)}
       className={cn(
         CAP_BASE,
         'h-8 gap-1.5 px-2',

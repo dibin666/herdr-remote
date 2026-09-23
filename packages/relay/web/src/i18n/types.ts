@@ -271,6 +271,7 @@ export interface TranslationSchema {
   keyTitles: {
     esc: string;
     tab: string;
+    shift_tab: string;
     ctrl: string;
     alt: string;
     shift: string;

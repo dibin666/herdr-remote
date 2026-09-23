@@ -264,6 +264,7 @@ export const zh: TranslationSchema = {
   keyTitles: {
     esc: 'Escape (ESC)',
     tab: 'Tab',
+    shift_tab: 'Shift+Tab（Claude Code 切换模式）',
     ctrl: '切换 Ctrl 锁定',
     alt: '切换 Alt 锁定',
     shift: '切换 Shift 锁定',

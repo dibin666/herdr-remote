@@ -5,7 +5,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
 import { hostPaletteToTheme, resolveTerminalFontFamily } from '../utils/theme';
-import { encodeStringToBytes } from '../protocol/keyEncoder';
+import { encodeKeyWithModifiers, encodeStringToBytes, isSingleKey } from '../protocol/keyEncoder';
+import { classifyInput } from '../utils/inputClassifier';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
 import { attachTerminalRenderer, AttachedRenderer } from '../utils/terminalRenderer';
@@ -203,6 +204,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     sendResize,
     sendBinary,
     observeKeyInput,
+    consumeModifierLatch,
     addToast,
     warnViewerMode,
     connect,
@@ -254,6 +256,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const predictorRef = useRef<PredictiveEcho | null>(null);
   const overlayRef = useRef<PredictionOverlay | null>(null);
   const fieldProbeRef = useRef<FieldProbe | null>(null);
+  const consumeModifierLatchRef = useRef(consumeModifierLatch);
+  consumeModifierLatchRef.current = consumeModifierLatch;
   const syncPredictiveOverlayRef = useRef<() => void>(() => {});
   /** Drops every prediction, and everything learned about where the fields are. */
   const forgetPredictionsRef = useRef((reason: string) => {
@@ -936,7 +940,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       });
     }
     // Handle user keyboard & mouse reporting input from xterm
-    const dataDispose = term.onData((data) => {
+    const dataDispose = term.onData((typed) => {
+      // A modifier latched on the key bar applies to the next key from any
+      // keyboard, the phone's own included. Pastes, IME commits and mouse
+      // reports leave it for a real key.
+      let data = typed;
+      if (isControllerRef.current && classifyInput(typed) === 'keys' && isSingleKey(typed)) {
+        const modifiers = consumeModifierLatchRef.current();
+        if (modifiers) data = encodeKeyWithModifiers(typed, modifiers);
+      }
       const bytes = encodeStringToBytes(data);
       // Scrolling a viewer's own stream is allowed; typing into the shared
       // session is not. Without this split every wheel notch raised a

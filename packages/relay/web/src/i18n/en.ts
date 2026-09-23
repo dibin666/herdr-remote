@@ -264,6 +264,7 @@ export const en: TranslationSchema = {
   keyTitles: {
     esc: 'Escape (ESC)',
     tab: 'Tab',
+    shift_tab: 'Shift+Tab (Claude Code: cycle modes)',
     ctrl: 'Toggle Ctrl Lock',
     alt: 'Toggle Alt Lock',
     shift: 'Toggle Shift Lock',

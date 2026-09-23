@@ -16,7 +16,7 @@ import {
 } from '../types/protocol';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
-import { encodeStringToBytes } from '../protocol/keyEncoder';
+import { encodeStringToBytes, type KeyModifiers } from '../protocol/keyEncoder';
 import {
   ConnectionProfile,
   StoredSettings,
@@ -57,6 +57,14 @@ export const MAX_PENDING_OUTPUT_CHUNKS = 4096;
 export const MAX_PENDING_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 export type TerminalOutputSink = (data: Uint8Array) => void;
+
+export interface ModifierLatch {
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+}
+
+const NO_MODIFIERS: ModifierLatch = { ctrl: false, alt: false, shift: false };
 
 interface TerminalContextValue {
   connectionState: ConnectionState;
@@ -115,6 +123,15 @@ interface TerminalContextValue {
    * stale predictions on screen.
    */
   observeKeyInput: (observer: (bytes: Uint8Array) => void) => () => void;
+  /**
+   * Ctrl, Alt and Shift latched on the key bar. The latch belongs to the
+   * session rather than the bar so that the next key typed on the phone's own
+   * keyboard picks it up too: latch Ctrl, type `c`, and that is Ctrl+C.
+   */
+  modifierLatch: ModifierLatch;
+  toggleModifierLatch: (modifier: keyof ModifierLatch) => void;
+  /** Takes the latched modifiers for the key being sent, and releases them. */
+  consumeModifierLatch: () => KeyModifiers | null;
   sendBinary: (data: Uint8Array | ArrayBuffer) => void;
   sendResize: (cols: number, rows: number) => void;
   updateSettings: (partial: Partial<StoredSettings>) => void;
@@ -814,6 +831,22 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   }, []);
 
+  const [modifierLatch, setModifierLatch] = useState<ModifierLatch>(NO_MODIFIERS);
+  // Read synchronously by the terminal's input handler, which is bound once.
+  const modifierLatchRef = useRef<ModifierLatch>(NO_MODIFIERS);
+  const toggleModifierLatch = useCallback((modifier: keyof ModifierLatch) => {
+    const next = { ...modifierLatchRef.current, [modifier]: !modifierLatchRef.current[modifier] };
+    modifierLatchRef.current = next;
+    setModifierLatch(next);
+  }, []);
+  const consumeModifierLatch = useCallback((): KeyModifiers | null => {
+    const latch = modifierLatchRef.current;
+    if (!latch.ctrl && !latch.alt && !latch.shift) return null;
+    modifierLatchRef.current = NO_MODIFIERS;
+    setModifierLatch(NO_MODIFIERS);
+    return latch;
+  }, []);
+
   const sendBinary = useCallback((data: Uint8Array | ArrayBuffer) => {
     // Viewers are read-only for terminal *input*, but scrolling is not input
     // into the shared session: each client drives its own PTY stream, so a
@@ -1059,6 +1092,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         releaseControl,
         sendKey,
         observeKeyInput,
+        modifierLatch,
+        toggleModifierLatch,
+        consumeModifierLatch,
         sendBinary,
         sendResize,
         updateSettings,

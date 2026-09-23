@@ -57,8 +57,9 @@ describe('Touch key bar layout', () => {
   });
 
   it('upgrades an untouched saved layout to the new default order', () => {
+    // The first shipped layout: Enter mid-row, and no Shift+Tab yet.
     const legacy = [
-      ...DEFAULT_TOOLBAR_KEYS.filter((key) => key.id !== 'enter').slice(0, 8),
+      ...DEFAULT_TOOLBAR_KEYS.filter((key) => key.id !== 'enter' && key.id !== 'shift_tab').slice(0, 8),
       DEFAULT_TOOLBAR_KEYS.find((key) => key.id === 'enter')!,
       ...DEFAULT_TOOLBAR_KEYS.filter((key) => key.id.startsWith('drawer_')),
     ];

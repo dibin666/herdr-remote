@@ -23,6 +23,9 @@ export interface ToolbarKeyDef {
 export const DEFAULT_TOOLBAR_KEYS: ToolbarKeyDef[] = [
   { id: 'esc', label: 'ESC', code: ANSI_KEYS.ESC, type: 'key', enabled: true, title: 'Escape' },
   { id: 'tab', label: 'TAB', code: ANSI_KEYS.TAB, type: 'key', enabled: true, title: 'Tab' },
+  // Claude Code cycles its permission modes on Shift+Tab, which a phone
+  // keyboard has no way to type.
+  { id: 'shift_tab', label: '⇧TAB', code: ANSI_KEYS.SHIFT_TAB, type: 'key', enabled: true, title: 'Shift+Tab' },
   { id: 'ctrl', label: 'CTRL', code: '', type: 'modifier', enabled: true, modifierType: 'ctrl', title: 'Toggle Ctrl modifier latch' },
   { id: 'alt', label: 'ALT', code: '', type: 'modifier', enabled: true, modifierType: 'alt', title: 'Toggle Alt modifier latch' },
   { id: 'left', label: '←', code: ANSI_KEYS.LEFT, type: 'key', enabled: true, title: 'Arrow Left' },
@@ -45,6 +48,7 @@ export const ALL_AVAILABLE_KEYS: ToolbarKeyDef[] = [
   // Navigation & Control
   { id: 'esc', label: 'ESC', code: ANSI_KEYS.ESC, type: 'key', enabled: true, title: 'Escape' },
   { id: 'tab', label: 'TAB', code: ANSI_KEYS.TAB, type: 'key', enabled: true, title: 'Tab' },
+  { id: 'shift_tab', label: '⇧TAB', code: ANSI_KEYS.SHIFT_TAB, type: 'key', enabled: true, title: 'Shift+Tab' },
   { id: 'enter', label: 'Enter', code: ANSI_KEYS.ENTER, type: 'key', enabled: true, title: 'Enter / Return' },
   { id: 'backspace', label: '⌫', code: ANSI_KEYS.BACKSPACE, type: 'key', enabled: true, title: 'Backspace' },
   { id: 'delete', label: 'Del', code: ANSI_KEYS.DELETE, type: 'key', enabled: true, title: 'Delete' },
@@ -105,31 +109,25 @@ export function getDefaultVirtualKeys(): ToolbarKeyDef[] {
 }
 
 /**
- * The layout every earlier build shipped, with Enter buried mid-row.
+ * Layouts earlier builds shipped as the default: first with Enter buried
+ * mid-row, then without Shift+Tab.
  *
  * A saved layout is the user's own arrangement and must be left alone — unless
  * it is untouched, in which case it is not a preference at all but a copy of a
  * default that has since moved on. Recognising it by its exact key order is
  * what lets the new default reach the people who never customised anything.
  */
-const LEGACY_DEFAULT_KEY_ORDER = [
-  'esc',
-  'tab',
-  'ctrl',
-  'alt',
-  'left',
-  'up',
-  'down',
-  'right',
-  'enter',
-  'drawer_chords',
-  'drawer_symbols',
-  'drawer_fn',
+const LEGACY_DEFAULT_KEY_ORDERS = [
+  ['esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right', 'enter', 'drawer_chords', 'drawer_symbols', 'drawer_fn'],
+  ['esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right', 'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter'],
 ];
 
 function isUntouchedLegacyLayout(keys: ToolbarKeyDef[]): boolean {
-  if (keys.length !== LEGACY_DEFAULT_KEY_ORDER.length) return false;
-  return keys.every((key, index) => key.id === LEGACY_DEFAULT_KEY_ORDER[index] && key.enabled !== false);
+  return LEGACY_DEFAULT_KEY_ORDERS.some(
+    (order) =>
+      keys.length === order.length &&
+      keys.every((key, index) => key.id === order[index] && key.enabled !== false)
+  );
 }
 
 export function sanitizeVirtualKeys(keys: unknown): ToolbarKeyDef[] {

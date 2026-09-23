@@ -58,7 +58,7 @@ describe('UI Components', () => {
 
     expect(screen.getByRole('toolbar')).toBeInTheDocument();
     expect(screen.getByTitle(/Escape/i)).toBeInTheDocument();
-    expect(screen.getByTitle(/Tab/i)).toBeInTheDocument();
+    expect(screen.getByTitle('Tab')).toBeInTheDocument();
     expect(screen.getByTitle(/Toggle Ctrl Lock/i)).toBeInTheDocument();
   });
 
