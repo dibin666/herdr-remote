@@ -10,6 +10,7 @@ import { PredictiveEcho } from '../utils/predictiveEcho';
 import { PredictionOverlay } from '../utils/predictionOverlay';
 import { saveSettings } from '../utils/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
+import { loadScreenFixture, screenFromFixture, type TestScreen } from './helpers/screenFixture';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
   .__xtermInstances;
@@ -284,6 +285,110 @@ describe('Predictive Echo Integration & Setting Controls', () => {
 
       const debugPre = screen.getByTestId('terminal-touch-debug');
       expect(debugPre.textContent).toContain('mode: always');
+    });
+  });
+
+  describe('on screens captured from Herdr', () => {
+    let context: ReturnType<typeof useTerminal> | null = null;
+    const Grab = () => {
+      context = useTerminal();
+      return null;
+    };
+
+    /** Puts a captured screen behind the mocked xterm, as if Herdr had just drawn it. */
+    const showScreen = (term: MockTerminalInstance, fixture: string): TestScreen => {
+      const screen = screenFromFixture(loadScreenFixture(fixture));
+      term.cols = screen.cols;
+      term.rows = screen.rows;
+      term.buffer.active.getLine = (row: number) => screen.getLine(row);
+      term.buffer.active.cursorX = screen.cursor.col;
+      term.buffer.active.cursorY = screen.cursor.row;
+      term.buffer.active.baseY = 0;
+      act(() => {
+        term.emitWriteParsed?.();
+      });
+      return screen;
+    };
+
+    /** The remote program echoes a character at the caret and moves the caret on. */
+    const remoteEcho = (term: MockTerminalInstance, screen: TestScreen, text: string) => {
+      screen.write(term.buffer.active.cursorY, term.buffer.active.cursorX, text);
+      term.buffer.active.cursorX += text.length;
+      act(() => {
+        term.emitWriteParsed?.();
+      });
+    };
+
+    const lastItems = (syncSpy: ReturnType<typeof vi.spyOn>) => {
+      const calls = syncSpy.mock.calls as Array<[Array<{ row: number; col: number; char: string; kind?: string }>]>;
+      return calls.length ? calls[calls.length - 1][0] : [];
+    };
+
+    const mount = async () => {
+      saveSettings({ predictiveEcho: 'always' });
+      render(
+        <TerminalProvider>
+          <Grab />
+          <TerminalView isActive={true} />
+        </TerminalProvider>
+      );
+      await waitFor(() => expect(xtermInstances.length).toBe(1));
+      openAsController();
+      return xtermInstances[0];
+    };
+
+    it("predicts in Claude Code's input box once one echo has come back", async () => {
+      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const term = await mount();
+      const screen = showScreen(term, 'desktop-claude-empty');
+
+      act(() => emitTerminalData(term, 'h'));
+      expect(lastItems(syncSpy)).toEqual([]);
+      remoteEcho(term, screen, 'h');
+
+      act(() => emitTerminalData(term, 'i'));
+      expect(lastItems(syncSpy)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ row: 34, col: 29, char: 'i', kind: 'char' }),
+          expect.objectContaining({ row: 34, col: 30, kind: 'caret' }),
+        ])
+      );
+    });
+
+    it('predicts nothing while a menu has the keys', async () => {
+      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const term = await mount();
+      const screen = showScreen(term, 'desktop-claude-model-menu');
+      act(() => emitTerminalData(term, 'j'));
+      remoteEcho(term, screen, 'j');
+      act(() => emitTerminalData(term, 'k'));
+      expect(lastItems(syncSpy)).toEqual([]);
+    });
+
+    it('sees an Esc sent from the on-screen toolbar, and stops predicting', async () => {
+      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const term = await mount();
+      const screen = showScreen(term, 'desktop-claude-empty');
+      act(() => emitTerminalData(term, 'h'));
+      remoteEcho(term, screen, 'h');
+      act(() => emitTerminalData(term, 'i'));
+      expect(lastItems(syncSpy).length).toBeGreaterThan(0);
+
+      act(() => context!.sendKey('\x1b'));
+      expect(lastItems(syncSpy)).toEqual([]);
+      act(() => emitTerminalData(term, 'j'));
+      expect(lastItems(syncSpy)).toEqual([]);
+    });
+
+    it('shows the input field in the debug overlay', async () => {
+      window.history.pushState({}, '', '/?debug=1');
+      const term = await mount();
+      showScreen(term, 'desktop-claude-empty');
+      // The overlay refreshes with its once-a-second metrics tick.
+      await waitFor(
+        () => expect(screen.getByTestId('terminal-touch-debug').textContent).toMatch(/field: rule row 34 cols 28-\d+ caret 28/),
+        { timeout: 2500 }
+      );
     });
   });
 });

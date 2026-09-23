@@ -23,15 +23,25 @@ interface Cell {
   dim: boolean;
 }
 
+/** A cell as both the detector and the predictor read it. */
+export interface TestCell extends FieldCell {
+  getWidth(): number;
+}
+
+export interface TestLine extends FieldLine {
+  getCell(x: number, cell?: FieldCell): TestCell | undefined;
+}
+
 export interface TestScreen extends FieldScreen {
+  getLine(row: number): TestLine | undefined;
   cursor: { row: number; col: number; hidden: boolean };
   buffer: {
     active: {
       baseY: number;
       cursorX: number;
       cursorY: number;
-      getLine(row: number): FieldLine | undefined;
-      getNullCell(): FieldCell;
+      getLine(row: number): TestLine | undefined;
+      getNullCell(): TestCell;
     };
   };
   setCell(row: number, col: number, cell: Partial<Cell>): void;
@@ -69,13 +79,13 @@ export function createTestScreen(cols: number, rows: number): TestScreen {
   const grid: Cell[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, blank));
   const cursor = { row: 0, col: 0, hidden: false };
 
-  const view = (cell: Cell): FieldCell => ({
+  const view = (cell: Cell): TestCell => ({
     getChars: () => cell.chars,
     getWidth: () => cell.width,
     isDim: () => (cell.dim ? 1 : 0),
   });
 
-  const getLine = (row: number): FieldLine | undefined => {
+  const getLine = (row: number): TestLine | undefined => {
     const cells = grid[row];
     if (!cells) return undefined;
     return {

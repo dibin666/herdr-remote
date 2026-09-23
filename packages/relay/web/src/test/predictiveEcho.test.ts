@@ -113,8 +113,9 @@ describe("PredictiveEcho State Machine & Verification", () => {
     echo.handleUserInput(encode("x"));
     expect(echo.getVisiblePredictions()).toEqual([]);
 
-    // Server output arrives and paints 'x' at (12, 5)
+    // Server output arrives and paints 'x' at (12, 5), moving the cursor past it
     terminal.setCell(12, 5, "x");
+    terminal.setCursor(6, 2);
     currentTime += 50;
     echo.onServerOutput();
 
@@ -209,6 +210,7 @@ describe("PredictiveEcho State Machine & Verification", () => {
     // Promote to confident
     echo.handleUserInput(encode("x"));
     terminal.setCell(0, 0, "x");
+    terminal.setCursor(1, 0);
     echo.onServerOutput();
     expect(echo.getState()).toBe("confident");
 
@@ -252,6 +254,7 @@ describe("PredictiveEcho State Machine & Verification", () => {
     // Promote to confident
     echo.handleUserInput(encode("a"));
     terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
     echo.onServerOutput();
     expect(echo.getState()).toBe("confident");
 
@@ -306,6 +309,7 @@ describe("PredictiveEcho State Machine & Verification", () => {
     // First keystroke at t=1000
     echo.handleUserInput(encode("a"));
     terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
 
     // Confirmed at t=1100 (100ms sample)
     currentTime = 1100;
@@ -316,6 +320,7 @@ describe("PredictiveEcho State Machine & Verification", () => {
     currentTime = 1200;
     echo.handleUserInput(encode("b"));
     terminal.setCell(0, 1, "b");
+    terminal.setCursor(2, 0);
 
     // Confirmed at t=1400 (200ms sample)
     // Smoothed SRTT = 100 * 0.8 + 200 * 0.2 = 80 + 40 = 120
@@ -332,6 +337,7 @@ describe("PredictiveEcho State Machine & Verification", () => {
     // Confirm to confident
     echo.handleUserInput(encode("a"));
     terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
     echo.onServerOutput();
 
     // Type 'b' and 'c'
@@ -339,6 +345,7 @@ describe("PredictiveEcho State Machine & Verification", () => {
 
     // Server output arrives but only paints 'b' at col 1; col 2 remains empty ""
     terminal.setCell(0, 1, "b");
+    terminal.setCursor(2, 0);
     echo.onServerOutput();
 
     // 'b' is confirmed and removed; 'c' remains pending at col 2
@@ -479,24 +486,27 @@ describe("PredictiveEcho State Machine & Verification", () => {
     expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 0, char: "c" }]);
   });
 
-  it("refuses to predict CJK/wide characters and wipes existing predictions", () => {
+  it("predicts CJK characters two cells wide, and refuses characters of uncertain width", () => {
     const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
     const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
 
     // Reach confident state
     echo.handleUserInput(encode("x"));
     terminal.setCell(0, 0, "x");
+    terminal.setCursor(1, 0);
     echo.onServerOutput();
     expect(echo.getState()).toBe("confident");
 
-    // Type ASCII character
-    echo.handleUserInput(encode("y"));
-    expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 1, char: "y" }]);
+    // An IME commit arrives as one burst; each ideograph takes two cells
+    echo.handleUserInput(encode("y中文"));
+    expect(echo.getVisiblePredictions()).toEqual([
+      { row: 0, col: 1, char: "y" },
+      { row: 0, col: 2, char: "中" },
+      { row: 0, col: 4, char: "文" },
+    ]);
 
-    // User types Chinese character (codePoint > 0x7e)
-    echo.handleUserInput(encode("中"));
-
-    // Must wipe existing predictions and not produce new predictions
+    // Emoji width differs between terminals: wipe and stand down
+    echo.handleUserInput(encode("😀"));
     expect(echo.getVisiblePredictions()).toEqual([]);
   });
 

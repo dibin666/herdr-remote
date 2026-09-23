@@ -16,6 +16,7 @@ import {
 } from '../types/protocol';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
+import { encodeStringToBytes } from '../protocol/keyEncoder';
 import {
   ConnectionProfile,
   StoredSettings,
@@ -107,6 +108,13 @@ interface TerminalContextValue {
   claimControl: (force?: boolean) => void;
   releaseControl: () => void;
   sendKey: (rawKey: string) => void;
+  /**
+   * Sees every key the on-screen toolbars send, before it goes out. The
+   * terminal's own keyboard input reaches predictive echo through xterm; keys
+   * from the toolbars do not, and an Esc or Enter the predictor never saw left
+   * stale predictions on screen.
+   */
+  observeKeyInput: (observer: (bytes: Uint8Array) => void) => () => void;
   sendBinary: (data: Uint8Array | ArrayBuffer) => void;
   sendResize: (cols: number, rows: number) => void;
   updateSettings: (partial: Partial<StoredSettings>) => void;
@@ -191,6 +199,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const dimensionsRef = useRef(terminalDimensions);
   dimensionsRef.current = terminalDimensions;
   const pasteFileReadyListenersRef = useRef<Set<(path: string) => void>>(new Set());
+  const keyInputObserversRef = useRef<Set<(bytes: Uint8Array) => void>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<ImageUploadProgress>(IDLE_IMAGE_UPLOAD_PROGRESS);
   const activeUploadTaskIdRef = useRef<number | null>(null);
   const uploadTaskIdCounterRef = useRef<number>(0);
@@ -785,10 +794,25 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       warnViewerMode();
       return;
     }
-    if (adapterRef.current) {
-      adapterRef.current.sendText(rawKey);
+    const adapter = adapterRef.current;
+    if (!adapter) return;
+    const bytes = encodeStringToBytes(rawKey);
+    for (const observer of keyInputObserversRef.current) {
+      try {
+        observer(bytes);
+      } catch (err) {
+        console.debug('Key input observer threw:', err);
+      }
     }
+    adapter.sendInput(bytes);
   }, [role, warnViewerMode]);
+
+  const observeKeyInput = useCallback((observer: (bytes: Uint8Array) => void) => {
+    keyInputObserversRef.current.add(observer);
+    return () => {
+      keyInputObserversRef.current.delete(observer);
+    };
+  }, []);
 
   const sendBinary = useCallback((data: Uint8Array | ArrayBuffer) => {
     // Viewers are read-only for terminal *input*, but scrolling is not input
@@ -1034,6 +1058,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         claimControl,
         releaseControl,
         sendKey,
+        observeKeyInput,
         sendBinary,
         sendResize,
         updateSettings,

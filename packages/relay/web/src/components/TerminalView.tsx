@@ -46,6 +46,8 @@ import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
 import { PredictiveEcho } from '../utils/predictiveEcho';
 import { PredictionOverlay } from '../utils/predictionOverlay';
+import { FieldProbe, type InputField } from '../utils/inputField';
+import { attachScreenState } from '../utils/screenState';
 
 export { MOBILE_BREAKPOINT_PX };
 
@@ -55,6 +57,12 @@ export { MOBILE_BREAKPOINT_PX };
  * making speculative characters unnecessary visual noise on local/LAN connections.
  */
 export const PREDICTIVE_ECHO_AUTO_THRESHOLD_MS = 40;
+
+/** One line for the debug overlay: which input field, if any, the caret is in. */
+function describePredictionField(field: InputField | null): string {
+  if (!field) return 'none';
+  return `${field.kind} row ${field.row} cols ${field.startCol}-${field.endCol} caret ${field.caretCol}`;
+}
 
 /**
  * Evaluates whether predictive echo characters should be displayed on screen
@@ -194,6 +202,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     terminalResetVersion,
     sendResize,
     sendBinary,
+    observeKeyInput,
     addToast,
     warnViewerMode,
     connect,
@@ -244,6 +253,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   tRef.current = t;
   const predictorRef = useRef<PredictiveEcho | null>(null);
   const overlayRef = useRef<PredictionOverlay | null>(null);
+  const fieldProbeRef = useRef<FieldProbe | null>(null);
+  const syncPredictiveOverlayRef = useRef<() => void>(() => {});
+  /** Drops every prediction, and everything learned about where the fields are. */
+  const forgetPredictionsRef = useRef((reason: string) => {
+    predictorRef.current?.reset(reason);
+    predictorRef.current?.forgetConfidence();
+    fieldProbeRef.current?.reset();
+    overlayRef.current?.clear();
+  });
 
   /**
    * What this window's own Herdr client calls itself, via OSC 2. Only this
@@ -527,8 +545,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       }
       lastSentDimensionsRef.current = pending;
       sendResizeRef.current(pending.cols, pending.rows);
-      predictorRef.current?.reset('resize');
-      overlayRef.current?.clear();
+      // Herdr lays every pane out again, so no field is where it was.
+      forgetPredictionsRef.current('resize');
     }, RESIZE_NOTIFY_DEBOUNCE_MS);
   }, []);
 
@@ -759,8 +777,34 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       setTerminalTitle(sanitizeTerminalTitle(raw) || null);
     });
 
+    // Predictions are only made where the caret is in an input field; see
+    // inputField.ts for how one is recognised on Herdr's composited screen.
+    const screenState = attachScreenState(term);
+    const fieldProbe = new FieldProbe({
+      getScreen: () => {
+        const current = termRef.current;
+        if (!current) return null;
+        const active = current.buffer.active;
+        return {
+          cols: current.cols,
+          rows: current.rows,
+          baseY: active.baseY,
+          getLine: (row) => active.getLine(row),
+          getNullCell: typeof active.getNullCell === 'function' ? () => active.getNullCell() : undefined,
+        };
+      },
+      getCursor: () => {
+        const active = termRef.current?.buffer.active;
+        if (!active) return null;
+        return { row: active.baseY + active.cursorY, col: active.cursorX, hidden: screenState.isCursorHidden() };
+      },
+      isSynchronizing: screenState.isSynchronizing,
+    });
+    fieldProbeRef.current = fieldProbe;
+
     const predictor = new PredictiveEcho({
       getTerminal: () => termRef.current,
+      getField: fieldProbe.detect,
     });
     predictorRef.current = predictor;
 
@@ -771,7 +815,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         const background = hostThemeRef.current?.background ?? termRef.current?.options.theme?.background;
         const srtt = predictorRef.current?.getEchoSrttMs() ?? null;
         const underline = srtt !== null && srtt > PREDICTIVE_ECHO_AUTO_THRESHOLD_MS;
-        return { color, background, underline };
+        const cursor = hostThemeRef.current?.cursor ?? termRef.current?.options.theme?.cursor ?? color;
+        const cursorShape = termRef.current?.options.cursorStyle;
+        return { color, background, underline, cursor, cursorShape };
       },
     });
     overlayRef.current = overlay;
@@ -788,8 +834,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         return;
       }
 
-      overlay.sync(predictor.getVisiblePredictions());
+      overlay.sync(predictor.getOverlayItems());
     };
+    syncPredictiveOverlayRef.current = syncPredictiveOverlay;
 
     // The xterm helper is the real terminal input on touch devices. Make its
     // mobile keyboard intent explicit; it is focused only after the gesture
@@ -918,6 +965,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       typeof term.onWriteParsed === 'function'
         ? term.onWriteParsed(() => {
             contentChangedRef.current = true;
+            fieldProbe.invalidate();
+            // Herdr fences every frame in ?2026, which xterm 5.5 ignores, and a
+            // parse can end mid-frame. Judged against a half-drawn frame, good
+            // predictions look wrong; wait for the frame to finish.
+            if (screenState.isSynchronizing()) return;
             predictorRef.current?.onServerOutput();
             syncPredictiveOverlay();
           })
@@ -1314,6 +1366,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       overlayRef.current?.dispose();
       overlayRef.current = null;
       predictorRef.current = null;
+      fieldProbeRef.current = null;
+      syncPredictiveOverlayRef.current = () => {};
+      screenState.dispose();
       pointerController.handlePointerCancel();
       for (const detach of detachInput) detach();
       resizeObserver.disconnect();
@@ -1396,6 +1451,17 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     scheduleBoundedFit(10);
   }, [settings.fontSize, settings.fontFamily]);
 
+  // Keys from the on-screen toolbars go out through the context, not through
+  // xterm, so they reach the predictor here.
+  useEffect(
+    () =>
+      observeKeyInput((bytes) => {
+        predictorRef.current?.handleUserInput(bytes);
+        syncPredictiveOverlayRef.current();
+      }),
+    [observeKeyInput]
+  );
+
   // Immediately react to predictive echo preference changes (e.g. clearing active decorations on 'off')
   useEffect(() => {
     const predictor = predictorRef.current;
@@ -1406,7 +1472,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     if (!shouldShowPredictiveEcho(settings.predictiveEcho, srtt)) {
       overlay.clear();
     } else {
-      overlay.sync(predictor.getVisiblePredictions());
+      overlay.sync(predictor.getOverlayItems());
     }
   }, [settings.predictiveEcho]);
 
@@ -1417,8 +1483,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   useEffect(() => {
     if (appliedResetVersionRef.current === terminalResetVersion) return;
     appliedResetVersionRef.current = terminalResetVersion;
-    predictorRef.current?.reset('resetVersion');
-    overlayRef.current?.clear();
+    forgetPredictionsRef.current('resetVersion');
     const term = termRef.current as (Terminal & { reset?: () => void }) | null;
     if (!term) return;
     try {
@@ -1430,10 +1495,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     }
   }, [terminalResetVersion]);
 
-  // Wipe speculative echo when socket connection drops or reconnects.
+  // Wipe speculative echo when socket connection drops or reconnects: a new
+  // Herdr client draws a new screen, and nothing learned about the old one holds.
   useEffect(() => {
-    predictorRef.current?.reset('connectionState');
-    overlayRef.current?.clear();
+    forgetPredictionsRef.current('connectionState');
   }, [connectionState]);
 
   // The palette arrives with `ready`, which can land after xterm is open.
@@ -1571,7 +1636,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           {`mode: ${touchDebug.scrollMode} calls: ${touchDebug.scrollCalls} lines: ${touchDebug.lastScrollLines ?? '-'} mouse: ${touchDebug.mouseTracking}\n`}
           {`event: ${touchDebug.lastInputEvent || '-'}  pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}\n`}
           {`rtt: ${rttMs !== null ? `${rttMs}ms` : '-'}  frames/s: ${inboundMetrics.framesPerSec}  bytes/s: ${inboundMetrics.bytesPerSec}  renderer: ${rendererKind ?? '-'}\n`}
-          {`prediction: ${predictorRef.current?.getState() ?? '-'}  mode: ${settings.predictiveEcho}  pending: ${predictorRef.current?.getVisiblePredictions().length ?? 0}  srtt: ${predictorRef.current?.getEchoSrttMs() !== null && predictorRef.current?.getEchoSrttMs() !== undefined ? `${Math.round(predictorRef.current.getEchoSrttMs()!)}ms` : '-'}`}
+          {`prediction: ${predictorRef.current?.getState() ?? '-'}  mode: ${settings.predictiveEcho}  pending: ${predictorRef.current?.getVisiblePredictions().length ?? 0}  srtt: ${predictorRef.current?.getEchoSrttMs() !== null && predictorRef.current?.getEchoSrttMs() !== undefined ? `${Math.round(predictorRef.current.getEchoSrttMs()!)}ms` : '-'}\n`}
+          {`field: ${describePredictionField(fieldProbeRef.current?.detect() ?? null)}  mismatches: ${predictorRef.current?.getMismatchCount() ?? 0}`}
         </pre>
       )}
 

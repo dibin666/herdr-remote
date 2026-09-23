@@ -1,9 +1,13 @@
+import { classifyInput, isLoneEscape } from "./inputClassifier";
+import { predictableWidth } from "./wideChars";
+
 /**
  * Minimal read-only interface required by PredictiveEcho.
  * Intentionally decoupled from @xterm/xterm to allow unit testing with mock terminals.
  */
 export interface PredictionCell {
   getChars(): string;
+  getWidth?(): number;
 }
 
 export interface PredictionLine {
@@ -25,13 +29,42 @@ export interface PredictionTerminal {
   };
 }
 
+/**
+ * The stretch of one row that typed characters land in, as found by the
+ * input-field detector. Confidence is earned per field: an echo confirmed in
+ * Claude's input box says nothing about the menu that opens next to it.
+ */
+export interface PredictionField {
+  key: string;
+  /** Absolute row and column of the caret. */
+  row: number;
+  caretCol: number;
+  /** First editable column on the caret row. */
+  startCol: number;
+  /** One past the last column text can occupy. */
+  endCol: number;
+  empty: boolean;
+  agentLike: boolean;
+  /** Changes when the field's rows shift, e.g. a box growing upwards as its text wraps. */
+  layout?: string;
+}
+
 export interface PredictiveEchoOptions {
   getTerminal: () => PredictionTerminal | null;
+  /**
+   * The input field under the caret, or null when the caret is not in one —
+   * in which case nothing is predicted. Without this option every row counts
+   * as a field that starts at the caret.
+   */
+  getField?: () => PredictionField | null;
   now?: () => number;
 }
 
 export interface ResetOptions {
+  /** Hold new predictions until the caret moves (default true). */
   suppress?: boolean;
+  /** Drop the field's confidence, so it must see a fresh echo before predictions show again. */
+  demote?: boolean;
 }
 
 export type PredictiveEchoState = "tentative" | "confident";
@@ -42,12 +75,59 @@ export interface VisiblePrediction {
   char: string;
 }
 
+/**
+ * What the overlay draws: typed characters, cells a backspace is about to
+ * clear, and where the caret will be once the echo arrives.
+ */
+export interface OverlayItem {
+  row: number;
+  col: number;
+  char: string;
+  width: 1 | 2;
+  kind: "char" | "erase" | "caret";
+}
+
 interface PendingPrediction {
   row: number;
   col: number;
   char: string;
-  charBefore: string;
+  width: 1 | 2;
+  kind: "char" | "erase";
+  /** What the cell may still show while the echo is in flight. */
+  before: string[];
   sentAt: number;
+  /** A pending erase of the same cell that this character was typed over. */
+  replaces?: PendingPrediction;
+}
+
+/** Herdr's prefix key: whatever follows goes to Herdr, not to the pane. */
+const HERDR_PREFIX = 0x02;
+/**
+ * Keys an agent reads as a mode switch when they are the first thing typed
+ * into an empty box: Claude opens help on `?` and enters shell mode on `!`,
+ * turning the prompt glyph into `!` instead of inserting it.
+ */
+const MODE_SWITCH_FIRST_KEYS = "?!#";
+/** Fields whose confidence is remembered, so hopping between two panes does not re-learn each time. */
+const MAX_CONFIDENT_FIELDS = 8;
+const PREDICTION_TIMEOUT_MS = 1500;
+
+function normalizeBlank(chars: string): string {
+  return chars === "" || chars === " " ? " " : chars;
+}
+
+function legacyField(terminal: PredictionTerminal): PredictionField {
+  const active = terminal.buffer.active;
+  return {
+    key: "legacy",
+    row: active.baseY + active.cursorY,
+    caretCol: active.cursorX,
+    // Where the input starts is unknown, so text the server drew is never erased.
+    startCol: active.cursorX,
+    endCol: terminal.cols,
+    empty: false,
+    agentLike: false,
+  };
 }
 
 /**
@@ -58,28 +138,33 @@ interface PendingPrediction {
  * before the round trip completes.
  *
  * To guarantee that the user never sees phantom characters or corrupted screens:
- * 1. Predictions start in the 'tentative' state, where predictive calculations happen
- *    internally but remain completely invisible to the renderer.
- * 2. Only after at least one prediction is confirmed by authentic server output does the
- *    state machine transition to 'confident', allowing predictions to be displayed.
- * 3. Any single prediction mismatch immediately wipes all pending predictions and drops
- *    back to 'tentative'.
+ * 1. Nothing is predicted unless the caret sits in an input field.
+ * 2. Predictions in a field stay invisible until one of them has been confirmed by
+ *    authentic server output in that same field.
+ * 3. A prediction is settled once the server's caret has moved past it: the cell
+ *    then either shows the predicted character, or the prediction was wrong. Any
+ *    wrong prediction wipes all pending ones and demotes the field again.
  */
 export class PredictiveEcho {
   private readonly getTerminal: () => PredictionTerminal | null;
+  private readonly getFieldOption: (() => PredictionField | null) | undefined;
   private readonly now: () => number;
   private readonly textDecoder = new TextDecoder("utf-8");
 
-  private state: PredictiveEchoState = "tentative";
+  private readonly confidentKeys = new Set<string>();
+  private field: PredictionField | null = null;
   private predictions: PendingPrediction[] = [];
   private predictedCursor: { row: number; col: number } | null = null;
   private srtt: number | null = null;
   private isSuppressed = false;
   private suppressCursor: { row: number; col: number } | null = null;
   private suppressSentAt = 0;
+  private awaitingPrefixCommand = false;
+  private mismatches = 0;
 
   constructor(options: PredictiveEchoOptions) {
     this.getTerminal = options.getTerminal;
+    this.getFieldOption = options.getField;
     this.now =
       options.now ??
       (typeof performance !== "undefined" && typeof performance.now === "function"
@@ -102,6 +187,30 @@ export class PredictiveEcho {
       return;
     }
 
+    // Hover and focus reports and terminal replies are not edits. Herdr asks
+    // for any-motion mouse reports, so these arrive whenever the pointer moves.
+    const inputClass = classifyInput(text);
+    if (inputClass === "passive") {
+      return;
+    }
+    if (inputClass === "pointer") {
+      this.reset("pointer", { suppress: true });
+      return;
+    }
+
+    if (this.awaitingPrefixCommand) {
+      this.awaitingPrefixCommand = false;
+      this.reset("Herdr prefix command", { suppress: true, demote: true });
+      return;
+    }
+
+    // A bare Escape is how vim-style editors, Claude Code's included, leave
+    // insert mode; the keys that follow are commands until an echo says otherwise.
+    if (isLoneEscape(text)) {
+      this.reset("escape", { suppress: true, demote: true });
+      return;
+    }
+
     const terminal = this.getTerminal();
     if (!terminal) {
       this.reset("terminal unavailable", true);
@@ -112,6 +221,12 @@ export class PredictiveEcho {
       const codePoint = char.codePointAt(0);
       if (codePoint === undefined) {
         continue;
+      }
+
+      if (codePoint === HERDR_PREFIX) {
+        this.awaitingPrefixCommand = true;
+        this.reset("Herdr prefix", { suppress: true, demote: true });
+        return;
       }
 
       // Fast-reject any ESC sequence, CSI control sequence, enter, tab, or control key.
@@ -131,22 +246,23 @@ export class PredictiveEcho {
 
       // Backspace: 0x08 (BS) or 0x7f (DEL)
       if (codePoint === 0x08 || codePoint === 0x7f) {
-        this.handleBackspace();
+        if (!this.handleBackspace(terminal)) {
+          return;
+        }
         continue;
       }
 
-      // Only predict ASCII printable characters (0x20 through 0x7e).
-      // Multi-byte Unicode or wide characters (e.g. CJK ideographs) span multiple terminal
-      // cells, where trailing cells return empty getChars(). Attempting naive single-column
-      // increments across wide characters causes severe cursor misalignments.
-      if (codePoint >= 0x20 && codePoint <= 0x7e) {
-        this.handlePrintable(char, terminal);
-        continue;
+      // Only characters whose cell width every layer agrees on are drawn;
+      // see wideChars.ts. Anything else aborts speculation.
+      const width = predictableWidth(codePoint);
+      if (width === 0) {
+        this.reset("unpredictable character", true);
+        return;
       }
 
-      // Characters outside ASCII printable range (> 0x7e) abort speculation safely.
-      this.reset("non-ASCII character", true);
-      return;
+      if (!this.handlePrintable(char, width, terminal)) {
+        return;
+      }
     }
   }
 
@@ -155,19 +271,20 @@ export class PredictiveEcho {
    * Compares the actual buffer cells against pending predictions.
    */
   onServerOutput(): void {
-    if (this.isSuppressed) {
-      const terminal = this.getTerminal();
-      const timeoutThreshold = Math.max(300, (this.srtt ?? 300) * 1.5);
-      const isTimedOut = this.now() - this.suppressSentAt >= timeoutThreshold;
+    const terminal = this.getTerminal();
+    const caret = terminal
+      ? {
+          row: terminal.buffer.active.baseY + terminal.buffer.active.cursorY,
+          col: terminal.buffer.active.cursorX,
+        }
+      : null;
 
-      let cursorMoved = false;
-      if (terminal && this.suppressCursor) {
-        const currentRow = terminal.buffer.active.baseY + terminal.buffer.active.cursorY;
-        const currentCol = terminal.buffer.active.cursorX;
-        cursorMoved =
-          currentRow !== this.suppressCursor.row ||
-          currentCol !== this.suppressCursor.col;
-      }
+    if (this.isSuppressed) {
+      const isTimedOut = this.now() - this.suppressSentAt >= this.suppressTimeout();
+      const cursorMoved =
+        !!caret &&
+        !!this.suppressCursor &&
+        (caret.row !== this.suppressCursor.row || caret.col !== this.suppressCursor.col);
 
       // In full-screen TUIs like herdr, background output (status bar, clocks, spinners)
       // arrives constantly without meaning the remote shell has finished processing Enter
@@ -182,55 +299,77 @@ export class PredictiveEcho {
 
     this.pruneExpired();
 
-    if (this.predictions.length === 0) {
+    if (this.predictions.length === 0 || !terminal || !caret) {
       return;
     }
 
-    const terminal = this.getTerminal();
-    if (!terminal) {
-      return;
+    // The field the predictions were typed into must still be under the caret.
+    // If it closed or became something else, whatever the server drew there
+    // was not an echo.
+    const field = this.field;
+    if (this.getFieldOption) {
+      const current = this.getFieldOption();
+      if (!current || current.key !== field?.key) {
+        this.mismatch();
+        return;
+      }
+      if (current.layout !== field.layout) {
+        // The text reflowed (Claude's box grows upwards when a line wraps) and
+        // the server has already drawn it in its new place. The run ends;
+        // the field is as trustworthy as it was.
+        this.predictions = [];
+        this.predictedCursor = null;
+        this.field = current;
+        return;
+      }
     }
 
     const remaining: PendingPrediction[] = [];
 
-    for (let i = 0; i < this.predictions.length; i++) {
-      const p = this.predictions[i];
-      const line = terminal.buffer.active.getLine(p.row);
-      const cell = line ? line.getCell(p.col) : undefined;
-      const actual = cell ? cell.getChars() : "";
+    for (const p of this.predictions) {
+      const cell = terminal.buffer.active.getLine(p.row)?.getCell(p.col);
+      const actual = normalizeBlank(cell ? cell.getChars() : "");
+      const matches =
+        p.kind === "char"
+          ? actual === p.char && (p.width === 1 || (cell?.getWidth?.() ?? 2) === 2)
+          : actual === " ";
+      // The server has processed a keystroke once its caret has moved past
+      // the cell that keystroke affects.
+      const settled =
+        p.kind === "char"
+          ? caret.row > p.row || (caret.row === p.row && caret.col >= p.col + p.width)
+          : caret.row < p.row || (caret.row === p.row && caret.col <= p.col);
+      const unchanged = p.before.includes(actual);
 
-      if (actual === p.charBefore) {
-        // The server has not yet repainted this cell with the new keystroke.
-        // In full-screen TUI apps like herdr, input cells already contain spaces (" ").
-        // Matching charBefore proves the cell has not yet received remote echo.
-        // Edge case: if the user typed the exact character already in the cell (p.char === p.charBefore),
-        // we cannot disambiguate remote repaint vs unpainted stale content. Retain pending until 1500ms
-        // timeout drops it safely without misidentifying it as an error.
+      if (matches && (settled || !unchanged)) {
+        // Confirmation success! Server proved the remote program is echoing faithfully.
+        this.updateSrtt(Math.max(0, this.now() - p.sentAt));
+        if (field) {
+          this.markConfident(field.key);
+        }
+      } else if (!settled && unchanged) {
+        // Not echoed yet. When the typed character equals what the cell already
+        // held, only the caret moving past it can tell the two apart.
         remaining.push(p);
-      } else if (actual === p.char) {
-        // Confirmation success! Server proved the remote shell is echoing faithfully.
-        const sample = Math.max(0, this.now() - p.sentAt);
-        this.updateSrtt(sample);
-        this.state = "confident";
       } else {
         // Prediction error: remote host displayed something different (e.g. password masking,
-        // modal vim mode, or auto-completion). Immediate rollback to tentative to prevent artifacts.
-        this.predictions = [];
-        this.predictedCursor = null;
-        this.state = "tentative";
-        this.isSuppressed = false;
-        this.suppressCursor = null;
+        // modal vim mode, auto-completion, or a word wrapped onto the next row).
+        this.mismatch();
         return;
       }
     }
 
     this.predictions = remaining;
+    if (remaining.length === 0) {
+      this.predictedCursor = null;
+    }
   }
 
   /**
-   * Resets internal pending predictions and cursor without demoting confident state.
+   * Resets internal pending predictions and cursor.
    * Called on control keys, resizes, screen switches, reconnects, pastes, and scrolls.
-   * Defaults to suppressing new predictions until next onServerOutput() arrives.
+   * Defaults to suppressing new predictions until the caret moves; `demote`
+   * also withdraws the current field's confidence.
    */
   reset(_reason?: string, options?: ResetOptions | boolean): void {
     this.predictions = [];
@@ -240,6 +379,14 @@ export class PredictiveEcho {
       typeof options === "boolean"
         ? options
         : (options?.suppress ?? true);
+    const shouldDemote = typeof options === "object" && options?.demote === true;
+
+    if (shouldDemote) {
+      const field = this.field ?? this.getFieldOption?.() ?? null;
+      if (field) {
+        this.confidentKeys.delete(field.key);
+      }
+    }
 
     if (shouldSuppress) {
       this.isSuppressed = true;
@@ -259,6 +406,12 @@ export class PredictiveEcho {
     }
   }
 
+  /** Forgets every field's confidence, for when the screen is replaced wholesale. */
+  forgetConfidence(): void {
+    this.confidentKeys.clear();
+    this.field = null;
+  }
+
   /**
    * Returns predictions currently eligible for rendering.
    * Returns empty array when in tentative state to guarantee zero false visual echoes.
@@ -266,7 +419,7 @@ export class PredictiveEcho {
   getVisiblePredictions(): ReadonlyArray<VisiblePrediction> {
     this.pruneExpired();
 
-    if (this.state !== "confident") {
+    if (this.getState() !== "confident") {
       return [];
     }
 
@@ -277,68 +430,188 @@ export class PredictiveEcho {
     }));
   }
 
+  /**
+   * Everything the overlay should draw: the pending predictions plus a caret
+   * where the next character will land, so typing does not appear to happen
+   * behind the old caret.
+   */
+  getOverlayItems(): ReadonlyArray<OverlayItem> {
+    this.pruneExpired();
+
+    if (this.getState() !== "confident" || this.predictions.length === 0 || !this.predictedCursor) {
+      return [];
+    }
+
+    const items: OverlayItem[] = this.predictions.map((p) => ({
+      row: p.row,
+      col: p.col,
+      char: p.char,
+      width: p.width,
+      kind: p.kind,
+    }));
+
+    // A backspace leaves the old caret to the right of every prediction; cover it.
+    const field = this.field;
+    if (field) {
+      const covered = this.predictions.some(
+        (p) => p.row === field.row && p.col <= field.caretCol && field.caretCol < p.col + p.width,
+      );
+      if (!covered) {
+        items.push({ row: field.row, col: field.caretCol, char: " ", width: 1, kind: "erase" });
+      }
+    }
+
+    // A block caret is drawn over the character under it, so carry that
+    // along: what a pending prediction puts there, else what the server drew.
+    const { row, col } = this.predictedCursor;
+    const pending = this.predictions.find((p) => p.row === row && p.col === col);
+    const under = pending
+      ? pending.char
+      : normalizeBlank(this.getTerminal()?.buffer.active.getLine(row)?.getCell(col)?.getChars() ?? "");
+    items.push({ row, col, char: under, width: 1, kind: "caret" });
+    return items;
+  }
+
   getState(): PredictiveEchoState {
-    return this.state;
+    return this.field && this.confidentKeys.has(this.field.key) ? "confident" : "tentative";
+  }
+
+  getField(): PredictionField | null {
+    return this.field;
+  }
+
+  getMismatchCount(): number {
+    return this.mismatches;
   }
 
   getEchoSrttMs(): number | null {
     return this.srtt;
   }
 
-  private handlePrintable(char: string, terminal: PredictionTerminal): void {
-    // If a control key (Enter, arrows, etc.) or external event recently reset the cursor,
-    // the true terminal cursor has not yet caught up to remote host coordinates.
-    // Suppress predictions until onServerOutput() confirms the new screen state.
-    if (this.isSuppressed) {
-      const timeoutThreshold = Math.max(300, (this.srtt ?? 300) * 1.5);
-      if (this.now() - this.suppressSentAt >= timeoutThreshold) {
-        this.isSuppressed = false;
-        this.suppressCursor = null;
-      } else {
-        return;
-      }
-    }
-
-    // Lazy-initialize predicted cursor from true terminal cursor on first prediction.
-    if (!this.predictedCursor) {
-      this.predictedCursor = {
-        row: terminal.buffer.active.baseY + terminal.buffer.active.cursorY,
-        col: terminal.buffer.active.cursorX,
-      };
-    }
-
-    // When the cursor is at `cols - 1`, writing a character causes the cursor to reach `cols`,
-    // triggering line wrapping (autowrap delay or immediate line feed depending on the TUI application).
-    // Because wrap behavior and cursor positioning across margins cannot be inferred reliably,
-    // we refuse to predict at the right boundary and wipe existing predictions for safety.
-    if (this.predictedCursor.col + 1 >= terminal.cols) {
-      this.reset("cursor would reach or exceed column boundary", true);
-      return;
-    }
-
-    const line = terminal.buffer.active.getLine(this.predictedCursor.row);
-    const cell = line ? line.getCell(this.predictedCursor.col) : undefined;
-    const charBefore = cell ? cell.getChars() : "";
-
-    this.predictions.push({
-      row: this.predictedCursor.row,
-      col: this.predictedCursor.col,
-      char,
-      charBefore,
-      sentAt: this.now(),
-    });
-
-    this.predictedCursor.col++;
+  private suppressTimeout(): number {
+    return Math.max(300, (this.srtt ?? 300) * 1.5);
   }
 
-  private handleBackspace(): void {
+  /**
+   * If a control key (Enter, arrows, etc.) or external event recently reset the cursor,
+   * the true terminal cursor has not yet caught up to remote host coordinates.
+   * Predictions wait until onServerOutput() sees it move, or a timeout passes.
+   */
+  private stillSuppressed(): boolean {
+    if (!this.isSuppressed) {
+      return false;
+    }
+    if (this.now() - this.suppressSentAt >= this.suppressTimeout()) {
+      this.isSuppressed = false;
+      this.suppressCursor = null;
+      return false;
+    }
+    return true;
+  }
+
+  /** Returns false when the character was refused and the rest of the input should be too. */
+  private handlePrintable(char: string, width: 1 | 2, terminal: PredictionTerminal): boolean {
+    if (this.stillSuppressed()) {
+      return false;
+    }
+
+    const field = this.ensureField(terminal);
+    if (!field || !this.predictedCursor) {
+      // Not an input field: the key goes to the server untouched.
+      return false;
+    }
+
+    const cursor = this.predictedCursor;
+    const atFieldStart = this.predictions.length === 0 && cursor.col === field.caretCol;
+    if (field.agentLike && field.empty && atFieldStart && MODE_SWITCH_FIRST_KEYS.includes(char)) {
+      this.reset("agent mode switch", { suppress: true });
+      return false;
+    }
+
+    // When a cell is refused, the key still goes to the server, so the
+    // modelled caret would drift from the real one: end the whole run instead.
+    // Never predict into the last cell, where wrap behaviour is unknowable.
+    if (cursor.col + width > field.endCol - 1) {
+      this.reset("cursor would reach the edge of the field", true);
+      return false;
+    }
+
+    const cell = terminal.buffer.active.getLine(cursor.row)?.getCell(cursor.col);
+    const before = [normalizeBlank(cell ? cell.getChars() : "")];
+
+    // Retyping a cell that a pending backspace is clearing: the server may
+    // still show the old character, the cleared cell, or the new one.
+    const last = this.predictions[this.predictions.length - 1];
+    let replaces: PendingPrediction | undefined;
+    if (last && last.kind === "erase" && last.row === cursor.row && last.col === cursor.col) {
+      replaces = this.predictions.pop();
+      before.push(...last.before, " ");
+    }
+
+    this.predictions.push({
+      row: cursor.row,
+      col: cursor.col,
+      char,
+      width,
+      kind: "char",
+      before,
+      sentAt: this.now(),
+      replaces,
+    });
+
+    cursor.col += width;
+    return true;
+  }
+
+  /** Returns false when the backspace could not be predicted. */
+  private handleBackspace(terminal: PredictionTerminal): boolean {
     // If we have unconfirmed predictions on this line, we know what was typed and can safely undo it.
-    if (this.predictedCursor && this.predictions.length > 0) {
-      const last = this.predictions[this.predictions.length - 1];
-      if (last.row === this.predictedCursor.row && last.col === this.predictedCursor.col - 1) {
-        this.predictions.pop();
-        this.predictedCursor.col--;
-        return;
+    const last = this.predictions[this.predictions.length - 1];
+    if (
+      this.predictedCursor &&
+      last &&
+      last.kind === "char" &&
+      last.row === this.predictedCursor.row &&
+      last.col + last.width === this.predictedCursor.col
+    ) {
+      this.predictions.pop();
+      this.predictedCursor.col = last.col;
+      if (last.replaces) {
+        // The erase it was typed over still stands.
+        this.predictions.push(last.replaces);
+      }
+      return true;
+    }
+
+    if (!this.stillSuppressed()) {
+      const field = this.ensureField(terminal);
+      const cursor = this.predictedCursor;
+      if (field && cursor) {
+        const line = terminal.buffer.active.getLine(cursor.row);
+        const trailing = line?.getCell(cursor.col - 1);
+        const width: 1 | 2 = trailing && trailing.getWidth?.() === 0 ? 2 : 1;
+        const col = cursor.col - width;
+        // Erasing text the server drew is only predicted inside the field, never
+        // its first character (a placeholder or suggestion may reappear there),
+        // and only at the end of the text, where nothing shifts left to fill the gap.
+        let restIsBlank = true;
+        for (let x = cursor.col; x < field.endCol && restIsBlank; x++) {
+          restIsBlank = normalizeBlank(line?.getCell(x)?.getChars() ?? "") === " ";
+        }
+        const erased = normalizeBlank(line?.getCell(col)?.getChars() ?? "");
+        if (col > field.startCol && restIsBlank && erased !== " ") {
+          this.predictions.push({
+            row: cursor.row,
+            col,
+            char: " ",
+            width,
+            kind: "erase",
+            before: [erased],
+            sentAt: this.now(),
+          });
+          cursor.col = col;
+          return true;
+        }
       }
     }
 
@@ -346,6 +619,46 @@ export class PredictiveEcho {
     // because we do not know whether the remote program handles wide characters, tabs,
     // or protected shell prompt boundaries. Wipe all speculation and suppress until server responds.
     this.reset("backspace into server content", true);
+    return false;
+  }
+
+  /**
+   * Starts a run of predictions at the field's caret. A run always begins
+   * from a fresh reading of the field; later keys extend it.
+   */
+  private ensureField(terminal: PredictionTerminal): PredictionField | null {
+    if (this.predictedCursor && this.field) {
+      return this.field;
+    }
+    const field = this.getFieldOption ? this.getFieldOption() : legacyField(terminal);
+    if (!field) {
+      return null;
+    }
+    this.field = field;
+    this.predictions = [];
+    this.predictedCursor = { row: field.row, col: field.caretCol };
+    return field;
+  }
+
+  private markConfident(key: string): void {
+    this.confidentKeys.delete(key);
+    this.confidentKeys.add(key);
+    while (this.confidentKeys.size > MAX_CONFIDENT_FIELDS) {
+      const oldest = this.confidentKeys.values().next().value;
+      if (oldest === undefined) break;
+      this.confidentKeys.delete(oldest);
+    }
+  }
+
+  private mismatch(): void {
+    this.mismatches++;
+    this.predictions = [];
+    this.predictedCursor = null;
+    if (this.field) {
+      this.confidentKeys.delete(this.field.key);
+    }
+    this.isSuppressed = false;
+    this.suppressCursor = null;
   }
 
   /**
@@ -359,13 +672,7 @@ export class PredictiveEcho {
     }
 
     const currentTime = this.now();
-    const fresh: PendingPrediction[] = [];
-
-    for (const p of this.predictions) {
-      if (currentTime - p.sentAt <= 1500) {
-        fresh.push(p);
-      }
-    }
+    const fresh = this.predictions.filter((p) => currentTime - p.sentAt <= PREDICTION_TIMEOUT_MS);
 
     if (fresh.length !== this.predictions.length) {
       this.predictions = fresh;

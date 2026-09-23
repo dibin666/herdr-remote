@@ -156,6 +156,34 @@ describe('detectInputField edge cases', () => {
     expect(detectInputField(screen, { row: 2, col: 2, hidden: true })).toBeNull();
   });
 
+  it("finds -- INSERT -- under the taller status area Claude shows while it works", () => {
+    const screen = createTestScreen(60, 20);
+    screen.write(4, 0, '─'.repeat(60));
+    screen.write(5, 0, '❯ typing ahead');
+    screen.write(6, 0, '─'.repeat(60));
+    ['[Opus]', '✓ Bash ×20', 'Context 42%', '1 CLAUDE.md', '✓ agent: done', '~file.ts(+1)'].forEach((text, i) =>
+      screen.write(7 + i, 2, text)
+    );
+    screen.write(13, 2, '-- INSERT -- ⏵⏵ bypass permissions on');
+    expect(detectInputField(screen, { row: 5, col: 14, hidden: true })).toMatchObject({ kind: 'rule', vimInsert: true });
+  });
+
+  it('stops reading status rows at the bottom border of its pane', () => {
+    // Two panes stacked; the lower one shows a menu hint that is not ours.
+    const screen = createTestScreen(30, 18);
+    screen.write(0, 0, `┌${'─'.repeat(28)}┐`);
+    for (let row = 1; row < 12; row++) screen.write(row, 0, `│${' '.repeat(28)}│`);
+    screen.write(9, 1, '─'.repeat(28));
+    screen.write(10, 1, '❯ hi');
+    screen.write(11, 1, '─'.repeat(28));
+    screen.write(12, 0, `└${'─'.repeat(28)}┘`);
+    screen.write(13, 0, `┌${'─'.repeat(28)}┐`);
+    for (let row = 14; row < 17; row++) screen.write(row, 0, `│${' '.repeat(28)}│`);
+    screen.write(14, 1, '  Esc to cancel');
+    screen.write(17, 0, `└${'─'.repeat(28)}┘`);
+    expect(detectInputField(screen, { row: 10, col: 5, hidden: true })).toMatchObject({ kind: 'rule' });
+  });
+
   it('refuses a box whose hint line says it is a menu', () => {
     const screen = createTestScreen(40, 6);
     screen.write(1, 0, '─'.repeat(40));

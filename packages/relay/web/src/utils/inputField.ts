@@ -33,8 +33,7 @@
 
 export interface FieldCell {
   getChars(): string;
-  getWidth(): number;
-  isDim(): number;
+  isDim?(): number;
 }
 
 export interface FieldLine {
@@ -66,6 +65,11 @@ export interface InputField {
   key: string;
   /** Identity of the pane-sized region the field lives in. */
   region: string;
+  /**
+   * Where the field's first row is. It changes when a box grows as its
+   * text wraps, which shifts every row of text already typed.
+   */
+  layout: string;
   /** Absolute row and column of the caret. */
   row: number;
   caretCol: number;
@@ -101,8 +105,12 @@ const PROMPT_TERMINATORS = new Set(['$', '#', '%', '>', '❯', '›', '➜', 'λ
 
 /** Taller than this, a frame is a pane border rather than an input box. */
 const MAX_INPUT_ROWS = 8;
-/** How far below an agent box its mode and hint lines sit. */
-const STATUS_ROWS = 5;
+/**
+ * How far below an agent box its mode and hint lines may reach. Claude's
+ * status area grows while it works (tool counts, subagents, changed files):
+ * seven rows were seen with `-- INSERT --` on the last.
+ */
+const STATUS_ROWS = 12;
 /** Claude indents continuation rows under the prompt glyph and its space. */
 const CONTINUATION_INDENT = 2;
 /** pi pads its frame with one blank cell on each side. */
@@ -146,7 +154,7 @@ class ScreenReader {
   }
 
   dim(row: number, col: number): boolean {
-    return Boolean(this.at(row, col)?.isDim());
+    return Boolean(this.at(row, col)?.isDim?.());
   }
 
   text(row: number, start: number, end: number): string {
@@ -169,7 +177,7 @@ class ScreenReader {
   blankOrDim(row: number, start: number, end: number): boolean {
     for (let col = start; col < end; col++) {
       const cell = this.at(row, col);
-      if (cell && !isBlank(cell.getChars()) && !cell.isDim()) return false;
+      if (cell && !isBlank(cell.getChars()) && !cell.isDim?.()) return false;
     }
     return true;
   }
@@ -245,6 +253,7 @@ function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): I
     kind: 'frame',
     key: `frame:${regionKey(seg)}:${bottom}`,
     region: regionKey(seg),
+    layout: `${top}`,
     row,
     caretCol: cursor.col,
     startCol,
@@ -294,6 +303,8 @@ function detectRuleBox(screen: ScreenReader, cursor: FieldCursor, seg: Segment):
 
   let status = '';
   for (let y = bottomRule + 1; y <= Math.min(screen.bottom, bottomRule + STATUS_ROWS); y++) {
+    // A pane's bottom border ends this pane; what is below belongs to another.
+    if (CORNER_OR_JUNCTION_CHARS.has(screen.char(y, seg.start - 1))) break;
     status += `${screen.text(y, seg.start, seg.end)}\n`;
   }
   if (MENU_HINT.test(status) || VIM_OTHER_MODE.test(status)) return null;
@@ -304,6 +315,7 @@ function detectRuleBox(screen: ScreenReader, cursor: FieldCursor, seg: Segment):
     kind: 'rule',
     key: `rule:${regionKey(seg)}:${bottomRule}`,
     region: regionKey(seg),
+    layout: `${topRule}`,
     row,
     caretCol: cursor.col,
     startCol,
@@ -356,6 +368,7 @@ function promptField(
     kind: 'prompt',
     key: `prompt:${regionKey(seg)}:${promptRow}`,
     region: regionKey(seg),
+    layout: `${promptRow}`,
     row: cursor.row,
     caretCol: cursor.col,
     startCol,
@@ -403,5 +416,46 @@ export class InputFieldTracker {
 
   reset(): void {
     this.insertSeen.clear();
+  }
+}
+
+export interface FieldProbeOptions {
+  getScreen: () => FieldScreen | null;
+  getCursor: () => FieldCursor | null;
+  /** True while a frame is half drawn; the last complete frame is used instead. */
+  isSynchronizing?: () => boolean;
+}
+
+/**
+ * The detector as the predictor uses it: at most one scan per parsed write,
+ * and never a scan of a frame Herdr has only half drawn.
+ */
+export class FieldProbe {
+  private readonly tracker = new InputFieldTracker();
+  private cached: InputField | null | undefined;
+  private lastComplete: InputField | null = null;
+
+  constructor(private readonly options: FieldProbeOptions) {}
+
+  readonly detect = (): InputField | null => {
+    if (this.options.isSynchronizing?.()) return this.lastComplete;
+    if (this.cached === undefined) {
+      const screen = this.options.getScreen();
+      const cursor = this.options.getCursor();
+      this.cached = screen && cursor ? this.tracker.detect(screen, cursor) : null;
+      this.lastComplete = this.cached;
+    }
+    return this.cached;
+  };
+
+  /** The screen changed; the next `detect` scans again. */
+  invalidate(): void {
+    this.cached = undefined;
+  }
+
+  reset(): void {
+    this.tracker.reset();
+    this.cached = undefined;
+    this.lastComplete = null;
   }
 }

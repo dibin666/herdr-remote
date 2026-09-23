@@ -372,4 +372,61 @@ describe('PredictionOverlay', () => {
     expect(createdDecorations[0].disposeMock).toHaveBeenCalledTimes(1);
     expect(createdMarkers[0].disposeMock).toHaveBeenCalledTimes(1);
   });
+
+  it('covers two cells for a wide character', () => {
+    const overlay = createOverlay({ background: '#101010' });
+    overlay.sync([{ row: 12, col: 5, char: '你', width: 2 }]);
+    expect(registerDecorationMock).toHaveBeenCalledWith(expect.objectContaining({ x: 5, width: 2 }));
+    const element = document.createElement('div');
+    createdDecorations[0].triggerRender(element);
+    expect(element.textContent).toBe('你');
+  });
+
+  it('keys decorations by kind, so an erase and a caret can share a cell', () => {
+    const overlay = createOverlay({ background: '#101010' });
+    overlay.sync([
+      { row: 12, col: 5, char: ' ', kind: 'erase' },
+      { row: 12, col: 5, char: ' ', kind: 'caret' },
+    ]);
+    expect(createdDecorations).toHaveLength(2);
+    overlay.sync([{ row: 12, col: 5, char: ' ', kind: 'caret' }]);
+    expect(createdDecorations[0].dispose).toHaveBeenCalled();
+    expect(createdDecorations[1].dispose).not.toHaveBeenCalled();
+  });
+
+  it('never underlines an erased cell, even while predictions are underlined', () => {
+    const overlay = createOverlay({ background: '#101010', underline: true });
+    overlay.sync([
+      { row: 12, col: 5, char: 'a' },
+      { row: 12, col: 6, char: ' ', kind: 'erase' },
+    ]);
+    const [typed, erased] = [document.createElement('div'), document.createElement('div')];
+    createdDecorations[0].triggerRender(typed);
+    createdDecorations[1].triggerRender(erased);
+    expect(typed.style.textDecoration).toBe('underline');
+    expect(erased.style.textDecoration).toBe('none');
+    expect(erased.style.backgroundColor).toBe('rgb(16, 16, 16)');
+  });
+
+  it('draws the caret in the cursor colour and shape, without painting the cell', () => {
+    let shape: 'block' | 'bar' | 'underline' = 'block';
+    const overlay = new PredictionOverlay({
+      getTerminal: () => mockTerminal as unknown as Terminal,
+      getStyle: () => ({ color: '#eeeeee', background: '#101010', underline: false, cursor: '#ff0000', cursorShape: shape }),
+    });
+    overlay.sync([{ row: 12, col: 7, char: 'x', kind: 'caret' }]);
+    const options = registerDecorationMock.mock.calls[0][0] as { backgroundColor?: string; foregroundColor?: string };
+    expect(options.backgroundColor).toBeUndefined();
+    expect(options.foregroundColor).toBeUndefined();
+    const element = document.createElement('div');
+    createdDecorations[0].triggerRender(element);
+    expect(element.style.backgroundColor).toBe('rgb(255, 0, 0)');
+    expect(element.style.color).toBe('rgb(16, 16, 16)');
+    expect(element.textContent).toBe('x');
+
+    shape = 'bar';
+    overlay.sync([{ row: 12, col: 7, char: 'x', kind: 'caret' }]);
+    expect(element.style.backgroundColor).toBe('transparent');
+    expect(element.style.boxShadow).toContain('inset 2px 0 0');
+  });
 });
