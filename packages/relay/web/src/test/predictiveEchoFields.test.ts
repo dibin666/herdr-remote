@@ -132,7 +132,9 @@ describe("PredictiveEcho in Claude Code's input box", () => {
     type(t.echo, "\x7f");
     const items = t.echo.getOverlayItems();
     expect(items).toContainEqual({ row: 34, col: 37, char: " ", width: 1, kind: "erase" });
-    expect(items).toContainEqual({ row: 34, col: 38, char: " ", width: 1, kind: "erase" });
+    // The server's caret, still at 38 until the echo, is redrawn plainly so
+    // Claude's own painted caret does not trail behind.
+    expect(items).toContainEqual({ row: 34, col: 38, char: " ", width: 1, kind: "mask" });
     expect(items).toContainEqual({ row: 34, col: 37, char: " ", width: 1, kind: "caret" });
 
     // Claude clears the cell and steps the caret back.
@@ -219,7 +221,7 @@ describe("PredictiveEcho outside input fields", () => {
 });
 
 describe("PredictiveEcho and pointer traffic", () => {
-  it("keeps predictions through hover and focus reports, and drops them on a click", () => {
+  it("keeps predictions through hover and focus reports, and stops extending them on a click", () => {
     const t = setup("desktop-fish-empty");
     type(t.echo, "e");
     t.remoteEcho("e");
@@ -231,7 +233,8 @@ describe("PredictiveEcho and pointer traffic", () => {
     expect(t.echo.getVisiblePredictions()).toHaveLength(1);
 
     type(t.echo, "\x1b[<0;40;10M");
-    expect(t.echo.getVisiblePredictions()).toEqual([]);
+    type(t.echo, "h");
+    expect(t.echo.getVisiblePredictions().map((p) => p.char)).toEqual(["c"]);
   });
 
   it("predicts right up to the last cell of the field, never into it", () => {
@@ -242,6 +245,7 @@ describe("PredictiveEcho and pointer traffic", () => {
     expect(t.echo.getVisiblePredictions()).toHaveLength(44);
     expect(t.echo.getVisiblePredictions().at(-1)?.col).toBe(46);
     type(t.echo, "c");
-    expect(t.echo.getVisiblePredictions()).toEqual([]);
+    expect(t.echo.getVisiblePredictions()).toHaveLength(44);
+    expect(t.echo.getVisiblePredictions().map((p) => p.char)).not.toContain("c");
   });
 });

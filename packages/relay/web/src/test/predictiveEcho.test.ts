@@ -153,53 +153,55 @@ describe("PredictiveEcho State Machine & Verification", () => {
   });
 
   // Requirement 4
-  it("clears active predictions and does not predict on Enter, arrow keys, Ctrl-C, Tab, or CSI sequences", () => {
-    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
-    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+  it("keeps what is on screen but predicts nothing new after Enter, arrows, Ctrl-C, Tab or CSI", () => {
+    // Every key typed before the control key reaches the server first and is
+    // still echoed, so wiping those predictions only made the line blink.
+    for (const key of ["\r", "\n", "\t", "\x1b[A", "\x03", "\x1b[2J"]) {
+      const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 3, cursorY: 0 });
+      const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
 
-    // Reach confident state
-    echo.handleUserInput(encode("z"));
-    terminal.setCell(0, 0, "z");
-    echo.onServerOutput();
-    expect(echo.getState()).toBe("confident");
-
-    // Helper to generate a visible prediction
-    const seedPrediction = () => {
-      currentTime += 301; // Advance past suppression threshold
+      echo.handleUserInput(encode("a"));
+      terminal.setCell(0, 3, "a");
+      terminal.setCursor(4, 0);
       echo.onServerOutput();
-      echo.handleUserInput(encode("k"));
-      expect(echo.getVisiblePredictions().length).toBeGreaterThan(0);
-    };
+      expect(echo.getState()).toBe("confident");
 
-    // 1. Carriage return / Enter (\r)
-    seedPrediction();
-    echo.handleUserInput(encode("\r"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+      echo.handleUserInput(encode("b"));
+      echo.handleUserInput(encode(key));
+      expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 4, char: "b" }]);
 
-    // 2. Line feed (\n)
-    seedPrediction();
-    echo.handleUserInput(encode("\n"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+      // The run is over: nothing typed after the control key is predicted.
+      echo.handleUserInput(encode("c"));
+      expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 4, char: "b" }]);
 
-    // 3. Tab (\t)
-    seedPrediction();
-    echo.handleUserInput(encode("\t"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+      // The server echoes "b", then acts on the key and takes its caret away.
+      terminal.setCell(0, 4, "b");
+      terminal.setCursor(0, 1);
+      echo.onServerOutput();
+      expect(echo.getVisiblePredictions()).toEqual([]);
+      expect(echo.getMismatchCount()).toBe(0);
+    }
+  });
 
-    // 4. Arrow keys (Up: \x1b[A)
-    seedPrediction();
-    echo.handleUserInput(encode("\x1b[A"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+  it("lets a frozen prediction go quietly when the server moves back instead of echoing it", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 3, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 3, "a");
+    terminal.setCursor(4, 0);
+    echo.onServerOutput();
 
-    // 5. Ctrl-C (0x03)
-    seedPrediction();
-    echo.handleUserInput(new Uint8Array([0x03]));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+    echo.handleUserInput(encode("b"));
+    echo.handleUserInput(encode("\x15")); // Ctrl+U before the echo arrives
+    expect(echo.getVisiblePredictions()).toHaveLength(1);
 
-    // 6. Arbitrary CSI sequence (\x1b[2J)
-    seedPrediction();
-    echo.handleUserInput(encode("\x1b[2J"));
+    // The line is cleared: the cell stays blank and the caret goes back.
+    terminal.setCell(0, 3, "");
+    terminal.setCursor(0, 0);
+    echo.onServerOutput();
     expect(echo.getVisiblePredictions()).toEqual([]);
+    expect(echo.getMismatchCount()).toBe(0);
+    expect(echo.getState()).toBe("confident");
   });
 
   // Requirement 5
@@ -265,15 +267,19 @@ describe("PredictiveEcho State Machine & Verification", () => {
       { row: 0, col: 2, char: "c" },
     ]);
 
-    // Typing 'd' would advance cursor to col 4 (equals cols: 4)
-    // Margin wrapping behavior cannot be inferred reliably -> abort and wipe
+    // Typing 'd' would advance cursor to col 4 (equals cols: 4). Margin
+    // wrapping cannot be inferred, so 'd' is not predicted; what is already
+    // shown stays until its echo.
     echo.handleUserInput(encode("d"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+    expect(echo.getVisiblePredictions()).toEqual([
+      { row: 0, col: 1, char: "b" },
+      { row: 0, col: 2, char: "c" },
+    ]);
 
     // If terminal cursor is already at or beyond cols, any typing is refused
     terminal.setCursor(4, 0);
     echo.handleUserInput(encode("z"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+    expect(echo.getVisiblePredictions().map((p) => p.char)).not.toContain("z");
   });
 
   // Requirement 7
@@ -505,9 +511,11 @@ describe("PredictiveEcho State Machine & Verification", () => {
       { row: 0, col: 4, char: "文" },
     ]);
 
-    // Emoji width differs between terminals: wipe and stand down
+    // Emoji width differs between terminals: it is not drawn, and nothing
+    // after it is predicted until the server has caught up.
     echo.handleUserInput(encode("😀"));
-    expect(echo.getVisiblePredictions()).toEqual([]);
+    echo.handleUserInput(encode("z"));
+    expect(echo.getVisiblePredictions().map((p) => p.char)).toEqual(["y", "中", "文"]);
   });
 
   it("handles null terminal gracefully without throwing", () => {

@@ -1,4 +1,4 @@
-import type { Terminal, IMarker, IDecoration, IDecorationOptions } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 
 export interface PredictionOverlayStyle {
   color?: string;
@@ -8,7 +8,7 @@ export interface PredictionOverlayStyle {
   cursor?: string;
   cursorShape?: 'block' | 'bar' | 'underline';
   /**
-   * The terminal's own font. Decorations sit outside xterm's rows and would
+   * The terminal's own font. The overlay sits outside xterm's rows and would
    * otherwise inherit the page's font, which only happens to match for ASCII.
    */
   fontFamily?: string;
@@ -27,20 +27,46 @@ export interface PredictionItem {
   /** Cells the character covers; CJK takes two. */
   width?: 1 | 2;
   /**
-   * `char` is a typed character, `erase` a cell a backspace is clearing, and
-   * `caret` where the caret will be once the echo arrives.
+   * `char` is a typed character, `erase` a cell a backspace is clearing,
+   * `caret` where the caret will be once the echo arrives, and `mask` a cell
+   * redrawn plainly to hide a caret the remote program painted there itself.
    */
-  kind?: 'char' | 'erase' | 'caret';
+  kind?: 'char' | 'erase' | 'caret' | 'mask';
 }
 
 type ItemKind = NonNullable<PredictionItem['kind']>;
 
-interface DecorationEntry {
-  decoration: IDecoration;
-  marker: IMarker;
-  char: string;
-  width: 1 | 2;
-  kind: ItemKind;
+/** Set on the terminal element while anything is predicted; see index.css. */
+export const PREDICTING_CLASS = 'hr-predicting';
+
+/**
+ * Retired cells leave with xterm's next render. If none comes — nothing on
+ * screen changed — they leave with the next animation frame instead. xterm
+ * asks for its frame while parsing, before the overlay retires anything, so
+ * in a frame where both run xterm's render comes first. A fixed timeout is
+ * not used: when the page stalls, it fired before xterm had drawn the echo
+ * and blanked the cells for a frame.
+ */
+function nextFrame(callback: () => void): () => void {
+  if (typeof requestAnimationFrame === 'function') {
+    const id = requestAnimationFrame(callback);
+    return () => cancelAnimationFrame(id);
+  }
+  const id = setTimeout(callback, 16);
+  return () => clearTimeout(id);
+}
+
+interface CellMetrics {
+  width: number;
+  height: number;
+}
+
+function cellMetrics(terminal: Terminal): CellMetrics | null {
+  const cell = (terminal as unknown as {
+    _core?: { _renderService?: { dimensions?: { css?: { cell?: { width?: number; height?: number } } } } };
+  })._core?._renderService?.dimensions?.css?.cell;
+  if (!cell?.width || !cell?.height) return null;
+  return { width: cell.width, height: cell.height };
 }
 
 /**
@@ -56,159 +82,203 @@ function paintedColors(terminal: Terminal | null): { foreground?: string; backgr
 }
 
 /**
- * xterm IDecorationOptions backgroundColor and foregroundColor strictly accept #RRGGBB.
- * Other values (such as 'inherit', 'currentColor', or named colors) must not be passed to xterm.
+ * Draws predicted characters over the terminal until the real echo replaces
+ * them.
+ *
+ * This is its own layer rather than a set of xterm decorations, because every
+ * visible artefact came from not controlling when things are drawn:
+ *
+ * - xterm hides decoration elements on the alternate screen, which Herdr never
+ *   leaves, and creates new ones a frame late;
+ * - a confirmed prediction removed at once, while xterm repaints the echoed
+ *   cell on its next frame, left one frame showing the cell's old content —
+ *   a flash per keystroke, and the deleted character flashing back on
+ *   backspace;
+ * - a caret destroyed and recreated per keystroke blinked out for a frame;
+ * - xterm's own cursor, a round trip behind, chased the text along the line.
+ *
+ * So cells are added the moment a key is pressed; cells that go away are only
+ * retired, and leave once xterm has rendered the frame that replaces them
+ * (`afterRender`, called from xterm's onRender). The caret is one element that
+ * moves. And while anything is predicted, the terminal element carries
+ * PREDICTING_CLASS, under which xterm's own cursor is not drawn.
  */
-function isValidHexColor(color: string | undefined): boolean {
-  return typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color);
-}
-
 export class PredictionOverlay {
   private readonly options: PredictionOverlayOptions;
-  private readonly activeDecorations = new Map<string, DecorationEntry>();
+  private layer: HTMLDivElement | null = null;
+  private owner: HTMLElement | null = null;
+  private readonly cells = new Map<string, HTMLDivElement>();
+  private caret: HTMLDivElement | null = null;
+  private readonly retiring = new Set<HTMLElement>();
+  private cancelRetireFrame: (() => void) | null = null;
 
   constructor(options: PredictionOverlayOptions) {
     this.options = options;
   }
 
   /**
-   * Incrementally updates overlay decorations according to incoming visible predictions.
-   * Keeps matching cells untouched to avoid layout thrashing and flickering,
-   * while dynamically refreshing visual styles (color, background, underline).
+   * Shows exactly `predictions`. New and changed cells appear now; cells no
+   * longer listed are retired until xterm's next render.
    */
   sync(predictions: ReadonlyArray<PredictionItem>): void {
     const terminal = this.options.getTerminal();
-    if (!terminal) {
+    const layer = terminal ? this.ensureLayer(terminal) : null;
+    const metrics = terminal ? cellMetrics(terminal) : null;
+    if (!terminal || !layer || !metrics) {
       this.clear();
       return;
     }
 
-    if (predictions.length === 0) {
-      this.clear();
-      return;
-    }
+    const style = this.resolveStyle();
+    const viewportY = terminal.buffer?.active?.viewportY ?? 0;
+    const onScreen = (row: number) => row - viewportY >= 0 && row - viewportY < terminal.rows;
+    const next = new Set<string>();
+    let caretItem: PredictionItem | null = null;
 
-    // Safety fallback: if xterm proposed decoration APIs are not available, do not crash.
-    if (
-      typeof terminal.registerMarker !== 'function' ||
-      typeof terminal.registerDecoration !== 'function' ||
-      !terminal.buffer?.active
-    ) {
-      this.clear();
-      return;
-    }
-
-    const nextKeys = new Set<string>();
-
-    for (const pred of predictions) {
-      const kind: ItemKind = pred.kind ?? 'char';
-      const width = pred.width ?? 1;
-      const key = `${pred.row}:${pred.col}:${kind}`;
-      nextKeys.add(key);
-
-      const existing = this.activeDecorations.get(key);
-      if (existing) {
-        if (existing.char === pred.char && existing.width === width) {
-          // Character is unchanged; refresh element styles if already mounted to track live theme/srtt changes.
-          if (existing.decoration.element) {
-            this.applyStyleToElement(existing.decoration.element, existing.char, kind, width);
-            this.reveal(existing.decoration.element, existing.marker);
-          }
-          continue;
-        }
-        // Character changed at this position; recreate decoration.
-        this.disposeEntry(existing);
-        this.activeDecorations.delete(key);
+    for (const item of predictions) {
+      const kind: ItemKind = item.kind ?? 'char';
+      if (!onScreen(item.row)) continue;
+      if (kind === 'caret') {
+        caretItem = item;
+        continue;
       }
+      const key = `${item.row}:${item.col}:${kind}`;
+      next.add(key);
+      let element = this.cells.get(key);
+      if (!element) {
+        element = this.createCell(layer);
+        this.cells.set(key, element);
+      }
+      this.retiring.delete(element);
+      this.place(element, item, viewportY, metrics, style);
+      this.paintCell(element, item.char, kind, item.width ?? 1, style);
+    }
 
-      try {
-        // xterm's registerMarker offset is relative to cursor line:
-        // markerLine = (baseY + cursorY) + cursorYOffset
-        // To place marker at absolute row `pred.row`, offset is `pred.row - (baseY + cursorY)`.
-        const currentCursorLine = terminal.buffer.active.baseY + terminal.buffer.active.cursorY;
-        const cursorYOffset = pred.row - currentCursorLine;
-        const marker = terminal.registerMarker(cursorYOffset);
-
-        if (!marker || marker.isDisposed || marker.line === -1) {
-          continue;
-        }
-
-        const currentStyle = this.resolveStyle();
-        const decorationOptions: IDecorationOptions = {
-          marker,
-          anchor: 'left',
-          x: pred.col,
-          width,
-          height: 1,
-          layer: 'top',
-        };
-
-        // The caret is drawn by its element alone; painting the cell's colours
-        // would hide the character under it.
-        if (kind !== 'caret') {
-          if (isValidHexColor(currentStyle.background)) {
-            (decorationOptions as { backgroundColor?: string }).backgroundColor = currentStyle.background;
-          }
-          if (isValidHexColor(currentStyle.color)) {
-            (decorationOptions as { foregroundColor?: string }).foregroundColor = currentStyle.color;
-          }
-        }
-
-        const decoration = terminal.registerDecoration(decorationOptions);
-
-        if (!decoration || decoration.isDisposed) {
-          try {
-            marker.dispose();
-          } catch {
-            // ignore
-          }
-          continue;
-        }
-
-        if (decoration.element) {
-          this.applyStyleToElement(decoration.element, pred.char, kind, width);
-          this.reveal(decoration.element, marker);
-        }
-        decoration.onRender((element) => {
-          this.applyStyleToElement(element, pred.char, kind, width);
-          this.reveal(element, marker);
-        });
-
-        marker.onDispose?.(() => {
-          this.activeDecorations.delete(key);
-        });
-
-        this.activeDecorations.set(key, { decoration, marker, char: pred.char, width, kind });
-      } catch (err) {
-        // Graceful degradation on xterm / DOM failure.
-        console.debug('Failed to create prediction decoration:', err);
+    for (const [key, element] of this.cells) {
+      if (!next.has(key)) {
+        this.cells.delete(key);
+        this.retire(element);
       }
     }
 
-    // Clean up decorations that are no longer present in visible predictions.
-    for (const [key, entry] of this.activeDecorations) {
-      if (!nextKeys.has(key)) {
-        this.disposeEntry(entry);
-        this.activeDecorations.delete(key);
-      }
+    if (caretItem) {
+      if (!this.caret) this.caret = this.createCell(layer);
+      this.retiring.delete(this.caret);
+      this.place(this.caret, caretItem, viewportY, metrics, style);
+      this.paintCaret(this.caret, caretItem.char, style);
+    } else if (this.caret) {
+      this.retire(this.caret);
+      this.caret = null;
     }
+
+    this.updateOwnerClass();
   }
 
-  /**
-   * Wipes all active predictive decorations immediately.
-   */
+  /** xterm has rendered a frame: whatever was retired has been painted over. */
+  afterRender(): void {
+    this.flushRetired();
+  }
+
+  /** Wipes all predictive cells; they too leave with the next render. */
   clear(): void {
-    for (const entry of this.activeDecorations.values()) {
-      this.disposeEntry(entry);
+    for (const element of this.cells.values()) this.retire(element);
+    this.cells.clear();
+    if (this.caret) {
+      this.retire(this.caret);
+      this.caret = null;
     }
-    this.activeDecorations.clear();
+    this.updateOwnerClass();
   }
 
-  /**
-   * Destroys all active decorations and markers on terminal unmount.
-   */
+  /** Removes the layer outright on terminal unmount. */
   dispose(): void {
-    this.clear();
+    this.cancelRetireFrame?.();
+    this.cancelRetireFrame = null;
+    this.cells.clear();
+    this.retiring.clear();
+    this.caret = null;
+    this.layer?.remove();
+    this.layer = null;
+    this.owner?.classList.remove(PREDICTING_CLASS);
+    this.owner = null;
+  }
+
+  private ensureLayer(terminal: Terminal): HTMLDivElement | null {
+    const owner = terminal.element ?? null;
+    const screen = owner?.querySelector<HTMLElement>('.xterm-screen');
+    if (!owner || !screen) return null;
+    if (this.layer && this.layer.parentElement === screen) return this.layer;
+    this.layer?.remove();
+    const layer = document.createElement('div');
+    layer.className = 'hr-prediction-layer';
+    // Above xterm's text and cursor canvases (z 0-3) and its decorations.
+    Object.assign(layer.style, { position: 'absolute', left: '0', top: '0', pointerEvents: 'none', zIndex: '7' });
+    screen.appendChild(layer);
+    this.layer = layer;
+    this.owner = owner;
+    return layer;
+  }
+
+  private createCell(layer: HTMLDivElement): HTMLDivElement {
+    const element = document.createElement('div');
+    Object.assign(element.style, {
+      position: 'absolute',
+      overflow: 'hidden',
+      whiteSpace: 'pre',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    });
+    layer.appendChild(element);
+    return element;
+  }
+
+  private place(
+    element: HTMLElement,
+    item: PredictionItem,
+    viewportY: number,
+    metrics: CellMetrics,
+    style: PredictionOverlayStyle,
+  ): void {
+    const width = item.width ?? 1;
+    element.style.left = `${item.col * metrics.width}px`;
+    element.style.top = `${(item.row - viewportY) * metrics.height}px`;
+    element.style.width = `${width * metrics.width}px`;
+    element.style.height = `${metrics.height}px`;
+    element.style.lineHeight = `${metrics.height}px`;
+    element.style.fontFamily = style.fontFamily ?? 'inherit';
+    element.style.fontSize = style.fontSize ? `${style.fontSize}px` : 'inherit';
+    // A CJK glyph is narrower than its two cells; xterm centres it, so match.
+    element.style.textAlign = width === 2 ? 'center' : 'left';
+  }
+
+  private paintCell(element: HTMLElement, char: string, kind: ItemKind, _width: 1 | 2, style: PredictionOverlayStyle): void {
+    element.textContent = kind === 'erase' ? ' ' : char;
+    element.style.color = style.color ?? '';
+    element.style.backgroundColor = style.background ?? '';
+    element.style.boxShadow = 'none';
+    element.style.textDecoration = kind === 'char' && style.underline ? 'underline' : 'none';
+  }
+
+  /** Mirrors the terminal's own cursor shape, as the remote program last set it. */
+  private paintCaret(element: HTMLElement, char: string, style: PredictionOverlayStyle): void {
+    const cursor = style.cursor ?? style.color;
+    element.textContent = char;
+    element.style.textDecoration = 'none';
+    element.style.boxShadow = 'none';
+    element.style.color = style.color ?? '';
+    element.style.backgroundColor = 'transparent';
+    if (!cursor) return;
+    switch (style.cursorShape ?? 'block') {
+      case 'bar':
+        element.style.boxShadow = `inset 2px 0 0 ${cursor}`;
+        break;
+      case 'underline':
+        element.style.boxShadow = `inset 0 -2px 0 ${cursor}`;
+        break;
+      default:
+        element.style.backgroundColor = cursor;
+        if (style.background) element.style.color = style.background;
+    }
   }
 
   /**
@@ -229,84 +299,28 @@ export class PredictionOverlay {
     };
   }
 
-  private applyStyleToElement(element: HTMLElement, char: string, kind: ItemKind = 'char', width: 1 | 2 = 1): void {
-    const style = this.resolveStyle();
-    element.textContent = char;
-    // Ensure pointer events and selection pass through untouched to the underlying terminal.
-    element.style.pointerEvents = 'none';
-    element.style.userSelect = 'none';
-    if (kind === 'caret') {
-      this.applyCaretStyle(element, style);
-    } else {
-      if (style.color) {
-        element.style.color = style.color;
-      }
-      if (style.background) {
-        element.style.backgroundColor = style.background;
-      }
-      element.style.textDecoration = kind === 'char' && style.underline ? 'underline' : 'none';
-    }
-    element.style.fontFamily = style.fontFamily ?? 'inherit';
-    element.style.fontSize = style.fontSize ? `${style.fontSize}px` : 'inherit';
-    // xterm sizes the element to one cell; centre the glyph in it vertically.
-    element.style.lineHeight = element.style.height || 'normal';
-    element.style.overflow = 'hidden';
-    element.style.whiteSpace = 'pre';
-    // A CJK glyph is narrower than its two cells; xterm centres it, so match.
-    element.style.textAlign = width === 2 ? 'center' : '';
-  }
-
-  /**
-   * xterm 5.5 hides every decoration element while the alternate screen is
-   * active (`display = altBufferIsActive ? 'none' : 'block'` on each refresh),
-   * and Herdr never leaves the alternate screen — so until this, predictions
-   * were computed and never seen. `onRender` fires right after that
-   * assignment; an element whose row is on screen is shown again here, and
-   * one whose row really is outside the viewport stays hidden.
-   */
-  private reveal(element: HTMLElement, marker: IMarker): void {
-    const terminal = this.options.getTerminal();
-    if (!terminal || marker.isDisposed) return;
-    const row = marker.line - (terminal.buffer?.active?.viewportY ?? 0);
-    if (row >= 0 && row < terminal.rows) {
-      element.style.display = 'block';
+  private retire(element: HTMLElement): void {
+    this.retiring.add(element);
+    if (!this.cancelRetireFrame) {
+      this.cancelRetireFrame = nextFrame(() => {
+        this.cancelRetireFrame = null;
+        this.flushRetired();
+      });
     }
   }
 
-  /** Mirrors the terminal's own cursor shape, as the remote program last set it. */
-  private applyCaretStyle(element: HTMLElement, style: PredictionOverlayStyle): void {
-    const cursor = style.cursor ?? style.color;
-    element.style.textDecoration = 'none';
-    element.style.boxShadow = 'none';
-    element.style.backgroundColor = 'transparent';
-    if (!cursor) {
-      return;
-    }
-    switch (style.cursorShape ?? 'block') {
-      case 'bar':
-        element.style.boxShadow = `inset 2px 0 0 ${cursor}`;
-        break;
-      case 'underline':
-        element.style.boxShadow = `inset 0 -2px 0 ${cursor}`;
-        break;
-      default:
-        element.style.backgroundColor = cursor;
-        if (style.background) {
-          element.style.color = style.background;
-        }
-    }
+  private flushRetired(): void {
+    for (const element of this.retiring) element.remove();
+    this.retiring.clear();
+    this.cancelRetireFrame?.();
+    this.cancelRetireFrame = null;
+    this.updateOwnerClass();
   }
 
-  private disposeEntry(entry: DecorationEntry): void {
-    try {
-      entry.decoration.dispose();
-    } catch {
-      // ignore
-    }
-    try {
-      entry.marker.dispose();
-    } catch {
-      // ignore
-    }
+  /** xterm's cursor stays hidden for as long as any predicted cell is on screen. */
+  private updateOwnerClass(): void {
+    if (!this.owner) return;
+    const showing = this.cells.size > 0 || this.caret !== null || this.retiring.size > 0;
+    this.owner.classList.toggle(PREDICTING_CLASS, showing);
   }
 }

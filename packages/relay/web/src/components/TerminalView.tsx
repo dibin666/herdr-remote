@@ -996,6 +996,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const renderDispose =
       typeof term.onRender === 'function'
         ? term.onRender((e: { start: number; end: number }) => {
+            // The frame that shows the echo is drawn now; predicted cells it
+            // replaces can go without leaving a gap.
+            overlayRef.current?.afterRender();
             const currentViewportY = term.buffer.active.viewportY ?? 0;
             setViewportY(currentViewportY);
 

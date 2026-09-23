@@ -84,7 +84,7 @@ export interface OverlayItem {
   col: number;
   char: string;
   width: 1 | 2;
-  kind: "char" | "erase" | "caret";
+  kind: "char" | "erase" | "caret" | "mask";
 }
 
 interface PendingPrediction {
@@ -98,6 +98,14 @@ interface PendingPrediction {
   sentAt: number;
   /** A pending erase of the same cell that this character was typed over. */
   replaces?: PendingPrediction;
+  /**
+   * Set once a key the predictor cannot follow (Enter, an arrow, a click) was
+   * sent after this one: where the server's caret was at that moment. The
+   * prediction stays on screen until its echo lands, but the run is over.
+   */
+  frozenFrom?: { row: number; col: number };
+  /** Whether it was on screen when frozen; a later demotion does not take it back. */
+  shownWhenFrozen?: boolean;
 }
 
 /** Herdr's prefix key: whatever follows goes to Herdr, not to the pane. */
@@ -194,20 +202,20 @@ export class PredictiveEcho {
       return;
     }
     if (inputClass === "pointer") {
-      this.reset("pointer", { suppress: true });
+      this.freeze("pointer");
       return;
     }
 
     if (this.awaitingPrefixCommand) {
       this.awaitingPrefixCommand = false;
-      this.reset("Herdr prefix command", { suppress: true, demote: true });
+      this.freeze("Herdr prefix command", { demote: true });
       return;
     }
 
     // A bare Escape is how vim-style editors, Claude Code's included, leave
     // insert mode; the keys that follow are commands until an echo says otherwise.
     if (isLoneEscape(text)) {
-      this.reset("escape", { suppress: true, demote: true });
+      this.freeze("escape", { demote: true });
       return;
     }
 
@@ -225,7 +233,7 @@ export class PredictiveEcho {
 
       if (codePoint === HERDR_PREFIX) {
         this.awaitingPrefixCommand = true;
-        this.reset("Herdr prefix", { suppress: true, demote: true });
+        this.freeze("Herdr prefix", { demote: true });
         return;
       }
 
@@ -240,7 +248,7 @@ export class PredictiveEcho {
         codePoint === 0x0d ||
         (codePoint < 0x20 && codePoint !== 0x08)
       ) {
-        this.reset("control or escape sequence", true);
+        this.freeze("control or escape sequence");
         return;
       }
 
@@ -256,7 +264,7 @@ export class PredictiveEcho {
       // see wideChars.ts. Anything else aborts speculation.
       const width = predictableWidth(codePoint);
       if (width === 0) {
-        this.reset("unpredictable character", true);
+        this.freeze("unpredictable character");
         return;
       }
 
@@ -310,6 +318,13 @@ export class PredictiveEcho {
     if (this.getFieldOption) {
       const current = this.getFieldOption();
       if (!current || current.key !== field?.key) {
+        if (this.predictions.every((p) => p.frozenFrom)) {
+          // The key sent after them took the caret elsewhere, and their echo
+          // was drawn before that; nothing was mispredicted.
+          this.predictions = [];
+          this.predictedCursor = null;
+          return;
+        }
         this.mismatch();
         return;
       }
@@ -344,8 +359,18 @@ export class PredictiveEcho {
       if (matches && (settled || !unchanged)) {
         // Confirmation success! Server proved the remote program is echoing faithfully.
         this.updateSrtt(Math.max(0, this.now() - p.sentAt));
-        if (field) {
+        // A frozen prediction was typed before a key that may have switched
+        // modes (Esc into vim normal mode); its echo vouches for nothing after.
+        if (field && !p.frozenFrom) {
           this.markConfident(field.key);
+        }
+      } else if (p.frozenFrom) {
+        // Kept while the server is still working through the keys typed before
+        // the freeze. Once its caret has gone back (Ctrl+U, Home), to another
+        // row (Enter), or past without echoing this, it simply goes.
+        const from = p.frozenFrom;
+        if (!settled && unchanged && caret.row === from.row && caret.col >= from.col) {
+          remaining.push(p);
         }
       } else if (!settled && unchanged) {
         // Not echoed yet. When the typed character equals what the cell already
@@ -419,11 +444,7 @@ export class PredictiveEcho {
   getVisiblePredictions(): ReadonlyArray<VisiblePrediction> {
     this.pruneExpired();
 
-    if (this.getState() !== "confident") {
-      return [];
-    }
-
-    return this.predictions.map((p) => ({
+    return this.visiblePredictions().map((p) => ({
       row: p.row,
       col: p.col,
       char: p.char,
@@ -431,18 +452,21 @@ export class PredictiveEcho {
   }
 
   /**
-   * Everything the overlay should draw: the pending predictions plus a caret
-   * where the next character will land, so typing does not appear to happen
-   * behind the old caret.
+   * Everything the overlay should draw: the pending predictions, a caret where
+   * the next character will land, and — xterm's own cursor being hidden
+   * meanwhile — a plain redraw of the cell under the server's caret when a
+   * program has painted its own caret there (Claude does), so no second caret
+   * trails behind the text.
    */
   getOverlayItems(): ReadonlyArray<OverlayItem> {
     this.pruneExpired();
 
-    if (this.getState() !== "confident" || this.predictions.length === 0 || !this.predictedCursor) {
+    const visible = this.visiblePredictions();
+    if (visible.length === 0) {
       return [];
     }
 
-    const items: OverlayItem[] = this.predictions.map((p) => ({
+    const items: OverlayItem[] = visible.map((p) => ({
       row: p.row,
       col: p.col,
       char: p.char,
@@ -450,25 +474,33 @@ export class PredictiveEcho {
       kind: p.kind,
     }));
 
-    // A backspace leaves the old caret to the right of every prediction; cover it.
-    const field = this.field;
-    if (field) {
-      const covered = this.predictions.some(
-        (p) => p.row === field.row && p.col <= field.caretCol && field.caretCol < p.col + p.width,
-      );
-      if (!covered) {
-        items.push({ row: field.row, col: field.caretCol, char: " ", width: 1, kind: "erase" });
+    // Where the next character will land: the live run's cursor, or after a
+    // freeze, the end of what is still shown.
+    const last = visible[visible.length - 1];
+    const next = this.predictedCursor ?? {
+      row: last.row,
+      col: last.kind === "erase" ? last.col : last.col + last.width,
+    };
+    const covers = (row: number, col: number) =>
+      visible.some((p) => p.row === row && p.col <= col && col < p.col + p.width);
+
+    const terminal = this.getTerminal();
+    const active = terminal?.buffer.active;
+    if (active) {
+      const server = { row: active.baseY + active.cursorY, col: active.cursorX };
+      if (!covers(server.row, server.col) && (server.row !== next.row || server.col !== next.col)) {
+        const chars = active.getLine(server.row)?.getCell(server.col)?.getChars() ?? "";
+        items.push({ row: server.row, col: server.col, char: normalizeBlank(chars), width: 1, kind: "mask" });
       }
     }
 
     // A block caret is drawn over the character under it, so carry that
     // along: what a pending prediction puts there, else what the server drew.
-    const { row, col } = this.predictedCursor;
-    const pending = this.predictions.find((p) => p.row === row && p.col === col);
+    const pending = visible.find((p) => p.row === next.row && p.col === next.col);
     const under = pending
       ? pending.char
-      : normalizeBlank(this.getTerminal()?.buffer.active.getLine(row)?.getCell(col)?.getChars() ?? "");
-    items.push({ row, col, char: under, width: 1, kind: "caret" });
+      : normalizeBlank(active?.getLine(next.row)?.getCell(next.col)?.getChars() ?? "");
+    items.push({ row: next.row, col: next.col, char: under, width: 1, kind: "caret" });
     return items;
   }
 
@@ -486,6 +518,47 @@ export class PredictiveEcho {
 
   getEchoSrttMs(): number | null {
     return this.srtt;
+  }
+
+  /**
+   * What may be drawn: predictions of a field that has earned confidence, and
+   * frozen ones that were already on screen when their run ended.
+   */
+  private visiblePredictions(): PendingPrediction[] {
+    const confident = this.getState() === "confident";
+    return this.predictions.filter((p) => (p.frozenFrom ? p.shownWhenFrozen : confident));
+  }
+
+  /**
+   * Ends the run after a key whose effect cannot be modelled, without taking
+   * back what is already on screen: every key typed before it reaches the
+   * server first and will still be echoed. Wiping those made the line blink
+   * empty until the echo arrived. New predictions wait for the caret to move.
+   */
+  private freeze(_reason: string, options: { demote?: boolean } = {}): void {
+    const terminal = this.getTerminal();
+    const caret = terminal
+      ? { row: terminal.buffer.active.baseY + terminal.buffer.active.cursorY, col: terminal.buffer.active.cursorX }
+      : null;
+    const shown = this.getState() === "confident";
+    for (const p of this.predictions) {
+      if (!p.frozenFrom) {
+        p.frozenFrom = caret ?? { row: p.row, col: p.col };
+        p.shownWhenFrozen = shown;
+      }
+    }
+    this.predictedCursor = null;
+
+    if (options.demote) {
+      const field = this.field ?? this.getFieldOption?.() ?? null;
+      if (field) {
+        this.confidentKeys.delete(field.key);
+      }
+    }
+
+    this.isSuppressed = true;
+    this.suppressSentAt = this.now();
+    this.suppressCursor = caret;
   }
 
   private suppressTimeout(): number {
@@ -524,7 +597,7 @@ export class PredictiveEcho {
     const cursor = this.predictedCursor;
     const atFieldStart = this.predictions.length === 0 && cursor.col === field.caretCol;
     if (field.agentLike && field.empty && atFieldStart && MODE_SWITCH_FIRST_KEYS.includes(char)) {
-      this.reset("agent mode switch", { suppress: true });
+      this.freeze("agent mode switch");
       return false;
     }
 
@@ -532,7 +605,7 @@ export class PredictiveEcho {
     // modelled caret would drift from the real one: end the whole run instead.
     // Never predict into the last cell, where wrap behaviour is unknowable.
     if (cursor.col + width > field.endCol - 1) {
-      this.reset("cursor would reach the edge of the field", true);
+      this.freeze("cursor would reach the edge of the field");
       return false;
     }
 
@@ -570,6 +643,7 @@ export class PredictiveEcho {
     if (
       this.predictedCursor &&
       last &&
+      !last.frozenFrom &&
       last.kind === "char" &&
       last.row === this.predictedCursor.row &&
       last.col + last.width === this.predictedCursor.col
@@ -618,7 +692,7 @@ export class PredictiveEcho {
     // Backspacing into server-rendered characters cannot be predicted locally
     // because we do not know whether the remote program handles wide characters, tabs,
     // or protected shell prompt boundaries. Wipe all speculation and suppress until server responds.
-    this.reset("backspace into server content", true);
+    this.freeze("backspace into server content");
     return false;
   }
 
@@ -635,7 +709,8 @@ export class PredictiveEcho {
       return null;
     }
     this.field = field;
-    this.predictions = [];
+    // Frozen predictions from the last run stay until their echo lands.
+    this.predictions = this.predictions.filter((p) => p.frozenFrom);
     this.predictedCursor = { row: field.row, col: field.caretCol };
     return field;
   }

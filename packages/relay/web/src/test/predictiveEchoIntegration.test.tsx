@@ -374,9 +374,12 @@ describe('Predictive Echo Integration & Setting Controls', () => {
       act(() => emitTerminalData(term, 'i'));
       expect(lastItems(syncSpy).length).toBeGreaterThan(0);
 
+      // The 'i' typed before Esc stays until its echo; nothing after Esc is predicted.
       act(() => context!.sendKey('\x1b'));
-      expect(lastItems(syncSpy)).toEqual([]);
       act(() => emitTerminalData(term, 'j'));
+      const chars = lastItems(syncSpy).filter((item) => item.kind === 'char').map((item) => item.char);
+      expect(chars).toEqual(['i']);
+      remoteEcho(term, screen, 'i');
       expect(lastItems(syncSpy)).toEqual([]);
     });
 

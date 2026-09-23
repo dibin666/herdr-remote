@@ -306,6 +306,25 @@ select.tui-input option {
   }
 }
 
+/* While typed characters are predicted, the prediction overlay draws the
+   caret where the next key will land (utils/predictionOverlay.ts). xterm's own
+   cursor is a round trip behind and would chase the text along the line, so it
+   is not drawn meanwhile: the canvas renderer keeps it on its own layer, and
+   the DOM renderer paints it with !important rules the doubled classes here
+   outrank. */
+.xterm.hr-predicting .xterm-screen .xterm-cursor-layer {
+  visibility: hidden;
+}
+
+.xterm.hr-predicting.hr-predicting .xterm-rows .xterm-cursor.xterm-cursor.xterm-cursor {
+  background-color: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border-bottom: none !important;
+  animation: none !important;
+}
+
 /* The surface is the terminal's whole coordinate space: it fills the frame and
    is never transformed, so what a finger touches is what the renderer measured.
    The min sizes keep xterm's own boxes from collapsing while the layer is
