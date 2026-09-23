@@ -4,11 +4,25 @@ import { SettingsModal } from '../components/SettingsModal';
 import { KeyToolbar } from '../components/KeyToolbar';
 import { TerminalProvider } from '../context/TerminalContext';
 import { saveSettings, loadSettings } from '../utils/storage';
-import { getDefaultVirtualKeys } from '../utils/virtualKeys';
+import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, getDefaultVirtualKeys } from '../utils/virtualKeys';
 
 describe('Virtual Keyboard Customization (Requirement 5)', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('uses the agent drawer by default and migrates the old untouched row', () => {
+    expect(DEFAULT_TOOLBAR_KEYS.map((key) => key.id)).toContain('drawer_agent');
+    expect(DEFAULT_TOOLBAR_KEYS.some((key) => key.id === 'shift_tab' || key.id === 'drawer_chords')).toBe(false);
+
+    const byId = new Map(ALL_AVAILABLE_KEYS.map((key) => [key.id, key]));
+    const previousDefault = [
+      'esc', 'tab', 'shift_tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
+      'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter',
+    ].map((id) => byId.get(id)!);
+    saveSettings({ virtualKeys: previousDefault });
+    expect(loadSettings().virtualKeys.map((key) => key.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
   });
 
   it('renders customized keys in KeyToolbar based on settings', () => {

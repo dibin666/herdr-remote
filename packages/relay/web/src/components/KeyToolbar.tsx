@@ -1,9 +1,17 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { ANSI_KEYS, encodeKeyWithModifiers } from '../protocol/keyEncoder';
+import { formatComboCaption, parseKeyCombo } from '../protocol/keyCombo';
 import { cn } from '../utils/cn';
 import { ToolbarKeyDef, DEFAULT_TOOLBAR_KEYS, getLocalizedKeyTitle } from '../utils/virtualKeys';
-import { Gauge } from './tui';
+import {
+  AGENT_PROFILE_IDS,
+  AGENT_PROFILES,
+  getDrawerGroups,
+  type AgentProfilePin,
+  type AppliedAgentAction,
+} from '../utils/agentKeymaps';
+import { Gauge, Rule, Select } from './tui';
 
 interface KeyToolbarProps {
   /**
@@ -36,6 +44,12 @@ const CAP_ACTIVE = 'border-tui-accent bg-tui-accent text-tui-crust font-bold';
 const CAP_COMMIT =
   'border-tui-ok bg-transparent text-tui-ok hover:bg-tui-ok hover:text-tui-crust font-bold';
 
+const CHORD_TONE_CLASS = {
+  default: CAP_IDLE,
+  bad: 'border-tui-bad text-tui-bad hover:bg-tui-bad hover:text-tui-crust',
+  warn: 'border-tui-warn text-tui-warn hover:bg-tui-warn hover:text-tui-crust',
+} as const;
+
 export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
   const {
     sendKey,
@@ -49,6 +63,9 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     modifierLatch,
     toggleModifierLatch,
     consumeModifierLatch,
+    agentProfile,
+    agentProfilePin,
+    setAgentProfilePin,
   } = useTerminal();
 
   // One key metric everywhere: 36px is the smallest comfortable touch target,
@@ -166,6 +183,116 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
   const [showFnKeys, setShowFnKeys] = useState(false);
   const [showSymbols, setShowSymbols] = useState(false);
   const [showQuickChords, setShowQuickChords] = useState(false);
+  const [showAgentKeys, setShowAgentKeys] = useState(false);
+  const comboTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => () => {
+    comboTimersRef.current.forEach((timer) => clearTimeout(timer));
+    comboTimersRef.current = [];
+  }, []);
+
+  const sendAgentCombo = useCallback((combo: string) => {
+    vibrate();
+    if (!isController) {
+      warnViewerMode();
+      return;
+    }
+
+    let steps: string[];
+    try {
+      steps = parseKeyCombo(combo);
+    } catch {
+      return;
+    }
+    // A ready-made shortcut consumes a pending modifier the same way a Ctrl
+    // chord does; its own declared modifiers are already part of the combo.
+    consumeModifierLatch();
+    if (steps.length === 1) {
+      sendKey(steps[0]);
+      return;
+    }
+
+    // The adapter merges writes queued in one microtask. Spacing sequence steps
+    // keeps Esc Esc as two keypresses so rewind menus still receive both.
+    steps.forEach((step, index) => {
+      const timer = setTimeout(() => {
+        comboTimersRef.current = comboTimersRef.current.filter((item) => item !== timer);
+        sendKey(step);
+      }, index * 120);
+      comboTimersRef.current.push(timer);
+    });
+  }, [consumeModifierLatch, isController, sendKey, vibrate, warnViewerMode]);
+
+  const agentGroups = getDrawerGroups(agentProfile, settings.agentKeymaps[agentProfile]);
+
+  const renderAgentAction = (item: AppliedAgentAction) => {
+    let caption = '';
+    try { caption = formatComboCaption(item.combo); } catch {}
+    const label = item.custom
+      ? item.customLabel || ''
+      : t(`agentActions.${item.labelKey}`);
+    const tone = item.labelKey === 'interrupt' && item.combo.trim().toLowerCase() === 'ctrl+c'
+      ? 'bad'
+      : item.combo.trim().toLowerCase() === 'ctrl+z'
+        ? 'warn'
+        : 'default';
+    return (
+      <button
+        key={item.id}
+        type="button"
+        data-testid={`agent-key-${item.id}`}
+        onClick={() => sendAgentCombo(item.combo)}
+        className={cn(CAP_BASE, 'h-8 gap-1.5 px-2', CHORD_TONE_CLASS[tone])}
+        title={`${caption} ${label}`.trim()}
+      >
+        <span className="font-bold">{caption}</span>
+        <span className="text-tui-sm opacity-70">{label}</span>
+      </button>
+    );
+  };
+
+  const renderAgentDrawer = () => {
+    const profile = AGENT_PROFILES[agentProfile];
+    return (
+      <div
+        data-testid="agent-key-drawer"
+        className="space-y-1.5 border-b border-tui-border-dim bg-tui-crust p-1.5"
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 font-bold text-tui-accent" data-testid="agent-key-drawer-title">
+            {agentProfilePin === 'auto'
+              ? t('agentKeymaps.autoProfile', { profile: profile.name })
+              : t('agentKeymaps.pinnedProfile', { profile: profile.name })}
+          </span>
+          <label className="flex min-w-0 flex-wrap items-center gap-1 text-tui-sm text-tui-faint">
+            <span>{t('agentKeymaps.keymapLabel')}</span>
+            <Select
+              aria-label={t('agentKeymaps.keymapLabel')}
+              value={agentProfilePin}
+              onChange={(event) => setAgentProfilePin(event.target.value as AgentProfilePin)}
+              className="h-8 w-auto max-w-full min-w-[7rem] px-1.5"
+            >
+              <option value="auto">{t('agentKeymaps.auto')}</option>
+              {AGENT_PROFILE_IDS.filter((id) => id !== 'shell').map((id) => (
+                <option key={id} value={id}>{AGENT_PROFILES[id].name}</option>
+              ))}
+              <option value="shell">{t('agentKeymaps.shell')}</option>
+            </Select>
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-1.5" data-testid="agent-key-actions">
+          {agentGroups.agentActions.map(renderAgentAction)}
+          {agentGroups.agentActions.length === 0 && (
+            <span className="py-1 text-tui-sm text-tui-faint">{t('agentKeymaps.noAgentActions')}</span>
+          )}
+        </div>
+        <Rule label={t('agentKeymaps.genericGroup')} />
+        <div className="flex flex-wrap gap-1.5" data-testid="generic-key-actions">
+          {agentGroups.genericActions.map(renderAgentAction)}
+        </div>
+      </div>
+    );
+  };
 
   /**
    * Sends one key, with whatever modifiers are latched. A latch applies to the
@@ -242,6 +369,15 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
     if (keyDef.id === 'drawer_chords') {
       return <span>^C</span>;
     }
+    if (keyDef.id === 'drawer_agent') {
+      return (
+      <span className="flex items-center gap-0.5">
+          <span>{AGENT_PROFILES[agentProfile].shortName}</span>
+          <span aria-hidden="true">{showAgentKeys ? '▾' : '▴'}</span>
+          {agentProfilePin !== 'auto' && <span aria-hidden="true" className="ml-0.5">•</span>}
+        </span>
+      );
+    }
     if (keyDef.id === 'drawer_fn') {
       // The drawer opens *above* this row, so the arrow points at where the
       // keys will appear: up to open, down to put them away. It used to point
@@ -275,13 +411,21 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
         setShowFnKeys(!showFnKeys);
         setShowSymbols(false);
         setShowQuickChords(false);
+        setShowAgentKeys(false);
       } else if (keyDef.drawerType === 'chords') {
         setShowQuickChords(!showQuickChords);
         setShowFnKeys(false);
         setShowSymbols(false);
+        setShowAgentKeys(false);
       } else if (keyDef.drawerType === 'symbols') {
         setShowSymbols(!showSymbols);
         setShowFnKeys(false);
+        setShowQuickChords(false);
+        setShowAgentKeys(false);
+      } else if (keyDef.drawerType === 'agent') {
+        setShowAgentKeys(!showAgentKeys);
+        setShowFnKeys(false);
+        setShowSymbols(false);
         setShowQuickChords(false);
       }
       return;
@@ -301,6 +445,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       if (keyDef.drawerType === 'fn') return showFnKeys;
       if (keyDef.drawerType === 'chords') return showQuickChords;
       if (keyDef.drawerType === 'symbols') return showSymbols;
+      if (keyDef.drawerType === 'agent') return showAgentKeys;
     }
     return false;
   };
@@ -322,11 +467,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       className={cn(
         CAP_BASE,
         'h-8 gap-1.5 px-2',
-        tone === 'bad'
-          ? 'border-tui-bad text-tui-bad hover:bg-tui-bad hover:text-tui-crust'
-          : tone === 'warn'
-            ? 'border-tui-warn text-tui-warn hover:bg-tui-warn hover:text-tui-crust'
-            : CAP_IDLE
+        CHORD_TONE_CLASS[tone]
       )}
       title={title}
     >
@@ -381,6 +522,9 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
           {chord(ANSI_KEYS.CTRL_K, '^K', t('virtualKeyboard.ctrlKTitle'), t('virtualKeyboard.badgeKill'))}
         </div>
       )}
+
+      {/* The drawer follows this window's focused pane unless it has a pin. */}
+      {showAgentKeys && renderAgentDrawer()}
 
       {/* Symbols a phone keyboard buries three layers deep */}
       {showSymbols && (
@@ -439,19 +583,23 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
           const isDrawer = keyDef.type === 'drawer';
 
           const localizedTitle = getLocalizedKeyTitle(keyDef, t);
+          const accessibleTitle = keyDef.id === 'drawer_agent'
+            ? `${AGENT_PROFILES[agentProfile].name} ${t('agentKeymaps.keymapLabel')}`
+            : localizedTitle;
 
           const keyBtn = (
             <button
               key={keyDef.id}
               type="button"
               onClick={() => handleKeyClick(keyDef)}
+              data-testid={keyDef.id === 'drawer_agent' ? 'agent-key-drawer-toggle' : undefined}
               className={cn(
                 CAP_BASE,
                 isSquare ? squareKeyClass : isDrawer ? drawerToggleClass : keyClass,
                 isEnter ? CAP_COMMIT : active ? CAP_ACTIVE : CAP_IDLE
               )}
-              title={localizedTitle}
-              aria-label={localizedTitle}
+              title={accessibleTitle}
+              aria-label={accessibleTitle}
               aria-pressed={active}
             >
               {renderKeyIconOrLabel(keyDef)}

@@ -1,6 +1,8 @@
 import { clampFontSize, DEFAULT_DESKTOP_FONT_SIZE, DEFAULT_MOBILE_FONT_SIZE } from './terminalLayout';
 import { Language } from '../i18n/types';
 import { ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
+import type { AgentKeymapsSettings } from './agentKeymaps';
+import { parseKeyCombo } from '../protocol/keyCombo';
 
 export const DEFAULT_TERMINAL_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace';
@@ -46,6 +48,8 @@ export interface StoredSettings {
   vibrateOnKeyPress: boolean;
   predictiveEcho: 'auto' | 'always' | 'off';
   virtualKeys: ToolbarKeyDef[];
+  /** Workstation-wide agent shortcut overrides, shared with newly opened windows. */
+  agentKeymaps: AgentKeymapsSettings;
   /**
    * When an agent is blocked or done: count it in the tab title and badge the
    * icon (on by default, since both simply sit there), and optionally chime,
@@ -201,6 +205,7 @@ export function getDefaultSettings(): StoredSettings {
     agentAlertNotify: false,
     language: detectDefaultLanguage(),
     virtualKeys: getDefaultVirtualKeys(),
+    agentKeymaps: {},
     adminToken: '',
     adminTokens: {},
   };
@@ -213,6 +218,7 @@ const GLOBAL_KEYS: Array<keyof StoredSettings> = [
   'clientId',
   'autoReconnect',
   'language',
+  'agentKeymaps',
 ];
 
 const CONNECTION_KEYS: Array<keyof StoredSettings> = [
@@ -275,6 +281,65 @@ function sanitizeAdminTokens(value: unknown): Record<string, string> {
     output[key.slice(0, 512)] = token.slice(0, MAX_PROFILE_TOKEN_LENGTH);
   }
   return output;
+}
+
+/** Bound agent shortcut preferences before they reach localStorage or a key bar. */
+export function sanitizeAgentKeymaps(value: unknown): AgentKeymapsSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result: AgentKeymapsSettings = Object.create(null);
+  for (const [profileId, rawProfile] of Object.entries(value as Record<string, unknown>).slice(0, 32)) {
+    if (!/^[a-z][a-z0-9_-]{0,31}$/i.test(profileId)
+      || ['__proto__', 'constructor', 'prototype'].includes(profileId)) continue;
+    if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) continue;
+    const source = rawProfile as Record<string, unknown>;
+    const profile: AgentKeymapsSettings[string] = {};
+
+    if (Array.isArray(source.order)) {
+      profile.order = [...new Set(source.order
+        .filter((id): id is string => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(id)))]
+        .slice(0, 256);
+    }
+
+    if (source.actions && typeof source.actions === 'object' && !Array.isArray(source.actions)) {
+      const actions: NonNullable<AgentKeymapsSettings[string]['actions']> = Object.create(null);
+      for (const [id, rawAction] of Object.entries(source.actions as Record<string, unknown>).slice(0, 256)) {
+        if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id) || !rawAction || typeof rawAction !== 'object' || Array.isArray(rawAction)) continue;
+        const action = rawAction as Record<string, unknown>;
+        const cleaned: NonNullable<AgentKeymapsSettings[string]['actions']>[string] = {};
+        if (typeof action.keys === 'string' && action.keys.trim()) {
+          const keys = action.keys.trim().slice(0, 80);
+          try {
+            parseKeyCombo(keys);
+            cleaned.keys = keys;
+          } catch {
+            // An unfinished or invalid field must never disable the live cap.
+          }
+        }
+        if (typeof action.hidden === 'boolean') cleaned.hidden = action.hidden;
+        if (Object.keys(cleaned).length > 0) actions[id] = cleaned;
+      }
+      profile.actions = actions;
+    }
+
+    if (Array.isArray(source.custom)) {
+      const seen = new Set<string>();
+      profile.custom = source.custom.slice(0, 64).flatMap((rawAction) => {
+        if (!rawAction || typeof rawAction !== 'object' || Array.isArray(rawAction)) return [];
+        const custom = rawAction as Record<string, unknown>;
+        if (typeof custom.id !== 'string'
+          || !/^[a-zA-Z0-9_-]{1,64}$/.test(custom.id)
+          || ['__proto__', 'constructor', 'prototype'].includes(custom.id)
+          || seen.has(custom.id)) return [];
+        if (typeof custom.label !== 'string' || !custom.label.trim() || typeof custom.keys !== 'string' || !custom.keys.trim()) return [];
+        const keys = custom.keys.trim().slice(0, 80);
+        try { parseKeyCombo(keys); } catch { return []; }
+        seen.add(custom.id);
+        return [{ id: custom.id, label: custom.label.trim().slice(0, 64), keys }];
+      });
+    }
+    result[profileId] = profile;
+  }
+  return result;
 }
 
 function normalizeProfiles(localData: Partial<StoredSettings>): {
@@ -430,6 +495,7 @@ export function loadSettings(): StoredSettings {
     vibrateOnKeyPress,
     predictiveEcho,
     virtualKeys,
+    agentKeymaps: sanitizeAgentKeymaps(localData.agentKeymaps),
     agentAlertBadge: booleanSetting('agentAlertBadge'),
     agentAlertSound: booleanSetting('agentAlertSound'),
     agentAlertVibrate: booleanSetting('agentAlertVibrate'),
@@ -456,6 +522,7 @@ export function loadSettings(): StoredSettings {
 export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const current = loadSettings();
   const next: StoredSettings = { ...current, ...updates };
+  next.agentKeymaps = sanitizeAgentKeymaps(next.agentKeymaps);
   next.adminTokens = sanitizeAdminTokens(next.adminTokens);
   if (typeof next.adminToken === 'string') next.adminToken = next.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH);
 

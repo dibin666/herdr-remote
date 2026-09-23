@@ -73,9 +73,18 @@ describe('Key bar modifiers', () => {
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[15;2~']));
   });
 
-  it("sends Shift+Tab from its own key, for Claude Code's mode cycle", async () => {
+  it("sends Shift+Tab from Claude's agent drawer mode cap", async () => {
     await mount();
-    fireEvent.click(key('Shift+Tab (Claude Code: cycle modes)'));
+    act(() => webSocketInstances[0].simulateMessage(JSON.stringify({
+      type: 'agent_status',
+      focusedPaneId: 'w1:p1',
+      focusedAgent: 'claude',
+      counts: {},
+      total: 0,
+      agents: [],
+    })));
+    fireEvent.click(screen.getByTestId('agent-key-drawer-toggle'));
+    fireEvent.click(screen.getByTestId('agent-key-mode'));
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[Z']));
   });
 
@@ -105,11 +114,11 @@ describe('Key bar modifiers', () => {
     await waitFor(() => expect(sentInput().join('')).toBe('\x1b[<35;10;5M你好\x03'));
   });
 
-  it('lets a ready-made chord release the latch without modifying it', async () => {
+  it('lets a generic chord release the latch without modifying it', async () => {
     await mount();
     fireEvent.click(key('Toggle Alt Lock'));
-    fireEvent.click(key('Ctrl Chords'));
-    fireEvent.click(screen.getByTitle('Ctrl+C (SIGINT)'));
+    fireEvent.click(screen.getByTestId('agent-key-drawer-toggle'));
+    fireEvent.click(screen.getByTestId('agent-key-genericCtrlC'));
     await waitFor(() => expect(sentInput()).toEqual(['\x03']));
     expect(key('Toggle Alt Lock')).toHaveAttribute('aria-pressed', 'false');
   });
@@ -117,12 +126,17 @@ describe('Key bar modifiers', () => {
 
 describe('Default key bar layout', () => {
   it('gives an untouched copy of an earlier default the new key', () => {
-    const previous = DEFAULT_TOOLBAR_KEYS.filter((k) => k.id !== 'shift_tab');
+    const byId = new Map(ALL_AVAILABLE_KEYS.map((key) => [key.id, key]));
+    const previous = [
+      'esc', 'tab', 'shift_tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
+      'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter',
+    ].map((id) => byId.get(id)!);
     expect(sanitizeVirtualKeys(previous).map((k) => k.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((k) => k.id));
   });
 
   it("leaves a layout the user arranged alone", () => {
-    const custom = DEFAULT_TOOLBAR_KEYS.filter((k) => k.id !== 'shift_tab').reverse();
-    expect(sanitizeVirtualKeys(custom).map((k) => k.id)).not.toContain('shift_tab');
+    const shiftTab = ALL_AVAILABLE_KEYS.find((key) => key.id === 'shift_tab')!;
+    const custom = [...DEFAULT_TOOLBAR_KEYS.slice(0, 2), shiftTab, ...DEFAULT_TOOLBAR_KEYS.slice(2)].reverse();
+    expect(sanitizeVirtualKeys(custom).map((k) => k.id)).toContain('shift_tab');
   });
 });

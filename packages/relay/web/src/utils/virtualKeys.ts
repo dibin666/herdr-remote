@@ -8,7 +8,7 @@ export interface ToolbarKeyDef {
   enabled: boolean;
   title?: string;
   modifierType?: 'ctrl' | 'alt' | 'shift' | 'meta';
-  drawerType?: 'fn' | 'chords' | 'symbols';
+  drawerType?: 'fn' | 'chords' | 'symbols' | 'agent';
   isPlainChar?: boolean;
 }
 
@@ -23,16 +23,13 @@ export interface ToolbarKeyDef {
 export const DEFAULT_TOOLBAR_KEYS: ToolbarKeyDef[] = [
   { id: 'esc', label: 'ESC', code: ANSI_KEYS.ESC, type: 'key', enabled: true, title: 'Escape' },
   { id: 'tab', label: 'TAB', code: ANSI_KEYS.TAB, type: 'key', enabled: true, title: 'Tab' },
-  // Claude Code cycles its permission modes on Shift+Tab, which a phone
-  // keyboard has no way to type.
-  { id: 'shift_tab', label: '⇧TAB', code: ANSI_KEYS.SHIFT_TAB, type: 'key', enabled: true, title: 'Shift+Tab' },
   { id: 'ctrl', label: 'CTRL', code: '', type: 'modifier', enabled: true, modifierType: 'ctrl', title: 'Toggle Ctrl modifier latch' },
   { id: 'alt', label: 'ALT', code: '', type: 'modifier', enabled: true, modifierType: 'alt', title: 'Toggle Alt modifier latch' },
   { id: 'left', label: '←', code: ANSI_KEYS.LEFT, type: 'key', enabled: true, title: 'Arrow Left' },
   { id: 'up', label: '↑', code: ANSI_KEYS.UP, type: 'key', enabled: true, title: 'Arrow Up' },
   { id: 'down', label: '↓', code: ANSI_KEYS.DOWN, type: 'key', enabled: true, title: 'Arrow Down' },
   { id: 'right', label: '→', code: ANSI_KEYS.RIGHT, type: 'key', enabled: true, title: 'Arrow Right' },
-  { id: 'drawer_chords', label: '^C', code: '', type: 'drawer', enabled: true, drawerType: 'chords', title: 'Quick Ctrl Chords' },
+  { id: 'drawer_agent', label: 'Agent', code: '', type: 'drawer', enabled: true, drawerType: 'agent', title: 'Agent shortcuts' },
   { id: 'drawer_symbols', label: '~|/', code: '', type: 'drawer', enabled: true, drawerType: 'symbols', title: 'Special Symbols' },
   { id: 'drawer_fn', label: 'Fn', code: '', type: 'drawer', enabled: true, drawerType: 'fn', title: 'Function Keys (F1-F12)' },
   { id: 'enter', label: 'Enter', code: ANSI_KEYS.ENTER, type: 'key', enabled: true, title: 'Enter / Return' },
@@ -87,6 +84,7 @@ export const ALL_AVAILABLE_KEYS: ToolbarKeyDef[] = [
   { id: 'f12', label: 'F12', code: ANSI_KEYS.F12, type: 'fn', enabled: true, title: 'F12' },
 
   // Drawers
+  { id: 'drawer_agent', label: 'Agent', code: '', type: 'drawer', enabled: true, drawerType: 'agent', title: 'Agent shortcuts' },
   { id: 'drawer_chords', label: '^C', code: '', type: 'drawer', enabled: true, drawerType: 'chords', title: 'Quick Ctrl Chords' },
   { id: 'drawer_symbols', label: '~|/', code: '', type: 'drawer', enabled: true, drawerType: 'symbols', title: 'Special Symbols' },
   { id: 'drawer_fn', label: 'Fn', code: '', type: 'drawer', enabled: true, drawerType: 'fn', title: 'Function Keys (F1-F12)' },
@@ -118,6 +116,7 @@ export function getDefaultVirtualKeys(): ToolbarKeyDef[] {
  * what lets the new default reach the people who never customised anything.
  */
 const LEGACY_DEFAULT_KEY_ORDERS = [
+  ['esc', 'tab', 'shift_tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right', 'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter'],
   ['esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right', 'enter', 'drawer_chords', 'drawer_symbols', 'drawer_fn'],
   ['esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right', 'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter'],
 ];

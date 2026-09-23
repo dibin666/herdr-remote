@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { getDefaultSettings } from '../utils/storage';
 import { FONT_PRESETS } from '../utils/theme';
@@ -10,11 +10,22 @@ import {
 } from '../utils/virtualKeys';
 import { cn } from '../utils/cn';
 import { playAlertChime, unlockAlertChime } from '../utils/alertChime';
+import { formatComboCaption, KeyComboError, parseKeyCombo } from '../protocol/keyCombo';
+import {
+  AGENT_PROFILE_IDS,
+  AGENT_PROFILES,
+  getProfileActions,
+  type AgentProfileId,
+  type AgentProfileDef,
+  type AgentProfileKeymapOverride,
+  type AppliedAgentAction,
+} from '../utils/agentKeymaps';
 import {
   Button,
   Checkbox,
   FieldLabel,
   GLYPH,
+  Input,
   KeyCap,
   Meter,
   Modal,
@@ -38,8 +49,13 @@ interface SettingsModalProps {
  * colour belongs to the host.
  */
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const { settings, updateSettings, addToast, language, setLanguage, t } = useTerminal();
-  const [activeTab, setActiveTab] = useState<'appearance' | 'virtualKeys'>('appearance');
+  const { settings, updateSettings, addToast, language, setLanguage, t, agentProfile } = useTerminal();
+  const [activeTab, setActiveTab] = useState<'appearance' | 'virtualKeys' | 'agentKeymaps'>('appearance');
+  const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
+  const [comboDrafts, setComboDrafts] = useState<Record<string, string>>({});
+  const comboDraftsRef = useRef<Record<string, string>>({});
+  const [customLabel, setCustomLabel] = useState('');
+  const [customCombo, setCustomCombo] = useState('');
   const [showAddKeyPalette, setShowAddKeyPalette] = useState(false);
 
   if (!isOpen) return null;
@@ -51,6 +67,101 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     settings.virtualKeys && settings.virtualKeys.length > 0
       ? settings.virtualKeys
       : getDefaultVirtualKeys();
+
+  const keymapProfile = settingsAgentProfile || agentProfile;
+  const profileOverrides: AgentProfileKeymapOverride = settings.agentKeymaps[keymapProfile] || {};
+  const profileActions = getProfileActions(keymapProfile, profileOverrides);
+
+  const saveAgentKeymaps = (nextProfile: AgentProfileKeymapOverride) => {
+    updateSettings({
+      agentKeymaps: { ...settings.agentKeymaps, [keymapProfile]: nextProfile },
+    });
+  };
+
+  const updateAgentAction = (id: string, patch: { keys?: string; hidden?: boolean }) => {
+    saveAgentKeymaps({
+      ...profileOverrides,
+      actions: {
+        ...profileOverrides.actions,
+        [id]: { ...profileOverrides.actions?.[id], ...patch },
+      },
+    });
+  };
+
+  const resetAgentAction = (item: AppliedAgentAction) => {
+    updateAgentAction(item.id, { keys: item.defaultCombo });
+  };
+
+  const moveAgentAction = (index: number, direction: 'up' | 'down') => {
+    const nextIndex = index + (direction === 'up' ? -1 : 1);
+    if (nextIndex < 0 || nextIndex >= profileActions.length) return;
+    const order = profileActions.map((item) => item.id);
+    [order[index], order[nextIndex]] = [order[nextIndex], order[index]];
+    saveAgentKeymaps({ ...profileOverrides, order });
+  };
+
+  const removeCustomAction = (id: string) => {
+    saveAgentKeymaps({
+      ...profileOverrides,
+      custom: (profileOverrides.custom || []).filter((item) => item.id !== id),
+      order: profileOverrides.order?.filter((item) => item !== id),
+    });
+  };
+
+  const restoreAgentProfile = () => {
+    const next = { ...settings.agentKeymaps };
+    delete next[keymapProfile];
+    updateSettings({ agentKeymaps: next });
+  };
+
+  const addCustomAgentAction = () => {
+    const label = customLabel.trim();
+    if (!label) return;
+    try { parseKeyCombo(customCombo); } catch { return; }
+    const id = `custom-${Date.now().toString(36)}`;
+    saveAgentKeymaps({
+      ...profileOverrides,
+      custom: [...(profileOverrides.custom || []), { id, label, keys: customCombo.trim() }],
+      order: [...profileActions.map((item) => item.id), id],
+    });
+    setCustomLabel('');
+    setCustomCombo('');
+  };
+
+  const getComboErrorText = (error: unknown): string => {
+    if (error instanceof KeyComboError) {
+      return t(`agentKeymaps.errors.${error.code}`, error.params);
+    }
+    return String(error);
+  };
+
+  const comboDraftKey = (profile: AgentProfileId, actionId: string) => `${profile}:${actionId}`;
+
+  const updateComboDraft = (actionId: string, value: string) => {
+    const draftKey = comboDraftKey(keymapProfile, actionId);
+    comboDraftsRef.current = { ...comboDraftsRef.current, [draftKey]: value };
+    setComboDrafts(comboDraftsRef.current);
+    try {
+      parseKeyCombo(value);
+      updateAgentAction(actionId, { keys: value });
+    } catch {
+      // The cap keeps using its last valid combo until the draft is corrected.
+    }
+  };
+
+  const finishComboDraft = (actionId: string) => {
+    const draftKey = comboDraftKey(keymapProfile, actionId);
+    const draft = comboDraftsRef.current[draftKey];
+    if (draft === undefined) return;
+    delete comboDraftsRef.current[draftKey];
+    setComboDrafts({ ...comboDraftsRef.current });
+    try {
+      parseKeyCombo(draft);
+      updateAgentAction(actionId, { keys: draft });
+    } catch {
+      // Dropping the draft restores the last valid, saved value in the field.
+    }
+  };
 
   // Plain HTTP on a LAN is not a secure context, and there the API is absent.
   const notificationsAvailable =
@@ -146,9 +257,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         tabs={[
           { id: 'appearance', label: t('settings.tabAppearance'), index: 1 },
           { id: 'virtualKeys', label: t('settings.tabVirtualKeys'), index: 2 },
+          { id: 'agentKeymaps', label: t('settings.tabAgentKeymaps'), index: 3 },
         ]}
         activeId={activeTab}
-        onSelect={(id) => setActiveTab(id as 'appearance' | 'virtualKeys')}
+        onSelect={(id) => setActiveTab(id as 'appearance' | 'virtualKeys' | 'agentKeymaps')}
         className="mb-3 border-b border-tui-border-dim pb-1"
       />
 
@@ -467,6 +579,159 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'agentKeymaps' && (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <FieldLabel htmlFor="agent-keymap-profile">{t('agentKeymaps.settingsProfileLabel')}</FieldLabel>
+            <Select
+              id="agent-keymap-profile"
+              aria-label={t('agentKeymaps.settingsProfileLabel')}
+              value={keymapProfile}
+              onChange={(event) => setSettingsAgentProfile(event.target.value as AgentProfileId)}
+            >
+              {AGENT_PROFILE_IDS.map((id) => (
+                <option key={id} value={id}>{AGENT_PROFILES[id].name}</option>
+              ))}
+            </Select>
+            {(AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint && (
+              <p className="text-tui-sm text-tui-faint">
+                {t('agentKeymaps.configHint', { path: (AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint! })}
+              </p>
+            )}
+          </div>
+
+          <Rule label={t('agentKeymaps.agentGroup')} />
+          <div className="max-h-72 overflow-y-auto border border-tui-border bg-tui-mantle">
+            {profileActions.map((item, index) => {
+              const label = item.custom
+                ? item.customLabel || ''
+                : t(`agentActions.${item.labelKey}`);
+              const savedCombo = profileOverrides.actions?.[item.id]?.keys ?? item.combo;
+              const draftKey = comboDraftKey(keymapProfile, item.id);
+              const displayedCombo = comboDrafts[draftKey] ?? savedCombo;
+              let caption = '';
+              let error: string | null = null;
+              try {
+                parseKeyCombo(displayedCombo);
+                caption = formatComboCaption(displayedCombo);
+              } catch (reason) {
+                error = getComboErrorText(reason);
+              }
+              return (
+                <div
+                  key={item.id}
+                  data-testid={`agent-setting-row-${item.id}`}
+                  className="flex flex-wrap items-center gap-2 border-b border-tui-border-dim px-2 py-1.5 last:border-b-0"
+                >
+                  <Checkbox
+                    checked={!item.hidden}
+                    onChange={(checked) => updateAgentAction(item.id, { hidden: !checked })}
+                    label={t('agentKeymaps.showAction')}
+                    className="shrink-0 items-center gap-1 text-tui-sm"
+                  />
+                  <KeyCap className="shrink-0 font-bold">{caption || '—'}</KeyCap>
+                  <span className="min-w-[5rem] flex-1 text-tui-sm text-tui-text">
+                    {label}
+                    {!item.verified && (
+                      <span className="ml-1 text-tui-sm text-tui-faint">{t('agentKeymaps.unverified')}</span>
+                    )}
+                  </span>
+                  <label className="sr-only" htmlFor={`agent-combo-${item.id}`}>
+                    {t('agentKeymaps.shortcutLabel')} {label}
+                  </label>
+                  <Input
+                    id={`agent-combo-${item.id}`}
+                    aria-label={`${t('agentKeymaps.shortcutLabel')} ${label}`}
+                    value={displayedCombo}
+                    onChange={(event) => updateComboDraft(item.id, event.target.value)}
+                    onBlur={() => finishComboDraft(item.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur();
+                    }}
+                    placeholder={t('agentKeymaps.comboPlaceholder')}
+                    aria-invalid={Boolean(error)}
+                    className="w-36 shrink-0"
+                  />
+                  <span className="text-tui-sm text-tui-faint">
+                    {t('agentKeymaps.defaultCombo', { combo: formatComboCaption(item.defaultCombo) })}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      brackets={false}
+                      className="px-1"
+                      onClick={() => resetAgentAction(item)}
+                      title={t('agentKeymaps.resetAction')}
+                      aria-label={`${t('agentKeymaps.resetAction')} ${label}`}
+                    >↺</Button>
+                    <Button
+                      variant="ghost"
+                      brackets={false}
+                      className="px-1"
+                      disabled={index === 0}
+                      onClick={() => moveAgentAction(index, 'up')}
+                      title={t('agentKeymaps.moveUp')}
+                      aria-label={`${t('agentKeymaps.moveUp')} ${label}`}
+                    >↑</Button>
+                    <Button
+                      variant="ghost"
+                      brackets={false}
+                      className="px-1"
+                      disabled={index === profileActions.length - 1}
+                      onClick={() => moveAgentAction(index, 'down')}
+                      title={t('agentKeymaps.moveDown')}
+                      aria-label={`${t('agentKeymaps.moveDown')} ${label}`}
+                    >↓</Button>
+                    {item.custom && (
+                      <Button
+                        variant="ghost"
+                        brackets={false}
+                        className="px-1 text-tui-bad"
+                        onClick={() => removeCustomAction(item.id)}
+                        title={t('agentKeymaps.removeCustom')}
+                        aria-label={`${t('agentKeymaps.removeCustom')} ${label}`}
+                      >{GLYPH.cross}</Button>
+                    )}
+                  </div>
+                  {error && (
+                    <p className="w-full pl-24 text-tui-sm text-tui-bad" role="alert">
+                      {t('agentKeymaps.invalidCombo', { error })}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <Rule label={t('agentKeymaps.addCustom')} />
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-[9rem] flex-1 space-y-1 text-tui-sm text-tui-faint">
+              <span>{t('agentKeymaps.customLabel')}</span>
+              <Input value={customLabel} onChange={(event) => setCustomLabel(event.target.value)} />
+            </label>
+            <label className="min-w-[9rem] flex-1 space-y-1 text-tui-sm text-tui-faint">
+              <span>{t('agentKeymaps.customCombo')}</span>
+              <Input value={customCombo} onChange={(event) => setCustomCombo(event.target.value)} />
+            </label>
+            <Button onClick={addCustomAgentAction} disabled={!customLabel.trim() || !customCombo.trim()}>
+              {t('agentKeymaps.addAction')}
+            </Button>
+          </div>
+          {customCombo.trim() && (() => {
+            try {
+              parseKeyCombo(customCombo);
+              return <p className="text-tui-sm text-tui-faint">{formatComboCaption(customCombo)}</p>;
+            } catch (reason) {
+              const error = getComboErrorText(reason);
+              return <p className="text-tui-sm text-tui-bad" role="alert">{error}</p>;
+            }
+          })()}
+          <Button variant="ghost" onClick={restoreAgentProfile}>
+            {t('agentKeymaps.restoreProfile')}
+          </Button>
         </div>
       )}
     </Modal>
