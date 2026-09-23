@@ -380,6 +380,7 @@ describe('PredictionOverlay', () => {
     const element = document.createElement('div');
     createdDecorations[0].triggerRender(element);
     expect(element.textContent).toBe('你');
+    expect(element.style.textAlign).toBe('center');
   });
 
   it('keys decorations by kind, so an erase and a caret can share a cell', () => {
@@ -428,5 +429,63 @@ describe('PredictionOverlay', () => {
     overlay.sync([{ row: 12, col: 7, char: 'x', kind: 'caret' }]);
     expect(element.style.backgroundColor).toBe('transparent');
     expect(element.style.boxShadow).toContain('inset 2px 0 0');
+  });
+
+  it('shows an element that xterm hid for the alternate screen, when its row is on screen', () => {
+    // xterm hides decorations whenever the alternate screen is active, which
+    // under Herdr is always; the overlay has to undo that on every render.
+    (mockTerminal as { rows?: number; buffer: { active: Record<string, number> } }).rows = 24;
+    (mockTerminal as { buffer: { active: Record<string, number> } }).buffer.active.viewportY = 0;
+    const overlay = createOverlay({ background: '#101010' });
+    overlay.sync([{ row: 12, col: 5, char: 'a' }]);
+    const element = document.createElement('div');
+    element.style.display = 'none';
+    createdDecorations[0].triggerRender(element);
+    expect(element.style.display).toBe('block');
+  });
+
+  it('leaves an element hidden when its row has scrolled out of view', () => {
+    (mockTerminal as { rows?: number; buffer: { active: Record<string, number> } }).rows = 24;
+    (mockTerminal as { buffer: { active: Record<string, number> } }).buffer.active.viewportY = 40;
+    const overlay = createOverlay({ background: '#101010' });
+    overlay.sync([{ row: 12, col: 5, char: 'a' }]);
+    const element = document.createElement('div');
+    element.style.display = 'none';
+    createdDecorations[0].triggerRender(element);
+    expect(element.style.display).toBe('none');
+  });
+
+  it("draws predictions in the terminal's own font rather than the page's", () => {
+    const overlay = new PredictionOverlay({
+      getTerminal: () => mockTerminal as unknown as Terminal,
+      getStyle: () => ({ color: '#eeeeee', background: '#101010', underline: false, fontFamily: 'JetBrains Mono', fontSize: 15 }),
+    });
+    overlay.sync([{ row: 12, col: 5, char: '你', width: 2 }]);
+    const element = document.createElement('div');
+    element.style.height = '18px';
+    createdDecorations[0].triggerRender(element);
+    expect(element.style.fontFamily).toContain('JetBrains Mono');
+    expect(element.style.fontSize).toBe('15px');
+    expect(element.style.lineHeight).toBe('18px');
+  });
+
+  it('falls back to the colours xterm is painting when the host sent no palette', () => {
+    (mockTerminal as Record<string, unknown>)._core = {
+      _themeService: { colors: { foreground: { css: '#d0d0d0' }, background: { css: '#0a0a0a' }, cursor: { css: '#ff00ff' } } },
+    };
+    const overlay = new PredictionOverlay({
+      getTerminal: () => mockTerminal as unknown as Terminal,
+      getStyle: () => ({ underline: false }),
+    });
+    overlay.sync([
+      { row: 12, col: 5, char: ' ', kind: 'erase' },
+      { row: 12, col: 6, char: ' ', kind: 'caret' },
+    ]);
+    const [erased, caret] = [document.createElement('div'), document.createElement('div')];
+    createdDecorations[0].triggerRender(erased);
+    createdDecorations[1].triggerRender(caret);
+    // An erased cell must be opaque, or the old character shows through.
+    expect(erased.style.backgroundColor).toBe('rgb(10, 10, 10)');
+    expect(caret.style.backgroundColor).toBe('rgb(255, 0, 255)');
   });
 });

@@ -817,13 +817,17 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const overlay = new PredictionOverlay({
       getTerminal: () => termRef.current,
       getStyle: () => {
+        // Without a host palette these are unset, and the overlay falls back to
+        // whatever xterm is painting; see PredictionOverlay.resolveStyle.
         const color = hostThemeRef.current?.foreground ?? termRef.current?.options.theme?.foreground;
         const background = hostThemeRef.current?.background ?? termRef.current?.options.theme?.background;
         const srtt = predictorRef.current?.getEchoSrttMs() ?? null;
         const underline = srtt !== null && srtt > PREDICTIVE_ECHO_AUTO_THRESHOLD_MS;
         const cursor = hostThemeRef.current?.cursor ?? termRef.current?.options.theme?.cursor ?? color;
         const cursorShape = termRef.current?.options.cursorStyle;
-        return { color, background, underline, cursor, cursorShape };
+        const fontFamily = termRef.current?.options.fontFamily;
+        const fontSize = termRef.current?.options.fontSize;
+        return { color, background, underline, cursor, cursorShape, fontFamily, fontSize };
       },
     });
     overlayRef.current = overlay;

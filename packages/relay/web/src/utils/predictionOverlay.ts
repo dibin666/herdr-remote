@@ -7,6 +7,12 @@ export interface PredictionOverlayStyle {
   /** Colour and shape of the caret drawn where the next character will land. */
   cursor?: string;
   cursorShape?: 'block' | 'bar' | 'underline';
+  /**
+   * The terminal's own font. Decorations sit outside xterm's rows and would
+   * otherwise inherit the page's font, which only happens to match for ASCII.
+   */
+  fontFamily?: string;
+  fontSize?: number;
 }
 
 export interface PredictionOverlayOptions {
@@ -35,6 +41,18 @@ interface DecorationEntry {
   char: string;
   width: 1 | 2;
   kind: ItemKind;
+}
+
+/**
+ * The colours xterm is really painting: the host's palette when one was sent,
+ * xterm's own defaults when not. Read from its theme service (private, read
+ * only), so the overlay never names a colour of its own.
+ */
+function paintedColors(terminal: Terminal | null): { foreground?: string; background?: string; cursor?: string } {
+  const colors = (terminal as unknown as {
+    _core?: { _themeService?: { colors?: Record<string, { css?: string } | undefined> } };
+  } | null)?._core?._themeService?.colors;
+  return { foreground: colors?.foreground?.css, background: colors?.background?.css, cursor: colors?.cursor?.css };
 }
 
 /**
@@ -93,7 +111,8 @@ export class PredictionOverlay {
         if (existing.char === pred.char && existing.width === width) {
           // Character is unchanged; refresh element styles if already mounted to track live theme/srtt changes.
           if (existing.decoration.element) {
-            this.applyStyleToElement(existing.decoration.element, existing.char, kind);
+            this.applyStyleToElement(existing.decoration.element, existing.char, kind, width);
+            this.reveal(existing.decoration.element, existing.marker);
           }
           continue;
         }
@@ -114,7 +133,7 @@ export class PredictionOverlay {
           continue;
         }
 
-        const currentStyle = this.options.getStyle();
+        const currentStyle = this.resolveStyle();
         const decorationOptions: IDecorationOptions = {
           marker,
           anchor: 'left',
@@ -147,10 +166,12 @@ export class PredictionOverlay {
         }
 
         if (decoration.element) {
-          this.applyStyleToElement(decoration.element, pred.char, kind);
+          this.applyStyleToElement(decoration.element, pred.char, kind, width);
+          this.reveal(decoration.element, marker);
         }
         decoration.onRender((element) => {
-          this.applyStyleToElement(element, pred.char, kind);
+          this.applyStyleToElement(element, pred.char, kind, width);
+          this.reveal(element, marker);
         });
 
         marker.onDispose?.(() => {
@@ -190,8 +211,26 @@ export class PredictionOverlay {
     this.clear();
   }
 
-  private applyStyleToElement(element: HTMLElement, char: string, kind: ItemKind = 'char'): void {
+  /**
+   * The caller's style, with gaps filled from what xterm paints. An erased
+   * cell with no background would let the old character show through, and a
+   * caret with no colour is invisible.
+   */
+  private resolveStyle(): PredictionOverlayStyle {
     const style = this.options.getStyle();
+    if (style.color && style.background && style.cursor) return style;
+    const painted = paintedColors(this.options.getTerminal());
+    const color = style.color ?? painted.foreground;
+    return {
+      ...style,
+      color,
+      background: style.background ?? painted.background,
+      cursor: style.cursor ?? painted.cursor ?? color,
+    };
+  }
+
+  private applyStyleToElement(element: HTMLElement, char: string, kind: ItemKind = 'char', width: 1 | 2 = 1): void {
+    const style = this.resolveStyle();
     element.textContent = char;
     // Ensure pointer events and selection pass through untouched to the underlying terminal.
     element.style.pointerEvents = 'none';
@@ -207,10 +246,31 @@ export class PredictionOverlay {
       }
       element.style.textDecoration = kind === 'char' && style.underline ? 'underline' : 'none';
     }
-    element.style.fontFamily = 'inherit';
-    element.style.fontSize = 'inherit';
+    element.style.fontFamily = style.fontFamily ?? 'inherit';
+    element.style.fontSize = style.fontSize ? `${style.fontSize}px` : 'inherit';
+    // xterm sizes the element to one cell; centre the glyph in it vertically.
+    element.style.lineHeight = element.style.height || 'normal';
     element.style.overflow = 'hidden';
     element.style.whiteSpace = 'pre';
+    // A CJK glyph is narrower than its two cells; xterm centres it, so match.
+    element.style.textAlign = width === 2 ? 'center' : '';
+  }
+
+  /**
+   * xterm 5.5 hides every decoration element while the alternate screen is
+   * active (`display = altBufferIsActive ? 'none' : 'block'` on each refresh),
+   * and Herdr never leaves the alternate screen — so until this, predictions
+   * were computed and never seen. `onRender` fires right after that
+   * assignment; an element whose row is on screen is shown again here, and
+   * one whose row really is outside the viewport stays hidden.
+   */
+  private reveal(element: HTMLElement, marker: IMarker): void {
+    const terminal = this.options.getTerminal();
+    if (!terminal || marker.isDisposed) return;
+    const row = marker.line - (terminal.buffer?.active?.viewportY ?? 0);
+    if (row >= 0 && row < terminal.rows) {
+      element.style.display = 'block';
+    }
   }
 
   /** Mirrors the terminal's own cursor shape, as the remote program last set it. */
