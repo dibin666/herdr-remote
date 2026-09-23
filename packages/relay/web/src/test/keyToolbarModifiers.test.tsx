@@ -73,7 +73,7 @@ describe('Key bar modifiers', () => {
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[15;2~']));
   });
 
-  it("sends Shift+Tab from Claude's agent drawer mode cap", async () => {
+  it("sends Shift+Tab from Claude's inline shortcut key", async () => {
     await mount();
     act(() => webSocketInstances[0].simulateMessage(JSON.stringify({
       type: 'agent_status',
@@ -83,7 +83,6 @@ describe('Key bar modifiers', () => {
       total: 0,
       agents: [],
     })));
-    fireEvent.click(screen.getByTestId('agent-key-drawer-toggle'));
     fireEvent.click(screen.getByTestId('agent-key-mode'));
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[Z']));
   });
@@ -117,7 +116,6 @@ describe('Key bar modifiers', () => {
   it('lets a generic chord release the latch without modifying it', async () => {
     await mount();
     fireEvent.click(key('Toggle Alt Lock'));
-    fireEvent.click(screen.getByTestId('agent-key-drawer-toggle'));
     fireEvent.click(screen.getByTestId('agent-key-genericCtrlC'));
     await waitFor(() => expect(sentInput()).toEqual(['\x03']));
     expect(key('Toggle Alt Lock')).toHaveAttribute('aria-pressed', 'false');

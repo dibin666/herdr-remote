@@ -327,15 +327,14 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect({ cols: hello.cols, rows: hello.rows }).not.toEqual({ cols: 80, rows: 24 });
   });
 
-  it('wraps the shortcut keys instead of running them off the screen edge', async () => {
+  it('keeps shortcuts in one horizontally scrollable row on narrow screens', async () => {
     await renderPhoneApp();
 
     const row = screen.getByTestId('key-toolbar-row');
-    expect(row.className).toContain('flex-wrap');
-    // Both of these hide keys on a narrow screen: one clips them past the right
-    // edge, the other spreads what is left into chasms.
-    expect(row.className).not.toContain('flex-nowrap');
-    expect(row.className).not.toContain('overflow-x-auto');
+    expect(row.className).toContain('flex-nowrap');
+    expect(row.className).toContain('overflow-x-auto');
+    expect(row.className).toContain('touch-pan-x');
+    expect(row.className).not.toContain('flex-wrap');
     expect(row.className).not.toContain('justify-between');
   });
 });
@@ -629,13 +628,15 @@ describe('Desktop shell is untouched by the phone layout', () => {
     expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();
     expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
 
-    // The toolbar keeps its keys grouped in the middle rather than spread to
-    // both edges of a wide window.
+    // The toolbar starts with its controls and can scroll without hiding either edge.
     const row = screen.getByTestId('key-toolbar-row');
-    expect(row.className).toContain('justify-center');
+    expect(row.className).toContain('justify-start');
+    expect(row.className).toContain('flex-nowrap');
+    expect(row.className).toContain('overflow-x-auto');
     expect(row.className).not.toContain('justify-between');
-    expect(row.className).not.toContain('flex-nowrap');
+    expect(row.className).not.toContain('flex-wrap');
   });
+
 
   it('collapses the key bar to a handle and restores it from there', async () => {
     render(<App />);

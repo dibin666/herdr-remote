@@ -4,7 +4,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { KeyToolbar } from '../components/KeyToolbar';
 import { TerminalProvider } from '../context/TerminalContext';
 import { saveSettings, loadSettings } from '../utils/storage';
-import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, getDefaultVirtualKeys } from '../utils/virtualKeys';
+import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, getDefaultVirtualKeys, sanitizeVirtualKeys } from '../utils/virtualKeys';
 
 describe('Virtual Keyboard Customization (Requirement 5)', () => {
   beforeEach(() => {
@@ -12,8 +12,9 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     sessionStorage.clear();
   });
 
-  it('uses the agent drawer by default and migrates the old untouched row', () => {
-    expect(DEFAULT_TOOLBAR_KEYS.map((key) => key.id)).toContain('drawer_agent');
+  it('omits the agent drawer from the default row and migrates old layouts', () => {
+    expect(DEFAULT_TOOLBAR_KEYS.map((key) => key.id)).not.toContain('drawer_agent');
+    expect(ALL_AVAILABLE_KEYS.map((key) => key.id)).not.toContain('drawer_agent');
     expect(DEFAULT_TOOLBAR_KEYS.some((key) => key.id === 'shift_tab' || key.id === 'drawer_chords')).toBe(false);
 
     const byId = new Map(ALL_AVAILABLE_KEYS.map((key) => [key.id, key]));
@@ -23,6 +24,14 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     ].map((id) => byId.get(id)!);
     saveSettings({ virtualKeys: previousDefault });
     expect(loadSettings().virtualKeys.map((key) => key.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
+
+    const previousAgentDrawerDefault = [
+      'esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
+      { id: 'drawer_agent', label: 'Agent', code: '', type: 'drawer', enabled: true, drawerType: 'agent' },
+      'drawer_symbols', 'drawer_fn', 'enter',
+    ].map((item) => typeof item === 'string' ? byId.get(item)! : item);
+    expect(sanitizeVirtualKeys(previousAgentDrawerDefault).map((key) => key.id))
+      .toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
   });
 
   it('renders customized keys in KeyToolbar based on settings', () => {

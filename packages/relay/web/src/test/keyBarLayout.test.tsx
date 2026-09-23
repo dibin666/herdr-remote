@@ -33,7 +33,7 @@ describe('Touch key bar layout', () => {
     expect(DEFAULT_TOOLBAR_KEYS[DEFAULT_TOOLBAR_KEYS.length - 1].id).toBe('enter');
     expect(DEFAULT_TOOLBAR_KEYS.map((key) => key.id)).toEqual([
       'esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
-      'drawer_agent', 'drawer_symbols', 'drawer_fn', 'enter',
+      'drawer_symbols', 'drawer_fn', 'enter',
     ]);
   });
 

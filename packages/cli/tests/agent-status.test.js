@@ -101,6 +101,29 @@ test('the focused pane and its agent are carried even without a tracked agent', 
   }).focusedAgent, 'claude-code');
 });
 
+test('falls back to focused pane and agent markers when the top-level focus ID is absent', () => {
+  const paneSummary = summarizeAgents({
+    panes: [{ pane_id: 'wA:p2', agent: 'pi', focused: true }],
+    agents: [agent('wA:p1', 'idle')],
+  });
+  assert.equal(paneSummary.focusedPaneId, 'wA:p2');
+  assert.equal(paneSummary.focusedAgent, 'pi');
+
+  const agentSummary = summarizeAgents({
+    agents: [agent('wA:p3', 'working', { focused: true })],
+  });
+  assert.equal(agentSummary.focusedPaneId, 'wA:p3');
+  assert.equal(agentSummary.focusedAgent, 'claude');
+
+  const shellSummary = summarizeAgents({
+    focused_pane_id: 'wA:p4',
+    panes: [{ pane_id: 'wA:p4' }],
+    agents: [agent('wA:p3', 'working', { focused: false })],
+  });
+  assert.equal(shellSummary.focusedPaneId, 'wA:p4');
+  assert.equal(shellSummary.focusedAgent, null);
+});
+
 /**
  * A stand-in for Herdr's socket: answers one request per connection and hangs
  * up, which is what the real one does and the reason `requestHerdr` connects

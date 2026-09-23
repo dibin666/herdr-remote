@@ -56,13 +56,21 @@ function emptyCounts() {
  */
 function summarizeAgents(snapshot) {
   const entries = Array.isArray(snapshot?.agents) ? snapshot.agents : [];
-  const focusedPaneId = typeof snapshot?.focused_pane_id === 'string' ? snapshot.focused_pane_id : null;
-  const focusedPane = focusedPaneId && Array.isArray(snapshot?.panes)
-    ? snapshot.panes.find((pane) => pane?.pane_id === focusedPaneId)
+  const panes = Array.isArray(snapshot?.panes) ? snapshot.panes : [];
+  const reportedFocusId = typeof snapshot?.focused_pane_id === 'string' && snapshot.focused_pane_id
+    ? snapshot.focused_pane_id
     : null;
-  const focusedAgentEntry = focusedPaneId
-    ? entries.find((entry) => entry?.pane_id === focusedPaneId)
-    : null;
+  // `focused_pane_id` is the primary signal in Herdr snapshots. The focused
+  // flags are a fallback for snapshots where that top-level field is absent.
+  const focusedPane = (reportedFocusId
+    ? panes.find((pane) => pane?.pane_id === reportedFocusId)
+    : panes.find((pane) => pane?.focused === true)) || null;
+  const focusedAgentEntry = (reportedFocusId
+    ? entries.find((entry) => entry?.pane_id === reportedFocusId)
+    : entries.find((entry) => entry?.focused === true)) || null;
+  const focusedPaneId = reportedFocusId
+    || (typeof focusedPane?.pane_id === 'string' ? focusedPane.pane_id : null)
+    || (typeof focusedAgentEntry?.pane_id === 'string' ? focusedAgentEntry.pane_id : null);
   const focusedAgent = typeof focusedPane?.agent === 'string'
     ? focusedPane.agent
     : typeof focusedAgentEntry?.agent === 'string'

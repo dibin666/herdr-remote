@@ -141,7 +141,6 @@ describe('Agent keymap settings', () => {
 
     expect(screen.getByRole('textbox', { name: 'Shortcut Details' })).toHaveValue('ctrl+e');
     fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
-    fireEvent.click(screen.getByTestId('agent-key-drawer-toggle'));
     fireEvent.click(screen.getByTestId('agent-key-details'));
     await waitFor(() => expect(sendInput).toHaveBeenCalledTimes(1));
     expect(new TextDecoder().decode(sendInput.mock.calls[0][0] as Uint8Array)).toBe('\x05');

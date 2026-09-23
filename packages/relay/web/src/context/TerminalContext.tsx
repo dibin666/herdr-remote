@@ -28,7 +28,7 @@ import {
 } from '../utils/storage';
 import { translate, Language } from '../i18n';
 import { applyDocumentTheme } from '../utils/theme';
-import { AGENT_PROFILES, resolveProfile, type AgentProfileId, type AgentProfilePin } from '../utils/agentKeymaps';
+import { resolveProfile, type AgentProfileId } from '../utils/agentKeymaps';
 import {
   compressAndPrepareImage,
   PreparedImagePaste,
@@ -53,21 +53,6 @@ export interface ToastItem {
 export const TOAST_DISMISS_MS = 4000;
 /** Distinct notices on screen at once; the oldest is dropped past this. */
 export const MAX_VISIBLE_TOASTS = 3;
-
-/** Agent pins belong to this window's session, never the shared keymap settings. */
-export const AGENT_PROFILE_PIN_SESSION_KEY = 'herdr_remote_agent_profile_pin_v1';
-
-function loadAgentProfilePin(): AgentProfilePin {
-  if (typeof window === 'undefined') return 'auto';
-  try {
-    const value = window.sessionStorage.getItem(AGENT_PROFILE_PIN_SESSION_KEY);
-    if (value === 'auto') return value;
-    if (value && Object.hasOwn(AGENT_PROFILES, value)) return value as AgentProfileId;
-  } catch {
-    // Storage can be unavailable in private or sandboxed browser contexts.
-  }
-  return 'auto';
-}
 
 /** Ring-buffer bounds for output received while no terminal sink is attached. */
 export const MAX_PENDING_OUTPUT_CHUNKS = 4096;
@@ -108,10 +93,8 @@ interface TerminalContextValue {
    * Read from Herdr's socket API by the host connector, not from the terminal.
    */
   agentStatus: ServerAgentStatusMessage | null;
-  /** Resolved keymap, following focus unless this window has a profile pin. */
+  /** Keymap resolved automatically from the workstation's focused pane. */
   agentProfile: AgentProfileId;
-  agentProfilePin: AgentProfilePin;
-  setAgentProfilePin: (pin: AgentProfilePin) => void;
   /**
    * Timestamp of the most recent successful pairing, or null if this session
    * has not paired. Consumers watch it to leave the pairing UI: the pairing
@@ -219,22 +202,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
   /** Null until the workstation has reported; absence is not "no agents". */
   const [agentStatus, setAgentStatus] = useState<ServerAgentStatusMessage | null>(null);
-  const [agentProfilePin, setAgentProfilePinState] = useState<AgentProfilePin>(loadAgentProfilePin);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
   const [terminalDimensions, setTerminalDimensions] = useState<{ cols: number; rows: number }>({
     cols: 80,
     rows: 24,
   });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const setAgentProfilePin = useCallback((pin: AgentProfilePin) => {
-    setAgentProfilePinState(pin);
-    try {
-      window.sessionStorage.setItem(AGENT_PROFILE_PIN_SESSION_KEY, pin);
-    } catch {
-      // The in-memory pin still applies for this window when storage is blocked.
-    }
-  }, []);
-  const agentProfile = resolveProfile(agentStatus?.focusedAgent, agentProfilePin);
+  const agentProfile = resolveProfile(agentStatus?.focusedAgent, 'auto');
   useEffect(() => {
     applyDocumentTheme();
   }, []);
@@ -1112,8 +1086,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         statusPayload,
         agentStatus,
         agentProfile,
-        agentProfilePin,
-        setAgentProfilePin,
         lastPairedAt,
         settings,
         hostPalette,

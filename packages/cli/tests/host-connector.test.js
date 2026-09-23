@@ -98,23 +98,40 @@ test('agent focus events trigger a debounced snapshot read and stop with the wat
     },
     async requestHerdr() {
       reads += 1;
-      return { snapshot: { focused_pane_id: null, panes: [], agents: [] } };
+      const paneId = `w1:p${reads}`;
+      const agent = reads === 1 ? 'pi' : 'claude';
+      return { snapshot: {
+        focused_pane_id: paneId,
+        panes: [{ pane_id: paneId, agent }],
+        agents: [{
+          pane_id: paneId,
+          workspace_id: 'w1',
+          agent,
+          agent_status: 'working',
+          focused: true,
+        }],
+      } };
     },
   });
   t.after(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
-  captureSocket(connector);
+  const sent = captureSocket(connector);
 
   connector.setClientCount(1);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(reads, 1, 'starting the watcher reads one initial snapshot');
+  assert.equal(sent.find((message) => message.type === 'agent_status')?.focusedAgent, 'pi');
 
   onEvent({ event: 'pane_focused', data: { pane_id: 'w1:p1' } });
   await new Promise((resolve) => setTimeout(resolve, 200));
   assert.equal(reads, 2, 'a focus event refreshes the snapshot after the debounce');
 
+  assert.deepEqual(
+    sent.filter((message) => message.type === 'agent_status').map((message) => message.focusedAgent),
+    ['pi', 'claude'],
+  );
   connector.stopAgentStatus();
   assert.equal(closeCount, 1, 'stopping the watcher closes its subscription');
   onEvent({ event: 'pane_focused', data: { pane_id: 'w1:p2' } });
