@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TerminalProvider, useTerminal } from './context/TerminalContext';
+import { useAgentAlerts } from './utils/useAgentAlerts';
 import { Header } from './components/Header';
 import { StatusBanner } from './components/StatusBanner';
 import { TerminalView } from './components/TerminalView';
@@ -26,6 +27,7 @@ function AppContent() {
 
   const { updateSettings, settings, connectionState, stateDetail, stateCode, lastPairedAt } =
     useTerminal();
+  useAgentAlerts();
 
   /**
    * Phones get their own shell: the terminal takes the whole screen and every

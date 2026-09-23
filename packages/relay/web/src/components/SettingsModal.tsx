@@ -9,6 +9,7 @@ import {
   getLocalizedKeyTitle,
 } from '../utils/virtualKeys';
 import { cn } from '../utils/cn';
+import { playAlertChime, unlockAlertChime } from '../utils/alertChime';
 import {
   Button,
   Checkbox,
@@ -51,6 +52,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       ? settings.virtualKeys
       : getDefaultVirtualKeys();
 
+  // Plain HTTP on a LAN is not a secure context, and there the API is absent.
+  const notificationsAvailable =
+    typeof window !== 'undefined' && window.isSecureContext && 'Notification' in window;
+
   const handleResetDefaults = () => {
     const defaults = getDefaultSettings();
     updateSettings({
@@ -59,6 +64,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       toolbarVisible: defaults.toolbarVisible,
       vibrateOnKeyPress: defaults.vibrateOnKeyPress,
       predictiveEcho: defaults.predictiveEcho,
+      agentAlertBadge: defaults.agentAlertBadge,
+      agentAlertSound: defaults.agentAlertSound,
+      agentAlertVibrate: defaults.agentAlertVibrate,
+      agentAlertNotify: defaults.agentAlertNotify,
       language: defaults.language,
       virtualKeys: defaults.virtualKeys,
     });
@@ -273,6 +282,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               label={t('settings.touchHaptics')}
               description={t('settings.touchHapticsDesc')}
             />
+          </div>
+
+          <Rule />
+
+          {/* Agent alerts */}
+          <div className="space-y-1">
+            <FieldLabel>{t('settings.agentAlertsLabel')}</FieldLabel>
+            <Checkbox
+              checked={settings.agentAlertBadge}
+              onChange={(checked) => updateSettings({ agentAlertBadge: checked })}
+              label={t('settings.agentAlertBadge')}
+              description={t('settings.agentAlertBadgeDesc')}
+            />
+            <Checkbox
+              checked={settings.agentAlertVibrate}
+              onChange={(checked) => updateSettings({ agentAlertVibrate: checked })}
+              label={t('settings.agentAlertVibrate')}
+              description={t('settings.agentAlertVibrateDesc')}
+            />
+            <Checkbox
+              checked={settings.agentAlertSound}
+              onChange={(checked) => {
+                updateSettings({ agentAlertSound: checked });
+                // This click is the gesture a browser wants before it plays
+                // anything; use it, and let the person hear what they chose.
+                if (checked) {
+                  unlockAlertChime();
+                  playAlertChime('done');
+                }
+              }}
+              label={t('settings.agentAlertSound')}
+              description={t('settings.agentAlertSoundDesc')}
+            />
+            {notificationsAvailable && (
+              <Checkbox
+                checked={settings.agentAlertNotify}
+                onChange={(checked) => {
+                  if (checked && Notification.permission !== 'granted') {
+                    void Notification.requestPermission().then((permission) =>
+                      updateSettings({ agentAlertNotify: permission === 'granted' })
+                    );
+                    return;
+                  }
+                  updateSettings({ agentAlertNotify: checked });
+                }}
+                label={t('settings.agentAlertNotify')}
+                description={t('settings.agentAlertNotifyDesc')}
+              />
+            )}
           </div>
 
           <Rule />

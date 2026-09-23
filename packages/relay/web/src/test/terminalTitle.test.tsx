@@ -118,6 +118,19 @@ describe('The tab follows this window’s own session', () => {
     expect(document.title.endsWith(BASE_DOCUMENT_TITLE)).toBe(true);
   });
 
+  it('leads with the agents that are waiting, while the badge setting is on', async () => {
+    const { ctx, term } = await connectedView(true);
+    act(() => { term.emitTitleChange?.('◑ Claude Code'); });
+    act(() => {
+      // @ts-expect-error test mock
+      ctx?.adapter?.emit('agentStatus', { type: 'agent_status', counts: { blocked: 1, done: 2 }, total: 3, agents: [] });
+    });
+    await waitFor(() => expect(document.title).toBe('(1⚠ 2✓) ◑ Claude Code · Herdr Remote'));
+
+    act(() => { ctx?.updateSettings({ agentAlertBadge: false }); });
+    await waitFor(() => expect(document.title).toBe('◑ Claude Code · Herdr Remote'));
+  });
+
   it('drops a title that belonged to a session that has ended', async () => {
     const { ctx, term } = await connectedView(true);
     act(() => { term.emitTitleChange?.('◑ Claude Code'); });

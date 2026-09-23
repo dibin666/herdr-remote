@@ -9,6 +9,8 @@
  * one thing that tells two identical-looking tabs apart.
  */
 
+import { formatAttentionPrefix, type AttentionCounts } from './agentAttention';
+
 export const BASE_DOCUMENT_TITLE = 'Herdr Remote';
 
 /** Long enough for "workspace — agent", short enough to leave a readable tab. */
@@ -38,19 +40,30 @@ export function sanitizeTerminalTitle(raw: unknown): string {
  *
  * The terminal's own title wins; the profile name is what a tab falls back to
  * between sessions, so a disconnected window still says which workstation it
- * belongs to instead of going anonymous.
+ * belongs to instead of going anonymous. Agents waiting for a person lead the
+ * title, where a background tab still shows them.
  */
-export function formatDocumentTitle(title?: string | null, fallback?: string | null): string {
+export function formatDocumentTitle(
+  title?: string | null,
+  fallback?: string | null,
+  attention?: AttentionCounts | null,
+): string {
+  const prefix = formatAttentionPrefix(attention ?? null);
+  const lead = prefix ? `${prefix} ` : '';
   const terminalTitle = sanitizeTerminalTitle(title);
-  if (terminalTitle) return `${terminalTitle} · ${BASE_DOCUMENT_TITLE}`;
+  if (terminalTitle) return `${lead}${terminalTitle} · ${BASE_DOCUMENT_TITLE}`;
   const profileName = sanitizeTerminalTitle(fallback);
-  if (profileName) return `${profileName} · ${BASE_DOCUMENT_TITLE}`;
-  return BASE_DOCUMENT_TITLE;
+  if (profileName) return `${lead}${profileName} · ${BASE_DOCUMENT_TITLE}`;
+  return `${lead}${BASE_DOCUMENT_TITLE}`;
 }
 
 /** Apply the computed title, tolerating a document that is not there (tests, SSR). */
-export function applyDocumentTitle(title?: string | null, fallback?: string | null): string {
-  const next = formatDocumentTitle(title, fallback);
+export function applyDocumentTitle(
+  title?: string | null,
+  fallback?: string | null,
+  attention?: AttentionCounts | null,
+): string {
+  const next = formatDocumentTitle(title, fallback, attention);
   if (typeof document !== 'undefined') document.title = next;
   return next;
 }

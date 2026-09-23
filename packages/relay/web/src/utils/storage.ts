@@ -46,6 +46,15 @@ export interface StoredSettings {
   vibrateOnKeyPress: boolean;
   predictiveEcho: 'auto' | 'always' | 'off';
   virtualKeys: ToolbarKeyDef[];
+  /**
+   * When an agent is blocked or done: count it in the tab title and badge the
+   * icon (on by default, since both simply sit there), and optionally chime,
+   * vibrate, or — on HTTPS only — post a system notification.
+   */
+  agentAlertBadge: boolean;
+  agentAlertSound: boolean;
+  agentAlertVibrate: boolean;
+  agentAlertNotify: boolean;
   /** Per-window operator credentials keyed by the exact relay origin. */
   adminToken?: string;
   adminTokens?: Record<string, string>;
@@ -186,6 +195,10 @@ export function getDefaultSettings(): StoredSettings {
     toolbarPosition: 'bottom',
     vibrateOnKeyPress: true,
     predictiveEcho: 'auto',
+    agentAlertBadge: true,
+    agentAlertSound: false,
+    agentAlertVibrate: false,
+    agentAlertNotify: false,
     language: detectDefaultLanguage(),
     virtualKeys: getDefaultVirtualKeys(),
     adminToken: '',
@@ -217,6 +230,10 @@ const SESSION_KEYS: Array<keyof StoredSettings> = [
   'vibrateOnKeyPress',
   'predictiveEcho',
   'virtualKeys',
+  'agentAlertBadge',
+  'agentAlertSound',
+  'agentAlertVibrate',
+  'agentAlertNotify',
   'adminToken',
   'adminTokens',
 ];
@@ -377,6 +394,10 @@ export function loadSettings(): StoredSettings {
   const toolbarVisible = sessionData.toolbarVisible ?? localData.toolbarVisible ?? defaults.toolbarVisible;
   const toolbarPosition = sessionData.toolbarPosition ?? localData.toolbarPosition ?? defaults.toolbarPosition;
   const vibrateOnKeyPress = sessionData.vibrateOnKeyPress ?? localData.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress;
+  const booleanSetting = (key: 'agentAlertBadge' | 'agentAlertSound' | 'agentAlertVibrate' | 'agentAlertNotify') => {
+    const value = sessionData[key] ?? localData[key];
+    return typeof value === 'boolean' ? value : defaults[key];
+  };
   const rawPredictiveEcho = sessionData?.predictiveEcho ?? localData?.predictiveEcho ?? defaults.predictiveEcho;
   const predictiveEcho: 'auto' | 'always' | 'off' =
     rawPredictiveEcho === 'always' || rawPredictiveEcho === 'off' || rawPredictiveEcho === 'auto'
@@ -409,6 +430,10 @@ export function loadSettings(): StoredSettings {
     vibrateOnKeyPress,
     predictiveEcho,
     virtualKeys,
+    agentAlertBadge: booleanSetting('agentAlertBadge'),
+    agentAlertSound: booleanSetting('agentAlertSound'),
+    agentAlertVibrate: booleanSetting('agentAlertVibrate'),
+    agentAlertNotify: booleanSetting('agentAlertNotify'),
     language,
     adminToken,
     adminTokens,

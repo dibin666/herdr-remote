@@ -203,6 +203,20 @@ test('scoped status and public health never expose another host', async (t) => {
   hostB.close();
 });
 
+test('the content security policy lets the page draw its own data: icons', async (t) => {
+  // The tab icon is an SVG data: URL, and the web client redraws it with a
+  // badge while an agent is waiting; a stricter img-src would blank the tab.
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-csp-'));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  t.after(async () => relay.close());
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/info`);
+  const policy = response.headers.get('content-security-policy') || '';
+  assert.match(policy, /img-src 'self' data:/);
+  assert.match(policy, /script-src 'self'(;|$)/);
+});
+
 test('CORS echoes only an explicitly allowed origin', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-cors-'));
   const relayConfig = config();

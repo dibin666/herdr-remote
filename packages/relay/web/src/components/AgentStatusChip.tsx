@@ -13,7 +13,8 @@ import { StatusDot } from './tui';
  *
  * Deliberately not a notification. The relay is plain HTTP on a LAN, where the
  * Notification API does not exist at all, and a badge that is simply *there*
- * beats an alert per state change — which is the flood this replaces.
+ * beats an alert per state change — which is the flood this replaces. The
+ * opt-in alerts in useAgentAlerts.ts fire on a change only, one per window.
  */
 
 /** Only what a person would act on. Idle and unknown are the resting state. */

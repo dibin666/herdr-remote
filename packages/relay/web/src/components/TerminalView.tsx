@@ -41,6 +41,7 @@ import {
 } from '../utils/terminalSelection';
 import { copyText, readClipboardText, readClipboardImage, extractImageFromClipboardEvent } from '../utils/clipboard';
 import { applyDocumentTitle, sanitizeTerminalTitle } from '../utils/documentTitle';
+import { attentionCounts } from '../utils/agentAttention';
 import { linkAtCell, openTerminalLink } from '../utils/terminalLinks';
 import { PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
@@ -205,6 +206,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     sendBinary,
     observeKeyInput,
     consumeModifierLatch,
+    agentStatus,
     addToast,
     warnViewerMode,
     connect,
@@ -1438,8 +1440,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
    */
   useEffect(() => {
     const showing = isActive && connectionState === 'connected';
-    applyDocumentTitle(showing ? terminalTitle : null, activeProfileName);
-  }, [isActive, connectionState, terminalTitle, activeProfileName]);
+    const attention = settings.agentAlertBadge ? attentionCounts(agentStatus) : null;
+    applyDocumentTitle(showing ? terminalTitle : null, activeProfileName, attention);
+  }, [isActive, connectionState, terminalTitle, activeProfileName, agentStatus, settings.agentAlertBadge]);
 
   // Sync visual-only settings changes (fontSize, fontFamily) with the live terminal
   useEffect(() => {

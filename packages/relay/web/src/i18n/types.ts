@@ -170,6 +170,15 @@ export interface TranslationSchema {
     touchKeyToolbarDesc: string;
     touchHaptics: string;
     touchHapticsDesc: string;
+    agentAlertsLabel: string;
+    agentAlertBadge: string;
+    agentAlertBadgeDesc: string;
+    agentAlertVibrate: string;
+    agentAlertVibrateDesc: string;
+    agentAlertSound: string;
+    agentAlertSoundDesc: string;
+    agentAlertNotify: string;
+    agentAlertNotifyDesc: string;
     languageLabel: string;
     languageDesc: string;
     resetDefaults: string;
@@ -498,6 +507,8 @@ export interface TranslationSchema {
     done: string;
     working: string;
     allIdle: string;
+    notifyBlocked: string;
+    notifyDone: string;
   };
   clipboard: {
     openLink: string;
