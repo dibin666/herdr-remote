@@ -56,6 +56,13 @@ export type AdapterEventMap = {
   agentStatus: (status: ServerAgentStatusMessage) => void;
 };
 
+/** How long a ping may go unanswered before the socket is written off. */
+const PROBE_TIMEOUT_MS = 3000;
+/** A connection attempt still pending after this long is stuck, not slow. */
+const CONNECT_STALL_MS = 10000;
+/** Wake events arrive in bursts (visibility, focus and pageshow together). */
+const WAKE_MIN_INTERVAL_MS = 1500;
+
 export class HerdrClientAdapter {
   private ws: WebSocket | null = null;
   private config: ConnectionConfig;
@@ -68,6 +75,14 @@ export class HerdrClientAdapter {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pingTimestamp: number | null = null;
+  // Wall-clock times: performance.now() can stand still while a phone sleeps,
+  // and sleep is exactly what these measure across.
+  private lastInboundAt = 0;
+  private pingSentAt: number | null = null;
+  private connectStartedAt = 0;
+  private lastWakeConnectAt = 0;
+  private probeTimer: ReturnType<typeof setTimeout> | null = null;
+  private rejectedByRelay = false;
   private isManuallyClosed = false;
   private authFailureDetail: string | null = null;
   private authFailureCode: string | null = null;
@@ -184,6 +199,7 @@ export class HerdrClientAdapter {
     this.authFailureDetail = null;
     this.authFailureCode = null;
     this.temporaryFailureCode = null;
+    this.rejectedByRelay = false;
     this.clearTimers();
     this.setState('connecting');
 
@@ -191,6 +207,7 @@ export class HerdrClientAdapter {
       const url = this.resolveWsUrl(this.config.wsUrl);
       const socket = new WebSocket(url);
       this.ws = socket;
+      this.connectStartedAt = Date.now();
       socket.binaryType = 'arraybuffer';
 
       // Every handler is bound to the socket that registered it. A socket the
@@ -285,12 +302,75 @@ export class HerdrClientAdapter {
     this.connect();
   }
 
+  /**
+   * The page has come back: visible again, restored from the back/forward
+   * cache, or back online. A phone that slept may be sitting out a long
+   * reconnect backoff, or holding a socket the OS killed without a close
+   * event; either way the user is looking at a dead terminal. Recover now.
+   *
+   * A live-looking socket is not dropped on suspicion. It is probed first,
+   * because a false drop is expensive: the relay starts a fresh Herdr client
+   * for the new socket, and this window loses the workspace and tab it had.
+   */
+  public wake(_reason: string): void {
+    if (this.isManuallyClosed || !this.config.autoReconnect || this.authFailureDetail || this.rejectedByRelay) {
+      return;
+    }
+    const now = Date.now();
+    const socket = this.ws;
+
+    if (!socket) {
+      if (now - this.lastWakeConnectAt < WAKE_MIN_INTERVAL_MS) return;
+      this.lastWakeConnectAt = now;
+      this.reconnectAttempts = 0;
+      this.connect();
+      return;
+    }
+
+    if (socket.readyState === WebSocket.CONNECTING) {
+      if (now - this.connectStartedAt > CONNECT_STALL_MS) this.dropStaleSocket('connection_stalled');
+      return;
+    }
+
+    if (socket.readyState === WebSocket.OPEN && now - this.lastInboundAt > this.pingIntervalMs() + 2000) {
+      this.probeLiveness();
+    }
+  }
+
+  private pingIntervalMs(): number {
+    return this.config.pingIntervalMs || 10000;
+  }
+
+  /** Pings, and gives the socket up if nothing at all comes back in time. */
+  private probeLiveness(): void {
+    const socket = this.ws;
+    if (!socket || socket.readyState !== WebSocket.OPEN || this.probeTimer) return;
+    const sentAt = Date.now();
+    this.sendPing();
+    this.probeTimer = setTimeout(() => {
+      this.probeTimer = null;
+      if (this.ws !== socket) return;
+      if (this.lastInboundAt < sentAt) this.dropStaleSocket('connection_stale');
+    }, PROBE_TIMEOUT_MS);
+  }
+
+  private dropStaleSocket(code: string): void {
+    this.clearTimers();
+    this.teardownSocket(4000, 'Connection went silent');
+    this.setState('reconnecting', 'The connection went silent. Reconnecting...', code);
+    this.reconnectAttempts = 0;
+    this.lastWakeConnectAt = Date.now();
+    this.connect();
+  }
+
   private handleOpen(): void {
+    this.lastInboundAt = Date.now();
     this.sendHello();
     this.startHeartbeat();
   }
 
   private async handleMessage(event: MessageEvent): Promise<void> {
+    this.lastInboundAt = Date.now();
     if (typeof event.data === 'string') {
       // JSON Control message
       try {
@@ -464,6 +544,7 @@ export class HerdrClientAdapter {
       return;
     }
     if (event.code === 1008) {
+      this.rejectedByRelay = true;
       this.setState('error', event.reason || 'The relay rejected the connection', String(event.code));
       return;
     }
@@ -503,12 +584,19 @@ export class HerdrClientAdapter {
 
   private startHeartbeat(): void {
     if (this.pingTimer) clearInterval(this.pingTimer);
-    const interval = this.config.pingIntervalMs || 10000;
+    const interval = this.pingIntervalMs();
+    this.pingSentAt = null;
 
     this.pingTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.sendPing();
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      // A ping that met a whole interval of silence earns a probe, not a
+      // drop: a background tab's timers fire late, and the answer may be in
+      // flight.
+      if (this.pingSentAt !== null && this.lastInboundAt < this.pingSentAt && Date.now() - this.pingSentAt >= interval) {
+        this.probeLiveness();
+        return;
       }
+      this.sendPing();
     }, interval);
   }
 
@@ -520,6 +608,10 @@ export class HerdrClientAdapter {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
+    }
+    if (this.probeTimer) {
+      clearTimeout(this.probeTimer);
+      this.probeTimer = null;
     }
   }
 
@@ -572,6 +664,7 @@ export class HerdrClientAdapter {
 
   public sendPing(): void {
     this.pingTimestamp = performance.now();
+    this.pingSentAt = Date.now();
     const msg: ClientPingMessage = {
       type: 'ping',
     };

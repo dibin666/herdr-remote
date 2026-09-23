@@ -467,6 +467,8 @@ export interface TranslationSchema {
     invalid_handshake: string;
     device_revoked: string;
     connection_closed: string;
+    connection_stale: string;
+    connection_stalled: string;
     connection_failed: string;
     host_reconnecting: string;
     host_reconnect_timeout: string;

@@ -17,6 +17,7 @@ import {
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { encodeStringToBytes, type KeyModifiers } from '../protocol/keyEncoder';
+import { installWakeListeners } from '../utils/wakeListeners';
 import {
   ConnectionProfile,
   StoredSettings,
@@ -845,6 +846,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     modifierLatchRef.current = NO_MODIFIERS;
     setModifierLatch(NO_MODIFIERS);
     return latch;
+  }, []);
+
+  // Reconnect the moment the page comes back, rather than when the backoff
+  // next allows: see wakeListeners.ts.
+  useEffect(() => {
+    const adapter = adapterRef.current;
+    return adapter ? installWakeListeners(adapter) : undefined;
   }, []);
 
   const sendBinary = useCallback((data: Uint8Array | ArrayBuffer) => {

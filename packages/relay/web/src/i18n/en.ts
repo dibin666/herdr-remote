@@ -448,6 +448,8 @@ export const en: TranslationSchema = {
     invalid_handshake: 'The relay rejected the handshake. Reload the page.',
     device_revoked: 'This device was revoked by the relay operator.',
     connection_closed: 'Connection closed. Reconnecting…',
+    connection_stale: 'The connection went quiet while the page was away. Reconnecting…',
+    connection_stalled: 'Connecting took too long. Trying again…',
     connection_failed: 'Could not open a connection to the relay.',
     host_reconnecting: 'The Herdr host is reconnecting.',
     host_reconnect_timeout: 'The Herdr host did not reconnect in time.',

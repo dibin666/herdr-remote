@@ -448,6 +448,8 @@ export const zh: TranslationSchema = {
     invalid_handshake: 'relay 拒绝了握手，请刷新页面。',
     device_revoked: '该设备已被 relay 管理员撤销。',
     connection_closed: '连接已断开，正在重连…',
+    connection_stale: '页面回到前台时连接已无响应，正在重连…',
+    connection_stalled: '连接超时，正在重试…',
     connection_failed: '无法建立到 relay 的连接。',
     host_reconnecting: 'Herdr 主机正在重连。',
     host_reconnect_timeout: 'Herdr 主机未能及时恢复连接。',
