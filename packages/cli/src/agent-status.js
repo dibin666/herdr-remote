@@ -51,9 +51,23 @@ function emptyCounts() {
  *
  * Sorted by how much each status wants attention, so the capped list keeps the
  * agents worth naming rather than the first ones Herdr happened to report.
+ * `focusedPaneId` and `focusedAgent` also track the live pane selection,
+ * including shells and panes Herdr has not added to its agent summary.
  */
 function summarizeAgents(snapshot) {
   const entries = Array.isArray(snapshot?.agents) ? snapshot.agents : [];
+  const focusedPaneId = typeof snapshot?.focused_pane_id === 'string' ? snapshot.focused_pane_id : null;
+  const focusedPane = focusedPaneId && Array.isArray(snapshot?.panes)
+    ? snapshot.panes.find((pane) => pane?.pane_id === focusedPaneId)
+    : null;
+  const focusedAgentEntry = focusedPaneId
+    ? entries.find((entry) => entry?.pane_id === focusedPaneId)
+    : null;
+  const focusedAgent = typeof focusedPane?.agent === 'string'
+    ? focusedPane.agent
+    : typeof focusedAgentEntry?.agent === 'string'
+      ? focusedAgentEntry.agent
+      : null;
   const counts = emptyCounts();
   const ranked = [];
 
@@ -74,6 +88,8 @@ function summarizeAgents(snapshot) {
   ranked.sort((left, right) => AGENT_STATUSES.indexOf(left.status) - AGENT_STATUSES.indexOf(right.status));
 
   return {
+    focusedPaneId,
+    focusedAgent,
     counts,
     // Total rather than a sum the browser has to compute, and the one number a
     // collapsed chip can show on its own.
@@ -85,6 +101,7 @@ function summarizeAgents(snapshot) {
 /** Whether two summaries say the same thing, so an unchanged one is not sent. */
 function sameSummary(left, right) {
   if (!left || !right) return left === right;
+  if (left.focusedPaneId !== right.focusedPaneId || left.focusedAgent !== right.focusedAgent) return false;
   if (left.total !== right.total) return false;
   for (const status of AGENT_STATUSES) {
     if ((left.counts?.[status] || 0) !== (right.counts?.[status] || 0)) return false;
@@ -102,7 +119,7 @@ function sameSummary(left, right) {
 
 /** The summary of a workstation with nothing to report, or nothing to ask. */
 function emptySummary() {
-  return { counts: emptyCounts(), total: 0, agents: [] };
+  return { focusedPaneId: null, focusedAgent: null, counts: emptyCounts(), total: 0, agents: [] };
 }
 
 module.exports = {

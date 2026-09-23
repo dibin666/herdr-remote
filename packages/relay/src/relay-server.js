@@ -1306,6 +1306,8 @@ class RelayServer {
       }));
     const payload = {
       type: 'agent_status',
+      focusedPaneId: text(message.focusedPaneId, 64),
+      focusedAgent: text(message.focusedAgent, 32),
       counts,
       total: Number.isFinite(message.total) ? Math.max(0, Math.trunc(message.total)) : agents.length,
       agents,

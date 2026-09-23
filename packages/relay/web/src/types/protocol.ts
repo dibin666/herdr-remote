@@ -189,6 +189,8 @@ export interface AgentStatusEntry {
  */
 export interface ServerAgentStatusMessage {
   type: 'agent_status';
+  focusedPaneId?: string | null;
+  focusedAgent?: string | null;
   counts: Partial<Record<AgentStatus, number>>;
   total: number;
   agents: AgentStatusEntry[];

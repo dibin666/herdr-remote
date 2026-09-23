@@ -80,6 +80,48 @@ test('business heartbeats stop while no browser is attached', () => {
   }
 });
 
+test('agent focus events trigger a debounced snapshot read and stop with the watcher', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-agent-events-'));
+  let onEvent;
+  let closeCount = 0;
+  let reads = 0;
+  const connector = makeConnector(path.join(directory, 'connector.lock'), {
+    subscribeHerdr(_socketPath, subscriptions, callback) {
+      assert.deepEqual(subscriptions, [
+        { type: 'pane.focused' },
+        { type: 'tab.focused' },
+        { type: 'workspace.focused' },
+        { type: 'pane.agent_detected' },
+      ]);
+      onEvent = callback;
+      return { close() { closeCount += 1; } };
+    },
+    async requestHerdr() {
+      reads += 1;
+      return { snapshot: { focused_pane_id: null, panes: [], agents: [] } };
+    },
+  });
+  t.after(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  captureSocket(connector);
+
+  connector.setClientCount(1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(reads, 1, 'starting the watcher reads one initial snapshot');
+
+  onEvent({ event: 'pane_focused', data: { pane_id: 'w1:p1' } });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(reads, 2, 'a focus event refreshes the snapshot after the debounce');
+
+  connector.stopAgentStatus();
+  assert.equal(closeCount, 1, 'stopping the watcher closes its subscription');
+  onEvent({ event: 'pane_focused', data: { pane_id: 'w1:p2' } });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(reads, 2, 'events after stop do not start another read');
+});
+
 // Issue #1: a missing Herdr used to reach execvp(3) inside the PTY child, which
 // exited at once. The session_exit made the relay close the browser's socket,
 // and the browser reconnected into the same failure forever.
@@ -415,4 +457,3 @@ test('watchdog terminates socket and schedules reconnect when pong is missed', (
   assert.equal(connector.keepaliveTimer, null, 'keepalive timer should be cleared');
   assert.ok(connector.reconnectTimer, 'reconnect timer should be scheduled');
 });
-

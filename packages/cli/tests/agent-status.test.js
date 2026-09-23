@@ -80,6 +80,27 @@ test('an unchanged summary is recognised, so nothing is sent for nothing', () =>
   assert.equal(sameSummary(null, null), true);
 });
 
+test('the focused pane and its agent are carried even without a tracked agent', () => {
+  const summary = summarizeAgents({
+    focused_pane_id: 'wA:p2',
+    panes: [{ pane_id: 'wA:p2', agent: 'pi' }],
+    agents: [agent('wA:p1', 'working')],
+  });
+
+  assert.equal(summary.focusedPaneId, 'wA:p2');
+  assert.equal(summary.focusedAgent, 'pi');
+  assert.equal(sameSummary(summary, summarizeAgents({
+    focused_pane_id: 'wA:p3',
+    panes: [{ pane_id: 'wA:p3', agent: 'pi' }],
+    agents: [agent('wA:p1', 'working')],
+  })), false);
+  assert.equal(summarizeAgents({
+    focused_pane_id: 'wA:p1',
+    panes: [],
+    agents: [agent('wA:p1', 'working', { agent: 'claude-code' })],
+  }).focusedAgent, 'claude-code');
+});
+
 /**
  * A stand-in for Herdr's socket: answers one request per connection and hangs
  * up, which is what the real one does and the reason `requestHerdr` connects
@@ -129,6 +150,103 @@ test('one question, one connection, newline-delimited JSON', async (t) => {
   assert.equal(summarizeAgents(second.snapshot).counts.blocked, 1);
   // The point of the rewrite: two questions, two connections, no loop between.
   assert.equal(herdr.connections, 2);
+});
+
+test('a Herdr subscription parses the live event envelope and can be closed', async (t) => {
+  const subscriptions = [
+    { type: 'pane.focused' },
+    { type: 'tab.focused' },
+    { type: 'workspace.focused' },
+    { type: 'pane.agent_detected' },
+  ];
+  const herdr = await fakeHerdrSocket(t, (request, connection) => {
+    assert.equal(request.method, 'events.subscribe');
+    assert.deepEqual(request.params.subscriptions, subscriptions);
+    connection.write(`${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`);
+    connection.write(`${JSON.stringify({
+      event: 'pane_focused',
+      data: { type: 'pane_focused', pane_id: 'w1:p1', workspace_id: 'w1' },
+    })}\n`);
+  });
+
+  const { subscribeHerdr } = require('../src/herdr-api');
+  let closeCount = 0;
+  const event = await new Promise((resolve) => {
+    const subscription = subscribeHerdr(herdr.socketPath, subscriptions, (message) => {
+      closeCount += 1;
+      resolve(message);
+      subscription.close();
+    });
+  });
+
+  assert.deepEqual(event, {
+    event: 'pane_focused',
+    data: { type: 'pane_focused', pane_id: 'w1:p1', workspace_id: 'w1' },
+  });
+  assert.equal(closeCount, 1);
+});
+
+test('an acknowledged subscription resets the reconnect backoff', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-subscribe-retry-'));
+  const socketPath = path.join(directory, 'herdr.sock');
+  let connectionCount = 0;
+  let secondCloseAt = 0;
+  let thirdConnectedAt = 0;
+  let resolveThird;
+  let subscription;
+  const thirdConnection = new Promise((resolve) => { resolveThird = resolve; });
+  const server = net.createServer((connection) => {
+    connectionCount += 1;
+    const current = connectionCount;
+    let buffer = '';
+    connection.on('error', () => {});
+    connection.on('data', (chunk) => {
+      buffer += chunk;
+      const newline = buffer.indexOf('\n');
+      if (newline === -1) return;
+      const request = JSON.parse(buffer.slice(0, newline));
+      if (current === 1) {
+        connection.end();
+      } else if (current === 2) {
+        connection.write(`${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`);
+        setTimeout(() => {
+          secondCloseAt = Date.now();
+          connection.end();
+        }, 20);
+      } else if (current === 3) {
+        thirdConnectedAt = Date.now();
+        resolveThird();
+      }
+    });
+  });
+  t.after(() => {
+    if (subscription) subscription.close();
+    server.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  await new Promise((resolve) => server.listen(socketPath, resolve));
+
+  const { subscribeHerdr } = require('../src/herdr-api');
+  subscription = subscribeHerdr(socketPath, [{ type: 'pane.focused' }], () => {}, {
+    retryBaseMs: 200,
+    retryMaxMs: 600,
+  });
+  let timeout;
+  try {
+    await Promise.race([
+      thirdConnection,
+      new Promise((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('subscription did not reconnect')), 2_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+    subscription.close();
+  }
+
+  assert.equal(connectionCount, 3);
+  assert.ok(thirdConnectedAt - secondCloseAt < 350,
+    `expected base backoff after acknowledgement; elapsed ${thirdConnectedAt - secondCloseAt}ms`);
 });
 
 test('an error answer rejects with the code Herdr gave', async (t) => {

@@ -26,13 +26,20 @@ const {
   PROTOCOL_VERSION,
 } = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
-const { requestHerdr } = require('./herdr-api');
+const { requestHerdr, subscribeHerdr } = require('./herdr-api');
 const { sameSummary, summarizeAgents } = require('./agent-status');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 const { savePastedFile, cleanPastedDir } = require('./pasted-files');
 
 /** How often the agent summary is re-read while a browser is watching. */
 const AGENT_STATUS_POLL_MS = 5_000;
+const AGENT_STATUS_EVENT_DEBOUNCE_MS = 150;
+const AGENT_STATUS_SUBSCRIPTIONS = [
+  { type: 'pane.focused' },
+  { type: 'tab.focused' },
+  { type: 'workspace.focused' },
+  { type: 'pane.agent_detected' },
+];
 
 function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(9).toString('base64url')}`;
@@ -113,7 +120,10 @@ class HostConnector {
     this.PtySession = options.PtySession || PtySession;
     /** The side channel that answers "does anything need me?"; see startAgentStatus. */
     this.requestHerdr = options.requestHerdr || requestHerdr;
+    this.subscribeHerdr = options.subscribeHerdr || subscribeHerdr;
     this.agentStatusTimer = null;
+    this.agentStatusDebounceTimer = null;
+    this.agentStatusSubscription = null;
     this.agentStatusPending = false;
     this.lastAgentSummary = null;
     this.fastFailures = 0;
@@ -591,21 +601,48 @@ class HostConnector {
    * PTYs survive it — so every failure here is a retry, never anything a
    * terminal session notices.
    *
-   * Polled, and one connection per poll: Herdr answers a socket request and
-   * hangs up, and its only long-lived connection — a subscription — carries no
-   * event that tracks agent state without naming a pane. See `herdr-api.js`.
+   * A long-lived subscription provides fast refreshes on pane and workspace
+   * focus changes; the five-second poll still repairs missed events and a
+   * restarted Herdr server. Both paths only read the side-channel snapshot.
    */
   startAgentStatus() {
     if (this.agentStatusTimer || this.stopping) return;
     this.agentStatusTimer = setInterval(() => this.readAgentStatus(), AGENT_STATUS_POLL_MS);
     if (typeof this.agentStatusTimer.unref === 'function') this.agentStatusTimer.unref();
+    try {
+      this.agentStatusSubscription = this.subscribeHerdr(
+        this.socketPath,
+        AGENT_STATUS_SUBSCRIPTIONS,
+        () => this.scheduleAgentStatusRead(),
+      );
+    } catch {
+      // A missing or restarting Herdr server leaves the regular poll in place.
+    }
     this.readAgentStatus();
+  }
+
+  scheduleAgentStatusRead() {
+    if (!this.agentStatusTimer) return;
+    if (this.agentStatusDebounceTimer) clearTimeout(this.agentStatusDebounceTimer);
+    this.agentStatusDebounceTimer = setTimeout(() => {
+      this.agentStatusDebounceTimer = null;
+      this.readAgentStatus();
+    }, AGENT_STATUS_EVENT_DEBOUNCE_MS);
+    if (typeof this.agentStatusDebounceTimer.unref === 'function') this.agentStatusDebounceTimer.unref();
   }
 
   stopAgentStatus() {
     if (this.agentStatusTimer) {
       clearInterval(this.agentStatusTimer);
       this.agentStatusTimer = null;
+    }
+    if (this.agentStatusDebounceTimer) {
+      clearTimeout(this.agentStatusDebounceTimer);
+      this.agentStatusDebounceTimer = null;
+    }
+    if (this.agentStatusSubscription) {
+      this.agentStatusSubscription.close();
+      this.agentStatusSubscription = null;
     }
     this.lastAgentSummary = null;
   }

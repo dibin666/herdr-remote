@@ -454,6 +454,8 @@ test('agent status reaches every window, clamped on the way through', async (t) 
   const secondStatus = nextMessage(second, (message) => message.type === 'agent_status');
   host.send(JSON.stringify({
     type: 'agent_status',
+    focusedPaneId: 'p'.repeat(100),
+    focusedAgent: 'a'.repeat(40),
     counts: { blocked: 1, working: 2, nonsense: 'lots' },
     total: 3,
     agents: [
@@ -466,6 +468,8 @@ test('agent status reaches every window, clamped on the way through', async (t) 
   assert.equal((await secondStatus).value.total, 3);
   assert.equal(delivered.counts.blocked, 1);
   assert.equal(delivered.counts.working, 2);
+  assert.equal(delivered.focusedPaneId, 'p'.repeat(64), 'the focused pane id is clamped');
+  assert.equal(delivered.focusedAgent, 'a'.repeat(32), 'the focused agent id is clamped');
   assert.equal('nonsense' in delivered.counts, false, 'a count that is not a number is dropped');
   assert.equal(delivered.agents.length, 16, 'the host cap is re-applied by the relay');
   assert.equal(delivered.agents[0].title.length, 64, 'a title from a pane is clamped');

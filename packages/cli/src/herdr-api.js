@@ -22,9 +22,8 @@
  * `herdr` CLI connects per command for the same reason, and so does this.
  *
  * Subscriptions are the exception Herdr does keep open — `events.subscribe`
- * holds the connection — but they are no use here: the event that tracks agent
- * state is scoped to a single `pane_id`, and the whole-session pane events stay
- * silent through minutes of continuous agent work. The caller polls.
+ * holds the connection. Focus and agent-detection events let the caller refresh
+ * the focused pane immediately, with a slow poll retained as a fallback.
  *
  * Nothing here may affect a terminal session. Herdr's server is an ordinary
  * process that can be restarted under a running herdr-remote, and when it is,
@@ -38,6 +37,10 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 /** An answer this long is not an answer. Guards a socket that never newlines. */
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+
+/** A subscription that disappears should recover without keeping a dead socket busy. */
+const SUBSCRIBE_RETRY_BASE_MS = 1_000;
+const SUBSCRIBE_RETRY_MAX_MS = 10_000;
 
 let requestCounter = 0;
 
@@ -117,7 +120,125 @@ function requestHerdr(socketPath, method, params = {}, options = {}) {
   });
 }
 
+/**
+ * Subscribe to Herdr's event stream and reconnect if its local server restarts.
+ *
+ * The initial response is an acknowledgement (`result.type` is
+ * `subscription_started`); later lines are envelopes with `event` and `data`.
+ * They share a socket, but are separate NDJSON messages. A subscription never
+ * starts or writes to a terminal, so an unavailable socket is only a reason to
+ * retry this side channel.
+ */
+function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
+  const {
+    connect = net.connect,
+    retryBaseMs = SUBSCRIBE_RETRY_BASE_MS,
+    retryMaxMs = SUBSCRIBE_RETRY_MAX_MS,
+  } = options;
+  let socket = null;
+  let reconnectTimer = null;
+  let handshakeTimer = null;
+  let retryCount = 0;
+  let closed = false;
+
+  const scheduleReconnect = () => {
+    if (closed || reconnectTimer) return;
+    const delay = Math.min(retryBaseMs * (2 ** retryCount), retryMaxMs);
+    retryCount += 1;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      open();
+    }, delay);
+    if (typeof reconnectTimer.unref === 'function') reconnectTimer.unref();
+  };
+
+  const open = () => {
+    if (closed) return;
+    let current;
+    try {
+      current = connect(socketPath);
+    } catch {
+      scheduleReconnect();
+      return;
+    }
+    socket = current;
+    let buffer = '';
+    let requestId = null;
+    let acknowledged = false;
+    const clearHandshake = () => {
+      if (handshakeTimer) clearTimeout(handshakeTimer);
+      handshakeTimer = null;
+    };
+
+    current.setEncoding('utf8');
+    current.on('connect', () => {
+      requestCounter += 1;
+      requestId = `herdr-remote:subscription:${requestCounter}`;
+      current.write(`${JSON.stringify({
+        id: requestId,
+        method: 'events.subscribe',
+        params: { subscriptions },
+      })}\n`);
+      handshakeTimer = setTimeout(() => current.destroy(), REQUEST_TIMEOUT_MS);
+      if (typeof handshakeTimer.unref === 'function') handshakeTimer.unref();
+    });
+    current.on('data', (chunk) => {
+      buffer += chunk;
+      if (Buffer.byteLength(buffer, 'utf8') > MAX_RESPONSE_BYTES) {
+        current.destroy();
+        return;
+      }
+      let newline;
+      while ((newline = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        if (!line) continue;
+        let message;
+        try {
+          message = JSON.parse(line);
+        } catch {
+          current.destroy();
+          return;
+        }
+        if (message?.id === requestId) {
+          clearHandshake();
+          if (message.error) {
+            current.destroy();
+            return;
+          }
+          acknowledged = true;
+          retryCount = 0;
+        } else if (acknowledged && typeof message?.event === 'string' && message.data && typeof message.data === 'object') {
+          try { onEvent(message); } catch {}
+        }
+      }
+    });
+    current.on('error', () => {});
+    current.on('close', () => {
+      clearHandshake();
+      if (socket === current) socket = null;
+      scheduleReconnect();
+    });
+  };
+
+  open();
+  return {
+    close() {
+      if (closed) return;
+      closed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (handshakeTimer) clearTimeout(handshakeTimer);
+      reconnectTimer = null;
+      handshakeTimer = null;
+      const active = socket;
+      socket = null;
+      if (active) active.destroy();
+    },
+  };
+}
+
 module.exports = {
   REQUEST_TIMEOUT_MS,
   requestHerdr,
+  subscribeHerdr,
 };
