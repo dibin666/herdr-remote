@@ -34,6 +34,11 @@ export interface ScreenState {
   isCursorHidden(): boolean;
   /** True between `?2026h` and `?2026l`, for at most a second. */
   isSynchronizing(): boolean;
+  /**
+   * Called when a frame's closing `?2026l` is parsed, from inside the
+   * parser: whatever was held back waiting for the frame can be drawn.
+   */
+  onSyncEnd(listener: () => void): { dispose(): void };
   reset(): void;
   dispose(): void;
 }
@@ -53,6 +58,11 @@ export function attachScreenState(
 ): ScreenState {
   let cursorHidden = false;
   let syncStartedAt: number | null = null;
+  const syncEndListeners = new Set<() => void>();
+  const onSyncEnd = (listener: () => void) => {
+    syncEndListeners.add(listener);
+    return { dispose: () => void syncEndListeners.delete(listener) };
+  };
 
   const reset = () => {
     cursorHidden = false;
@@ -64,6 +74,7 @@ export function attachScreenState(
     return {
       isCursorHidden: () => false,
       isSynchronizing: () => false,
+      onSyncEnd,
       reset,
       dispose: () => {},
     };
@@ -72,7 +83,11 @@ export function attachScreenState(
   const onPrivateMode = (set: boolean) => (params: CsiParams) => {
     for (const param of params.flat()) {
       if (param === CURSOR_VISIBLE) cursorHidden = !set;
-      if (param === SYNCHRONIZED_OUTPUT) syncStartedAt = set ? now() : null;
+      if (param === SYNCHRONIZED_OUTPUT) {
+        const ended = !set && syncStartedAt !== null;
+        syncStartedAt = set ? now() : null;
+        if (ended) for (const listener of [...syncEndListeners]) listener();
+      }
     }
     return false;
   };
@@ -98,9 +113,11 @@ export function attachScreenState(
   return {
     isCursorHidden: () => cursorHidden,
     isSynchronizing: () => syncStartedAt !== null && now() - syncStartedAt < SYNC_TIMEOUT_MS,
+    onSyncEnd,
     reset,
     dispose: () => {
       for (const disposable of disposables) disposable.dispose();
+      syncEndListeners.clear();
     },
   };
 }

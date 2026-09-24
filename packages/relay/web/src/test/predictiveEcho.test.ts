@@ -143,8 +143,14 @@ describe("PredictiveEcho State Machine & Verification", () => {
     echo.handleUserInput(encode("bc"));
     expect(echo.getVisiblePredictions()).toHaveLength(2);
 
-    // Server paints something unexpected at (0, 1), e.g. password asterisk or autocomplete
+    // Server paints something unexpected at (0, 1), e.g. password asterisk or autocomplete.
+    // While its caret has not moved past the cell this is still the program at work.
     terminal.setCell(0, 1, "*");
+    echo.onServerOutput();
+    expect(echo.getState()).toBe("confident");
+
+    // Once the caret has moved past it, the cell is the program's answer.
+    terminal.setCursor(2, 0);
     echo.onServerOutput();
 
     // Must immediately wipe all predictions and drop to tentative
@@ -435,9 +441,73 @@ describe("PredictiveEcho State Machine & Verification", () => {
     terminal.setCursor(0, 1);
     echo.onServerOutput(); // Clears suppression flag because cursor moved
 
-    // Next typed character can now be predicted from the new cursor position
+    // "b" went out unpredicted and has not been drawn yet, so "c" lands after
+    // it. Where "b" really lands is a guess until an echo proves it: hidden.
     echo.handleUserInput(encode("c"));
-    expect(echo.getVisiblePredictions()).toEqual([{ row: 1, col: 0, char: "c" }]);
+    expect(echo.getVisiblePredictions()).toEqual([]);
+
+    // The server draws "b", then "c" where it was predicted: the guess was right.
+    terminal.setCell(1, 0, "b");
+    terminal.setCell(1, 1, "c");
+    terminal.setCursor(2, 1);
+    echo.onServerOutput();
+    expect(echo.getMismatchCount()).toBe(0);
+    expect(echo.getState()).toBe("confident");
+
+    echo.handleUserInput(encode("d"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 1, col: 2, char: "d" }]);
+  });
+
+  it("places the next key after text sent while suppressed that the server has already drawn", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("\r"));
+    echo.handleUserInput(encode("ls"));
+
+    // The new prompt and the "l" arrive together; "s" is still on its way.
+    terminal.setCell(1, 0, "l");
+    terminal.setCursor(1, 1);
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode(" "));
+    terminal.setCell(1, 1, "s");
+    terminal.setCell(1, 2, " ");
+    terminal.setCursor(3, 1);
+    echo.onServerOutput();
+    expect(echo.getMismatchCount()).toBe(0);
+
+    echo.handleUserInput(encode("-"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 1, col: 3, char: "-" }]);
+  });
+
+  it("drops a wrong guess after refused keys quietly, without demoting the field", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("\r"));
+    echo.handleUserInput(encode("b"));
+    terminal.setCursor(0, 1);
+    echo.onServerOutput();
+
+    // Guessed after "b"; the program drew something else there instead.
+    echo.handleUserInput(encode("c"));
+    terminal.setCell(1, 0, "x");
+    terminal.setCell(1, 1, "y");
+    terminal.setCursor(2, 1);
+    echo.onServerOutput();
+
+    expect(echo.getMismatchCount()).toBe(0);
+    expect(echo.getState()).toBe("confident");
+    expect(echo.getVisiblePredictions()).toEqual([]);
   });
 
   it("maintains suppression after Enter when server output does not move cursor (e.g. status bar update)", () => {
@@ -487,9 +557,97 @@ describe("PredictiveEcho State Machine & Verification", () => {
     currentTime += 205; // now = 1305, delta = 305ms >= 300ms
     echo.onServerOutput();
 
-    // Suppression lifted by safety timeout
+    // Suppression lifted by safety timeout. "b" is still on its way to the
+    // caret, so "c" goes after it, hidden until an echo proves the guess.
     echo.handleUserInput(encode("c"));
-    expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 0, char: "c" }]);
+    expect(echo.getVisiblePredictions()).toEqual([]);
+    terminal.setCell(0, 0, "b");
+    terminal.setCell(0, 1, "c");
+    terminal.setCursor(2, 0);
+    echo.onServerOutput();
+    echo.handleUserInput(encode("d"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 2, char: "d" }]);
+  });
+
+  it("predicts at once after the timeout when nothing was typed meanwhile", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
+    echo.onServerOutput();
+
+    // An arrow key the program ignores: the caret never moves.
+    echo.handleUserInput(encode("\x1b[D"));
+    currentTime += 305;
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("c"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 1, char: "c" }]);
+  });
+
+  it("keeps suppressing while the keys typed before Enter are still being echoed", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
+    echo.onServerOutput();
+
+    // "bcd" and Enter go out together; the echoes trail a round trip behind.
+    echo.handleUserInput(encode("bcd"));
+    echo.handleUserInput(encode("\r"));
+    terminal.setCell(0, 1, "b");
+    terminal.setCursor(2, 0);
+    echo.onServerOutput();
+
+    // The caret moved, but only because "b" landed: Enter has not been seen yet.
+    echo.handleUserInput(encode("x"));
+    expect(echo.getVisiblePredictions().map((p) => p.char)).not.toContain("x");
+
+    terminal.setCell(0, 2, "c");
+    terminal.setCell(0, 3, "d");
+    terminal.setCursor(4, 0);
+    echo.onServerOutput();
+    // Every key before Enter has landed, and the caret is where they left it.
+    echo.handleUserInput(encode("y"));
+    expect(echo.getVisiblePredictions().map((p) => p.char)).not.toContain("y");
+
+    // Enter takes effect: a new line. "x" and "y" are on their way to it.
+    terminal.setCursor(0, 1);
+    echo.onServerOutput();
+    expect(echo.getMismatchCount()).toBe(0);
+    echo.handleUserInput(encode("z"));
+    terminal.setCell(1, 0, "x");
+    terminal.setCell(1, 1, "y");
+    terminal.setCell(1, 2, "z");
+    terminal.setCursor(3, 1);
+    echo.onServerOutput();
+    expect(echo.getMismatchCount()).toBe(0);
+    expect(echo.getState()).toBe("confident");
+  });
+
+  it("goes on predicting after a character of uncertain width, hidden until an echo proves the guess", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now, charWidth: () => 1 });
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("b╭c"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 1, char: "b" }]);
+
+    terminal.setCell(0, 1, "b");
+    terminal.setCell(0, 2, "╭");
+    terminal.setCell(0, 3, "c");
+    terminal.setCursor(4, 0);
+    echo.onServerOutput();
+    expect(echo.getMismatchCount()).toBe(0);
+
+    echo.handleUserInput(encode("d"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 0, col: 4, char: "d" }]);
   });
 
   it("predicts CJK characters two cells wide, and refuses characters of uncertain width", () => {
@@ -516,6 +674,111 @@ describe("PredictiveEcho State Machine & Verification", () => {
     echo.handleUserInput(encode("😀"));
     echo.handleUserInput(encode("z"));
     expect(echo.getVisiblePredictions().map((p) => p.char)).toEqual(["y", "中", "文"]);
+  });
+
+  it("draws predictions in the style the field's echo came back in", () => {
+    const RED = 0x1000000 | 1;
+    let cursorX = 0;
+    const cells = new Map<number, { chars: string; fg: number }>();
+    const terminal: PredictionTerminal = {
+      cols: 80,
+      rows: 24,
+      buffer: {
+        active: {
+          baseY: 0,
+          cursorY: 0,
+          get cursorX() {
+            return cursorX;
+          },
+          getLine: () => ({
+            getCell: (col: number) => {
+              const cell = cells.get(col) ?? { chars: "", fg: 0 };
+              return { getChars: () => cell.chars, fg: cell.fg, bg: 0 } as PredictionCell;
+            },
+          }),
+        },
+      },
+    };
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+
+    echo.handleUserInput(encode("a"));
+    cells.set(0, { chars: "a", fg: RED });
+    // Drawn, but the caret has not passed it yet: the style is not final.
+    echo.onServerOutput();
+    echo.handleUserInput(encode("b"));
+    expect(echo.getOverlayItems().find((item) => item.char === "b")?.style).toBeUndefined();
+
+    cursorX = 1;
+    echo.onServerOutput();
+    echo.handleUserInput(encode("c"));
+    expect(echo.getOverlayItems().find((item) => item.char === "c")?.style).toEqual({ fg: RED, bg: 0, ext: 0 });
+  });
+
+  it("keeps painting an early echo until the caret passes it, and lets it go if redrawn", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now });
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("b"));
+    // fish draws "b" in its dim autosuggestion before it has processed the key.
+    terminal.setCell(0, 1, "b");
+    echo.onServerOutput();
+    expect(echo.getVisiblePredictions()).toEqual([]);
+    expect(echo.getOverlayItems().filter((item) => item.kind === "char").map((item) => item.char)).toEqual(["b"]);
+
+    // Then something else is drawn there before the caret passed: not ours to paint.
+    terminal.setCell(0, 1, "x");
+    echo.onServerOutput();
+    expect(echo.getOverlayItems()).toEqual([]);
+    expect(echo.getMismatchCount()).toBe(0);
+  });
+
+  it("predicts the next line at once after Enter when every key before it was drawn", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now, charWidth: () => 1 });
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
+    echo.onServerOutput();
+
+    // An undrawn guess in the middle, drawn keys after it, then Enter.
+    echo.handleUserInput(encode("╭bc\r"));
+    terminal.setCell(0, 1, "╭");
+    terminal.setCell(0, 2, "b");
+    terminal.setCell(0, 3, "c");
+    terminal.setCursor(0, 1);
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("x"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 1, col: 0, char: "x" }]);
+  });
+
+  it("keeps the next line hidden until proven when the last key before Enter was not drawn", () => {
+    const terminal = createMockTerminal({ cols: 80, rows: 24, cursorX: 0, cursorY: 0 });
+    const echo = new PredictiveEcho({ getTerminal: () => terminal, now, charWidth: () => 1 });
+    echo.handleUserInput(encode("a"));
+    terminal.setCell(0, 0, "a");
+    terminal.setCursor(1, 0);
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("b╭\r"));
+    terminal.setCell(0, 1, "b");
+    terminal.setCursor(2, 0);
+    echo.onServerOutput();
+    // "b" has landed and the caret moved, but "╭" and Enter are still on their way.
+    terminal.setCursor(0, 1);
+    echo.onServerOutput();
+
+    echo.handleUserInput(encode("x"));
+    expect(echo.getVisiblePredictions()).toEqual([]);
+    terminal.setCell(1, 0, "x");
+    terminal.setCursor(1, 1);
+    echo.onServerOutput();
+    echo.handleUserInput(encode("y"));
+    expect(echo.getVisiblePredictions()).toEqual([{ row: 1, col: 1, char: "y" }]);
   });
 
   it("handles null terminal gracefully without throwing", () => {

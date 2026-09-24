@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Terminal } from '@xterm/xterm';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { CanvasAddon } from '@xterm/addon-canvas';
+import { HerdrRenderer } from '../render/HerdrRenderer';
+import type { MockHerdrRenderer } from './setup';
 import {
   attachTerminalRenderer,
   isUniformColor,
@@ -14,35 +14,20 @@ import {
   clearProbeMemoryStore,
 } from '../utils/terminalRenderer';
 
-function createMockTerminal(opts?: { omitTextLayerClass?: boolean; emptyElement?: boolean }): {
-  term: Terminal;
-  canvas: HTMLCanvasElement;
-  element: HTMLDivElement;
-} {
-  const element = document.createElement('div');
-  const screen = document.createElement('div');
-  screen.className = 'xterm-screen';
-  const canvas = document.createElement('canvas');
-  if (!opts?.omitTextLayerClass) {
-    canvas.className = 'xterm-text-layer';
-  } else {
-    canvas.className = 'xterm-selection-layer';
-  }
-  canvas.width = 800;
-  canvas.height = 400;
-  if (!opts?.emptyElement) {
-    screen.appendChild(canvas);
-    element.appendChild(screen);
-  }
+const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] }).__herdrRenderers;
+const RendererStub = HerdrRenderer as unknown as { failNext: Error | null; unavailableNext: boolean };
 
-  const term = {
-    element: opts?.emptyElement ? undefined : element,
-    cols: 80,
-    rows: 24,
-    loadAddon: vi.fn(),
-  } as unknown as Terminal;
+/** The renderer module is stubbed in setup.ts; the terminal is never looked at. */
+function createMockTerminal(): { term: Terminal } {
+  return { term: { cols: 80, rows: 24 } as unknown as Terminal };
+}
 
-  return { term, canvas, element };
+/** The text canvas of the renderer installed last, sized as a drawn terminal would be. */
+function installedCanvas(width = 800, height = 400): HTMLCanvasElement {
+  const canvas = herdrRenderers[herdrRenderers.length - 1].textCanvas;
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
 }
 
 function mockCanvasContext(
@@ -70,8 +55,9 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
   beforeEach(() => {
     localStorage.clear();
     clearProbeMemoryStore();
-    vi.mocked(WebglAddon).mockClear();
-    vi.mocked(CanvasAddon).mockClear();
+    herdrRenderers.length = 0;
+    RendererStub.failNext = null;
+    RendererStub.unavailableNext = false;
   });
 
   afterEach(() => {
@@ -151,8 +137,13 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
   describe('coarse pointer (mobile/tablet)', () => {
     it('maintains canvas renderer when canvas renders content normally', async () => {
-      const { term, canvas } = createMockTerminal();
-      mockCanvasContext(canvas, (w, h) => {
+      const { term } = createMockTerminal();
+
+      const onRendererSwapped = vi.fn();
+      const renderer = attachTerminalRenderer(term, {
+        onRendererSwapped,
+      });
+      mockCanvasContext(installedCanvas(), (w, h) => {
         const data = new Uint8ClampedArray(w * h * 4);
         // Text foreground pixel
         data[20] = 255;
@@ -162,13 +153,9 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
         return data;
       });
 
-      const onRendererSwapped = vi.fn();
-      const renderer = attachTerminalRenderer(term, {
-        onRendererSwapped,
-      });
-
       expect(renderer.kind).toBe('canvas');
-      expect(term.loadAddon).toHaveBeenCalledTimes(1);
+      expect(renderer.canvas).toBe(herdrRenderers[0]);
+      expect(herdrRenderers).toHaveLength(1);
 
       await renderer.verify();
 
@@ -178,20 +165,23 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
     });
 
     it('falls back to dom when canvas is definitively blank, writes timestamped schema, and notifies caller', async () => {
-      const { term, canvas } = createMockTerminal();
-      // Blank surface: all 0s
-      mockCanvasContext(canvas, (w, h) => new Uint8ClampedArray(w * h * 4));
+      const { term } = createMockTerminal();
 
       const onRendererSwapped = vi.fn();
       const renderer = attachTerminalRenderer(term, {
         onRendererSwapped,
       });
+      // Blank surface: all 0s
+      mockCanvasContext(installedCanvas(), (w, h) => new Uint8ClampedArray(w * h * 4));
 
       expect(renderer.kind).toBe('canvas');
 
       await renderer.verify();
 
       expect(renderer.kind).toBe('dom');
+      expect(renderer.canvas).toBeNull();
+      // Drawing goes back to xterm's own DOM renderer.
+      expect(herdrRenderers[0].uninstalled).toBe(true);
       expect(onRendererSwapped).toHaveBeenCalledWith('dom');
       expect(isCanvasProbeFailed()).toBe(true);
 
@@ -203,13 +193,14 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
     });
 
     it('retains canvas and does NOT record failure when probe is inconclusive (missing text layer or exception)', async () => {
-      // Case 1: missing canvas.xterm-text-layer (e.g. only selection layer exists)
-      const { term: termMissingTextLayer } = createMockTerminal({ omitTextLayerClass: true });
+      // Case 1: the canvas has not been sized yet
+      const { term: termNotSized } = createMockTerminal();
       const onRendererSwapped1 = vi.fn();
 
-      const renderer1 = attachTerminalRenderer(termMissingTextLayer, {
+      const renderer1 = attachTerminalRenderer(termNotSized, {
         onRendererSwapped: onRendererSwapped1,
       });
+      installedCanvas(0, 0);
       expect(renderer1.kind).toBe('canvas');
 
       await renderer1.verify();
@@ -220,17 +211,16 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(localStorage.getItem(RENDERER_PROBE_STORAGE_KEY)).toBeNull();
 
       // Case 2: getImageData throws exception
-      const { term: termWithThrowingCanvas, canvas: throwingCanvas } = createMockTerminal();
-      throwingCanvas.getContext = vi.fn().mockReturnValue({
-        getImageData: vi.fn(() => {
-          throw new Error('Canvas readback failure');
-        }),
-      } as unknown as CanvasRenderingContext2D);
-
+      const { term: termWithThrowingCanvas } = createMockTerminal();
       const onRendererSwapped2 = vi.fn();
       const renderer2 = attachTerminalRenderer(termWithThrowingCanvas, {
         onRendererSwapped: onRendererSwapped2,
       });
+      installedCanvas().getContext = vi.fn().mockReturnValue({
+        getImageData: vi.fn(() => {
+          throw new Error('Canvas readback failure');
+        }),
+      } as unknown as CanvasRenderingContext2D);
 
       await renderer2.verify();
       // Inconclusive must not fallback to dom or blacklist
@@ -250,21 +240,20 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       // Must report not failed due to TTL expiry
       expect(isCanvasProbeFailed(navigator.userAgent, now)).toBe(false);
 
-      const { term, canvas } = createMockTerminal();
-      mockCanvasContext(canvas, (w, h) => {
+      const { term } = createMockTerminal();
+      const onRendererSwapped = vi.fn();
+      const renderer = attachTerminalRenderer(term, {
+        onRendererSwapped,
+      });
+      mockCanvasContext(installedCanvas(), (w, h) => {
         const data = new Uint8ClampedArray(w * h * 4);
         data[0] = 200; // text content
         return data;
       });
 
-      const onRendererSwapped = vi.fn();
-      const renderer = attachTerminalRenderer(term, {
-        onRendererSwapped,
-      });
-
       // Should attempt canvas rather than jumping to dom
       expect(renderer.kind).toBe('canvas');
-      expect(term.loadAddon).toHaveBeenCalledTimes(1);
+      expect(herdrRenderers).toHaveLength(1);
 
       await renderer.verify();
       expect(renderer.kind).toBe('canvas');
@@ -283,7 +272,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       });
 
       expect(renderer.kind).toBe('dom');
-      expect(term.loadAddon).not.toHaveBeenCalled();
+      expect(herdrRenderers).toHaveLength(0);
 
       await renderer.verify();
       expect(renderer.kind).toBe('dom');
@@ -291,10 +280,14 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
     });
 
     it('catches "starts healthy then turns black" on initial resize re-verification', async () => {
-      const { term, canvas } = createMockTerminal();
+      const { term } = createMockTerminal();
       let isCorrupted = false;
 
-      mockCanvasContext(canvas, (w, h) => {
+      const onRendererSwapped = vi.fn();
+      const renderer = attachTerminalRenderer(term, {
+        onRendererSwapped,
+      });
+      mockCanvasContext(installedCanvas(), (w, h) => {
         const data = new Uint8ClampedArray(w * h * 4);
         if (!isCorrupted) {
           // Healthy content
@@ -305,11 +298,6 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
         }
         // If corrupted, returns all zeros (blank)
         return data;
-      });
-
-      const onRendererSwapped = vi.fn();
-      const renderer = attachTerminalRenderer(term, {
-        onRendererSwapped,
       });
 
       // 1st verify: passes
@@ -339,13 +327,12 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       });
 
       try {
-        const { term, canvas } = createMockTerminal();
-        mockCanvasContext(canvas, (w, h) => new Uint8ClampedArray(w * h * 4)); // blank
-
+        const { term } = createMockTerminal();
         const onRendererSwapped = vi.fn();
         const renderer = attachTerminalRenderer(term, {
           onRendererSwapped,
         });
+        mockCanvasContext(installedCanvas(), (w, h) => new Uint8ClampedArray(w * h * 4)); // blank
 
         // Verification must not throw despite storage error
         await renderer.verify();
@@ -366,31 +353,59 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
   });
 
   /**
-   * WebGL is not a renderer this app chooses any more.
+   * WebGL is not a renderer this app chooses.
    *
    * On an Intel Iris Xe / Mesa / ANGLE stack, xterm's WebGL renderer draws solid
    * blocks where Canvas and DOM draw the same bytes correctly — and the probe
    * above cannot tell, because it asks whether anything was drawn and a screen
-   * full of blocks says yes. The addon must therefore never be constructed,
-   * whatever the pointer type.
+   * full of blocks says yes. The canvas renderer is the one choice, on every
+   * device, with xterm's DOM renderer underneath it.
    */
-  describe('no WebGL path', () => {
-    it('never constructs the WebGL addon', async () => {
-      const { term } = createMockTerminal();
-      const onRendererSwapped = vi.fn();
-
-      const renderer = attachTerminalRenderer(term, { onRendererSwapped });
-
-      expect(WebglAddon).not.toHaveBeenCalled();
-      expect(CanvasAddon).toHaveBeenCalledTimes(1);
-      expect(renderer.kind).toBe('canvas');
-    });
-
-    it('attaches without any options at all', () => {
+  describe('renderer choice', () => {
+    it('installs the canvas renderer without any options at all', () => {
       const { term } = createMockTerminal();
 
       expect(attachTerminalRenderer(term).kind).toBe('canvas');
-      expect(WebglAddon).not.toHaveBeenCalled();
+      expect(herdrRenderers).toHaveLength(1);
+    });
+
+    it('records a failure and stays on the DOM renderer when no 2D context is available', () => {
+      RendererStub.failNext = new Error('2D canvas unavailable');
+      const { term } = createMockTerminal();
+
+      const renderer = attachTerminalRenderer(term);
+
+      expect(renderer.kind).toBe('dom');
+      expect(renderer.canvas).toBeNull();
+      expect(isCanvasProbeFailed()).toBe(true);
+    });
+
+    it('keeps xterm\'s own renderer, without recording a failure, when this xterm exposes nothing to install into', () => {
+      RendererStub.unavailableNext = true;
+      const { term } = createMockTerminal();
+
+      expect(attachTerminalRenderer(term).kind).toBe('dom');
+      expect(isCanvasProbeFailed()).toBe(false);
+    });
+
+    it('does not let a failure recorded against the old canvas addon disable this renderer', () => {
+      localStorage.setItem(
+        'herdr_remote_renderer_probe_v1',
+        JSON.stringify({ v: 1, ua: { [navigator.userAgent]: { failedAt: Date.now() } } }),
+      );
+      const { term } = createMockTerminal();
+
+      expect(attachTerminalRenderer(term).kind).toBe('canvas');
+    });
+
+    it('disposes the installed renderer with the terminal', () => {
+      const { term } = createMockTerminal();
+      const renderer = attachTerminalRenderer(term);
+
+      renderer.dispose();
+
+      expect(herdrRenderers[0].disposed).toBe(true);
+      expect(renderer.canvas).toBeNull();
     });
   });
 });

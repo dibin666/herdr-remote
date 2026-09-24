@@ -61,7 +61,12 @@ export type InputFieldKind = 'rule' | 'frame' | 'prompt';
 
 export interface InputField {
   kind: InputFieldKind;
-  /** Identity of the field; confidence earned in one field is not lent to another. */
+  /**
+   * Identity of the field; confidence earned in one field is not lent to
+   * another. It names the pane and the kind of field, never the rows the
+   * field happens to occupy: a shell's next prompt line, or Claude's box
+   * moving as its status area grows, is still the same field.
+   */
   key: string;
   /** Identity of the pane-sized region the field lives in. */
   region: string;
@@ -87,6 +92,8 @@ export interface InputField {
   agentLike: boolean;
   /** `true`/`false` when a vim-style mode line was checked, `null` when there is none to check. */
   vimInsert: boolean | null;
+  /** The field is in vim insert mode, where a lone Escape turns keys into commands. */
+  modal: boolean;
 }
 
 /** Vertical strokes that form pane borders, box sides and Herdr's scrollbar. */
@@ -96,6 +103,8 @@ const CORNER_OR_JUNCTION_CHARS = new Set([
   '┏', '┓', '┗', '┛', '╔', '╗', '╚', '╝', '╠', '╣', '╟', '╢', '╞', '╡',
 ]);
 const TOP_LEFT = new Set(['╭', '┌', '┏', '╔']);
+/** Where a pane's left border starts: its top corner, or a junction with the pane above. */
+const PANE_TOP_LEFT = new Set(['╭', '┌', '┏', '╔', '├', '┣', '┠', '┝', '╟', '╠', '┞', '┟', '┡', '┢']);
 const TOP_RIGHT = new Set(['╮', '┐', '┓', '╗']);
 const BOTTOM_LEFT = new Set(['╰', '└', '┗', '╚']);
 const BOTTOM_RIGHT = new Set(['╯', '┘', '┛', '╝']);
@@ -229,6 +238,19 @@ function regionKey(seg: Segment): string {
   return `${seg.start}-${seg.end}`;
 }
 
+/**
+ * The row of the top border of the pane a segment belongs to, or the top of
+ * the screen when the pane has none. Panes stacked in one column band have
+ * different tops, so their fields are told apart.
+ */
+function paneTop(screen: ScreenReader, row: number, seg: Segment): number {
+  if (seg.start === 0) return screen.top;
+  for (let y = row - 1; y >= screen.top; y--) {
+    if (PANE_TOP_LEFT.has(screen.char(y, seg.start - 1))) return y;
+  }
+  return screen.top;
+}
+
 function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): InputField | null {
   const left = seg.start - 1;
   const right = seg.end;
@@ -251,7 +273,7 @@ function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): I
   if (cursor.col < startCol || cursor.col >= endCol) return null;
   return {
     kind: 'frame',
-    key: `frame:${regionKey(seg)}:${bottom}`,
+    key: `frame:${regionKey(seg)}`,
     region: regionKey(seg),
     layout: `${top}`,
     row,
@@ -261,6 +283,7 @@ function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): I
     empty: top + 2 === bottom && cursor.col === startCol && screen.blankOrDim(row, startCol, endCol),
     agentLike: true,
     vimInsert: null,
+    modal: false,
   };
 }
 
@@ -313,7 +336,7 @@ function detectRuleBox(screen: ScreenReader, cursor: FieldCursor, seg: Segment):
   if (cursor.col < startCol || cursor.col >= seg.end) return null;
   return {
     kind: 'rule',
-    key: `rule:${regionKey(seg)}:${bottomRule}`,
+    key: `rule:${regionKey(seg)}:${paneTop(screen, topRule, seg)}`,
     region: regionKey(seg),
     layout: `${topRule}`,
     row,
@@ -323,6 +346,7 @@ function detectRuleBox(screen: ScreenReader, cursor: FieldCursor, seg: Segment):
     empty: bottomRule - topRule === 2 && cursor.col === startCol && screen.blankOrDim(row, startCol, seg.end),
     agentLike: true,
     vimInsert: VIM_INSERT.test(status),
+    modal: VIM_INSERT.test(status),
   };
 }
 
@@ -366,7 +390,7 @@ function promptField(
   if (cursor.col < startCol || cursor.col >= seg.end) return null;
   return {
     kind: 'prompt',
-    key: `prompt:${regionKey(seg)}:${promptRow}`,
+    key: `prompt:${regionKey(seg)}:${paneTop(screen, promptRow, seg)}`,
     region: regionKey(seg),
     layout: `${promptRow}`,
     row: cursor.row,
@@ -377,6 +401,7 @@ function promptField(
     // A prompt that is nothing but a glyph (`› `) is an agent's, not a shell's.
     agentLike: bareGlyph,
     vimInsert: null,
+    modal: false,
   };
 }
 

@@ -143,6 +143,7 @@ npm run build      # 编译 WebUI 与 TUI
 npm test           # 运行 relay 与 CLI 测试
 npm run test:web   # 运行 WebUI 测试
 npm run typecheck  # TypeScript 类型检查
+node scripts/render-bench.mjs  # 终端渲染器每帧开销（需要 Playwright）
 ```
 
 ## 开源协议

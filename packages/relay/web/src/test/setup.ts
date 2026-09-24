@@ -316,16 +316,73 @@ vi.mock('@xterm/xterm', () => ({
   },
 }));
 
-vi.mock('@xterm/addon-webgl', () => ({
-  WebglAddon: vi.fn().mockImplementation(() => ({
-    onContextLoss: vi.fn(),
-    dispose: vi.fn(),
-  })),
-}));
+/**
+ * jsdom has no 2D canvas, so the terminal's canvas renderer is replaced by a
+ * recorder: tests see a renderer that was installed and what the prediction
+ * layer handed it. Plain methods rather than `vi.fn` so that
+ * `vi.restoreAllMocks()` cannot strip them. `render/HerdrRenderer` has its own
+ * tests against a real xterm.
+ */
+export interface MockHerdrRenderer {
+  stats: { frames: number; heldFrames: number; lastPaintMs: number; lastCells: number; lastInputToPaintMs: number | null };
+  textCanvas: HTMLCanvasElement;
+  overlayProvider: (() => unknown) | null;
+  overlayInvalidations: number;
+  flushes: number;
+  uninstalled: boolean;
+  disposed: boolean;
+}
 
-vi.mock('@xterm/addon-canvas', () => ({
-  CanvasAddon: vi.fn().mockImplementation(() => ({})),
-}));
+vi.mock('../render/HerdrRenderer', () => {
+  const instances: MockHerdrRenderer[] = [];
+  class HerdrRenderer implements MockHerdrRenderer {
+    /** Set to make the next install throw, as a device without a 2D context would. */
+    static failNext: Error | null = null;
+    /** Set to make the next install find no renderer service to install into. */
+    static unavailableNext = false;
+    static install(): HerdrRenderer | null {
+      const failure = HerdrRenderer.failNext;
+      if (failure) {
+        HerdrRenderer.failNext = null;
+        throw failure;
+      }
+      if (HerdrRenderer.unavailableNext) {
+        HerdrRenderer.unavailableNext = false;
+        return null;
+      }
+      const renderer = new HerdrRenderer();
+      instances.push(renderer);
+      return renderer;
+    }
+    stats = { frames: 0, heldFrames: 0, lastPaintMs: 0, lastCells: 0, lastInputToPaintMs: null };
+    // Unsized, like a terminal whose font has not been measured: the probe
+    // finds it inconclusive without asking jsdom for a 2D context it lacks.
+    textCanvas = Object.assign(document.createElement('canvas'), { width: 0, height: 0 });
+    overlayProvider: (() => unknown) | null = null;
+    overlayInvalidations = 0;
+    flushes = 0;
+    uninstalled = false;
+    disposed = false;
+    setOverlayProvider(provider: (() => unknown) | null) {
+      this.overlayProvider = provider;
+    }
+    invalidateOverlay() {
+      this.overlayInvalidations += 1;
+    }
+    flushHeld() {
+      this.flushes += 1;
+    }
+    markInput() {}
+    uninstall() {
+      this.uninstalled = true;
+    }
+    dispose() {
+      this.disposed = true;
+    }
+  }
+  (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] }).__herdrRenderers = instances;
+  return { HerdrRenderer };
+});
 
 vi.mock('@xterm/addon-unicode11', () => ({
   Unicode11Addon: vi.fn().mockImplementation(() => ({})),

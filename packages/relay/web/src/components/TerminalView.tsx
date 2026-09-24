@@ -47,7 +47,7 @@ import { PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
 import { PredictiveEcho } from '../utils/predictiveEcho';
-import { PredictionOverlay } from '../utils/predictionOverlay';
+import { PredictionLayer } from '../utils/predictionPaint';
 import { FieldProbe, type InputField } from '../utils/inputField';
 import { attachScreenState } from '../utils/screenState';
 
@@ -64,6 +64,24 @@ export const PREDICTIVE_ECHO_AUTO_THRESHOLD_MS = 40;
 function describePredictionField(field: InputField | null): string {
   if (!field) return 'none';
   return `${field.kind} row ${field.row} cols ${field.startCol}-${field.endCol} caret ${field.caretCol}`;
+}
+
+/** One line for the debug overlay: what the last frame cost. */
+function describeRenderStats(renderer: AttachedRenderer | null): string {
+  const stats = renderer?.canvas?.stats;
+  if (!stats) return `paint: ${renderer?.kind ?? '-'} renderer\n`;
+  const keyToPaint = stats.lastInputToPaintMs !== null ? `${stats.lastInputToPaintMs.toFixed(1)}ms` : '-';
+  return `paint: ${stats.lastPaintMs.toFixed(2)}ms  cells: ${stats.lastCells}  frames: ${stats.frames}  held: ${stats.heldFrames}  key→paint: ${keyToPaint}\n`;
+}
+
+/** The predictor's last few decisions, newest last, for finding out why nothing was predicted. */
+function describePredictionTrace(predictor: PredictiveEcho | null): string {
+  const trace = predictor?.getTrace() ?? [];
+  if (trace.length === 0) return 'trace: -';
+  return `trace:\n${trace
+    .slice(-6)
+    .map((entry) => `  ${entry.event}${entry.count > 1 ? ` ×${entry.count}` : ''}`)
+    .join('\n')}`;
 }
 
 /**
@@ -256,7 +274,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const tRef = useRef(t);
   tRef.current = t;
   const predictorRef = useRef<PredictiveEcho | null>(null);
-  const overlayRef = useRef<PredictionOverlay | null>(null);
+  const overlayRef = useRef<PredictionLayer | null>(null);
   const fieldProbeRef = useRef<FieldProbe | null>(null);
   const consumeModifierLatchRef = useRef(consumeModifierLatch);
   consumeModifierLatchRef.current = consumeModifierLatch;
@@ -300,6 +318,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   // Active terminal viewport row offset for continuous positioning across scrolls
   const [viewportY, setViewportY] = useState(0);
+  const viewportYRef = useRef(0);
 
   // Gesture coordinate tracking for delayed menu presentation on finger release
   const longPressPointRef = useRef<{ clientX: number; clientY: number } | null>(null);
@@ -808,27 +827,21 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     });
     fieldProbeRef.current = fieldProbe;
 
+    const unicode = (term as unknown as { _core?: { unicodeService?: { wcwidth?: (codePoint: number) => number } } })._core
+      ?.unicodeService;
     const predictor = new PredictiveEcho({
       getTerminal: () => termRef.current,
       getField: fieldProbe.detect,
+      // The width xterm will draw a character at, as the guess for ones whose width may differ elsewhere.
+      charWidth: typeof unicode?.wcwidth === 'function' ? (codePoint) => unicode.wcwidth!(codePoint) : undefined,
     });
     predictorRef.current = predictor;
 
-    const overlay = new PredictionOverlay({
+    // Predicted typing is drawn by the renderer itself, as ordinary cells in
+    // the style the field's echoes have shown; see utils/predictionPaint.ts.
+    const overlay = new PredictionLayer({
       getTerminal: () => termRef.current,
-      getStyle: () => {
-        // Without a host palette these are unset, and the overlay falls back to
-        // whatever xterm is painting; see PredictionOverlay.resolveStyle.
-        const color = hostThemeRef.current?.foreground ?? termRef.current?.options.theme?.foreground;
-        const background = hostThemeRef.current?.background ?? termRef.current?.options.theme?.background;
-        const srtt = predictorRef.current?.getEchoSrttMs() ?? null;
-        const underline = srtt !== null && srtt > PREDICTIVE_ECHO_AUTO_THRESHOLD_MS;
-        const cursor = hostThemeRef.current?.cursor ?? termRef.current?.options.theme?.cursor ?? color;
-        const cursorShape = termRef.current?.options.cursorStyle;
-        const fontFamily = termRef.current?.options.fontFamily;
-        const fontSize = termRef.current?.options.fontSize;
-        return { color, background, underline, cursor, cursorShape, fontFamily, fontSize };
-      },
+      isCursorHidden: () => screenState.isCursorHidden(),
     });
     overlayRef.current = overlay;
 
@@ -891,11 +904,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     container.addEventListener('paste', handleNativePaste);
 
     const renderer = attachTerminalRenderer(term, {
+      isSynchronizing: screenState.isSynchronizing,
       onRendererSwapped: (kind) => {
         if (container) {
           container.dataset.renderer = kind;
         }
         setRendererKind(kind);
+        // The DOM renderer cannot draw predicted cells; nothing is predicted on screen there.
+        overlayRef.current?.attach(null);
         try {
           term.refresh(0, Math.max(0, term.rows - 1));
         } catch {
@@ -903,6 +919,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         }
       },
     });
+    overlay.attach(renderer.canvas);
+    // Herdr closed a frame whose pieces the renderer held back: draw it whole, now.
+    const syncEndDispose = screenState.onSyncEnd(() => rendererRef.current?.canvas?.flushHeld());
     rendererRef.current = renderer;
     if (container) {
       container.dataset.renderer = renderer.kind;
@@ -921,7 +940,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     term.writeln('');
 
     initialBannerWrittenRef.current = true;
-    void renderer.verify();
+    // Probe once the banner has been parsed, so there is something to have drawn.
+    term.write('', () => void renderer.verify());
 
     if (!isTouchDevice) {
       try {
@@ -965,6 +985,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       }
       predictorRef.current?.handleUserInput(bytes);
       syncPredictiveOverlay();
+      rendererRef.current?.canvas?.markInput();
       sendBinaryRef.current(bytes);
     });
 
@@ -996,11 +1017,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const renderDispose =
       typeof term.onRender === 'function'
         ? term.onRender((e: { start: number; end: number }) => {
-            // The frame that shows the echo is drawn now; predicted cells it
-            // replaces can go without leaving a gap.
-            overlayRef.current?.afterRender();
+            // Every content frame lands here; React only hears of an actual scroll.
             const currentViewportY = term.buffer.active.viewportY ?? 0;
-            setViewportY(currentViewportY);
+            if (currentViewportY !== viewportYRef.current) {
+              viewportYRef.current = currentViewportY;
+              setViewportY(currentViewportY);
+            }
 
             const currentRect = selectionRectRef.current;
             if (currentRect && isHighlightVisibleRef.current) {
@@ -1022,6 +1044,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       typeof term.onScroll === 'function'
         ? term.onScroll(() => {
             const currentViewportY = term.buffer.active.viewportY ?? 0;
+            viewportYRef.current = currentViewportY;
             setViewportY(currentViewportY);
             predictorRef.current?.reset('scroll');
             overlayRef.current?.clear();
@@ -1384,6 +1407,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       scrollDispose.dispose();
       writeParsedDispose.dispose();
       titleDispose.dispose();
+      syncEndDispose.dispose();
       overlayRef.current?.dispose();
       overlayRef.current = null;
       predictorRef.current = null;
@@ -1480,6 +1504,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       observeKeyInput((bytes) => {
         predictorRef.current?.handleUserInput(bytes);
         syncPredictiveOverlayRef.current();
+        rendererRef.current?.canvas?.markInput();
       }),
     [observeKeyInput]
   );
@@ -1659,7 +1684,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           {`event: ${touchDebug.lastInputEvent || '-'}  pointer: ${touchDebug.pointerEvents}  touch: ${touchDebug.touchEvents}\n`}
           {`rtt: ${rttMs !== null ? `${rttMs}ms` : '-'}  frames/s: ${inboundMetrics.framesPerSec}  bytes/s: ${inboundMetrics.bytesPerSec}  renderer: ${rendererKind ?? '-'}\n`}
           {`prediction: ${predictorRef.current?.getState() ?? '-'}  mode: ${settings.predictiveEcho}  pending: ${predictorRef.current?.getVisiblePredictions().length ?? 0}  srtt: ${predictorRef.current?.getEchoSrttMs() !== null && predictorRef.current?.getEchoSrttMs() !== undefined ? `${Math.round(predictorRef.current.getEchoSrttMs()!)}ms` : '-'}\n`}
-          {`field: ${describePredictionField(fieldProbeRef.current?.detect() ?? null)}  mismatches: ${predictorRef.current?.getMismatchCount() ?? 0}`}
+          {`field: ${describePredictionField(fieldProbeRef.current?.detect() ?? null)}  mismatches: ${predictorRef.current?.getMismatchCount() ?? 0}\n`}
+          {describeRenderStats(rendererRef.current)}
+          {describePredictionTrace(predictorRef.current)}
         </pre>
       )}
 

@@ -7,7 +7,7 @@ import {
   shouldShowPredictiveEcho,
 } from '../components/TerminalView';
 import { PredictiveEcho } from '../utils/predictiveEcho';
-import { PredictionOverlay } from '../utils/predictionOverlay';
+import { PredictionLayer } from '../utils/predictionPaint';
 import { saveSettings } from '../utils/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 import { loadScreenFixture, screenFromFixture, type TestScreen } from './helpers/screenFixture';
@@ -108,8 +108,8 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     it('off mode: does NOT render predictions even if typing occurs and keeps overlay cleared', async () => {
       saveSettings({ predictiveEcho: 'off' });
       const handleUserInputSpy = vi.spyOn(PredictiveEcho.prototype, 'handleUserInput');
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
-      const clearSpy = vi.spyOn(PredictionOverlay.prototype, 'clear');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
+      const clearSpy = vi.spyOn(PredictionLayer.prototype, 'clear');
 
       renderTerminal();
       await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -128,8 +128,8 @@ describe('Predictive Echo Integration & Setting Controls', () => {
 
     it('auto mode (default): suppresses overlay when srtt is null or <= 40ms', async () => {
       saveSettings({ predictiveEcho: 'auto' });
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
-      const clearSpy = vi.spyOn(PredictionOverlay.prototype, 'clear');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
+      const clearSpy = vi.spyOn(PredictionLayer.prototype, 'clear');
 
       // Case 1: srtt is null (unconfirmed)
       vi.spyOn(PredictiveEcho.prototype, 'getEchoSrttMs').mockReturnValue(null);
@@ -162,7 +162,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     it('auto mode: renders predictions when srtt > 40ms', async () => {
       saveSettings({ predictiveEcho: 'auto' });
       vi.spyOn(PredictiveEcho.prototype, 'getEchoSrttMs').mockReturnValue(120);
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
 
       renderTerminal();
       await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -186,7 +186,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     it('always mode: displays predictions regardless of srtt (even when null)', async () => {
       saveSettings({ predictiveEcho: 'always' });
       vi.spyOn(PredictiveEcho.prototype, 'getEchoSrttMs').mockReturnValue(null);
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
 
       renderTerminal();
       await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -202,7 +202,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
 
     it('immediately clears active prediction overlay when switched to "off"', async () => {
       saveSettings({ predictiveEcho: 'always' });
-      const clearSpy = vi.spyOn(PredictionOverlay.prototype, 'clear');
+      const clearSpy = vi.spyOn(PredictionLayer.prototype, 'clear');
 
       const TestHarness = () => {
         const { updateSettings } = useTerminal();
@@ -237,7 +237,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     it('does NOT predict keystrokes when in viewer mode (non-controller)', async () => {
       saveSettings({ predictiveEcho: 'always' });
       const handleUserInputSpy = vi.spyOn(PredictiveEcho.prototype, 'handleUserInput');
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
 
       renderTerminal();
       await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -257,7 +257,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     it('resets predictor and clears overlay when scrolling occurs', async () => {
       saveSettings({ predictiveEcho: 'always' });
       const resetSpy = vi.spyOn(PredictiveEcho.prototype, 'reset');
-      const clearSpy = vi.spyOn(PredictionOverlay.prototype, 'clear');
+      const clearSpy = vi.spyOn(PredictionLayer.prototype, 'clear');
 
       renderTerminal();
       await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -338,7 +338,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     };
 
     it("predicts in Claude Code's input box once one echo has come back", async () => {
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
       const term = await mount();
       const screen = showScreen(term, 'desktop-claude-empty');
 
@@ -356,7 +356,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     });
 
     it('predicts nothing while a menu has the keys', async () => {
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
       const term = await mount();
       const screen = showScreen(term, 'desktop-claude-model-menu');
       act(() => emitTerminalData(term, 'j'));
@@ -366,7 +366,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     });
 
     it('sees an Esc sent from the on-screen toolbar, and stops predicting', async () => {
-      const syncSpy = vi.spyOn(PredictionOverlay.prototype, 'sync');
+      const syncSpy = vi.spyOn(PredictionLayer.prototype, 'sync');
       const term = await mount();
       const screen = showScreen(term, 'desktop-claude-empty');
       act(() => emitTerminalData(term, 'h'));
