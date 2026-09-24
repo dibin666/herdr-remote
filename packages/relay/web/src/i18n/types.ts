@@ -252,7 +252,11 @@ export interface TranslationSchema {
     settingsProfileLabel: string;
     autoProfile: string;
     pinnedProfile: string;
-    showAction: string;
+    barGroup: string;
+    barHint: string;
+    restoreBar: string;
+    customizeBar: string;
+    customizeBarShort: string;
     shortcutLabel: string;
     comboPlaceholder: string;
     invalidCombo: string;

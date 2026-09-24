@@ -375,7 +375,7 @@ export function applyOverrides(
       defaultCombo: combo,
       combo,
       verified: true,
-      hidden: false,
+      hidden: overrides?.actions?.[custom.id]?.hidden === true,
       custom: true,
       customLabel: custom.label,
     });
@@ -390,14 +390,19 @@ export function applyOverrides(
   return rows;
 }
 
-/** Hide a common shell cap if the agent already exposes that same combo. */
+/**
+ * Drop a common shell cap the agent already binds to the same combo, shown or
+ * not, so each combo has one switch in settings and hiding it hides it.
+ */
 export function filterDuplicateGenericActions(
   agentActions: AppliedAgentAction[],
   genericActions: AppliedAgentAction[],
 ): AppliedAgentAction[] {
-  const agentCombos = new Set(agentActions.filter((item) => !item.hidden).map((item) => item.combo.trim().toLowerCase()));
+  const agentCombos = new Set(agentActions.map((item) => item.combo.trim().toLowerCase()));
   return genericActions.filter((item) => !agentCombos.has(item.combo.trim().toLowerCase()));
 }
+
+const isGenericAction = (item: AgentActionDef) => item.id.startsWith('generic');
 
 export function getProfileActions(
   profileId: AgentProfileId,
@@ -413,15 +418,35 @@ export function getProfileActions(
   return applyOverrides(defaults, overrides);
 }
 
+/** Every cap this profile can put on the key bar, shown or hidden, one per combo. */
+export function getBarChoices(
+  profileId: AgentProfileId,
+  overrides?: AgentProfileKeymapOverride,
+): AppliedAgentAction[] {
+  const rows = getProfileActions(profileId, overrides);
+  const agentActions = rows.filter((item) => !isGenericAction(item));
+  const kept = new Set(filterDuplicateGenericActions(agentActions, rows.filter(isGenericAction)));
+  return rows.filter((item) => !isGenericAction(item) || kept.has(item));
+}
+
 export function getDrawerGroups(
   profileId: AgentProfileId,
   overrides?: AgentProfileKeymapOverride,
 ): { agentActions: AppliedAgentAction[]; genericActions: AppliedAgentAction[] } {
-  const rows = getProfileActions(profileId, overrides);
-  const agentActions = rows.filter((item) => !item.id.startsWith('generic'));
-  const genericActions = rows.filter((item) => item.id.startsWith('generic'));
+  const shown = getBarChoices(profileId, overrides).filter((item) => !item.hidden);
   return {
-    agentActions: agentActions.filter((item) => !item.hidden),
-    genericActions: filterDuplicateGenericActions(agentActions, genericActions).filter((item) => !item.hidden),
+    agentActions: shown.filter((item) => !isGenericAction(item)),
+    genericActions: shown.filter(isGenericAction),
   };
+}
+
+/** Forget the user's show/hide choices for a profile, keeping rebinds and custom keys. */
+export function clearBarVisibility(overrides: AgentProfileKeymapOverride): AgentProfileKeymapOverride {
+  const actions: NonNullable<AgentProfileKeymapOverride['actions']> = {};
+  for (const [id, saved] of Object.entries(overrides.actions || {})) {
+    const rest = { ...saved };
+    delete rest.hidden;
+    if (Object.keys(rest).length > 0) actions[id] = rest;
+  }
+  return { ...overrides, actions };
 }
