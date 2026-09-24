@@ -107,8 +107,6 @@ export interface TranslationSchema {
     authRequiredDesc: string;
     step1Title: string;
     step1Desc: string;
-    step1CopyPlugin: string;
-    step1CopyCli: string;
     step1TuiNote: string;
     step2Title: string;
     step2Placeholder: string;

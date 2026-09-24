@@ -16,7 +16,7 @@ import {
   resolvePublicUrl,
   stateDir,
 } from '../../src/config.js';
-import { MIN_HERDR_VERSION } from '../../src/herdr-command.js';
+import { MIN_HERDR_VERSION, herdrVersion } from '../../src/herdr-command.js';
 import { createTranslator, detectLocale as detectLocaleRaw } from '../../src/i18n/index.js';
 import { listReachableAddresses as listReachableAddressesRaw, preferredLanAddress } from '../../src/net-interfaces.js';
 import {
@@ -45,7 +45,6 @@ import {
 } from '../../src/service.js';
 import { fullStatus, restartAll, startAll, stopAll } from '../../src/lifecycle.js';
 import * as keepalive from '../../src/keepalive.js';
-import * as herdrPlugin from '../../src/herdr-plugin.js';
 import {
   canSelfUpdate,
   checkForUpdate,
@@ -156,7 +155,7 @@ export {
   fullStatus,
   getField,
   getFieldPlaceholder,
-  herdrPlugin,
+  herdrVersion,
   keepalive,
   loadConfig,
   pair,

@@ -41,8 +41,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
 
   const PAIR_COMMAND = 'node bin/service.js pair';
   const CONFIG_TUI_COMMAND = 'node bin/config-tui.js';
-  const HERDR_PANE_COMMAND =
-    'herdr plugin pane open --plugin herdr.remote.web --entrypoint config --placement zoomed --focus';
 
   const handleCopyCommand = (cmd: string) => {
     copyText(cmd).then((res) => {
@@ -168,18 +166,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
               </div>
 
               <div className="space-y-0.5 text-tui-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-tui-faint">{t('onboarding.step1CopyPlugin')}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCommand(HERDR_PANE_COMMAND)}
-                    className="tui-focusable shrink-0 text-tui-accent underline-offset-2 hover:underline"
-                  >
-                    {copiedCommand === HERDR_PANE_COMMAND
-                      ? t('common.copied')
-                      : t('onboarding.step1CopyCli')}
-                  </button>
-                </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-tui-faint">{t('onboarding.step1TuiNote')}</span>
                   <code

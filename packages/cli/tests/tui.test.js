@@ -69,7 +69,7 @@ async function mount(element) {
     import('react'),
   ]);
   const instance = render(element);
-  // Let the first effects (status fetch, registration probe) settle.
+  // Let the first effects (status fetch, Herdr version probe) settle.
   await new Promise((resolve) => setTimeout(resolve, 60));
   return instance;
 }
@@ -196,6 +196,37 @@ test('choosing the self-hosted relay adds the URL and credential steps', async (
   assert.match(instance.lastFrame(), /Relay server/);
   assert.match(instance.lastFrame(), /Relay URL/);
   assert.match(instance.lastFrame(), /Step 3 of 5/);
+});
+
+test('the Herdr screen shows the installed version and offers no plugin registration', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
+
+  // A stand-in herdr that answers --version, old enough to draw the warning.
+  const fake = path.join(process.env.HERDR_REMOTE_CONFIG_DIR, 'herdr');
+  fs.writeFileSync(fake, '#!/bin/sh\necho "herdr 0.8.2"\n', { mode: 0o755 });
+  const previous = process.env.HERDR_BIN_PATH;
+  process.env.HERDR_BIN_PATH = fake;
+  t.after(() => {
+    if (previous === undefined) delete process.env.HERDR_BIN_PATH;
+    else process.env.HERDR_BIN_PATH = previous;
+  });
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  t.after(() => instance.unmount());
+
+  instance.stdin.write('6'); // Herdr tab
+  await new Promise((resolve) => setTimeout(resolve, 60));
+
+  const output = instance.lastFrame();
+  assert.match(output, /Socket path/);
+  assert.match(output, /Herdr version/);
+  assert.match(output, /0\.8\.2/);
+  assert.match(output, /is older than/);
+  // Registering changed nothing a user could see in Herdr, so it is not offered.
+  assert.doesNotMatch(output, /Register as Herdr plugin|Unregister plugin|Plugin registration/);
 });
 
 test('the relay screen offers a password only for a self-hosted relay', async (t) => {

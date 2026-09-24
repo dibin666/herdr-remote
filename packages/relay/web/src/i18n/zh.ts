@@ -101,8 +101,6 @@ export const zh: TranslationSchema = {
     authRequiredDesc: '使用配对码配对设备，或提供有效访问令牌。',
     step1Title: '在 Herdr 宿主机生成配对码',
     step1Desc: '在运行 Herdr 的主机终端执行：',
-    step1CopyPlugin: '使用 Herdr 插件：',
-    step1CopyCli: '复制 CLI 命令',
     step1TuiNote: '交互式 TUI 配置：',
     step2Title: '输入 6 位配对码',
     step2Placeholder: '例如：7X9K2A',

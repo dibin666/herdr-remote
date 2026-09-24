@@ -101,8 +101,6 @@ export const en: TranslationSchema = {
     authRequiredDesc: 'Pair your device or provide a valid access token.',
     step1Title: 'Generate Pairing Code on Host',
     step1Desc: 'Run on the host running Herdr:',
-    step1CopyPlugin: 'Using Herdr Plugin:',
-    step1CopyCli: 'Copy CLI Command',
     step1TuiNote: 'Interactive TUI config:',
     step2Title: 'Enter 6-character Pairing Code',
     step2Placeholder: 'e.g. 7X9K2A',

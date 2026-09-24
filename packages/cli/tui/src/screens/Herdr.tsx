@@ -4,44 +4,28 @@ import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
 import { FieldRow, Message, Panel, Row, Selectable, StatusDot } from '../components/common.js';
 import { TextField } from '../components/TextField.js';
-import { MIN_HERDR_VERSION, getField, getFieldPlaceholder, herdrPlugin, saveDraft, setField } from '../api.js';
+import { MIN_HERDR_VERSION, getField, getFieldPlaceholder, herdrVersion, saveDraft, setField } from '../api.js';
 
-type Registration = {
-  available: boolean;
-  registered: boolean;
-  enabled?: boolean;
-  linkedPath?: string | null;
-  stale?: boolean;
-  packageRoot?: string;
-  /** Null when the installed Herdr could not be asked. */
-  version?: string | null;
-  versionSupported?: boolean;
+type InstalledHerdr = {
+  /** False when no herdr executable answered. */
+  ok: boolean;
+  version: string | null;
+  supported: boolean;
 };
 
 export function HerdrScreen({ ctx }: { ctx: AppContext }) {
   const { t, draft, editingId } = ctx;
   const [selected, setSelected] = useState('socketPath');
-  const [registration, setRegistration] = useState<Registration | null>(null);
+  const [installed, setInstalled] = useState<InstalledHerdr | null>(null);
 
-  const reloadRegistration = () => {
-    try {
-      setRegistration(herdrPlugin.registrationStatus());
-    } catch (error) {
-      ctx.notify((error as Error).message, 'error');
-    }
-  };
-
-  useEffect(reloadRegistration, []);
+  useEffect(() => {
+    setInstalled(herdrVersion());
+  }, []);
 
   const entries = [
     { id: 'socketPath', kind: 'field' as const, label: t('herdr.socketPath') },
     { id: 'herdrArgs', kind: 'field' as const, label: t('herdr.args') },
     { id: 'save', kind: 'action' as const, label: t('common.save') },
-    {
-      id: registration?.registered && !registration?.stale ? 'unregister' : 'register',
-      kind: 'action' as const,
-      label: registration?.registered && !registration?.stale ? t('herdr.unregister') : t('herdr.register'),
-    },
   ];
 
   const applyField = (id: string, value: string) => {
@@ -63,25 +47,7 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
 
   const activate = (id: string) => {
     if (id === 'socketPath' || id === 'herdrArgs') { ctx.setEditing(id); return; }
-    if (id === 'save') { save(); return; }
-    ctx.run(() => {
-      try {
-        if (id === 'register') {
-          const result = herdrPlugin.register();
-          ctx.notify(t('herdr.registerDone', { path: result.path }), 'success');
-        } else {
-          herdrPlugin.unregister();
-          ctx.notify(t('herdr.unregisterDone'), 'success');
-        }
-      } catch (error) {
-        const failure = error as Error & { code?: string };
-        throw new Error(failure.code === 'HERDR_NOT_FOUND'
-          ? t('herdr.cliMissing')
-          : t('herdr.registerFailed', { message: failure.message }));
-      } finally {
-        reloadRegistration();
-      }
-    });
+    if (id === 'save') save();
   };
 
   useInput((input, key) => {
@@ -132,40 +98,21 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
       ) : null}
 
       <Box marginTop={1} flexDirection="column">
-        <Row label={t('herdr.plugin')}>
-          <Box>
-            <StatusDot level={registration?.registered && !registration?.stale ? 'ok' : registration?.stale ? 'warn' : 'idle'} />
-            <Text>
-              {' '}
-              {registration?.registered ? t('herdr.pluginRegistered') : t('herdr.pluginMissing')}
-            </Text>
-          </Box>
-        </Row>
-        {registration?.packageRoot ? (
-          <Row label="">
-            <Text color={theme.muted}>{registration.packageRoot}</Text>
-          </Row>
-        ) : null}
-        {registration?.version ? (
+        {installed?.version ? (
           <Row label={t('herdr.version')}>
             <Box>
-              <StatusDot level={registration.versionSupported === false ? 'warn' : 'ok'} />
-              <Text>{` ${registration.version}`}</Text>
+              <StatusDot level={installed.supported ? 'ok' : 'warn'} />
+              <Text>{` ${installed.version}`}</Text>
             </Box>
           </Row>
         ) : null}
-        {registration?.versionSupported === false ? (
+        {installed?.version && !installed.supported ? (
           <Text color={theme.warn}>
-            {t('herdr.versionOutdated', { version: registration.version ?? '', minimum: MIN_HERDR_VERSION })}
+            {t('herdr.versionOutdated', { version: installed.version, minimum: MIN_HERDR_VERSION })}
           </Text>
         ) : null}
-        {registration && !registration.available ? (
+        {installed && !installed.ok ? (
           <Text color={theme.warn}>{t('herdr.cliMissing')}</Text>
-        ) : null}
-        {registration?.stale && registration.linkedPath ? (
-          // A leftover link to an old source checkout is the usual state after
-          // switching to the npm install; re-registering repoints it.
-          <Text color={theme.warn}>{registration.linkedPath}</Text>
         ) : null}
       </Box>
 
