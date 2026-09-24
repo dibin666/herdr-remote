@@ -1,18 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { CanvasAddon } from '@xterm/addon-canvas';
+import { HerdrRenderer } from '../render/HerdrRenderer';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { TerminalView, RESIZE_NOTIFY_DEBOUNCE_MS } from '../components/TerminalView';
 import { App } from '../App';
 import { computeContainerGridFit } from '../utils/terminalFit';
 import { saveSettings } from '../utils/storage';
-import type { MockTerminalInstance, MockWebSocket } from './setup';
+import type { MockHerdrRenderer, MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
   .__xtermInstances;
 const webSocketInstances = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] })
   .__webSocketInstances;
+const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] })
+  .__herdrRenderers;
 
 const PHONE = { width: 390, height: 780 };
 const DESKTOP = { width: 1024, height: 768 };
@@ -481,8 +482,7 @@ describe('Renderer selection', () => {
   beforeEach(() => {
     localStorage.clear();
     xtermInstances.length = 0;
-    vi.mocked(WebglAddon).mockClear();
-    vi.mocked(CanvasAddon).mockClear();
+    herdrRenderers.length = 0;
   });
 
   afterEach(() => {
@@ -490,44 +490,40 @@ describe('Renderer selection', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it('mounts CanvasAddon on a coarse-pointer device without attempting WebGL', async () => {
-    // Mobile terminals prefer CanvasAddon over WebGL for lower context loss risk.
+  it('draws with the canvas renderer on a coarse-pointer device', async () => {
     setPointerKind('coarse');
     setViewport(PHONE);
 
     renderTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
-    expect(WebglAddon).not.toHaveBeenCalled();
-    expect(CanvasAddon).toHaveBeenCalledTimes(1);
+    expect(herdrRenderers).toHaveLength(1);
     expect(elements().container.dataset.renderer).toBe('canvas');
   });
 
   // A desktop browser used to get WebGL for throughput. On an Intel Iris Xe /
   // Mesa / ANGLE stack that renderer draws solid blocks instead of glyphs, and
   // the probe cannot see it — a screen full of blocks is a screen with content.
-  it('uses canvas on a precise-pointer device too, never WebGL', async () => {
+  it('uses the same canvas renderer on a precise-pointer device, never WebGL', async () => {
     setPointerKind('fine');
     setViewport(DESKTOP);
 
     renderTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
-    expect(WebglAddon).not.toHaveBeenCalled();
-    expect(CanvasAddon).toHaveBeenCalledTimes(1);
+    expect(herdrRenderers).toHaveLength(1);
     expect(elements().container.dataset.renderer).toBe('canvas');
   });
 
   it('falls back to DOM rows when canvas cannot be constructed', async () => {
     setPointerKind('fine');
     setViewport(DESKTOP);
-    vi.mocked(CanvasAddon).mockImplementationOnce(() => {
-      throw new Error('canvas unavailable');
-    });
+    (HerdrRenderer as unknown as { failNext: Error | null }).failNext = new Error('canvas unavailable');
 
     renderTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
+    expect(herdrRenderers).toHaveLength(0);
     expect(elements().container.dataset.renderer).toBe('dom');
   });
 });

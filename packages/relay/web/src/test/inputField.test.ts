@@ -108,11 +108,43 @@ describe('detectInputField on captured Herdr screens', () => {
     });
   }
 
-  it('keys a Claude box by its bottom rule, so the key survives the box growing upwards', () => {
+  it('keys a Claude box by its pane, so the key survives the box growing upwards', () => {
     const typed = detectFixture('desktop-claude-typed')!;
     const wrapped = detectFixture('mobile-claude-wrapped')!;
     expect(typed.key).toBe(detectFixture('desktop-claude-cjk')!.key);
     expect(wrapped.key).toBe(detectFixture('mobile-claude-typed')!.key);
+  });
+
+  it("keys a field by its pane and kind, never by the rows it sits on", () => {
+    // Claude's box moves as the status area below it grows; a shell's next
+    // prompt is on a new row. Both are the field they were.
+    const screen = screenFromFixture(loadScreenFixture('desktop-claude-empty'));
+    const before = new InputFieldTracker().detect(screen, screen.cursor)!;
+    for (let row = 30; row <= 37; row++) {
+      screen.write(row, 26, screen.rowText(row + 2).slice(26));
+    }
+    screen.setCursor(screen.cursor.col, screen.cursor.row - 2, true);
+    const moved = new InputFieldTracker().detect(screen, screen.cursor)!;
+    expect(moved.row).toBe(before.row - 2);
+    expect(moved.key).toBe(before.key);
+
+    const fish = screenFromFixture(loadScreenFixture('desktop-fish-empty'));
+    const first = new InputFieldTracker().detect(fish, fish.cursor)!;
+    fish.write(12, 26, fish.rowText(3).slice(26));
+    fish.setCursor(fish.cursor.col, 12);
+    const next = new InputFieldTracker().detect(fish, fish.cursor)!;
+    expect(next.row).toBe(12);
+    expect(next.key).toBe(first.key);
+  });
+
+  it('tells apart fields in panes of their own', () => {
+    expect(detectFixture('desktop-split-claude')!.key).not.toBe(detectFixture('desktop-claude-empty')!.key);
+    expect(detectFixture('desktop-claude-empty')!.key).not.toBe(detectFixture('desktop-fish-empty')!.key);
+  });
+
+  it('marks a box in vim insert mode as modal, and a shell prompt as not', () => {
+    expect(detectFixture('desktop-claude-typed')!.modal).toBe(true);
+    expect(detectFixture('desktop-fish-empty')!.modal).toBe(false);
   });
 
   it('marks an empty agent box, and an empty Codex line behind its dim placeholder', () => {

@@ -99,6 +99,36 @@ describe("PredictiveEcho in Claude Code's input box", () => {
     expect(t.echo.getState()).toBe("tentative");
   });
 
+  it("keeps its confidence through an Escape when the box is not in vim mode", () => {
+    const t = setup("desktop-codex-typed");
+    type(t.echo, "l");
+    t.remoteEcho("l");
+    expect(t.echo.getState()).toBe("confident");
+
+    type(t.echo, "\x1b");
+    expect(t.echo.getState()).toBe("confident");
+  });
+
+  it("clears the placeholder of an empty agent box with the first key", () => {
+    const t = setup("desktop-codex-empty"); // "› Ask Codex to do anything", dim, caret at 28
+    type(t.echo, "a");
+    t.remoteEcho("a");
+    expect(t.echo.getState()).toBe("confident");
+
+    // The prompt is sent and the box is empty again: same pane, same field.
+    t.show("desktop-codex-empty");
+    type(t.echo, "x");
+    const items = t.echo.getOverlayItems();
+    expect(items).toContainEqual({ row: 36, col: 28, char: "x", width: 1, kind: "char" });
+    const erased = items.filter((item) => item.kind === "erase").map((item) => item.col);
+    // "Ask Codex to do anything" ran from 28 to 51. The caret sits at 29, over
+    // a cell cleared like the rest; the spaces between words are blank already.
+    expect(erased[0]).toBe(29);
+    expect(erased.at(-1)).toBe(51);
+    expect(erased).toHaveLength("sk Codex to do anything".replace(/ /g, "").length);
+    expect(items).toContainEqual({ row: 36, col: 29, char: " ", width: 1, kind: "caret" });
+  });
+
   it("does not predict in normal mode once the box has shown -- INSERT --", () => {
     const t = setup("desktop-claude-typed");
     type(t.echo, "x");

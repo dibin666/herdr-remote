@@ -33,7 +33,6 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom'],
           'vendor-xterm': [
             '@xterm/xterm',
-            '@xterm/addon-canvas',
             '@xterm/addon-unicode11',
           ],
         },

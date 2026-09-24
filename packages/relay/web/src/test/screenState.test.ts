@@ -46,6 +46,24 @@ describe('attachScreenState', () => {
     expect(state.isSynchronizing()).toBe(false);
   });
 
+  it('announces the end of a frame, and only of a frame that began', async () => {
+    const term = createTerminal();
+    const state = attachScreenState(term);
+    let ends = 0;
+    const subscription = state.onSyncEnd(() => {
+      ends += 1;
+    });
+    await write(term, '\x1b[?2026l');
+    expect(ends).toBe(0);
+    await write(term, '\x1b[?2026hframe');
+    expect(ends).toBe(0);
+    await write(term, '\x1b[?2026l');
+    expect(ends).toBe(1);
+    subscription.dispose();
+    await write(term, '\x1b[?2026h\x1b[?2026l');
+    expect(ends).toBe(1);
+  });
+
   it('clears both on a soft or full terminal reset', async () => {
     const term = createTerminal();
     const state = attachScreenState(term);

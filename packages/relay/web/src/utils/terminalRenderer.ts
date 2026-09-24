@@ -1,8 +1,9 @@
 /**
- * Renderer selection and probe-based fallback for xterm 5.5.
+ * Renderer selection and probe-based fallback.
  *
- * Canvas everywhere, with the DOM renderer underneath it. There is no WebGL
- * path any more.
+ * The terminal is drawn by `render/HerdrRenderer`, a canvas renderer that
+ * repaints only the cells that changed and never paints half of a Herdr
+ * frame. xterm's DOM renderer is underneath it. There is no WebGL path.
  *
  * xterm's WebGL renderer draws glyphs from a texture atlas, and on at least one
  * ordinary stack — Intel Iris Xe, Mesa, ANGLE — it draws solid blocks instead of
@@ -10,52 +11,56 @@
  * same bytes and the same font, rendered side by side, came out as blocks under
  * WebGL and correct under both Canvas and DOM. It is not the atlas page merge
  * (it happens well below that threshold), and it is not font coverage (a glyph
- * that fails in one cell renders in another).
- *
- * That failure is invisible to the probe below, which is the reason WebGL is
- * gone rather than merely demoted: the probe asks "did anything get drawn", and
- * a screen full of blocks answers yes. A terminal that renders the wrong glyphs
- * is worse than a slower one that renders the right ones, so the fast path is
- * not worth keeping for a fault nothing can detect. If a later xterm fixes the
- * WebGL renderer, this is the file that decides whether to trust it again.
+ * that fails in one cell renders in another). The probe below cannot see that
+ * failure — a screen full of blocks is a screen with content — so WebGL is not
+ * a renderer this app chooses.
  *
  * What remains, for every device:
- *  - Mount CanvasAddon, then verify pixel output once initial content (the
- *    startup banner) is drawn — "probe and degrade" rather than guessing from
- *    the user agent.
- *  - Pixel verification MUST wait until content has been emitted into the terminal.
- *    An unpopulated buffer is uniformly blank by definition, which would cause a
- *    false-positive failure detection.
+ *  - Install the canvas renderer, then verify pixel output once initial content
+ *    (the startup banner) is drawn — "probe and degrade" rather than guessing
+ *    from the user agent.
+ *  - Pixel verification MUST wait until content has been emitted into the terminal,
+ *    and until the renderer has painted it. An unpopulated buffer is uniformly
+ *    blank by definition, and so is a canvas xterm has not yet asked to paint:
+ *    either would cause a false-positive failure detection.
  *  - Distinguish three probe outcomes:
  *      * healthy: differing pixels detected -> keep canvas;
  *      * blank: sampled pixels are fully identical -> driver returned a dead/blank
- *        surface -> dispose canvas, cleanly fall back to DOM, and persist failure;
+ *        surface -> hand drawing back to xterm's DOM renderer and persist failure;
  *      * inconclusive: layer not yet mounted, context unavailable, or sampling threw
  *        an unexpected error -> retain canvas without blacklisting.
  *  - Only definitive "blank" detections fall back to DOM and write to persistent storage.
  *  - Persistent failures in localStorage carry a timestamp and schema version ({ v: 1, ua: { [ua]: { failedAt } } }).
  *    Records automatically expire after 30 days to give driver updates an opportunity to recover.
+ *    The key changed with the renderer, so a failure recorded against xterm's
+ *    old canvas addon does not keep this one from being tried.
  *  - Verification is repeated after the initial resize to catch driver failures
  *    triggered when backing-store dimensions change.
  */
 
 import { Terminal } from '@xterm/xterm';
-import { CanvasAddon } from '@xterm/addon-canvas';
+import { HerdrRenderer } from '../render/HerdrRenderer';
 
 export type TerminalRendererKind = 'dom' | 'canvas';
 
 export interface AttachRendererOptions {
   /** Called after a fallback swap so the caller can re-measure and repaint. */
   onRendererSwapped?: (kind: TerminalRendererKind) => void;
+  /** True while the host is midway through a synchronized frame; see `utils/screenState`. */
+  isSynchronizing?: () => boolean;
 }
 
 export interface AttachedRenderer {
   readonly kind: TerminalRendererKind;
+  /** The canvas renderer while it draws the terminal; null once on the DOM renderer. */
+  readonly canvas: HerdrRenderer | null;
   dispose: () => void;
   verify: () => Promise<void>;
 }
 
-export const RENDERER_PROBE_STORAGE_KEY = 'herdr_remote_renderer_probe_v1';
+export const RENDERER_PROBE_STORAGE_KEY = 'herdr_remote_renderer_probe_v2';
+/** How long the probe waits for the renderer to paint before sampling anyway. */
+const MAX_PAINT_WAIT_FRAMES = 30;
 export const PROBE_STORAGE_SCHEMA_VERSION = 1;
 export const PROBE_FAILURE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -229,88 +234,99 @@ export function waitForFrames(count = 2): Promise<void> {
   });
 }
 
+const DOM_RENDERER: AttachedRenderer = {
+  kind: 'dom',
+  canvas: null,
+  dispose: () => {},
+  verify: async () => {},
+};
+
 export function attachTerminalRenderer(
   term: Terminal,
   options: AttachRendererOptions = {}
 ): AttachedRenderer {
   if (isCanvasProbeFailed()) {
-    return {
-      kind: 'dom',
-      dispose: () => {},
-      verify: async () => {},
-    };
+    return DOM_RENDERER;
   }
 
+  let renderer: HerdrRenderer | null;
   try {
-    const canvasAddon = new CanvasAddon();
-    term.loadAddon(canvasAddon);
-    let currentKind: TerminalRendererKind = 'canvas';
-    let isDisposed = false;
-    let verifyPromise: Promise<void> | null = null;
-
-    const fallbackToDom = () => {
-      if (currentKind === 'dom') return;
-      recordCanvasProbeFailure();
-      try {
-        canvasAddon.dispose();
-      } catch {
-        // ignore
-      }
-      currentKind = 'dom';
-      options.onRendererSwapped?.('dom');
-    };
-
-    const verify = async (): Promise<void> => {
-      if (isDisposed || currentKind !== 'canvas') return;
-      if (verifyPromise) return verifyPromise;
-
-      verifyPromise = (async () => {
-        try {
-          await waitForFrames(2);
-          if (isDisposed || currentKind !== 'canvas') return;
-
-          // Strictly query the text layer. Do NOT fall back to generic "canvas"
-          // to avoid mistakenly sampling blank selection/cursor layers.
-          const canvas = term.element?.querySelector<HTMLCanvasElement>('canvas.xterm-text-layer');
-
-          const probeResult = checkCanvasContent(canvas);
-          if (probeResult === 'blank') {
-            fallbackToDom();
-          } else if (probeResult === 'inconclusive') {
-            console.debug('Canvas probe inconclusive; retaining canvas renderer without blacklisting');
-          }
-        } catch (err) {
-          console.debug('Canvas probe inconclusive: unexpected error during verify():', err);
-        } finally {
-          verifyPromise = null;
-        }
-      })();
-
-      return verifyPromise;
-    };
-
-    return {
-      get kind() {
-        return currentKind;
-      },
-      dispose: () => {
-        isDisposed = true;
-        try {
-          canvasAddon.dispose();
-        } catch {
-          // ignore
-        }
-      },
-      verify,
-    };
+    renderer = HerdrRenderer.install(term, { isSynchronizing: options.isSynchronizing });
   } catch (canvasError) {
     console.debug('Canvas renderer unavailable, using the DOM renderer:', canvasError);
     recordCanvasProbeFailure();
+    return DOM_RENDERER;
+  }
+  if (!renderer) {
+    // This xterm does not expose what the renderer is built from; its own
+    // renderer stays. Nothing is wrong with the device, so nothing is recorded.
+    return DOM_RENDERER;
   }
 
+  let current: HerdrRenderer | null = renderer;
+  let verifyPromise: Promise<void> | null = null;
+
+  const fallbackToDom = () => {
+    if (!current) return;
+    recordCanvasProbeFailure();
+    const failed = current;
+    current = null;
+    try {
+      failed.uninstall();
+    } catch {
+      // ignore
+    }
+    options.onRendererSwapped?.('dom');
+  };
+
+  const verify = async (): Promise<void> => {
+    if (!current) return;
+    if (verifyPromise) return verifyPromise;
+
+    verifyPromise = (async () => {
+      try {
+        // xterm paints in its own animation-frame callback, which in a given
+        // frame can run after this one: sampling before the renderer has
+        // painted what was asked for finds a blank canvas that is not broken.
+        const paintedBefore = current.stats.frames;
+        await waitForFrames(2);
+        for (let wait = 0; wait < MAX_PAINT_WAIT_FRAMES && current && current.stats.frames === paintedBefore; wait++) {
+          await waitForFrames(1);
+        }
+        if (!current) return;
+
+        const probeResult = checkCanvasContent(current.textCanvas);
+        if (probeResult === 'blank') {
+          fallbackToDom();
+        } else if (probeResult === 'inconclusive') {
+          console.debug('Canvas probe inconclusive; retaining canvas renderer without blacklisting');
+        }
+      } catch (err) {
+        console.debug('Canvas probe inconclusive: unexpected error during verify():', err);
+      } finally {
+        verifyPromise = null;
+      }
+    })();
+
+    return verifyPromise;
+  };
+
   return {
-    kind: 'dom',
-    dispose: () => {},
-    verify: async () => {},
+    get kind() {
+      return current ? 'canvas' : 'dom';
+    },
+    get canvas() {
+      return current;
+    },
+    dispose: () => {
+      const installed = current;
+      current = null;
+      try {
+        installed?.dispose();
+      } catch {
+        // ignore
+      }
+    },
+    verify,
   };
 }

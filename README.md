@@ -147,6 +147,7 @@ npm run build      # Build WebUI and TUI bundle
 npm test           # Run relay and CLI test suites
 npm run test:web   # Run WebUI tests
 npm run typecheck  # TypeScript check
+node scripts/render-bench.mjs  # Frame cost of the terminal renderer (needs Playwright)
 ```
 ## License
 
