@@ -103,8 +103,8 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(desktopBtn.textContent).toContain('图片');
     // Does not render emoji square 🖼️
     expect(desktopBtn.textContent).not.toContain('🖼️');
-    // Shares the same standard key class (CAP_BASE + keyClass) instead of standalone large button
-    expect(desktopBtn.className).toContain('h-9');
+    // Shares the bar's one cap height instead of standing out as a large button
+    expect(desktopBtn.className).toContain('h-7');
     expect(desktopBtn.className).not.toContain('min-h-[44px]');
 
     unmount();
@@ -121,7 +121,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(compactBtn).toHaveAttribute('aria-label', '上传图片');
     expect(compactBtn.textContent).toContain('图片');
     expect(compactBtn.textContent).not.toContain('🖼️');
-    expect(compactBtn.className).toContain('h-9');
+    expect(compactBtn.className).toContain('h-8');
     expect(compactBtn.className).not.toContain('min-h-[44px]');
   });
 
@@ -446,11 +446,11 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(imageBtn).toHaveAttribute('data-testid', 'image-upload-btn');
     expect(imageBtn).toHaveAttribute('aria-label', expect.stringMatching(/上传图片|Upload Image/i));
     expect(imageBtn.textContent).not.toContain('🖼️');
-    expect(imageBtn.className).toContain('h-9');
+    expect(imageBtn.className).toContain('h-7');
     expect(imageBtn.className).not.toContain('min-h-[44px]');
 
-    // Enter button also shares h-9 metric
-    expect(last.className).toContain('h-9');
+    // Enter button also shares the desktop cap height
+    expect(last.className).toContain('h-7');
 
     unmount();
 
@@ -476,7 +476,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(imageBtn).toHaveAttribute('data-testid', 'image-upload-btn');
     expect(imageBtn).toHaveAttribute('aria-label', expect.stringMatching(/上传图片|Upload Image/i));
     expect(imageBtn.textContent).not.toContain('🖼️');
-    expect(imageBtn.className).toContain('h-9');
+    expect(imageBtn.className).toContain('h-8');
     expect(imageBtn.className).not.toContain('min-h-[44px]');
   });
 

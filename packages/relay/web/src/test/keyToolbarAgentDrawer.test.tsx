@@ -56,10 +56,10 @@ describe('Agent-aware key toolbar', () => {
     await mount();
     reportFocus('claude');
 
-    const row = screen.getByTestId('key-toolbar-row');
-    expect(row.className).toContain('flex-nowrap');
-    expect(row.className).toContain('overflow-x-auto');
-    expect(screen.getByTestId('agent-key-actions').parentElement).toBe(row);
+    const strip = screen.getByTestId('key-toolbar-scroll');
+    expect(screen.getByTestId('key-toolbar-row').className).toContain('flex-nowrap');
+    expect(strip.className).toContain('overflow-x-auto');
+    expect(screen.getByTestId('agent-key-actions').parentElement).toBe(strip);
     expect(screen.getByTestId('agent-key-mode')).toBeInTheDocument();
     expect(screen.getByTestId('agent-key-rewind')).toBeInTheDocument();
     expect(screen.getByTestId('agent-key-genericCtrlC')).toBeInTheDocument();

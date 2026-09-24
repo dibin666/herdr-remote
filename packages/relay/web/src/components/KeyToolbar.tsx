@@ -30,7 +30,7 @@ interface KeyToolbarProps {
  * the bar is filled.
  */
 
-/** One key cap. `h-9` is the smallest comfortable touch target. */
+/** One key cap. Its height comes from `capHeight`, shared by the whole bar. */
 const CAP_BASE =
   'tui-focusable inline-flex shrink-0 select-none items-center justify-center border text-tui font-medium transition-colors';
 
@@ -66,11 +66,13 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     agentProfile,
   } = useTerminal();
 
-  // One key metric everywhere: 36px is the smallest comfortable touch target,
-  // and a uniform height is what stops the row reading as a jumble.
-  const keyClass = 'h-9 min-w-[2.25rem] px-2';
-  const squareKeyClass = 'h-9 w-9';
-  const drawerToggleClass = 'h-9 px-2';
+  // One cap height for every key on the bar and in its drawers: agent
+  // shortcuts a size smaller than ESC beside them made the row read as two
+  // toolbars. A finger gets a little more height than a pointer does.
+  const capHeight = compact ? 'h-8' : 'h-7';
+  const keyClass = compact ? 'h-8 min-w-[2rem] px-1.5' : 'h-7 min-w-[1.75rem] px-1.5';
+  const squareKeyClass = compact ? 'h-8 w-8' : 'h-7 w-7';
+  const drawerToggleClass = compact ? 'h-8 px-1.5' : 'h-7 px-1.5';
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -188,6 +190,26 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     comboTimersRef.current = [];
   }, []);
 
+  // Whether the sideways strip hides keys past its right edge, which is when it
+  // fades out there to say so.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [moreToRight, setMoreToRight] = useState(false);
+  const measureScroll = useCallback(() => {
+    const strip = scrollRef.current;
+    setMoreToRight(Boolean(strip) && strip!.scrollLeft + strip!.clientWidth < strip!.scrollWidth - 1);
+  }, []);
+  // Keys can come and go without the strip changing size (a profile switch, a
+  // key added in settings), so every render re-measures; an unchanged answer
+  // does not render again.
+  useEffect(measureScroll);
+  useEffect(() => {
+    const strip = scrollRef.current;
+    if (!strip || typeof ResizeObserver !== 'function') return undefined;
+    const observer = new ResizeObserver(measureScroll);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [measureScroll, settings.toolbarVisible]);
+
   const sendAgentCombo = useCallback((combo: string) => {
     vibrate();
     if (!isController) {
@@ -239,7 +261,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         type="button"
         data-testid={`agent-key-${item.id}`}
         onClick={() => sendAgentCombo(item.combo)}
-        className={cn(CAP_BASE, 'h-8 max-w-[10rem] gap-1 px-1.5', CHORD_TONE_CLASS[tone])}
+        className={cn(CAP_BASE, capHeight, 'max-w-[10rem] gap-1 px-1.5', CHORD_TONE_CLASS[tone])}
         title={`${caption} ${label}`.trim()}
         aria-label={`${caption} ${label}`.trim()}
       >
@@ -259,7 +281,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         aria-label={`${AGENT_PROFILES[agentProfile].name} ${t('agentKeymaps.agentGroup')}`}
         className="flex shrink-0 items-center gap-1"
       >
-        <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-tui-border-dim" />
+        <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-tui-border-dim" />
         {actions.map(renderAgentAction)}
         {onCustomize && (
           <button
@@ -268,7 +290,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             onClick={onCustomize}
             className={cn(
               CAP_BASE,
-              'h-8 px-1.5 text-tui-sm border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent'
+              capHeight,
+              'px-1.5 text-tui-sm border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent'
             )}
             title={t('agentKeymaps.customizeBar')}
             aria-label={t('agentKeymaps.customizeBar')}
@@ -418,6 +441,33 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     return false;
   };
 
+  const renderKey = (keyDef: ToolbarKeyDef) => {
+    const active = isKeyActive(keyDef);
+    const isSquare = ['left', 'up', 'down', 'right'].includes(keyDef.id);
+    const isDrawer = keyDef.type === 'drawer';
+    const accessibleTitle = getLocalizedKeyTitle(keyDef, t);
+
+    return (
+      <button
+        key={keyDef.id}
+        type="button"
+        onClick={() => handleKeyClick(keyDef)}
+        className={cn(
+          CAP_BASE,
+          isSquare ? squareKeyClass : isDrawer ? drawerToggleClass : keyClass,
+          keyDef.id === 'enter' ? CAP_COMMIT : active ? CAP_ACTIVE : CAP_IDLE
+        )}
+        title={accessibleTitle}
+        aria-label={accessibleTitle}
+        aria-pressed={active}
+      >
+        {renderKeyIconOrLabel(keyDef)}
+      </button>
+    );
+  };
+
+  const enterKey = configuredKeys.find((keyDef) => keyDef.id === 'enter');
+
   /**
    * A chord in the quick drawer: the sequence, then what it does to the job.
    * `SIGINT` next to `^C` is the terminal's own vocabulary, not a tooltip.
@@ -434,7 +484,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       onClick={() => handleKeyPress(code, false)}
       className={cn(
         CAP_BASE,
-        'h-8 gap-1.5 px-2',
+        capHeight,
+        'gap-1.5 px-2',
         CHORD_TONE_CLASS[tone]
       )}
       title={title}
@@ -468,7 +519,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
                 key={fKey}
                 type="button"
                 onClick={() => handleKeyPress(ANSI_KEYS[fKey])}
-                className={cn(CAP_BASE, CAP_IDLE, 'h-8')}
+                className={cn(CAP_BASE, CAP_IDLE, capHeight)}
               >
                 F{n}
               </button>
@@ -501,7 +552,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
                 key={sym}
                 type="button"
                 onClick={() => handleKeyPress(sym, true)}
-                className={cn(CAP_BASE, CAP_IDLE, 'h-8 w-8 font-bold')}
+                className={cn(CAP_BASE, CAP_IDLE, squareKeyClass, 'font-bold')}
               >
                 {sym}
               </button>
@@ -510,78 +561,57 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         </div>
       )}
 
-      {/* Main controls and focused-agent shortcuts share this compact, scrollable row. */}
+      {/* Everything but Enter shares one strip that scrolls sideways when it
+          runs out of room. Enter stays outside it, pinned under the thumb: a
+          phone's bar is always wider than its screen, and the key that commits
+          a command must never be the one scrolled out of reach. The strip only
+          takes the width its keys need, so a desktop wide enough for all of
+          them keeps Enter right after the last key instead of across a gap. */}
       <div
         data-testid="key-toolbar-row"
         className={cn(
-          'scrollbar-none flex flex-nowrap touch-pan-x items-center justify-start gap-1 overflow-x-auto overscroll-x-contain',
+          'flex flex-nowrap items-center justify-start gap-1',
           compact ? 'px-1.5 py-1' : 'px-2 py-1.5'
         )}
       >
-        {/* The way out sits at the *left* end of the row. Enter is the key that
-            commits a command and belongs under the thumb at the right edge, as
-            it does on every physical keyboard; a collapse control parked there
-            would push it inwards and take the row's most reachable spot for
-            something nobody presses mid-session. */}
-        <button
-          type="button"
-          onClick={() => updateSettings({ toolbarVisible: false })}
-          className={cn(
-            CAP_BASE,
-            squareKeyClass,
-            'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text'
-          )}
-          title={t('virtualKeyboard.collapseToolbar')}
-          aria-label={t('virtualKeyboard.collapseToolbar')}
-          aria-expanded={true}
-        >
-          <span aria-hidden="true">▾</span>
-        </button>
-
-        {configuredKeys.map((keyDef) => {
-          const active = isKeyActive(keyDef);
-          const isEnter = keyDef.id === 'enter';
-          const isSquare = ['left', 'up', 'down', 'right'].includes(keyDef.id);
-          const isDrawer = keyDef.type === 'drawer';
-
-          const accessibleTitle = getLocalizedKeyTitle(keyDef, t);
-
-          const keyBtn = (
+        <div className="relative min-w-0">
+          <div
+            ref={scrollRef}
+            data-testid="key-toolbar-scroll"
+            onScroll={measureScroll}
+            className="scrollbar-none flex flex-nowrap touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain"
+          >
+            {/* The way out sits at the *left* end of the row, away from Enter
+                at the right: a collapse control is something nobody presses
+                mid-session and has no claim on the most reachable spot. */}
             <button
-              key={keyDef.id}
               type="button"
-              onClick={() => handleKeyClick(keyDef)}
+              onClick={() => updateSettings({ toolbarVisible: false })}
               className={cn(
                 CAP_BASE,
-                isSquare ? squareKeyClass : isDrawer ? drawerToggleClass : keyClass,
-                isEnter ? CAP_COMMIT : active ? CAP_ACTIVE : CAP_IDLE
+                squareKeyClass,
+                'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text'
               )}
-              title={accessibleTitle}
-              aria-label={accessibleTitle}
-              aria-pressed={active}
+              title={t('virtualKeyboard.collapseToolbar')}
+              aria-label={t('virtualKeyboard.collapseToolbar')}
+              aria-expanded={true}
             >
-              {renderKeyIconOrLabel(keyDef)}
+              <span aria-hidden="true">▾</span>
             </button>
-          );
 
-          if (isEnter) {
-            return (
-              <React.Fragment key="enter-with-image">
-                {renderInlineAgentActions()}
-                {renderImageButton()}
-                {keyBtn}
-              </React.Fragment>
-            );
-          }
-
-          return keyBtn;
-        })}
-        {!configuredKeys.some((k) => k.id === 'enter') && (
-          <>
+            {configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
             {renderInlineAgentActions()}
             {renderImageButton()}
-          </>
-        )}
+          </div>
+          {moreToRight && (
+            <span
+              aria-hidden="true"
+              data-testid="key-toolbar-more"
+              className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-tui-mantle"
+            />
+          )}
+        </div>
+        {enterKey && renderKey(enterKey)}
       </div>
     </div>
   );

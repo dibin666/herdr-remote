@@ -331,9 +331,11 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     await renderPhoneApp();
 
     const row = screen.getByTestId('key-toolbar-row');
+    const strip = screen.getByTestId('key-toolbar-scroll');
     expect(row.className).toContain('flex-nowrap');
-    expect(row.className).toContain('overflow-x-auto');
-    expect(row.className).toContain('touch-pan-x');
+    expect(strip.className).toContain('flex-nowrap');
+    expect(strip.className).toContain('overflow-x-auto');
+    expect(strip.className).toContain('touch-pan-x');
     expect(row.className).not.toContain('flex-wrap');
     expect(row.className).not.toContain('justify-between');
   });
@@ -632,7 +634,7 @@ describe('Desktop shell is untouched by the phone layout', () => {
     const row = screen.getByTestId('key-toolbar-row');
     expect(row.className).toContain('justify-start');
     expect(row.className).toContain('flex-nowrap');
-    expect(row.className).toContain('overflow-x-auto');
+    expect(screen.getByTestId('key-toolbar-scroll').className).toContain('overflow-x-auto');
     expect(row.className).not.toContain('justify-between');
     expect(row.className).not.toContain('flex-wrap');
   });

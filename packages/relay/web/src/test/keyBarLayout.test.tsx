@@ -80,6 +80,43 @@ describe('Touch key bar layout', () => {
     expect(sanitizeVirtualKeys(custom).map((key) => key.id)).toEqual(custom.map((key) => key.id));
   });
 
+  // Agent shortcuts at h-8 beside h-9 keys were reported as "一大一小": every
+  // cap on the bar, drawers and shortcuts included, shares one height.
+  it.each([
+    { compact: false, height: 'h-7' },
+    { compact: true, height: 'h-8' },
+  ])('gives every cap one height (compact: $compact)', ({ compact, height }) => {
+    saveSettings({ toolbarVisible: true, language: 'en' });
+    render(
+      <TerminalProvider>
+        <KeyToolbar compact={compact} onCustomize={() => {}} />
+      </TerminalProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: /function keys/i }));
+
+    const buttons = within(screen.getByTestId('key-toolbar')).getAllByRole('button');
+    expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'F7' })).toBeInTheDocument();
+    for (const button of buttons) {
+      const heights = button.className.split(/\s+/).filter((token) => /^h-\d+$/.test(token));
+      expect({ label: button.getAttribute('aria-label') ?? button.textContent, heights })
+        .toEqual({ label: button.getAttribute('aria-label') ?? button.textContent, heights: [height] });
+    }
+  });
+
+  it('pins Enter outside the sideways strip so it can never scroll away', () => {
+    renderToolbar();
+
+    const strip = screen.getByTestId('key-toolbar-scroll');
+    expect(strip.className).toContain('overflow-x-auto');
+    expect(within(strip).queryByRole('button', { name: /enter/i })).toBeNull();
+    // Everything else, the image button included, still scrolls.
+    expect(within(strip).getByTestId('image-upload-btn')).toBeInTheDocument();
+
+    const enter = within(screen.getByTestId('key-toolbar-row')).getByRole('button', { name: /enter/i });
+    expect(enter.className).toContain('shrink-0');
+  });
+
   it('collapses to a handle that is named in the interface language', () => {
     saveSettings({ toolbarVisible: false, language: 'zh' });
     render(
