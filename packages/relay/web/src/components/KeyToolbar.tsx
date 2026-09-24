@@ -16,6 +16,8 @@ interface KeyToolbarProps {
    * Phone shell density: shorter keys in a single row that scrolls sideways
    */
   compact?: boolean;
+  /** Opens settings on the agent keys tab, where the user picks what the bar shows. */
+  onCustomize?: () => void;
 }
 
 /**
@@ -48,7 +50,7 @@ const CHORD_TONE_CLASS = {
   warn: 'border-tui-warn text-tui-warn hover:bg-tui-warn hover:text-tui-crust',
 } as const;
 
-export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
+export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCustomize }) => {
   const {
     sendKey,
     settings,
@@ -248,7 +250,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
   };
   const renderInlineAgentActions = () => {
     const actions = [...agentGroups.agentActions, ...agentGroups.genericActions];
-    if (actions.length === 0) return null;
+    // Kept even with every shortcut hidden, so there is always a way back to them.
+    if (actions.length === 0 && !onCustomize) return null;
     return (
       <div
         data-testid="agent-key-actions"
@@ -258,6 +261,21 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false }) => {
       >
         <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-tui-border-dim" />
         {actions.map(renderAgentAction)}
+        {onCustomize && (
+          <button
+            type="button"
+            data-testid="agent-key-customize"
+            onClick={onCustomize}
+            className={cn(
+              CAP_BASE,
+              'h-8 px-1.5 text-tui-sm border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent'
+            )}
+            title={t('agentKeymaps.customizeBar')}
+            aria-label={t('agentKeymaps.customizeBar')}
+          >
+            {t('agentKeymaps.customizeBarShort')}
+          </button>
+        )}
       </div>
     );
   };

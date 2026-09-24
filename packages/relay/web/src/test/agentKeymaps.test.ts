@@ -6,6 +6,7 @@ import {
   GENERIC_SHELL_ACTIONS,
   HERDR_AGENT_IDS,
   applyOverrides,
+  clearBarVisibility,
   filterDuplicateGenericActions,
   getDrawerGroups,
   getProfileActions,
@@ -97,6 +98,17 @@ describe('Herdr agent keymaps', () => {
     });
     const deduplicated = filterDuplicateGenericActions(groups.agentActions, customOverlap);
     expect(deduplicated.some((item) => item.id === 'genericCtrlD')).toBe(false);
+
+    // Hiding the agent's own ^C hides ^C; the shell's ^C does not step in.
+    const hidden = getDrawerGroups('hermes', { actions: { interrupt: { hidden: true } } });
+    expect([...hidden.agentActions, ...hidden.genericActions].some((item) => item.combo === 'ctrl+c')).toBe(false);
+  });
+
+  it('restores default visibility without dropping rebinds', () => {
+    expect(clearBarVisibility({
+      order: ['model', 'mode'],
+      actions: { mode: { hidden: true }, details: { keys: 'ctrl+e', hidden: false } },
+    })).toEqual({ order: ['model', 'mode'], actions: { details: { keys: 'ctrl+e' } } });
   });
 
   it('stores sanitized keymaps globally so a new window inherits the rebind', () => {

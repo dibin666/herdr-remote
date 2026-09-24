@@ -8,7 +8,7 @@ import { OnboardingView } from './components/OnboardingView';
 import { KeyToolbar } from './components/KeyToolbar';
 import { VirtualKeyboardHelper } from './components/VirtualKeyboardHelper';
 import { PairingModal } from './components/PairingModal';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsModal, type SettingsTab } from './components/SettingsModal';
 import { ToastContainer } from './components/ToastContainer';
 import { SessionStatusLine } from './components/SessionStatusLine';
 import { AdminDashboard } from './components/admin/AdminDashboard';
@@ -23,6 +23,11 @@ function AppContent() {
   const [isPairingOpen, setIsPairingOpen] = useState(false);
   const [isPairingAddMode, setIsPairingAddMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
+  const openSettings = (tab?: SettingsTab) => {
+    setSettingsTab(tab);
+    setIsSettingsOpen(true);
+  };
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
   const { updateSettings, settings, connectionState, stateDetail, stateCode, lastPairedAt } =
@@ -241,7 +246,7 @@ function AppContent() {
           onNavigate={handleNavigate}
           showAdminEntry={showAdminEntry}
           onOpenPairing={() => openPairing(false)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => openSettings()}
           onToggleVirtualKeyboard={() => setIsVirtualKeyboardOpen(!isVirtualKeyboardOpen)}
           isVirtualKeyboardOpen={isVirtualKeyboardOpen}
         />
@@ -267,7 +272,7 @@ function AppContent() {
                 onClose={() => setIsVirtualKeyboardOpen(false)}
               />
             )}
-            <KeyToolbar compact={isMobileShell} />
+            <KeyToolbar compact={isMobileShell} onCustomize={() => openSettings('agentKeymaps')} />
           </div>
         )}
 
@@ -300,7 +305,7 @@ function AppContent() {
             onNavigateAdmin={() => handleNavigate('admin')}
             showAdminEntry={showAdminEntry}
             onOpenPairing={() => openPairing(false)}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={() => openSettings()}
             onAddProfile={() => openPairing(true)}
           />
         )}
@@ -313,7 +318,11 @@ function AppContent() {
 
       {/* Modals & Floating Overlays */}
       <PairingModal isOpen={isPairingOpen} isAddMode={isPairingAddMode} onClose={closePairing} />
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        initialTab={settingsTab}
+        onClose={() => setIsSettingsOpen(false)}
+      />
       <ToastContainer />
     </div>
   );

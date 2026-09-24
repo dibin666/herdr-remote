@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { getDefaultSettings } from '../utils/storage';
 import { FONT_PRESETS } from '../utils/theme';
@@ -14,6 +14,8 @@ import { formatComboCaption, KeyComboError, parseKeyCombo } from '../protocol/ke
 import {
   AGENT_PROFILE_IDS,
   AGENT_PROFILES,
+  clearBarVisibility,
+  getBarChoices,
   getProfileActions,
   type AgentProfileId,
   type AgentProfileDef,
@@ -35,9 +37,13 @@ import {
   Tabs,
 } from './tui';
 
+export type SettingsTab = 'appearance' | 'virtualKeys' | 'agentKeymaps';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Open on this tab, showing the focused agent, instead of where it was left. */
+  initialTab?: SettingsTab;
 }
 
 /**
@@ -48,15 +54,21 @@ interface SettingsModalProps {
  * only thing here that paints a colour is the terminal font preview, and that
  * colour belongs to the host.
  */
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
   const { settings, updateSettings, addToast, language, setLanguage, t, agentProfile } = useTerminal();
-  const [activeTab, setActiveTab] = useState<'appearance' | 'virtualKeys' | 'agentKeymaps'>('appearance');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
   const [comboDrafts, setComboDrafts] = useState<Record<string, string>>({});
   const comboDraftsRef = useRef<Record<string, string>>({});
   const [customLabel, setCustomLabel] = useState('');
   const [customCombo, setCustomCombo] = useState('');
   const [showAddKeyPalette, setShowAddKeyPalette] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !initialTab) return;
+    setActiveTab(initialTab);
+    setSettingsAgentProfile(null);
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -71,6 +83,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const keymapProfile = settingsAgentProfile || agentProfile;
   const profileOverrides: AgentProfileKeymapOverride = settings.agentKeymaps[keymapProfile] || {};
   const profileActions = getProfileActions(keymapProfile, profileOverrides);
+  const barChoices = getBarChoices(keymapProfile, profileOverrides);
+  const shownBarCount = barChoices.filter((item) => !item.hidden).length;
+  const actionLabel = (item: AppliedAgentAction) => (item.custom
+    ? item.customLabel || ''
+    : t(`agentActions.${item.labelKey}`));
+  const actionCaption = (item: AppliedAgentAction) => {
+    try { return formatComboCaption(item.combo); } catch { return item.combo; }
+  };
 
   const saveAgentKeymaps = (nextProfile: AgentProfileKeymapOverride) => {
     updateSettings({
@@ -107,6 +127,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       order: profileOverrides.order?.filter((item) => item !== id),
     });
   };
+
+  const restoreBarVisibility = () => saveAgentKeymaps(clearBarVisibility(profileOverrides));
 
   const restoreAgentProfile = () => {
     const next = { ...settings.agentKeymaps };
@@ -260,7 +282,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           { id: 'agentKeymaps', label: t('settings.tabAgentKeymaps'), index: 3 },
         ]}
         activeId={activeTab}
-        onSelect={(id) => setActiveTab(id as 'appearance' | 'virtualKeys' | 'agentKeymaps')}
+        onSelect={(id) => setActiveTab(id as SettingsTab)}
         className="mb-3 border-b border-tui-border-dim pb-1"
       />
 
@@ -603,12 +625,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             )}
           </div>
 
+          <Rule label={t('agentKeymaps.barGroup')} />
+          <div className="space-y-2">
+            <p className="text-tui-sm leading-snug text-tui-faint">
+              {t('agentKeymaps.barHint', { profile: AGENT_PROFILES[keymapProfile].name, count: shownBarCount })}
+            </p>
+            <div
+              role="group"
+              aria-label={t('agentKeymaps.barGroup')}
+              data-testid="agent-bar-choices"
+              className="flex flex-wrap gap-1"
+            >
+              {barChoices.map((item) => {
+                const label = actionLabel(item);
+                const caption = actionCaption(item);
+                const shown = !item.hidden;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    data-testid={`agent-bar-toggle-${item.id}`}
+                    aria-pressed={shown}
+                    onClick={() => updateAgentAction(item.id, { hidden: shown })}
+                    title={`${caption} ${label}`.trim()}
+                    className={cn(
+                      'tui-focusable inline-flex h-8 select-none items-center gap-1 border px-1.5 text-tui-sm transition-colors',
+                      shown
+                        ? 'border-tui-accent bg-tui-accent text-tui-crust'
+                        : 'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent'
+                    )}
+                  >
+                    <span aria-hidden="true" className="font-bold">{shown ? GLYPH.check : '+'}</span>
+                    <span className="font-bold">{caption}</span>
+                    <span className={shown ? undefined : 'opacity-80'}>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <Button variant="ghost" onClick={restoreBarVisibility}>
+              {t('agentKeymaps.restoreBar')}
+            </Button>
+          </div>
+
           <Rule label={t('agentKeymaps.agentGroup')} />
           <div className="max-h-72 overflow-y-auto border border-tui-border bg-tui-mantle">
             {profileActions.map((item, index) => {
-              const label = item.custom
-                ? item.customLabel || ''
-                : t(`agentActions.${item.labelKey}`);
+              const label = actionLabel(item);
               const savedCombo = profileOverrides.actions?.[item.id]?.keys ?? item.combo;
               const draftKey = comboDraftKey(keymapProfile, item.id);
               const displayedCombo = comboDrafts[draftKey] ?? savedCombo;
@@ -626,12 +688,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   data-testid={`agent-setting-row-${item.id}`}
                   className="flex flex-wrap items-center gap-2 border-b border-tui-border-dim px-2 py-1.5 last:border-b-0"
                 >
-                  <Checkbox
-                    checked={!item.hidden}
-                    onChange={(checked) => updateAgentAction(item.id, { hidden: !checked })}
-                    label={t('agentKeymaps.showAction')}
-                    className="shrink-0 items-center gap-1 text-tui-sm"
-                  />
                   <KeyCap className="shrink-0 font-bold">{caption || '—'}</KeyCap>
                   <span className="min-w-[5rem] flex-1 text-tui-sm text-tui-text">
                     {label}
