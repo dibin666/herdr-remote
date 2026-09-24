@@ -218,6 +218,7 @@ module.exports = {
   'hint.save': 's 保存',
   'hint.editing': '↵ 确认 · esc 取消',
   'update.title': '更新',
+  'update.banner': 'herdr-remote {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在更新一行按 Enter 安装。',
   'update.check': '检查更新',
   'update.checking': '查询 npm 中…',
   'update.upToDate': '已是最新（{version}）',

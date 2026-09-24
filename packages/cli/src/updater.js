@@ -57,6 +57,11 @@ function installKind() {
   return 'npm';
 }
 
+/** `HERDR_REMOTE_UPDATE_CHECK=0` turns the automatic checks off (offline machines, tests). */
+function updateChecksEnabled(env = process.env) {
+  return env.HERDR_REMOTE_UPDATE_CHECK !== '0';
+}
+
 function canSelfUpdate() {
   return installKind() === 'npm';
 }
@@ -381,7 +386,9 @@ module.exports = {
   compareVersions,
   currentVersion,
   installKind,
+  installedVersionOnDisk,
   npmErrorSummary,
   performUpdate,
   registryCandidates,
+  updateChecksEnabled,
 };

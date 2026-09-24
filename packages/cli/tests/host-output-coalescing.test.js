@@ -1,5 +1,8 @@
 'use strict';
 
+// No test here may ask npm whether a newer herdr-remote exists.
+process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

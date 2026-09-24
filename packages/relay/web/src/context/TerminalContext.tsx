@@ -13,6 +13,7 @@ import {
   ConnectionConfig,
   HostTerminalPalette,
   ServerAgentStatusMessage,
+  ServerUpdateStatusMessage,
 } from '../types/protocol';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
@@ -25,6 +26,8 @@ import {
   loadSettings,
   profileKey,
   saveSettings,
+  loadIgnoredUpdate,
+  saveIgnoredUpdate,
 } from '../utils/storage';
 import { translate, Language } from '../i18n';
 import { applyDocumentTheme } from '../utils/theme';
@@ -181,6 +184,11 @@ interface TerminalContextValue {
   herdrLaunch: HerdrLaunchState | null;
   /** Ask the paired workstation to start its Herdr. */
   startHerdr: () => void;
+  /** Whether the workstation's herdr-remote is behind, or null until it says. */
+  updateStatus: ServerUpdateStatusMessage | null;
+  /** The release the user chose to stop hearing about. */
+  ignoredUpdate: string | null;
+  ignoreUpdate: (version: string) => void;
 }
 
 const TerminalContext = createContext<TerminalContextValue | null>(null);
@@ -210,6 +218,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [hostId, setHostId] = useState<string | undefined>();
   const [hostname, setHostname] = useState<string | undefined>();
   const [herdrLaunch, setHerdrLaunchState] = useState<HerdrLaunchState | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<ServerUpdateStatusMessage | null>(null);
+  const [ignoredUpdate, setIgnoredUpdate] = useState<string | null>(loadIgnoredUpdate);
+  const ignoredUpdateRef = useRef<string | null>(ignoredUpdate);
+  // Announced once per page, per release: every window opening re-checks, and a
+  // toast per reconnect would be the flood a status line exists to avoid.
+  const announcedUpdatesRef = useRef<Set<string>>(new Set());
   // The adapter's handlers are bound once, so they read the phase from here.
   const herdrLaunchRef = useRef<HerdrLaunchState | null>(null);
   const herdrStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -641,6 +655,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
       hasEstablishedConnectionRef.current = true;
       setHerdrLaunch(null);
+      // Another workstation may be on another release; the relay replays this
+      // one's answer right after `ready`.
+      setUpdateStatus(null);
       setRole(readyMsg.role);
       setControllerId(readyMsg.controllerId);
       setHostId(readyMsg.hostId);
@@ -805,6 +822,17 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setAgentStatus(status);
     });
 
+    newAdapter.on('updateStatus', (status) => {
+      setUpdateStatus(status);
+      if (!status.updateAvailable || ignoredUpdateRef.current === status.latest) return;
+      const key = `${status.latest}:${status.restartPending ? 'restart' : 'update'}`;
+      if (announcedUpdatesRef.current.has(key)) return;
+      announcedUpdatesRef.current.add(key);
+      addToast('info', status.restartPending
+        ? tRef.current('update.toastRestart', { version: status.latest })
+        : tRef.current('update.toast', { version: status.latest }));
+    });
+
     // Single lifetime subscription: survives TerminalView unmount/hide so no
     // PTY output is lost while the user is on another view.
     newAdapter.on('binaryData', (data) => {
@@ -833,6 +861,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (adapterRef.current) {
       adapterRef.current.disconnect();
     }
+  }, []);
+
+  const ignoreUpdate = useCallback((version: string) => {
+    ignoredUpdateRef.current = version;
+    setIgnoredUpdate(version);
+    saveIgnoredUpdate(version);
   }, []);
 
   const startHerdr = useCallback(() => {
@@ -1184,6 +1218,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         resetUploadProgress,
         herdrLaunch,
         startHerdr,
+        updateStatus,
+        ignoredUpdate,
+        ignoreUpdate,
       }}
     >
       {children}

@@ -206,6 +206,21 @@ export interface ServerAgentStatusMessage {
   agents: AgentStatusEntry[];
 }
 
+/**
+ * Whether the workstation's herdr-remote is behind the newest release. Checked
+ * by the host when a window opens and kept by the relay for later windows.
+ */
+export interface ServerUpdateStatusMessage {
+  type: 'update_status';
+  /** The version the workstation is running. */
+  current: string;
+  /** The version on disk; ahead of `current` when an update awaits a restart. */
+  installed: string;
+  latest: string;
+  updateAvailable: boolean;
+  restartPending: boolean;
+}
+
 export type ServerJsonMessage =
   | ServerReadyMessage
   | ServerPairedMessage
@@ -221,7 +236,8 @@ export type ServerJsonMessage =
   | ServerErrorMessage
   | ServerPongMessage
   | ServerPasteFileReadyMessage
-  | ServerAgentStatusMessage;
+  | ServerAgentStatusMessage
+  | ServerUpdateStatusMessage;
 export type ConnectionState =
   | 'disconnected'
   | 'connecting'

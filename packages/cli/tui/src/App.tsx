@@ -3,6 +3,7 @@ import { Box, Text, useApp, useInput, type DOMElement } from 'ink';
 import { useMouse, useMouseTarget } from './mouse/index.js';
 import { theme } from './theme.js';
 import {
+  checkForUpdate,
   createDraft,
   createTranslator,
   detectLocale,
@@ -14,6 +15,8 @@ import {
   type Locale,
   type Status,
   type Translate,
+  type UpdateCheck,
+  updateChecksEnabled,
 } from './api.js';
 import { Overview } from './screens/Overview.js';
 import { PairScreen } from './screens/Pair.js';
@@ -45,6 +48,9 @@ export type AppContext = {
   run: (task: () => unknown | Promise<unknown>) => void;
   refresh: () => void;
   message: { text: string; level: MessageLevel } | null;
+  /** The newest-release check made when the TUI opened; null until it answers. */
+  updateCheck: UpdateCheck | null;
+  setUpdateCheck: (next: UpdateCheck | null) => void;
 };
 
 type TabId = 'overview' | 'pair' | 'services' | 'relay' | 'keepalive' | 'herdr' | 'about';
@@ -83,7 +89,18 @@ function Footer({ hints }: { hints: string[] }) {
   );
 }
 
-export function App({ initialLanguage, needsWizard }: { initialLanguage: Locale | null; needsWizard: boolean }) {
+type UpdateChecker = () => Promise<UpdateCheck>;
+
+export function App({
+  initialLanguage,
+  needsWizard,
+  updateChecker = updateChecksEnabled() ? (checkForUpdate as UpdateChecker) : null,
+}: {
+  initialLanguage: Locale | null;
+  needsWizard: boolean;
+  /** Asked once when the TUI opens; null turns the check off. */
+  updateChecker?: UpdateChecker | null;
+}) {
   const { exit } = useApp();
   const mouse = useMouse();
 
@@ -96,6 +113,18 @@ export function App({ initialLanguage, needsWizard }: { initialLanguage: Locale 
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [wizardDone, setWizardDone] = useState(!needsWizard);
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheck | null>(null);
+
+  // Every time the TUI opens: that is when someone is here to act on it.
+  // Failure says nothing; the About tab can still be asked by hand.
+  useEffect(() => {
+    if (!updateChecker) return undefined;
+    let cancelled = false;
+    updateChecker()
+      .then((result) => { if (!cancelled && result?.ok) setUpdateCheck(result); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [updateChecker]);
 
   const locale: Locale = useMemo(
     () => detectLocale({ preference: initialLanguage ?? draft.ui.language }),
@@ -175,6 +204,8 @@ export function App({ initialLanguage, needsWizard }: { initialLanguage: Locale 
     run,
     refresh,
     message,
+    updateCheck,
+    setUpdateCheck,
   };
 
   useInput((input, key) => {
@@ -218,9 +249,16 @@ export function App({ initialLanguage, needsWizard }: { initialLanguage: Locale 
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
-      <Box marginBottom={1}>
-        <Text bold>{t('app.name')}</Text>
-        <Text color={theme.muted}>{`  ${t('app.tagline')}`}</Text>
+      <Box marginBottom={1} flexDirection="column">
+        <Box>
+          <Text bold>{t('app.name')}</Text>
+          <Text color={theme.muted}>{`  ${t('app.tagline')}`}</Text>
+        </Box>
+        {updateCheck?.updateAvailable ? (
+          <Text color={theme.warn}>
+            {t('update.banner', { latest: updateCheck.latest ?? '', current: updateCheck.current })}
+          </Text>
+        ) : null}
       </Box>
 
       <Box marginBottom={1}>

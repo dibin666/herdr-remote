@@ -48,6 +48,7 @@ import * as keepalive from '../../src/keepalive.js';
 import {
   canSelfUpdate,
   checkForUpdate,
+  updateChecksEnabled,
   installKind,
   performUpdate,
 } from '../../src/updater.js';
@@ -116,6 +117,19 @@ export type NetworkAddress = {
   internal: boolean;
 };
 
+/** What `checkForUpdate` answered. */
+export type UpdateCheck = {
+  ok: boolean;
+  current: string;
+  latest?: string;
+  registry?: string;
+  sources?: string[];
+  behind?: { registry: string; version?: string }[];
+  updateAvailable?: boolean;
+  errorKey?: string;
+  message?: string;
+};
+
 export type LifecycleResult = { ok?: boolean; managed: boolean; manager?: string };
 
 /**
@@ -141,6 +155,7 @@ export {
   selectedMode,
   canSelfUpdate,
   checkForUpdate,
+  updateChecksEnabled,
   installKind,
   performUpdate,
   bindAddress,

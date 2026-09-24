@@ -1,5 +1,8 @@
 'use strict';
 
+// No test here may ask npm whether a newer herdr-remote exists.
+process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -632,4 +635,63 @@ test('Herdr starts with the connector only when the user switched that on', asyn
     connector.stop();
     assert.equal(calls, autoStart ? 1 : 0, `autoStart=${autoStart}`);
   }
+});
+
+function updateConnector(t, { latest = '0.3.0', installed = '0.2.16', ok = true } = {}) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-update-'));
+  let checks = 0;
+  const connector = makeConnector(path.join(directory, 'connector.lock'), {
+    PtySession: recordingPty([]),
+    runningVersion: '0.2.16',
+    readInstalledVersion: () => installed,
+    checkUpdate: async () => { checks += 1; return ok ? { ok: true, latest } : { ok: false }; },
+  });
+  t.after(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  return { connector, sent: captureSocket(connector), checks: () => checks };
+}
+
+test('opening a window tells every window whether a newer herdr-remote is out', async (t) => {
+  const { connector, sent } = updateConnector(t);
+
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.updateCheck;
+
+  const status = sent.find((message) => message.type === 'update_status');
+  assert.deepEqual(status, {
+    type: 'update_status',
+    current: '0.2.16',
+    installed: '0.2.16',
+    latest: '0.3.0',
+    updateAvailable: true,
+    restartPending: false,
+  });
+  // A fact about the workstation, not about one window.
+  assert.equal(Object.hasOwn(status, 'clientId'), false);
+});
+
+test('an update installed on disk but not restarted into says so', async (t) => {
+  const { connector, sent } = updateConnector(t, { installed: '0.3.0' });
+  await connector.reportUpdateStatus();
+  const status = sent.find((message) => message.type === 'update_status');
+  assert.equal(status.updateAvailable, true);
+  assert.equal(status.restartPending, true);
+});
+
+test('windows opening together ask npm once, and again a minute later', async (t) => {
+  const { connector, checks } = updateConnector(t);
+  const now = Date.now();
+  await connector.reportUpdateStatus({ now });
+  await connector.reportUpdateStatus({ now: now + 1_000 });
+  assert.equal(checks(), 1);
+  await connector.reportUpdateStatus({ now: now + 61_000 });
+  assert.equal(checks(), 2);
+});
+
+test('a check that fails says nothing', async (t) => {
+  const { connector, sent } = updateConnector(t, { ok: false });
+  await connector.reportUpdateStatus();
+  assert.equal(sent.some((message) => message.type === 'update_status'), false);
 });

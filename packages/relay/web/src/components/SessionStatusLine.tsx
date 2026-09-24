@@ -2,8 +2,9 @@ import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { describeConnection } from '../utils/connectionStatus';
 import { Badge, Segments, StatusDot, StatusLine } from './tui';
-import { AgentStatusChip } from './AgentStatusChip';
+import { AgentStatusChip, agentStatusHasContent } from './AgentStatusChip';
 import { HostSwitcher } from './HostSwitcher';
+import { UpdateChip, useUpdateNoticeVisible } from './UpdateNotice';
 
 interface SessionStatusLineProps {
   onAddProfile?: () => void;
@@ -27,10 +28,12 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfi
     sharedWindowCount,
     settings,
     rttMs,
+    agentStatus,
     t,
   } = useTerminal();
   const status = describeConnection(connectionState, t);
   const connected = connectionState === 'connected';
+  const updateVisible = useUpdateNoticeVisible();
 
   return (
     <StatusLine
@@ -73,7 +76,8 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfi
       right={
         <Segments
           items={[
-            connected ? <AgentStatusChip key="agents" /> : null,
+            updateVisible ? <UpdateChip key="update" /> : null,
+            connected && agentStatusHasContent(agentStatus) ? <AgentStatusChip key="agents" /> : null,
             rttMs !== null ? (
               <span key="rtt" className="text-tui-muted">
                 {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>

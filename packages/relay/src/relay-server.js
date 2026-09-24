@@ -27,6 +27,9 @@ const MAX_DIMENSION = 500;
 const MIN_SESSION_COLS = 20;
 const MIN_SESSION_ROWS = 6;
 
+/** A release version as npm writes it; anything else is not forwarded. */
+const RELEASE_VERSION = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/;
+
 /** A window asks to start its workstation's Herdr at most this often. */
 const HERDR_START_REPEAT_MS = 3_000;
 
@@ -612,6 +615,8 @@ class RelayServer {
       terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
       /** The latest workstation snapshot is replayed when a browser joins late. */
       agentStatus: null,
+      /** Whether the workstation's herdr-remote is behind; replayed the same way. */
+      updateStatus: null,
       lastSeenAt: Date.now(),
       clients,
       controllerId: null,
@@ -830,6 +835,10 @@ class RelayServer {
     // to one stream: every window watching it gets the same answer.
     if (message.type === 'agent_status') {
       this.broadcastAgentStatus(host, message);
+      return;
+    }
+    if (message.type === 'update_status') {
+      this.broadcastUpdateStatus(host, message);
       return;
     }
     // Session events target the single client that owns this stream.
@@ -1106,6 +1115,7 @@ class RelayServer {
           clientCount: host.clients.size,
         });
         if (host.agentStatus) jsonSend(ws, host.agentStatus);
+        if (host.updateStatus) jsonSend(ws, host.updateStatus);
         this.startSession(host, client);
         this.broadcastControlState(host);
         return;
@@ -1335,6 +1345,31 @@ class RelayServer {
       agents,
     };
     host.agentStatus = payload;
+    for (const clientId of host.clients) {
+      const client = this.clients.get(clientId);
+      if (client) jsonSend(client.ws, payload);
+    }
+  }
+
+  /**
+   * Whether the workstation runs the newest herdr-remote, for every window on
+   * it. Only version strings and two flags pass: this ends up as text in the
+   * browser, and the host is not the relay's to trust.
+   */
+  broadcastUpdateStatus(host, message) {
+    const version = (value) => (typeof value === 'string' && RELEASE_VERSION.test(value) ? value : null);
+    const current = version(message.current);
+    const latest = version(message.latest);
+    if (!current || !latest) return;
+    const payload = {
+      type: 'update_status',
+      current,
+      installed: version(message.installed) || current,
+      latest,
+      updateAvailable: message.updateAvailable === true,
+      restartPending: message.restartPending === true,
+    };
+    host.updateStatus = payload;
     for (const clientId of host.clients) {
       const client = this.clients.get(clientId);
       if (client) jsonSend(client.ws, payload);

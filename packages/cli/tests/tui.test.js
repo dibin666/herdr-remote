@@ -7,6 +7,9 @@
 // artifact rather than the sources means a build-level mistake (a bad banner, a
 // dependency that cannot resolve at runtime) fails here too.
 
+// No test here may ask npm whether a newer herdr-remote exists.
+process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -538,4 +541,49 @@ test('choosing the official relay drops the password typed for a self-hosted one
   assert.doesNotMatch(frame, /Relay password/);
   // The browser URL follows from the fixed address, so it is stated too.
   assert.match(frame, /https:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/);
+});
+
+test('opening the TUI checks for a newer release and says so where it opens', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
+
+  let checks = 0;
+  const updateChecker = async () => {
+    checks += 1;
+    return {
+      ok: true,
+      current: '0.2.16',
+      latest: '0.3.0',
+      registry: 'https://registry.npmjs.org',
+      sources: ['https://registry.npmjs.org'],
+      behind: [{ registry: 'https://registry.npmmirror.com', version: '0.2.16' }],
+      updateAvailable: true,
+    };
+  };
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'zh', needsWizard: false, updateChecker }));
+  t.after(() => instance.unmount());
+
+  assert.equal(checks, 1);
+  assert.match(instance.lastFrame(), /herdr-remote 0\.3\.0 已发布（当前 0\.2\.16）/);
+
+  // The About tab starts from that answer instead of asking the user to check.
+  instance.stdin.write('7');
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.match(instance.lastFrame(), /新版本 0\.3\.0 可用（按 Enter 安装）/);
+  assert.match(instance.lastFrame(), /registry\.npmmirror\.com 0\.2\.16 仍是旧版本，将从 registry\.npmjs\.org 安装/);
+});
+
+test('a TUI that is up to date says nothing about updates', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
+
+  const updateChecker = async () => ({ ok: true, current: '0.3.0', latest: '0.3.0', updateAvailable: false });
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false, updateChecker }));
+  t.after(() => instance.unmount());
+
+  assert.doesNotMatch(instance.lastFrame(), /is out \(running/);
 });

@@ -219,6 +219,7 @@ module.exports = {
   'hint.save': 's save',
   'hint.editing': '↵ confirm · esc cancel',
   'update.title': 'Updates',
+  'update.banner': 'herdr-remote {latest} is out (running {current}). Press 7 and Enter on the update row to install.',
   'update.check': 'Check for updates',
   'update.checking': 'Checking npm…',
   'update.upToDate': 'Up to date ({version})',

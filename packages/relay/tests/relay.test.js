@@ -1206,3 +1206,55 @@ test('a request to start Herdr reaches only the workstation the window is paired
   hostA.close();
   hostB.close();
 });
+
+test('a newer herdr-remote is announced to every window, versions only, and replayed to late ones', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-update-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const first = await openWebSocket(`${wsBase}/ws/client`);
+  const firstPair = nextMessage(first, (message) => message.type === 'paired');
+  const firstSession = nextMessage(host, (message) => message.type === 'session_start');
+  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  await firstSession;
+  const { token } = (await firstPair).value;
+
+  // Not a version: dropped whole rather than shown as text in a browser.
+  host.send(JSON.stringify({ type: 'update_status', current: '0.2.16', latest: '<img src=x>', updateAvailable: true }));
+  const announced = nextMessage(first, (message) => message.type === 'update_status');
+  host.send(JSON.stringify({
+    type: 'update_status',
+    current: '0.2.16',
+    installed: 'not a version',
+    latest: '0.3.0',
+    updateAvailable: true,
+    restartPending: 'yes',
+    extra: 'dropped',
+  }));
+  assert.deepEqual((await announced).value, {
+    type: 'update_status',
+    current: '0.2.16',
+    installed: '0.2.16',
+    latest: '0.3.0',
+    updateAvailable: true,
+    restartPending: false,
+  });
+
+  const late = await openWebSocket(`${wsBase}/ws/client`);
+  const replayed = nextMessage(late, (message) => message.type === 'update_status');
+  late.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'late', cols: 80, rows: 24 }));
+  assert.equal((await replayed).value.latest, '0.3.0');
+
+  first.close();
+  late.close();
+  host.close();
+});

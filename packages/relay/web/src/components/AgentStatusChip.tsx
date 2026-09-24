@@ -2,6 +2,7 @@ import React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { StatusDot } from './tui';
+import type { ServerAgentStatusMessage } from '../types/protocol';
 
 /**
  * Whether anything on the workstation needs a person, in one line.
@@ -23,6 +24,16 @@ const REPORTED: ReadonlyArray<{ status: 'blocked' | 'done' | 'working'; level: '
   { status: 'done', level: 'ok' },
   { status: 'working', level: 'accent' },
 ];
+
+/**
+ * Whether the chip draws anything. The status line puts a separator between
+ * the segments it is given, so it has to know before adding this one: an
+ * element that renders nothing still earned a `·` either side of it.
+ */
+export function agentStatusHasContent(agentStatus: ServerAgentStatusMessage | null): boolean {
+  if (!agentStatus) return false;
+  return agentStatus.total > 0 || REPORTED.some(({ status }) => (agentStatus.counts?.[status] ?? 0) > 0);
+}
 
 export interface AgentStatusChipProps {
   className?: string;

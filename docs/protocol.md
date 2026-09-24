@@ -382,3 +382,32 @@ Browsers show it as a status-bar chip and nothing else. It is deliberately not a
 notification: the LAN relay is plain HTTP, where the Notification API does not
 exist, and an alert per state change is the flood a status line exists to
 replace.
+
+## Update status (`update_status`)
+
+Whether the workstation runs the newest herdr-remote. The host connector asks
+the npm registries each time a window opens (at most once a minute) and sends:
+
+```json
+{
+  "type": "update_status",
+  "current": "0.2.16",
+  "installed": "0.2.16",
+  "latest": "0.2.17",
+  "updateAvailable": true,
+  "restartPending": false
+}
+```
+
+`current` is the version the connector is running; `installed` is the one on
+disk, ahead of it when an update was installed but herdr-remote not restarted
+(`restartPending`). Every registry the machine is configured with is asked at
+once and the newest answer wins, so a mirror that has not synced a release yet
+cannot hide it. A failed check sends nothing.
+
+The relay accepts only release-shaped version strings and the two flags,
+broadcasts the result to every window of that host, and replays the last one
+to windows that open later. The browser shows it as a chip on the status line
+with the steps to update, and toasts each release once per page.
+`HERDR_REMOTE_UPDATE_CHECK=0` on the workstation turns the check off, here and
+in the TUI.

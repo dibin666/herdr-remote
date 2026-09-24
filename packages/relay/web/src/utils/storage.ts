@@ -99,6 +99,17 @@ function safeSetItem(type: 'local' | 'session', key: string, value: string): voi
   }
 }
 
+const IGNORED_UPDATE_KEY = 'herdr-remote.ignoredUpdate';
+
+/** The herdr-remote release the user chose not to hear about again, if any. */
+export function loadIgnoredUpdate(): string | null {
+  return safeGetItem('local', IGNORED_UPDATE_KEY);
+}
+
+export function saveIgnoredUpdate(version: string): void {
+  safeSetItem('local', IGNORED_UPDATE_KEY, version);
+}
+
 export function clearMemoryStorage(): void {
   memoryStorage.local = {};
   memoryStorage.session = {};

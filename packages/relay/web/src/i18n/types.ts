@@ -98,6 +98,23 @@ export interface TranslationSchema {
     errorDefault: string;
     disconnected: string;
   };
+  /** A newer herdr-remote release for the workstation. */
+  update: {
+    chip: string;
+    chipCompact: string;
+    chipRestart: string;
+    toast: string;
+    toastRestart: string;
+    title: string;
+    running: string;
+    installed: string;
+    latest: string;
+    restartPending: string;
+    stepTui: string;
+    stepCli: string;
+    restartNote: string;
+    ignore: string;
+  };
   /** Herdr not running on the paired workstation, and starting it from here. */
   herdrLaunch: {
     title: string;

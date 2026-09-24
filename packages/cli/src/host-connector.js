@@ -31,6 +31,16 @@ const { sameSummary, summarizeAgents } = require('./agent-status');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 const { savePastedFile, cleanPastedDir } = require('./pasted-files');
 const { ensureHerdrServer, probeHerdrServer } = require('./herdr-server');
+const {
+  checkForUpdate,
+  compareVersions,
+  currentVersion,
+  installedVersionOnDisk,
+  updateChecksEnabled,
+} = require('./updater');
+
+/** Windows opening within this long of a check reuse its answer. */
+const UPDATE_RECHECK_MS = 60_000;
 
 /** How often the agent summary is re-read while a browser is watching. */
 const AGENT_STATUS_POLL_MS = 5_000;
@@ -129,6 +139,18 @@ class HostConnector {
     this.probingStarts = new Map();
     /** One start at a time, however many windows asked for it. */
     this.herdrLaunch = null;
+    /**
+     * Whether a newer herdr-remote is out, asked when a window opens. The
+     * version this process runs is fixed at start; the one on disk moves when
+     * somebody updates without restarting.
+     */
+    this.checkUpdate = options.checkUpdate !== undefined
+      ? options.checkUpdate
+      : (updateChecksEnabled() ? checkForUpdate : null);
+    this.readInstalledVersion = options.readInstalledVersion || installedVersionOnDisk;
+    this.runningVersion = options.runningVersion || currentVersion();
+    this.updateCheckedAt = 0;
+    this.updateCheck = null;
     /** The side channel that answers "does anything need me?"; see startAgentStatus. */
     this.requestHerdr = options.requestHerdr || requestHerdr;
     this.subscribeHerdr = options.subscribeHerdr || subscribeHerdr;
@@ -414,6 +436,8 @@ class HostConnector {
     const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
     if (!streamId) return undefined;
     this.stopSession(streamId);
+    // A window opening is when a person is looking; that is when to ask.
+    this.reportUpdateStatus();
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
@@ -443,6 +467,37 @@ class HostConnector {
       else if (probe.state === 'stopped') this.waitForHerdr(streamId, pending.message);
       else sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: probe.reason });
     });
+  }
+
+  /**
+   * Tell every window whether this workstation's herdr-remote is behind the
+   * newest release. Asked at most once a minute however many windows open;
+   * the relay keeps the last answer for windows that open in between. A failed
+   * check says nothing: offline is not news.
+   */
+  reportUpdateStatus({ now = Date.now() } = {}) {
+    if (!this.checkUpdate || this.updateCheck) return this.updateCheck;
+    if (now - this.updateCheckedAt < UPDATE_RECHECK_MS) return null;
+    this.updateCheckedAt = now;
+    this.updateCheck = Promise.resolve()
+      .then(() => this.checkUpdate())
+      .then((result) => {
+        if (!result?.ok || !result.latest) return;
+        const running = this.runningVersion;
+        const installed = this.readInstalledVersion() || running;
+        sendJson(this.ws, {
+          type: 'update_status',
+          current: running,
+          installed,
+          latest: result.latest,
+          updateAvailable: compareVersions(result.latest, running) > 0,
+          // Updated on disk, still running the old code: a restart finishes it.
+          restartPending: compareVersions(installed, running) > 0,
+        });
+      })
+      .catch(() => {})
+      .finally(() => { this.updateCheck = null; });
+    return this.updateCheck;
   }
 
   /**

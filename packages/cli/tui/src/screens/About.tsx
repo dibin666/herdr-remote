@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
@@ -13,6 +13,7 @@ import {
   saveDraft,
   setField,
   stateDir,
+  type UpdateCheck,
 } from '../api.js';
 
 type UpdateState =
@@ -68,10 +69,34 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const options = [...languageOptions, { id: 'update', label: updateLabel }];
 
+  /** Show a check's answer, whether this screen asked or the TUI did on opening. */
+  const applyCheck = (result: UpdateCheck) => {
+    checkRef.current = { registry: result.registry ?? '', sources: result.sources ?? [] };
+    // A mirror that has not synced the release yet used to be the whole
+    // answer. It is still asked, and said to be behind.
+    const behind = result.behind ?? [];
+    setSourceNote(result.updateAvailable && behind.length > 0 && result.registry
+      ? t('update.mirrorBehind', {
+        registries: behind.map((entry) => `${registryHost(entry.registry)} ${entry.version ?? ''}`.trim()).join(', '),
+        source: registryHost(result.registry),
+      })
+      : null);
+    setUpdate(result.updateAvailable
+      ? { phase: 'available', latest: result.latest as string }
+      : { phase: 'current', latest: result.latest as string });
+  };
+
+  // The TUI already asked when it opened; start from that answer.
+  useEffect(() => {
+    if (ctx.updateCheck?.ok && update.phase === 'idle') applyCheck(ctx.updateCheck);
+    // Only a new answer from the opening check matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.updateCheck]);
+
   const runCheck = async () => {
     setUpdate({ phase: 'checking' });
     setSourceNote(null);
-    const result = await checkForUpdate();
+    const result: UpdateCheck = await checkForUpdate();
     if (!result.ok) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorNetwork' });
       // Which registries were tried, and what each of them said. Without this
@@ -80,19 +105,8 @@ export function About({ ctx }: { ctx: AppContext }) {
       if (result.message) ctx.notify(t('update.errorNetworkDetail', { message: result.message }), 'error');
       return;
     }
-    checkRef.current = { registry: result.registry ?? '', sources: result.sources ?? [] };
-    // A mirror that has not synced the release yet used to be the whole
-    // answer. It is still asked, and said to be behind.
-    const behind = result.behind ?? [];
-    if (result.updateAvailable && behind.length > 0 && result.registry) {
-      setSourceNote(t('update.mirrorBehind', {
-        registries: behind.map((entry: { registry: string; version?: string }) => `${registryHost(entry.registry)} ${entry.version}`).join(', '),
-        source: registryHost(result.registry),
-      }));
-    }
-    setUpdate(result.updateAvailable
-      ? { phase: 'available', latest: result.latest as string }
-      : { phase: 'current', latest: result.latest as string });
+    ctx.setUpdateCheck(result);
+    applyCheck(result);
   };
 
   const runUpdate = async (latest: string) => {
@@ -113,6 +127,9 @@ export function About({ ctx }: { ctx: AppContext }) {
       return;
     }
     setUpdate({ phase: 'done', latest });
+    setSourceNote(null);
+    // Installed: the line under the title has nothing left to announce.
+    ctx.setUpdateCheck(null);
     ctx.notify(t('update.restartHint'), 'success');
   };
 

@@ -3,6 +3,7 @@ import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { AgentStatusChip } from './AgentStatusChip';
 import { HostSwitcher } from './HostSwitcher';
+import { UpdateChip } from './UpdateNotice';
 
 interface MobileStatusBarProps {
   onAddProfile: () => void;
@@ -32,6 +33,7 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
         nothing to say.
       */}
       <AgentStatusChip compact />
+      <UpdateChip compact />
       <span className="flex shrink-0 items-center gap-1 px-1 text-tui-muted" title={t('header.latencyTitle')}>
         <span className="text-tui-faint">RTT</span>
         <span className={cn(rttMs === null ? 'text-tui-faint' : 'text-tui-text')}>

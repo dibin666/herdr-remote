@@ -14,6 +14,7 @@ import {
   ServerReadyMessage,
   ServerSessionReadyMessage,
   ServerAgentStatusMessage,
+  ServerUpdateStatusMessage,
   ServerSessionRestartedMessage,
   ClientRole,
   ConnectionState,
@@ -54,6 +55,8 @@ export type AdapterEventMap = {
   pasteFileReady: (path: string) => void;
   /** What the workstation's agents are doing; broadcast, not stream-scoped. */
   agentStatus: (status: ServerAgentStatusMessage) => void;
+  /** Whether the workstation's herdr-remote has a newer release; broadcast. */
+  updateStatus: (status: ServerUpdateStatusMessage) => void;
 };
 
 /** How long a ping may go unanswered before the socket is written off. */
@@ -112,6 +115,7 @@ export class HerdrClientAdapter {
     rttUpdate: new Set(),
     pasteFileReady: new Set(),
     agentStatus: new Set(),
+    updateStatus: new Set(),
   };
 
   private terminalCols = 80;
@@ -517,6 +521,11 @@ export class HerdrClientAdapter {
 
       case 'agent_status': {
         this.emit('agentStatus', msg);
+        break;
+      }
+
+      case 'update_status': {
+        this.emit('updateStatus', msg);
         break;
       }
 
