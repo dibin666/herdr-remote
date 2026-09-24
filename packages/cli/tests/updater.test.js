@@ -137,12 +137,10 @@ test('the check follows the registry npm itself is configured with', () => {
   assert.deepEqual(plain, [DEFAULT_REGISTRY, MIRROR_REGISTRY]);
 });
 
-test('a registry that cannot be reached falls through to the next one', async () => {
-  const asked = [];
+test('a registry that cannot be reached does not hide one that can', async () => {
   const result = await checkForUpdate({
     registries: ['https://npm.internal', 'https://registry.npmmirror.com'],
     fetchImpl: async (url) => {
-      asked.push(url);
       if (url.startsWith('https://npm.internal')) throw new Error('getaddrinfo ENOTFOUND');
       return { ok: true, json: async () => ({ version: '99.0.0' }) };
     },
@@ -151,7 +149,7 @@ test('a registry that cannot be reached falls through to the next one', async ()
   assert.equal(result.ok, true);
   assert.equal(result.latest, '99.0.0');
   assert.equal(result.registry, 'https://registry.npmmirror.com');
-  assert.equal(asked.length, 2, 'every candidate is tried until one answers');
+  assert.deepEqual(result.sources, ['https://registry.npmmirror.com']);
 });
 
 test('a total failure names every registry it tried', async () => {
@@ -166,17 +164,153 @@ test('a total failure names every registry it tried', async () => {
   assert.match(result.message, /npmmirror/);
 });
 
-test('an install runs against the registry that answered the check', async () => {
+/**
+ * A stand-in for `npm`: each call plays the next scripted run, asynchronously,
+ * the way a real child process reports.
+ */
+function fakeNpm(runs) {
   const calls = [];
-  const child = new EventEmitter();
-  child.stdout = new EventEmitter();
-  child.stderr = new EventEmitter();
-  const promise = performUpdate({
+  const spawnImpl = (command, args) => {
+    calls.push(args);
+    const run = runs[Math.min(calls.length, runs.length) - 1];
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      if (run.stdout) child.stdout.emit('data', run.stdout);
+      if (run.stderr) child.stderr.emit('data', run.stderr);
+      child.emit('close', run.code);
+    });
+    return child;
+  };
+  return { calls, spawnImpl };
+}
+
+const ETARGET = [
+  'npm error code ETARGET',
+  'npm error notarget No matching version found for herdr-remote@0.2.16.',
+  'npm error notarget In most cases you or one of your dependencies are requesting',
+  'npm error A complete log of this run can be found in: /home/me/.npm/_logs/x.log',
+].join('\n');
+
+test('the newest answer wins over a mirror that has not synced the release', async () => {
+  const result = await checkForUpdate({
+    registries: ['https://registry.npmmirror.com', 'https://registry.npmjs.org'],
+    fetchImpl: async (url) => ({
+      ok: true,
+      json: async () => ({ latest: url.startsWith('https://registry.npmmirror.com') ? '0.0.1' : '99.0.0' }),
+    }),
+  });
+
+  assert.equal(result.latest, '99.0.0');
+  assert.equal(result.updateAvailable, true);
+  assert.equal(result.registry, 'https://registry.npmjs.org');
+  assert.deepEqual(result.behind, [{ registry: 'https://registry.npmmirror.com', version: '0.0.1' }]);
+});
+
+test('the check asks npmjs a question it answers', async () => {
+  // npmjs refuses the abbreviated install format on /<package>/latest with a
+  // 406. Asking that way is what sent every check to a lagging mirror.
+  const asked = [];
+  const result = await checkForUpdate({
+    registries: ['https://registry.npmjs.org'],
+    fetchImpl: async (url, { headers }) => {
+      asked.push({ url, accept: headers.Accept });
+      if (/vnd\.npm\.install-v1/.test(headers.Accept)) return { ok: false, status: 406 };
+      if (url.endsWith('/-/package/herdr-remote/dist-tags')) return { ok: true, json: async () => ({ latest: '99.0.0' }) };
+      return { ok: false, status: 404 };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.latest, '99.0.0');
+  assert.equal(asked[0].url, 'https://registry.npmjs.org/-/package/herdr-remote/dist-tags');
+  assert.equal(asked[0].accept, 'application/json');
+});
+
+test('an install asks for the exact version found, revalidating what npm cached', async () => {
+  const npm = fakeNpm([{ code: 0, stdout: 'changed 1 package' }]);
+  const result = await performUpdate({
     installKindImpl: () => 'npm',
     registry: 'https://registry.npmmirror.com/',
-    spawnImpl: (command, args) => { calls.push([command, args]); return child; },
+    version: '0.2.16',
+    spawnImpl: npm.spawnImpl,
+    readInstalledVersion: () => '0.2.16',
   });
-  child.emit('close', 0);
-  assert.equal((await promise).ok, true);
-  assert.deepEqual(calls[0][1], ['install', '-g', 'herdr-remote@latest', '--registry', 'https://registry.npmmirror.com']);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(npm.calls[0], [
+    'install', '-g', 'herdr-remote@0.2.16', '--prefer-online', '--registry', 'https://registry.npmmirror.com',
+  ]);
+});
+
+test('a release npm has not caught up with yet is waited out, not reported as a failure', async () => {
+  const npm = fakeNpm([{ code: 1, stderr: ETARGET }, { code: 1, stderr: ETARGET }, { code: 0 }]);
+  const waits = [];
+  const attempts = [];
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    registry: 'https://registry.npmjs.org',
+    version: '0.2.16',
+    spawnImpl: npm.spawnImpl,
+    sleep: async (ms) => { waits.push(ms); },
+    readInstalledVersion: () => '0.2.16',
+    onAttempt: ({ attempt }) => attempts.push(attempt),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(npm.calls.length, 3);
+  assert.equal(waits.length, 2);
+  assert.deepEqual(attempts, [1, 2, 3]);
+});
+
+test('a release still missing after every wait says so, after trying each registry that has it', async () => {
+  const npm = fakeNpm([{ code: 1, stderr: ETARGET }]);
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    registry: 'https://registry.npmjs.org',
+    sources: ['https://registry.npmjs.org', 'https://registry.npmmirror.com'],
+    version: '0.2.16',
+    spawnImpl: npm.spawnImpl,
+    sleep: async () => {},
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errorKey, 'update.errorNotYetPublished');
+  assert.deepEqual(
+    npm.calls.map((args) => args.at(-1)),
+    ['https://registry.npmjs.org', 'https://registry.npmjs.org', 'https://registry.npmjs.org',
+      'https://registry.npmmirror.com', 'https://registry.npmmirror.com', 'https://registry.npmmirror.com'],
+  );
+  assert.match(result.summary, /No matching version found for herdr-remote@0\.2\.16/);
+  assert.doesNotMatch(result.summary, /complete log/);
+});
+
+test('any other npm failure is not retried, and npm\'s own words come back', async () => {
+  const npm = fakeNpm([{ code: 243, stderr: 'npm error code EACCES\nnpm error syscall rename\nnpm error Error: EACCES: permission denied' }]);
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    registry: 'https://registry.npmjs.org',
+    version: '0.2.16',
+    spawnImpl: npm.spawnImpl,
+    sleep: async () => { throw new Error('must not wait'); },
+  });
+
+  assert.equal(npm.calls.length, 1);
+  assert.equal(result.errorKey, 'update.errorFailed');
+  assert.match(result.summary, /EACCES: permission denied/);
+});
+
+test('npm reporting success while the old version stays installed is not success', async () => {
+  const npm = fakeNpm([{ code: 0 }]);
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    version: '0.2.16',
+    spawnImpl: npm.spawnImpl,
+    readInstalledVersion: () => '0.2.15',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errorKey, 'update.errorNotApplied');
+  assert.equal(result.installed, '0.2.15');
 });

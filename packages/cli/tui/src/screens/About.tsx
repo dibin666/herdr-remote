@@ -20,12 +20,15 @@ type UpdateState =
   | { phase: 'checking' }
   | { phase: 'current'; latest: string }
   | { phase: 'available'; latest: string }
-  | { phase: 'updating'; latest: string }
+  | { phase: 'updating'; latest: string; attempt: number }
   | { phase: 'done'; latest: string }
-  | { phase: 'error'; messageKey: string };
+  | { phase: 'error'; messageKey: string; params?: Record<string, string | number> };
 
-/** The registry that answered the last check, reused by the install. */
-type RegistryRef = { current: string };
+/** Where the last check found the release, reused by the install. */
+type CheckRef = { current: { registry: string; sources: string[] } };
+
+/** `https://registry.npmmirror.com` → `registry.npmmirror.com`, for one line of text. */
+const registryHost = (registry: string) => registry.replace(/^https?:\/\//, '');
 
 // Injected at build time by scripts/build-tui.mjs.
 declare const __APP_VERSION__: string;
@@ -34,7 +37,9 @@ export function About({ ctx }: { ctx: AppContext }) {
   const { t, draft } = ctx;
   const [selected, setSelected] = useState('auto');
   const [update, setUpdate] = useState<UpdateState>({ phase: 'idle' });
-  const registryRef = useState<RegistryRef>(() => ({ current: '' }))[0];
+  /** Why the install will come from somewhere other than npm's own registry. */
+  const [sourceNote, setSourceNote] = useState<string | null>(null);
+  const checkRef = useState<CheckRef>(() => ({ current: { registry: '', sources: [] } }))[0];
 
   const detected = detectLocale({ preference: 'auto' });
   const languageOptions = [
@@ -51,9 +56,12 @@ export function About({ ctx }: { ctx: AppContext }) {
       case 'checking': return t('update.checking');
       case 'current': return t('update.upToDate', { version: update.latest });
       case 'available': return t('update.available', { version: update.latest });
-      case 'updating': return t('update.updating', { version: update.latest });
+      case 'updating':
+        return update.attempt > 1
+          ? t('update.updatingRetry', { version: update.latest, attempt: update.attempt })
+          : t('update.updating', { version: update.latest });
       case 'done': return t('update.done', { version: update.latest });
-      case 'error': return t(update.messageKey);
+      case 'error': return t(update.messageKey, update.params);
       default: return t('update.check');
     }
   })();
@@ -62,6 +70,7 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const runCheck = async () => {
     setUpdate({ phase: 'checking' });
+    setSourceNote(null);
     const result = await checkForUpdate();
     if (!result.ok) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorNetwork' });
@@ -71,18 +80,36 @@ export function About({ ctx }: { ctx: AppContext }) {
       if (result.message) ctx.notify(t('update.errorNetworkDetail', { message: result.message }), 'error');
       return;
     }
-    registryRef.current = result.registry ?? '';
+    checkRef.current = { registry: result.registry ?? '', sources: result.sources ?? [] };
+    // A mirror that has not synced the release yet used to be the whole
+    // answer. It is still asked, and said to be behind.
+    const behind = result.behind ?? [];
+    if (result.updateAvailable && behind.length > 0 && result.registry) {
+      setSourceNote(t('update.mirrorBehind', {
+        registries: behind.map((entry: { registry: string; version?: string }) => `${registryHost(entry.registry)} ${entry.version}`).join(', '),
+        source: registryHost(result.registry),
+      }));
+    }
     setUpdate(result.updateAvailable
       ? { phase: 'available', latest: result.latest as string }
       : { phase: 'current', latest: result.latest as string });
   };
 
   const runUpdate = async (latest: string) => {
-    setUpdate({ phase: 'updating', latest });
-    const result = await performUpdate({ registry: registryRef.current });
+    setUpdate({ phase: 'updating', latest, attempt: 1 });
+    const result = await performUpdate({
+      registry: checkRef.current.registry,
+      sources: checkRef.current.sources,
+      version: latest,
+      onAttempt: ({ attempt }: { attempt: number }) => setUpdate({ phase: 'updating', latest, attempt }),
+    });
     if (!result.ok) {
-      setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed' });
-      ctx.notify(t('update.errorFailed'), 'error');
+      const params = { version: latest, installed: result.installed ?? '' };
+      setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed', params });
+      // npm's own words: "update failed" alone is what left this unfixable.
+      ctx.notify(result.summary
+        ? t('update.errorFailedDetail', { message: result.summary })
+        : t(result.errorKey ?? 'update.errorFailed', params), 'error');
       return;
     }
     setUpdate({ phase: 'done', latest });
@@ -157,6 +184,7 @@ export function About({ ctx }: { ctx: AppContext }) {
         >
           {updateLabel}
         </Selectable>
+        {sourceNote ? <Text color={theme.muted}>{`  ${sourceNote}`}</Text> : null}
       </Box>
 
       <Row label={t('about.version')}>
