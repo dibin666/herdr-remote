@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   AGENT_ID_ALIASES,
+  AGENT_PROFILE_IDS,
   AGENT_PROFILES,
   GENERIC_SHELL_ACTIONS,
   HERDR_AGENT_IDS,
   applyOverrides,
   filterDuplicateGenericActions,
   getDrawerGroups,
+  getProfileActions,
   resolveProfile,
+  type AgentProfileDef,
 } from '../utils/agentKeymaps';
 import { LOCAL_STORAGE_KEY, loadSettings, saveSettings } from '../utils/storage';
 
@@ -57,8 +60,34 @@ describe('Herdr agent keymaps', () => {
     expect(defaults[0].combo).toBe('shift+tab');
   });
 
+  it('keeps every profile to a few common shortcuts by default', () => {
+    for (const id of AGENT_PROFILE_IDS) {
+      const profile: AgentProfileDef = AGENT_PROFILES[id];
+      const actionIds = profile.actions.map((item) => item.id);
+      for (const barId of profile.bar || []) expect(actionIds, `${id}:${barId}`).toContain(barId);
+
+      const groups = getDrawerGroups(id);
+      expect(groups.agentActions.length, id).toBeLessThanOrEqual(4);
+      expect(groups.agentActions.length + groups.genericActions.length, id).toBeLessThanOrEqual(5);
+    }
+
+    expect(getDrawerGroups('claude').genericActions.map((item) => item.id)).toEqual(['genericCtrlC']);
+    expect(getDrawerGroups('shell').genericActions.map((item) => item.id))
+      .toEqual(['genericCtrlC', 'genericCtrlD', 'genericCtrlL', 'genericCtrlR']);
+  });
+
+  it('lets a saved choice override the default visibility either way', () => {
+    const rows = getProfileActions('claude', {
+      actions: { stash: { hidden: false }, mode: { hidden: true } },
+    });
+    expect(rows.find((item) => item.id === 'stash')?.hidden).toBe(false);
+    expect(rows.find((item) => item.id === 'mode')?.hidden).toBe(true);
+    expect(rows.find((item) => item.id === 'todos')?.hidden).toBe(true);
+    expect(rows.find((item) => item.id === 'rewind')?.hidden).toBe(false);
+  });
+
   it('drops a generic chord when the agent group already exposes that combo', () => {
-    const groups = getDrawerGroups('hermes');
+    const groups = getDrawerGroups('hermes', { actions: { genericCtrlD: { hidden: false } } });
     expect(groups.agentActions.some((item) => item.combo === 'ctrl+c')).toBe(true);
     expect(groups.genericActions.some((item) => item.combo === 'ctrl+c')).toBe(false);
     expect(groups.genericActions.some((item) => item.combo === 'ctrl+d')).toBe(true);

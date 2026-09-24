@@ -190,7 +190,7 @@ export const en: TranslationSchema = {
     settingsProfileLabel: 'Agent profile',
     autoProfile: 'Auto · {profile}',
     pinnedProfile: 'Pinned · {profile}',
-    showAction: 'Show',
+    showAction: 'On key bar',
     shortcutLabel: 'Shortcut',
     comboPlaceholder: 'e.g. ctrl+e or esc esc',
     invalidCombo: 'Invalid shortcut: {error}',

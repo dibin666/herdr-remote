@@ -62,9 +62,34 @@ describe('Agent-aware key toolbar', () => {
     expect(screen.getByTestId('agent-key-actions').parentElement).toBe(row);
     expect(screen.getByTestId('agent-key-mode')).toBeInTheDocument();
     expect(screen.getByTestId('agent-key-rewind')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-key-genericCtrlD')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-key-genericCtrlC')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-key-drawer')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Keymap' })).not.toBeInTheDocument();
+  });
+
+  it('keeps only a few common shortcuts on the bar by default', async () => {
+    await mount();
+    reportFocus('claude');
+
+    const ids = Array.from(screen.getByTestId('agent-key-actions').querySelectorAll('[data-testid^="agent-key-"]'))
+      .map((node) => node.getAttribute('data-testid'));
+    expect(ids).toEqual([
+      'agent-key-mode', 'agent-key-rewind', 'agent-key-details', 'agent-key-model', 'agent-key-genericCtrlC',
+    ]);
+
+    reportFocus('shell');
+    expect(screen.getByTestId('agent-key-genericCtrlD')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-key-genericCtrlL')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-key-genericCtrlK')).not.toBeInTheDocument();
+  });
+
+  it('shows a less common shortcut once the user ticks it in settings', async () => {
+    saveSettings({ agentKeymaps: { claude: { actions: { background: { hidden: false } } } } });
+    await mount();
+    reportFocus('claude');
+
+    expect(screen.getByTestId('agent-key-background')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-key-stash')).not.toBeInTheDocument();
   });
 
   it('automatically switches shortcuts with focus and falls back to Shell', async () => {
@@ -88,10 +113,13 @@ describe('Agent-aware key toolbar', () => {
   });
 
   it('retains red interrupt and amber suspend tones inline', async () => {
-    await mount();
+    const getContext = await mount();
     reportFocus('claude');
 
     expect(screen.getByTestId('agent-key-genericCtrlC').className).toContain('border-tui-bad');
+    act(() => {
+      getContext().updateSettings({ agentKeymaps: { claude: { actions: { genericCtrlZ: { hidden: false } } } } });
+    });
     expect(screen.getByTestId('agent-key-genericCtrlZ').className).toContain('border-tui-warn');
   });
 
