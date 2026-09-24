@@ -5,6 +5,8 @@ export interface AgentActionDef {
   labelKey: string;
   combo: string;
   verified: boolean;
+  /** Left off the key bar until the user ticks it in settings. */
+  defaultHidden?: boolean;
 }
 
 export interface AgentProfileDef {
@@ -12,6 +14,8 @@ export interface AgentProfileDef {
   name: string;
   shortName: string;
   configHint?: string;
+  /** The few actions the key bar shows by default; the rest wait in settings. */
+  bar?: readonly string[];
   actions: AgentActionDef[];
 }
 
@@ -52,6 +56,7 @@ const action = (id: string, labelKey: string, combo: string, verified = true): A
 const PROFILES = {
   claude: {
     id: 'claude', name: 'Claude Code', shortName: 'Claude', configHint: '~/.claude/keybindings.json',
+    bar: ['mode', 'rewind', 'details', 'model'],
     actions: [
       action('mode', 'mode', 'shift+tab'), action('rewind', 'rewind', 'esc esc'),
       action('details', 'details', 'ctrl+o'), action('model', 'model', 'alt+p'),
@@ -64,6 +69,7 @@ const PROFILES = {
   },
   codex: {
     id: 'codex', name: 'Codex', shortName: 'Codex', configHint: '~/.codex/config.toml [tui.keymap]',
+    bar: ['mode', 'editPrevious', 'details'],
     actions: [
       action('mode', 'mode', 'shift+tab'), action('editPrevious', 'editPrevious', 'esc esc'),
       action('details', 'details', 'ctrl+t'), action('queue', 'queue', 'tab'),
@@ -74,6 +80,7 @@ const PROFILES = {
   },
   gemini: {
     id: 'gemini', name: 'Gemini CLI', shortName: 'Gemini', configHint: '~/.gemini/keybindings.json',
+    bar: ['mode', 'yolo', 'rewind'],
     actions: [
       action('mode', 'mode', 'shift+tab'), action('yolo', 'yolo', 'ctrl+y'),
       action('rewind', 'rewind', 'esc esc'), action('todos', 'todos', 'ctrl+t'),
@@ -84,7 +91,7 @@ const PROFILES = {
     ],
   },
   qwen: {
-    id: 'qwen', name: 'Qwen Code', shortName: 'Qwen', actions: [
+    id: 'qwen', name: 'Qwen Code', shortName: 'Qwen', bar: ['mode', 'history'], actions: [
       action('mode', 'mode', 'shift+tab'), action('interrupt', 'interrupt', 'esc'),
       action('history', 'history', 'ctrl+r'), action('newline', 'newline', 'ctrl+j'),
       action('todos', 'todos', 'ctrl+t', false), action('rewind', 'rewind', 'esc esc', false),
@@ -92,6 +99,7 @@ const PROFILES = {
   },
   opencode: {
     id: 'opencode', name: 'OpenCode', shortName: 'OpenCode', configHint: 'tui.json keybinds',
+    bar: ['palette', 'model', 'sessions'],
     actions: [
       action('agent', 'agent', 'tab'), action('agentBack', 'agentBack', 'shift+tab'),
       action('interrupt', 'interrupt', 'esc'), action('palette', 'palette', 'ctrl+p'),
@@ -103,6 +111,7 @@ const PROFILES = {
   },
   kilo: {
     id: 'kilo', name: 'Kilo Code', shortName: 'Kilo', configHint: '~/.config/kilo/tui.jsonc',
+    bar: ['palette', 'model', 'sessions'],
     actions: [
       action('agent', 'agent', 'tab', false), action('agentBack', 'agentBack', 'shift+tab', false),
       action('interrupt', 'interrupt', 'esc'), action('palette', 'palette', 'ctrl+p'),
@@ -114,6 +123,7 @@ const PROFILES = {
   },
   pi: {
     id: 'pi', name: 'Pi', shortName: 'Pi', configHint: '~/.pi/agent/keybindings.json',
+    bar: ['thinkingMode', 'modelPicker', 'tools'],
     actions: [
       action('thinkingMode', 'thinkingMode', 'shift+tab'), action('interrupt', 'interrupt', 'esc'),
       action('nextModel', 'nextModel', 'ctrl+p'), action('modelPicker', 'modelPicker', 'ctrl+l'),
@@ -124,6 +134,7 @@ const PROFILES = {
   },
   omp: {
     id: 'omp', name: 'Oh My Pi', shortName: 'OMP', configHint: '~/.omp/agent/keybindings.yml',
+    bar: ['thinkingMode', 'plan', 'model'],
     actions: [
       action('thinkingMode', 'thinkingMode', 'shift+tab'), action('plan', 'plan', 'alt+shift+p'),
       action('model', 'model', 'alt+m'), action('temporaryModel', 'temporaryModel', 'alt+p'),
@@ -134,7 +145,9 @@ const PROFILES = {
     ],
   },
   copilot: {
-    id: 'copilot', name: 'GitHub Copilot', shortName: 'Copilot', actions: [
+    id: 'copilot', name: 'GitHub Copilot', shortName: 'Copilot',
+    bar: ['mode', 'expand', 'reasoning'],
+    actions: [
       action('mode', 'mode', 'shift+tab'), action('interrupt', 'interrupt', 'esc'),
       action('expand', 'expand', 'ctrl+o'), action('expandAll', 'expandAll', 'ctrl+e'),
       action('reasoning', 'reasoning', 'ctrl+t'), action('editor', 'editor', 'ctrl+g'),
@@ -142,13 +155,14 @@ const PROFILES = {
     ],
   },
   cursor: {
-    id: 'cursor', name: 'Cursor', shortName: 'Cursor', actions: [
+    id: 'cursor', name: 'Cursor', shortName: 'Cursor', bar: ['mode', 'review'], actions: [
       action('mode', 'mode', 'shift+tab'), action('review', 'review', 'ctrl+r'),
       action('newline', 'newline', 'ctrl+j'), action('interrupt', 'interrupt', 'esc', false),
     ],
   },
   droid: {
     id: 'droid', name: 'Factory Droid', shortName: 'Droid', configHint: 'In-app settings',
+    bar: ['specMode', 'autonomy'],
     actions: [
       action('specMode', 'specMode', 'shift+tab'), action('autonomy', 'autonomy', 'ctrl+l'),
       action('details', 'details', 'ctrl+o', false), action('queue', 'queue', 'ctrl+enter'),
@@ -156,7 +170,9 @@ const PROFILES = {
     ],
   },
   kimi: {
-    id: 'kimi', name: 'Kimi Code', shortName: 'Kimi', actions: [
+    id: 'kimi', name: 'Kimi Code', shortName: 'Kimi',
+    bar: ['plan', 'undoPicker', 'expand'],
+    actions: [
       action('plan', 'plan', 'shift+tab'), action('interrupt', 'interrupt', 'esc'),
       action('undoPicker', 'undoPicker', 'esc esc'), action('expand', 'expand', 'ctrl+o'),
       action('editor', 'editor', 'ctrl+g'), action('steer', 'steer', 'ctrl+s'),
@@ -165,7 +181,7 @@ const PROFILES = {
     ],
   },
   amp: {
-    id: 'amp', name: 'Amp', shortName: 'Amp', actions: [
+    id: 'amp', name: 'Amp', shortName: 'Amp', bar: ['palette', 'reasoning', 'mode'], actions: [
       action('palette', 'palette', 'ctrl+o'), action('reasoning', 'reasoning', 'alt+d'),
       action('mode', 'mode', 'ctrl+s', false), action('editor', 'editor', 'ctrl+g'),
       action('history', 'history', 'ctrl+r'), action('sidebar', 'sidebar', 'ctrl+backslash'),
@@ -173,7 +189,9 @@ const PROFILES = {
     ],
   },
   hermes: {
-    id: 'hermes', name: 'Hermes', shortName: 'Hermes', actions: [
+    id: 'hermes', name: 'Hermes', shortName: 'Hermes',
+    bar: ['interrupt', 'agents', 'sessions'],
+    actions: [
       action('interrupt', 'interrupt', 'ctrl+c'), action('newline', 'newline', 'ctrl+j'),
       action('editor', 'editor', 'ctrl+g'), action('agents', 'agents', 'ctrl+t'),
       action('sessions', 'sessions', 'ctrl+x'),
@@ -181,6 +199,7 @@ const PROFILES = {
   },
   qodercli: {
     id: 'qodercli', name: 'Qoder CLI', shortName: 'Qoder', configHint: '/shortcuts in-app',
+    bar: ['permissionMode', 'bypass', 'tasks', 'interrupt'],
     actions: [
       action('permissionMode', 'permissionMode', 'shift+tab'), action('bypass', 'bypass', 'ctrl+y'),
       action('tasks', 'tasks', 'ctrl+t'), action('editor', 'editor', 'ctrl+x'),
@@ -191,6 +210,7 @@ const PROFILES = {
   },
   devin: {
     id: 'devin', name: 'Devin', shortName: 'Devin', configHint: '~/.config/devin/config.json keymap',
+    bar: ['mode', 'thinking', 'interrupt'],
     actions: [
       action('mode', 'mode', 'shift+tab'), action('interrupt', 'interrupt', 'ctrl+c'),
       action('thinking', 'thinking', 'alt+t'), action('newline', 'newline', 'ctrl+j'),
@@ -198,7 +218,9 @@ const PROFILES = {
     ],
   },
   grok: {
-    id: 'grok', name: 'Grok CLI', shortName: 'Grok', actions: [
+    id: 'grok', name: 'Grok CLI', shortName: 'Grok',
+    bar: ['mode', 'rewind', 'interrupt'],
+    actions: [
       action('mode', 'mode', 'shift+tab'), action('interrupt', 'interrupt', 'ctrl+c'),
       action('rewind', 'rewind', 'esc esc'), action('interject', 'interject', 'ctrl+enter'),
       action('multiline', 'multiline', 'ctrl+m'), action('newline', 'newline', 'alt+enter'),
@@ -207,25 +229,30 @@ const PROFILES = {
   },
   agy: {
     id: 'agy', name: 'Antigravity', shortName: 'Antigravity',
-    configHint: '~/.gemini/antigravity-cli/keybindings.json', actions: [
+    configHint: '~/.gemini/antigravity-cli/keybindings.json',
+    bar: ['mode', 'approve', 'interrupt'],
+    actions: [
       action('mode', 'mode', 'shift+tab'), action('interrupt', 'interrupt', 'ctrl+c'),
       action('background', 'background', 'ctrl+b'), action('approve', 'approve', 'ctrl+k'),
       action('clear', 'clear', 'esc esc'),
     ],
   },
   mastracode: {
-    id: 'mastracode', name: 'MastraCode', shortName: 'MastraCode', actions: [
+    id: 'mastracode', name: 'MastraCode', shortName: 'MastraCode',
+    bar: ['interrupt', 'thinking', 'expand'],
+    actions: [
       action('interrupt', 'interrupt', 'ctrl+c'), action('thinking', 'thinking', 'ctrl+t'),
       action('expand', 'expand', 'ctrl+e'), action('followup', 'followup', 'ctrl+f'),
     ],
   },
   letta: {
-    id: 'letta', name: 'Letta Code', shortName: 'Letta', actions: [
+    id: 'letta', name: 'Letta Code', shortName: 'Letta', bar: ['permissionMode'], actions: [
       action('permissionMode', 'permissionMode', 'shift+tab'), action('interrupt', 'interrupt', 'esc', false),
     ],
   },
   kiro: {
     id: 'kiro', name: 'Kiro CLI', shortName: 'Kiro', configHint: 'kiro-cli settings chat.keybindings.*',
+    bar: ['agentSwap', 'details', 'steer'],
     actions: [
       action('agentSwap', 'agentSwap', 'shift+tab'), action('interrupt', 'interrupt', 'esc'),
       action('details', 'details', 'ctrl+t'), action('steer', 'steer', 'ctrl+s'),
@@ -234,19 +261,21 @@ const PROFILES = {
     ],
   },
   cline: {
-    id: 'cline', name: 'Cline', shortName: 'Cline', actions: [
+    id: 'cline', name: 'Cline', shortName: 'Cline', bar: ['autoApprove'], actions: [
       action('planAct', 'planAct', 'tab'), action('autoApprove', 'autoApprove', 'shift+tab'),
       action('interrupt', 'interrupt', 'esc', false),
     ],
   },
   maki: {
-    id: 'maki', name: 'Maki', shortName: 'Maki', actions: [
+    id: 'maki', name: 'Maki', shortName: 'Maki', bar: ['rewind', 'search'], actions: [
       action('rewind', 'rewind', 'esc esc'), action('search', 'search', 'ctrl+f'),
       action('interrupt', 'interrupt', 'esc', false),
     ],
   },
   muse: {
-    id: 'muse', name: 'Muse', shortName: 'Muse', configHint: '/keymap in-app', actions: [
+    id: 'muse', name: 'Muse', shortName: 'Muse', configHint: '/keymap in-app',
+    bar: ['queue', 'interruptCtrl'],
+    actions: [
       action('interrupt', 'interrupt', 'esc'), action('queue', 'queue', 'alt+enter'),
       action('interruptCtrl', 'interrupt', 'ctrl+c'),
     ],
@@ -292,6 +321,10 @@ export const GENERIC_SHELL_ACTIONS: AgentActionDef[] = [
   action('genericCtrlK', 'killToEnd', 'ctrl+k'),
 ];
 
+/** Common chords a bare shell keeps on the bar; an agent only keeps ^C. */
+const SHELL_GENERIC_BAR = ['genericCtrlC', 'genericCtrlD', 'genericCtrlL', 'genericCtrlR'];
+const AGENT_GENERIC_BAR = ['genericCtrlC'];
+
 export function normalizeAgentId(agent: string | null | undefined): string {
   if (!agent) return '';
   return agent.trim().toLowerCase().replace(/\\/g, '/').split('/').at(-1) || '';
@@ -326,7 +359,7 @@ export function applyOverrides(
       ...definition,
       defaultCombo: definition.combo,
       combo,
-      hidden: saved?.hidden === true,
+      hidden: typeof saved?.hidden === 'boolean' ? saved.hidden : definition.defaultHidden === true,
       custom: false,
     };
   });
@@ -370,7 +403,14 @@ export function getProfileActions(
   profileId: AgentProfileId,
   overrides?: AgentProfileKeymapOverride,
 ): AppliedAgentAction[] {
-  return applyOverrides([...AGENT_PROFILES[profileId].actions, ...GENERIC_SHELL_ACTIONS], overrides);
+  const profile: AgentProfileDef = AGENT_PROFILES[profileId];
+  const bar = new Set([
+    ...(profile.bar || []),
+    ...(profileId === 'shell' ? SHELL_GENERIC_BAR : AGENT_GENERIC_BAR),
+  ]);
+  const defaults = [...profile.actions, ...GENERIC_SHELL_ACTIONS]
+    .map((definition) => ({ ...definition, defaultHidden: !bar.has(definition.id) }));
+  return applyOverrides(defaults, overrides);
 }
 
 export function getDrawerGroups(

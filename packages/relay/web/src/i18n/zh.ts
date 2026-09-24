@@ -190,7 +190,7 @@ export const zh: TranslationSchema = {
     settingsProfileLabel: '智能体方案',
     autoProfile: '自动 · {profile}',
     pinnedProfile: '固定 · {profile}',
-    showAction: '显示',
+    showAction: '显示在按键栏',
     shortcutLabel: '快捷键',
     comboPlaceholder: '例如 ctrl+e 或 esc esc',
     invalidCombo: '快捷键无效：{error}',
