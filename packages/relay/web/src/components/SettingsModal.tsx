@@ -39,6 +39,16 @@ import {
 
 export type SettingsTab = 'appearance' | 'virtualKeys' | 'agentKeymaps';
 
+/**
+ * One agent-key row. Every column has a fixed width so the combo fields and
+ * buttons line up down the list; a phone splits the row over two lines.
+ */
+const AGENT_ROW_GRID = [
+  'grid items-center gap-x-2 gap-y-1 border-b border-tui-border-dim px-2 py-1.5 last:border-b-0',
+  "grid-cols-[5rem_minmax(0,1fr)_6.5rem] [grid-template-areas:'cap_label_actions'_'combo_combo_default']",
+  "sm:grid-cols-[5rem_minmax(0,1fr)_9rem_7rem_6.5rem] sm:[grid-template-areas:'cap_label_combo_default_actions']",
+].join(' ');
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -671,6 +681,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           <div className="max-h-72 overflow-y-auto border border-tui-border bg-tui-mantle">
             {profileActions.map((item, index) => {
               const label = actionLabel(item);
+              const defaultText = t('agentKeymaps.defaultCombo', { combo: formatComboCaption(item.defaultCombo) });
               const savedCombo = profileOverrides.actions?.[item.id]?.keys ?? item.combo;
               const draftKey = comboDraftKey(keymapProfile, item.id);
               const displayedCombo = comboDrafts[draftKey] ?? savedCombo;
@@ -686,10 +697,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 <div
                   key={item.id}
                   data-testid={`agent-setting-row-${item.id}`}
-                  className="flex flex-wrap items-center gap-2 border-b border-tui-border-dim px-2 py-1.5 last:border-b-0"
+                  className={AGENT_ROW_GRID}
                 >
-                  <KeyCap className="shrink-0 font-bold">{caption || '—'}</KeyCap>
-                  <span className="min-w-[5rem] flex-1 text-tui-sm text-tui-text">
+                  <KeyCap className="max-w-full justify-self-start overflow-hidden whitespace-nowrap font-bold [grid-area:cap]">
+                    {caption || '—'}
+                  </KeyCap>
+                  <span className="min-w-0 truncate text-tui-sm text-tui-text [grid-area:label]" title={label}>
                     {label}
                     {!item.verified && (
                       <span className="ml-1 text-tui-sm text-tui-faint">{t('agentKeymaps.unverified')}</span>
@@ -709,12 +722,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                     }}
                     placeholder={t('agentKeymaps.comboPlaceholder')}
                     aria-invalid={Boolean(error)}
-                    className="w-36 shrink-0"
+                    className="w-full min-w-0 [grid-area:combo]"
                   />
-                  <span className="text-tui-sm text-tui-faint">
-                    {t('agentKeymaps.defaultCombo', { combo: formatComboCaption(item.defaultCombo) })}
+                  <span className="min-w-0 truncate text-tui-sm text-tui-faint [grid-area:default]" title={defaultText}>
+                    {defaultText}
                   </span>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex items-center gap-1 [grid-area:actions]">
                     <Button
                       variant="ghost"
                       brackets={false}
@@ -753,7 +766,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                     )}
                   </div>
                   {error && (
-                    <p className="w-full pl-24 text-tui-sm text-tui-bad" role="alert">
+                    <p className="col-span-full text-tui-sm text-tui-bad" role="alert">
                       {t('agentKeymaps.invalidCombo', { error })}
                     </p>
                   )}

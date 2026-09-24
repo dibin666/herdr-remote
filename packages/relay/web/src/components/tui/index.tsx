@@ -244,7 +244,7 @@ const BUTTON_TONE: Record<ButtonVariant, string> = {
     'border-tui-bad text-tui-bad hover:bg-tui-bad hover:text-tui-crust active:bg-tui-bad',
   warn: 'border-tui-warn text-tui-warn hover:bg-tui-warn hover:text-tui-crust active:bg-tui-warn',
   ghost:
-    'border-transparent text-tui-muted hover:text-tui-accent hover:border-tui-border active:bg-tui-selection',
+    'border-transparent text-tui-muted hover:text-tui-accent hover:border-tui-border active:bg-tui-selection disabled:border-transparent',
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
