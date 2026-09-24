@@ -35,6 +35,7 @@ const FIELDS = [
   { id: 'publicUrl', kind: 'text', labelKey: 'field.publicUrl' },
   { id: 'socketPath', kind: 'text', labelKey: 'field.socketPath' },
   { id: 'herdrArgs', kind: 'text', labelKey: 'field.herdrArgs' },
+  { id: 'herdrAutoStart', kind: 'toggle', labelKey: 'field.herdrAutoStart' },
   { id: 'language', kind: 'choice', choices: LANGUAGES, labelKey: 'field.language' },
   { id: 'keepaliveManager', kind: 'choice', choices: KEEPALIVE_MANAGERS, labelKey: 'field.keepalive' },
 ];
@@ -94,6 +95,8 @@ function getField(draft, id) {
       return draft.herdr.socketPath || EMPTY;
     case 'herdrArgs':
       return (draft.herdr.args || []).join(' ');
+    case 'herdrAutoStart':
+      return draft.herdr.autoStart ? 'on' : 'off';
     case 'language':
       return draft.ui.language;
     case 'keepaliveManager':
@@ -211,6 +214,13 @@ function setField(draft, id, rawValue) {
       next.herdr.args = args;
       break;
     }
+    case 'herdrAutoStart': {
+      if (value !== true && value !== false && value !== 'on' && value !== 'off') {
+        return { draft, errorKey: 'error.unknownField' };
+      }
+      next.herdr.autoStart = value === true || value === 'on';
+      break;
+    }
     case 'language': {
       if (!LANGUAGES.includes(value)) return { draft, errorKey: 'error.invalidLanguage' };
       next.ui.language = value;
@@ -273,6 +283,7 @@ function saveDraft(draft) {
     ...(current.herdr || {}),
     socketPath: draft.herdr.socketPath,
     args: draft.herdr.args,
+    autoStart: draft.herdr.autoStart === true,
   };
   if (!merged.herdr.socketPath) delete merged.herdr.socketPath;
   merged.keepalive = { ...(current.keepalive || {}), manager: draft.keepalive.manager };

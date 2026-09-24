@@ -32,7 +32,12 @@ function inspectSocket(socketPath, options = {}) {
     }
     return { ok: true, path: socketPath, uid: stat.uid, mode: stat.mode };
   } catch (error) {
-    return { ok: false, reason: error.code === 'ENOENT' ? 'socket does not exist' : error.message, path: socketPath };
+    return {
+      ok: false,
+      missing: error.code === 'ENOENT',
+      reason: error.code === 'ENOENT' ? 'socket does not exist' : error.message,
+      path: socketPath,
+    };
   }
 }
 

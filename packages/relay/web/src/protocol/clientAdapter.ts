@@ -679,6 +679,11 @@ export class HerdrClientAdapter {
     });
   }
 
+  /** Ask the paired workstation to start its Herdr; see `ClientHerdrStartMessage`. */
+  public sendHerdrStart(): void {
+    this.sendJson({ type: 'herdr_start' });
+  }
+
   public sendJson(msg: ClientJsonMessage): void {
     // Flush queued input before control messages so resize/control frames do
     // not interleave ahead of earlier keystrokes.

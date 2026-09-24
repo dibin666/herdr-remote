@@ -229,6 +229,33 @@ test('the Herdr screen shows the installed version and offers no plugin registra
   assert.doesNotMatch(output, /Register as Herdr plugin|Unregister plugin|Plugin registration/);
 });
 
+test('the Herdr screen switches starting Herdr with herdr-remote, off by default', async (t) => {
+  const cleanup = withTemporaryHome();
+  t.after(cleanup);
+  writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(React.createElement(App, { initialLanguage: 'zh', needsWizard: false }));
+  t.after(() => instance.unmount());
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+  instance.stdin.write('6'); // Herdr tab
+  await settle();
+  assert.match(instance.lastFrame(), /随服务启动 Herdr\s+\[ \] 关/);
+
+  instance.stdin.write('\u001b[B'); // herdrArgs
+  await settle();
+  instance.stdin.write('\u001b[B'); // the switch
+  await settle();
+  // Selecting it explains what each position means.
+  assert.match(instance.lastFrame(), /浏览器里确认后才启动/);
+
+  instance.stdin.write('\r');
+  await settle();
+  assert.match(instance.lastFrame(), /随服务启动 Herdr\s+\[×\] 开/);
+  assert.match(instance.lastFrame(), /有未保存修改/);
+});
+
 test('the relay screen offers a password only for a self-hosted relay', async (t) => {
   const cleanup = withTemporaryHome();
   t.after(cleanup);

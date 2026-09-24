@@ -145,6 +145,7 @@ module.exports = {
   'herdr.title': 'Herdr 集成',
   'herdr.socketPath': '套接字路径',
   'herdr.args': '附加参数',
+  'herdr.autoStartHint': '关：Herdr 只在你手动运行，或在浏览器里确认后才启动。开：herdr-remote 每次启动（包括开机）时一并启动 Herdr。下次 herdr-remote 启动时生效。',
   'herdr.cliMissing': '未找到 herdr 命令，可将 HERDR_BIN_PATH 设为其完整路径。',
   'herdr.version': 'Herdr 版本',
   'herdr.versionOutdated': 'Herdr {version} 低于 {minimum}，请运行 “herdr update”：在该版本之前，浏览器窗口的标题、后台机器激活与大段粘贴都会出问题。',
@@ -184,6 +185,7 @@ module.exports = {
   'field.publicUrl': '浏览器地址（覆盖）',
   'field.socketPath': 'Herdr 套接字路径',
   'field.herdrArgs': 'Herdr 参数',
+  'field.herdrAutoStart': '随服务启动 Herdr',
   'field.language': '语言',
   'field.keepalive': '保活管理方式',
 

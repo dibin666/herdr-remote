@@ -77,6 +77,9 @@ const DEFAULTS = {
     socketPath: null,
     args: [],
     cwd: os.homedir(),
+    // Start Herdr's server when herdr-remote starts (at boot, under keep-alive).
+    // Off: Herdr starts when the user runs it, or confirms it from the WebUI.
+    autoStart: false,
   },
   auth: {
     pairingTtlMs: 10 * 60 * 1000,
@@ -288,6 +291,7 @@ function validate(config) {
   if (typeof config.herdr.cwd !== 'string' || config.herdr.cwd.length === 0) {
     config.herdr.cwd = os.homedir();
   }
+  config.herdr.autoStart = config.herdr.autoStart === true;
 
   // A "remote" config without a relay URL cannot reach anything; fall back to
   // local rather than silently starting a host connector that dials nowhere.

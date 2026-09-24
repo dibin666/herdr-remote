@@ -60,7 +60,7 @@ test('host connector coalesces multiple onData chunks emitted in the same tick i
     close() {},
   };
 
-  connector.startSession({ type: 'session_start', streamId: 'session-batch-1', cols: 80, rows: 24 });
+  await connector.startSession({ type: 'session_start', streamId: 'session-batch-1', cols: 80, rows: 24 });
   assert.ok(capturedOnData, 'PtySession onData callback should be registered');
 
   // Emit two onData chunks in the exact same event loop tick
@@ -134,7 +134,7 @@ test('stopping a session clears pending output and scheduled flush', async (t) =
     close() {},
   };
 
-  connector.startSession({ type: 'session_start', streamId: 'session-cancel-1', cols: 80, rows: 24 });
+  await connector.startSession({ type: 'session_start', streamId: 'session-cancel-1', cols: 80, rows: 24 });
   capturedOnData(Buffer.from('abandoned-output', 'utf8'));
 
   // Stop session before flush executes

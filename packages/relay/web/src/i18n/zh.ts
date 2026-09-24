@@ -92,6 +92,16 @@ export const zh: TranslationSchema = {
     errorDefault: '无法连接 Relay 服务',
     disconnected: '会话已断开',
   },
+  herdrLaunch: {
+    title: 'Herdr 未运行',
+    body: '{host} 上没有正在运行的 Herdr。要在这台宿主机上启动吗？',
+    scope: '只会以这台已配对宿主机自己的用户身份，启动它自己的 Herdr，不会碰其他任何机器。',
+    start: '启动 Herdr',
+    starting: '正在 {host} 上启动 Herdr…',
+    failedTitle: 'Herdr 没有启动',
+    timeout: '宿主机 30 秒内没有回应。它的 herdr-remote 可能版本过旧，不支持从浏览器启动 Herdr。',
+    thisHost: '这台宿主机',
+  },
   onboarding: {
     title: '配对 Herdr Remote',
     subtitle: '连接手机或浏览器至本地终端会话',

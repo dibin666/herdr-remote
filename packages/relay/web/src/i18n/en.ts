@@ -92,6 +92,16 @@ export const en: TranslationSchema = {
     errorDefault: 'Unable to connect to relay',
     disconnected: 'Terminal disconnected',
   },
+  herdrLaunch: {
+    title: 'Herdr is not running',
+    body: 'Herdr is not running on {host}. Start it on that workstation?',
+    scope: "Only this paired workstation's own Herdr starts, as that workstation's user. No other machine is touched.",
+    start: 'Start Herdr',
+    starting: 'Starting Herdr on {host}…',
+    failedTitle: 'Herdr did not start',
+    timeout: 'The workstation did not answer within 30 seconds. Its herdr-remote may be too old to start Herdr from a browser.',
+    thisHost: 'this workstation',
+  },
   onboarding: {
     title: 'Pair with Herdr Remote',
     subtitle: 'Connect your mobile or browser to your local terminal session',

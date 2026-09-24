@@ -98,6 +98,17 @@ export interface TranslationSchema {
     errorDefault: string;
     disconnected: string;
   };
+  /** Herdr not running on the paired workstation, and starting it from here. */
+  herdrLaunch: {
+    title: string;
+    body: string;
+    scope: string;
+    start: string;
+    starting: string;
+    failedTitle: string;
+    timeout: string;
+    thisHost: string;
+  };
   onboarding: {
     title: string;
     subtitle: string;

@@ -19,8 +19,12 @@ function managerInUse(config) {
 function startAll(config = loadConfig()) {
   const managed = managerInUse(config);
   if (managed) {
-    keepalive.restart(config);
-    return { ok: true, managed: true, manager: managed.manager };
+    // Start means "make it run", not "restart it". Herdr runs this through the
+    // plugin's startup hook every time a Herdr server starts, and a restart
+    // there dropped every browser attached to the workstation — including the
+    // one that had just asked for that Herdr to be started.
+    if (!managed.active) keepalive.restart(config);
+    return { ok: true, managed: true, manager: managed.manager, alreadyRunning: Boolean(managed.active) };
   }
   return { ...startServices(), managed: false };
 }

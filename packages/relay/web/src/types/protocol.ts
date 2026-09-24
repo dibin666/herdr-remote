@@ -73,13 +73,23 @@ export interface ClientPasteFileMessage {
   dataBase64: string;
 }
 
+/**
+ * Start Herdr on the workstation this window is paired to. Carries nothing:
+ * the relay routes it to the window's own host, and the host decides where and
+ * as whom Herdr runs.
+ */
+export interface ClientHerdrStartMessage {
+  type: 'herdr_start';
+}
+
 export type ClientJsonMessage =
   | ClientHelloMessage
   | ClientClaimControlMessage
   | ClientReleaseControlMessage
   | ClientResizeMessage
   | ClientPingMessage
-  | ClientPasteFileMessage;
+  | ClientPasteFileMessage
+  | ClientHerdrStartMessage;
 export interface ServerReadyMessage {
   type: 'ready';
   role: ClientRole;

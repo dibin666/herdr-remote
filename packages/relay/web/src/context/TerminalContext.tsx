@@ -68,6 +68,18 @@ export interface ModifierLatch {
 
 const NO_MODIFIERS: ModifierLatch = { ctrl: false, alt: false, shift: false };
 
+/**
+ * Herdr is not running on the paired workstation. `null` while it is, or while
+ * nothing has said otherwise.
+ */
+export type HerdrLaunchState =
+  | { phase: 'stopped' }
+  | { phase: 'starting' }
+  | { phase: 'failed'; message: string };
+
+/** How long a start may take before the window stops waiting for an answer. */
+const HERDR_START_TIMEOUT_MS = 30_000;
+
 interface TerminalContextValue {
   connectionState: ConnectionState;
   stateDetail?: string;
@@ -166,6 +178,9 @@ interface TerminalContextValue {
   uploadProgress: ImageUploadProgress;
   uploadImage: (file: Blob | File | PreparedImagePaste) => Promise<boolean>;
   resetUploadProgress: () => void;
+  herdrLaunch: HerdrLaunchState | null;
+  /** Ask the paired workstation to start its Herdr. */
+  startHerdr: () => void;
 }
 
 const TerminalContext = createContext<TerminalContextValue | null>(null);
@@ -194,6 +209,18 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [controllerId, setControllerId] = useState<string | undefined>();
   const [hostId, setHostId] = useState<string | undefined>();
   const [hostname, setHostname] = useState<string | undefined>();
+  const [herdrLaunch, setHerdrLaunchState] = useState<HerdrLaunchState | null>(null);
+  // The adapter's handlers are bound once, so they read the phase from here.
+  const herdrLaunchRef = useRef<HerdrLaunchState | null>(null);
+  const herdrStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setHerdrLaunch = useCallback((next: HerdrLaunchState | null) => {
+    if (next?.phase !== 'starting' && herdrStartTimerRef.current) {
+      clearTimeout(herdrStartTimerRef.current);
+      herdrStartTimerRef.current = null;
+    }
+    herdrLaunchRef.current = next;
+    setHerdrLaunchState(next);
+  }, []);
   const [hostPalette, setHostPalette] = useState<HostTerminalPalette | null>(null);
   const [assignedClientId, setAssignedClientId] = useState<string | undefined>();
   const [rttMs, setRttMs] = useState<number | null>(null);
@@ -599,6 +626,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       // A count from a workstation this window is no longer talking to is worse
       // than no count: it reads as current.
       if (state !== 'connected') setAgentStatus(null);
+      // Whether Herdr runs is the answer of one connection; the next one asks
+      // the workstation again.
+      if (state !== 'connected') setHerdrLaunch(null);
     });
 
     newAdapter.on('ready', (readyMsg) => {
@@ -610,6 +640,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         setTerminalResetVersion((value) => value + 1);
       }
       hasEstablishedConnectionRef.current = true;
+      setHerdrLaunch(null);
       setRole(readyMsg.role);
       setControllerId(readyMsg.controllerId);
       setHostId(readyMsg.hostId);
@@ -697,6 +728,16 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('error', (err) => {
+      // Not an error to toast but a question for the user, asked over the
+      // empty terminal until Herdr runs.
+      if (err.code === 'herdr_not_running') {
+        if (herdrLaunchRef.current?.phase !== 'starting') setHerdrLaunch({ phase: 'stopped' });
+        return;
+      }
+      if (err.code === 'herdr_start_failed' && herdrLaunchRef.current) {
+        setHerdrLaunch({ phase: 'failed', message: err.message || '' });
+        return;
+      }
       if (activeUploadTaskIdRef.current !== null) {
         if (uploadTimeoutTimerRef.current) {
           clearTimeout(uploadTimeoutTimerRef.current);
@@ -754,6 +795,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     newAdapter.on('sessionReady', () => {
       setConnectionState('connected');
+      setHerdrLaunch(null);
     });
 
     // Deliberately state and not a toast: this changes whenever an agent picks
@@ -791,6 +833,25 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (adapterRef.current) {
       adapterRef.current.disconnect();
     }
+  }, []);
+
+  const startHerdr = useCallback(() => {
+    const current = adapterRef.current;
+    if (!current) return;
+    setHerdrLaunch({ phase: 'starting' });
+    current.sendHerdrStart();
+    // A host connector from before this message ignores it; say so rather
+    // than spin forever.
+    herdrStartTimerRef.current = setTimeout(() => {
+      herdrStartTimerRef.current = null;
+      if (herdrLaunchRef.current?.phase === 'starting') {
+        setHerdrLaunch({ phase: 'failed', message: tRef.current('herdrLaunch.timeout') });
+      }
+    }, HERDR_START_TIMEOUT_MS);
+  }, [setHerdrLaunch]);
+
+  useEffect(() => () => {
+    if (herdrStartTimerRef.current) clearTimeout(herdrStartTimerRef.current);
   }, []);
 
   const claimControl = useCallback((force: boolean = false) => {
@@ -1121,6 +1182,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         uploadProgress,
         uploadImage,
         resetUploadProgress,
+        herdrLaunch,
+        startHerdr,
       }}
     >
       {children}

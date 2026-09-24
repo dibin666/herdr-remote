@@ -120,7 +120,7 @@ herdr-remote plugin link
 {
   "ui":        { "language": "auto" },
   "relay":     { "mode": "local", "port": 8787, "lanHost": "", "publicUrl": "", "remoteUrl": "" },
-  "herdr":     { "socketPath": null, "args": [] },
+  "herdr":     { "socketPath": null, "args": [], "autoStart": false },
   "keepalive": { "manager": "auto" }
 }
 ```

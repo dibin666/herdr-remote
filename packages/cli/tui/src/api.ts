@@ -71,7 +71,7 @@ export type Config = {
     hostReconnectGraceMs: number;
     allowedOrigins: string[];
   };
-  herdr: { socketPath: string | null; args: string[]; cwd: string };
+  herdr: { socketPath: string | null; args: string[]; cwd: string; autoStart: boolean };
   auth: { pairingTtlMs: number; deviceTtlMs: number; maxDevices: number };
   keepalive: { manager: string };
 };

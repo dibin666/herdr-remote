@@ -25,6 +25,7 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
   const entries = [
     { id: 'socketPath', kind: 'field' as const, label: t('herdr.socketPath') },
     { id: 'herdrArgs', kind: 'field' as const, label: t('herdr.args') },
+    { id: 'herdrAutoStart', kind: 'toggle' as const, label: t('field.herdrAutoStart') },
     { id: 'save', kind: 'action' as const, label: t('common.save') },
   ];
 
@@ -47,6 +48,7 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
 
   const activate = (id: string) => {
     if (id === 'socketPath' || id === 'herdrArgs') { ctx.setEditing(id); return; }
+    if (id === 'herdrAutoStart') { applyField(id, draft.herdr.autoStart ? 'off' : 'on'); return; }
     if (id === 'save') save();
   };
 
@@ -62,7 +64,19 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
   return (
     <Panel title={t('herdr.title')}>
       {entries.map((entry) => (
-        entry.kind === 'field' ? (
+        entry.kind === 'toggle' ? (
+          <FieldRow
+            key={entry.id}
+            label={entry.label}
+            selected={selected === entry.id}
+            onSelect={() => { setSelected(entry.id); activate(entry.id); }}
+            onHover={() => setSelected(entry.id)}
+          >
+            <Text color={draft.herdr.autoStart ? theme.ok : theme.muted}>
+              {draft.herdr.autoStart ? `[×] ${t('common.on')}` : `[ ] ${t('common.off')}`}
+            </Text>
+          </FieldRow>
+        ) : entry.kind === 'field' ? (
           <FieldRow
             key={entry.id}
             label={entry.label}
@@ -90,6 +104,12 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
           </Box>
         )
       ))}
+
+      {selected === 'herdrAutoStart' ? (
+        <Box marginTop={1}>
+          <Text color={theme.muted}>{t('herdr.autoStartHint')}</Text>
+        </Box>
+      ) : null}
 
       {ctx.dirty ? (
         <Box marginTop={1}>

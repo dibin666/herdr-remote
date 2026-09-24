@@ -176,3 +176,33 @@ test('valid herdr arguments are accepted and written to the draft', () => {
   assert.deepEqual(result.draft.herdr.args, ['--foo', '--bar']);
   assert.equal(getField(result.draft, 'herdrArgs'), '--foo --bar');
 });
+
+test('Herdr does not start with herdr-remote unless the user turns it on, and the choice is saved', () => {
+  withTempConfig(() => {
+    assert.equal(loadConfig().herdr.autoStart, false);
+
+    let draft = createDraft(loadConfig());
+    assert.equal(getField(draft, 'herdrAutoStart'), 'off');
+    draft = setField(draft, 'herdrAutoStart', 'on').draft;
+    assert.equal(draft.herdr.autoStart, true);
+    // Only the next start reads it; nothing running has to restart.
+    assert.equal(requiresRestart(loadConfig(), draft), false);
+
+    saveDraft(draft);
+    assert.equal(readJson(configPath()).herdr.autoStart, true);
+    assert.equal(loadConfig().herdr.autoStart, true);
+
+    draft = setField(createDraft(loadConfig()), 'herdrAutoStart', 'off').draft;
+    saveDraft(draft);
+    assert.equal(loadConfig().herdr.autoStart, false);
+
+    assert.equal(setField(draft, 'herdrAutoStart', 'maybe').errorKey, 'error.unknownField');
+  });
+});
+
+test('a hand-written autoStart that is not literally true stays off', () => {
+  withTempConfig(() => {
+    fs.writeFileSync(configPath(), JSON.stringify({ herdr: { autoStart: 'yes' } }));
+    assert.equal(loadConfig().herdr.autoStart, false);
+  });
+});

@@ -27,6 +27,9 @@ const MAX_DIMENSION = 500;
 const MIN_SESSION_COLS = 20;
 const MIN_SESSION_ROWS = 6;
 
+/** A window asks to start its workstation's Herdr at most this often. */
+const HERDR_START_REPEAT_MS = 3_000;
+
 /** Matches the host's own cap; the relay re-applies it rather than trusting it. */
 const MAX_AGENT_STATUS_ENTRIES = 16;
 
@@ -1169,6 +1172,22 @@ class RelayServer {
             rows: Math.max(MIN_SESSION_ROWS, client.rows),
           });
         }
+      }
+    } else if (message.type === 'herdr_start') {
+      // The window's own workstation, and nobody else's: `host` was fixed by
+      // the device token at handshake, and nothing in this message can name
+      // another one. The host starts Herdr as its own user, at its own socket.
+      // Repeats are dropped — one click is enough, and the host shares a
+      // start between windows anyway.
+      if (!client.session) {
+        jsonSend(client.ws, { type: 'error', code: 'no_session', message: 'terminal session is not ready' });
+        return;
+      }
+      const now = Date.now();
+      if (client.herdrStartAt && now - client.herdrStartAt < HERDR_START_REPEAT_MS) return;
+      client.herdrStartAt = now;
+      if (isOpen(host.ws)) {
+        jsonSend(host.ws, { type: 'herdr_start', clientId: client.session.streamId, streamId: client.session.streamId });
       }
     } else if (message.type === 'claim_control') {
       // Control is no longer a lease. Answering the old request keeps clients

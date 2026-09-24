@@ -146,6 +146,7 @@ module.exports = {
   'herdr.title': 'Herdr integration',
   'herdr.socketPath': 'Socket path',
   'herdr.args': 'Extra arguments',
+  'herdr.autoStartHint': 'Off: Herdr starts only when you run it, or when you confirm it from a browser. On: herdr-remote also starts it every time it starts, at boot included. Takes effect the next time herdr-remote starts.',
   'herdr.cliMissing': 'Command herdr not found. Set HERDR_BIN_PATH to its full path.',
   'herdr.version': 'Herdr version',
   'herdr.versionOutdated': 'Herdr {version} is older than {minimum}. Run "herdr update": window titles, background machine activation and large pastes misbehave in browser windows before that release.',
@@ -185,6 +186,7 @@ module.exports = {
   'field.publicUrl': 'Browser URL override',
   'field.socketPath': 'Herdr socket path',
   'field.herdrArgs': 'Herdr arguments',
+  'field.herdrAutoStart': 'Auto-start Herdr',
   'field.language': 'Language',
   'field.keepalive': 'Keep-alive manager',
 

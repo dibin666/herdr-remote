@@ -174,6 +174,40 @@ that.
 `control_state` respectively — so clients built against protocol 1 keep working,
 but they no longer move anything.
 
+### When Herdr is not running
+
+herdr-remote never starts Herdr on its own initiative. Before a window gets a
+PTY, the host connector connects to Herdr's API socket; a socket file that
+refuses the connection counts as no Herdr at all, because a `herdr` client
+pointed at a dead socket would quietly start a server of its own inside the
+herdr-remote service. Instead of a session, the window gets:
+
+```json
+{ "type": "error", "clientId": "session-…", "code": "herdr_not_running", "message": "…" }
+```
+
+The host keeps that window's `session_start` (and follows its `resize`s), and
+the browser asks the user whether to start Herdr on the workstation it names.
+A yes is one message, with no fields:
+
+```json
+{ "type": "herdr_start" }
+```
+
+The relay forwards it as `{ "type": "herdr_start", "clientId", "streamId" }`
+to the **window's own host** — the one its device token was bound to at
+handshake — and ignores anything the message says about hosts or streams. A
+repeat within three seconds is dropped. The host starts Herdr as its own user,
+with its configured command, arguments and socket, and never at a path owned by
+another user. Under systemd it runs `herdr server` in a transient scope of its
+own (`systemd-run --user --scope`), so restarting herdr-remote does not kill
+it. Once the socket answers, every window of that host that was waiting gets
+its session and `session_ready`; a failure comes back as `herdr_start_failed`
+to the window that asked.
+
+`herdr.autoStart: true` in the workstation's config does the same start when
+herdr-remote itself starts, at boot included. It is off by default.
+
 ## HTTP endpoints
 
 - `GET /healthz` — unauthenticated tenant-blind liveness (no host/client counts).

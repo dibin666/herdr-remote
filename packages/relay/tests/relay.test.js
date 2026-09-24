@@ -1153,3 +1153,56 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
 
   hostWs.close();
 });
+
+test('a request to start Herdr reaches only the workstation the window is paired to', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-herdr-start-'));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    await relay.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const hostA = await openWebSocket(`${wsBase}/ws/host`);
+  const hostB = await openWebSocket(`${wsBase}/ws/host`);
+  const toHost = { 'host-a': [], 'host-b': [] };
+  hostA.on('message', (data, isBinary) => { if (!isBinary) toHost['host-a'].push(JSON.parse(data.toString())); });
+  hostB.on('message', (data, isBinary) => { if (!isBinary) toHost['host-b'].push(JSON.parse(data.toString())); });
+  hostA.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-a', token: 'host-a-token-123456789' }));
+  hostB.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-b', token: 'host-b-token-123456789' }));
+  await Promise.all([
+    nextMessage(hostA, (message) => message.type === 'host_ready'),
+    nextMessage(hostB, (message) => message.type === 'host_ready'),
+  ]);
+
+  const pairing = await postJson(`${base}/api/pair/start`, {
+    'X-Herdr-Host-Id': 'host-a',
+    'X-Herdr-Host-Token': 'host-a-token-123456789',
+  });
+  const sessionStart = nextMessage(hostA, (message) => message.type === 'session_start');
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'device-a', cols: 80, rows: 24 }));
+  await ready;
+  const { value: started } = await sessionStart;
+
+  // The window names another workstation; the relay does not listen.
+  const forwarded = nextMessage(hostA, (message) => message.type === 'herdr_start');
+  client.send(JSON.stringify({ type: 'herdr_start', hostId: 'host-b', streamId: 'someone-elses-stream' }));
+  const { value } = await forwarded;
+  assert.equal(value.streamId, started.streamId);
+  assert.equal(value.clientId, started.streamId);
+  assert.equal(Object.hasOwn(value, 'hostId'), false);
+
+  // A second click straight after is dropped; the host is already on it.
+  client.send(JSON.stringify({ type: 'herdr_start' }));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(toHost['host-a'].filter((message) => message.type === 'herdr_start').length, 1);
+  assert.equal(toHost['host-b'].some((message) => message.type === 'herdr_start'), false);
+
+  client.close();
+  hostA.close();
+  hostB.close();
+});

@@ -30,6 +30,7 @@ const { requestHerdr, subscribeHerdr } = require('./herdr-api');
 const { sameSummary, summarizeAgents } = require('./agent-status');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 const { savePastedFile, cleanPastedDir } = require('./pasted-files');
+const { ensureHerdrServer, probeHerdrServer } = require('./herdr-server');
 
 /** How often the agent summary is re-read while a browser is watching. */
 const AGENT_STATUS_POLL_MS = 5_000;
@@ -118,6 +119,16 @@ class HostConnector {
     this.sessions = new Map();
     this.streamIndexToId = new Map();
     this.PtySession = options.PtySession || PtySession;
+    /** Is Herdr's server answering, and how to start it; injectable for tests. */
+    this.probeHerdr = options.probeHerdr || probeHerdrServer;
+    this.ensureHerdr = options.ensureHerdr || ensureHerdrServer;
+    this.herdrLogPath = options.herdrLogPath || path.join(stateDir(), 'herdr-server.log');
+    /** Windows whose session waits on a Herdr that is not running, by stream. */
+    this.waitingForHerdr = new Map();
+    /** Session starts between their liveness check and their PTY, by stream. */
+    this.probingStarts = new Map();
+    /** One start at a time, however many windows asked for it. */
+    this.herdrLaunch = null;
     /** The side channel that answers "does anything need me?"; see startAgentStatus. */
     this.requestHerdr = options.requestHerdr || requestHerdr;
     this.subscribeHerdr = options.subscribeHerdr || subscribeHerdr;
@@ -190,6 +201,12 @@ class HostConnector {
     this.acquireLock();
     this.stopping = false;
     this.connect();
+    // Off unless the user switched it on: Herdr is theirs to start.
+    if (this.config.herdr?.autoStart) {
+      this.startHerdr().catch((error) => {
+        process.stderr.write(`herdr-remote host connector: could not start Herdr: ${error.message}\n`);
+      });
+    }
   }
 
   stop() {
@@ -342,8 +359,9 @@ class HostConnector {
       this.setClientCount(message.clientCount);
       return;
     }
-    if (message.type === 'session_start') this.startSession(message);
-    else if (message.type === 'session_stop') this.stopSession(message.clientId || message.streamId);
+    if (message.type === 'session_start') return this.startSession(message);
+    if (message.type === 'herdr_start') return this.handleHerdrStart(message);
+    if (message.type === 'session_stop') this.stopSession(message.clientId || message.streamId);
     else if (message.type === 'resize') this.resizeSession(message);
     else if (message.type === 'paste_file') this.handlePasteFile(message);
   }
@@ -394,20 +412,103 @@ class HostConnector {
 
   startSession(message) {
     const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
-    if (!streamId) return;
+    if (!streamId) return undefined;
     this.stopSession(streamId);
-    const streamIndex = typeof message.streamIndex === 'number' ? message.streamIndex : null;
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
       sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_not_found', message: missingHerdr });
-      return;
+      return undefined;
     }
     const socketInfo = inspectSocket(this.socketPath);
-    if (!socketInfo.ok) {
+    if (!socketInfo.ok && !socketInfo.missing) {
       sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: socketInfo.reason });
+      return undefined;
+    }
+    if (!socketInfo.ok) {
+      this.waitForHerdr(streamId, message);
+      return undefined;
+    }
+    // The socket file alone proves nothing: a `herdr` client pointed at a dead
+    // one starts a server of its own, inside this process's service, where the
+    // next restart of herdr-remote would kill it. Only a server that accepts a
+    // connection gets a client.
+    const pending = { message };
+    this.probingStarts.set(streamId, pending);
+    return this.probeHerdr(this.socketPath).then((probe) => {
+      // Stopped, or started again, while the answer was in flight.
+      if (this.probingStarts.get(streamId) !== pending) return;
+      this.probingStarts.delete(streamId);
+      if (probe.state === 'running') this.spawnSession(pending.message);
+      else if (probe.state === 'stopped') this.waitForHerdr(streamId, pending.message);
+      else sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: probe.reason });
+    });
+  }
+
+  /**
+   * Hold a window's session until Herdr runs, and ask the browser whether it
+   * should be started. Nothing starts until somebody says yes.
+   */
+  waitForHerdr(streamId, message) {
+    this.waitingForHerdr.set(streamId, message);
+    sendJson(this.ws, {
+      type: 'error',
+      clientId: streamId,
+      code: 'herdr_not_running',
+      message: `Herdr is not running on this workstation (${this.socketPath}).`,
+    });
+  }
+
+  /**
+   * Start this workstation's Herdr server, once, however many windows or
+   * callers ask at the same time.
+   */
+  startHerdr() {
+    if (!this.herdrLaunch) {
+      this.herdrLaunch = Promise.resolve()
+        .then(() => {
+          const missing = this.ensureHerdrCommand();
+          if (missing) throw new Error(missing);
+          return this.ensureHerdr({
+            command: this.herdrCommand,
+            args: this.herdrArgs,
+            socketPath: this.socketPath,
+            cwd: this.cwd,
+            logPath: this.herdrLogPath,
+          });
+        })
+        .finally(() => { this.herdrLaunch = null; });
+    }
+    return this.herdrLaunch;
+  }
+
+  /**
+   * A browser said yes. The relay only ever routes this from a window paired
+   * to *this* workstation, so what starts is this user's own Herdr, at the
+   * socket this connector is configured for — never one named by the message.
+   * Once it runs, every window waiting on it gets its session.
+   */
+  async handleHerdrStart(message) {
+    const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
+    try {
+      const result = await this.startHerdr();
+      if (result.started) process.stderr.write('herdr-remote host connector: started Herdr at a browser\'s request\n');
+    } catch (error) {
+      process.stderr.write(`herdr-remote host connector: could not start Herdr: ${error.message}\n`);
+      if (streamId) {
+        sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_start_failed', message: error.message });
+      }
       return;
     }
+    const waiting = [...this.waitingForHerdr.values()];
+    this.waitingForHerdr.clear();
+    for (const held of waiting) this.spawnSession(held);
+  }
+
+  /** Start the PTY for a window once Herdr is known to be running. */
+  spawnSession(message) {
+    const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
+    const streamIndex = typeof message.streamIndex === 'number' ? message.streamIndex : null;
     const pty = new this.PtySession({
       command: this.herdrCommand,
       args: this.herdrArgs,
@@ -516,6 +617,8 @@ class HostConnector {
   }
 
   stopSession(streamId) {
+    this.waitingForHerdr.delete(streamId);
+    this.probingStarts.delete(streamId);
     const session = this.sessions.get(streamId);
     if (!session) return;
     this.sessions.delete(streamId);
@@ -676,6 +779,12 @@ class HostConnector {
 
   resizeSession(message) {
     const id = message.clientId || message.streamId;
+    // A window still waiting on Herdr starts at the size it has by then.
+    const held = this.waitingForHerdr.get(id) || this.probingStarts.get(id)?.message;
+    if (held) {
+      if (Number.isInteger(message.cols)) held.cols = message.cols;
+      if (Number.isInteger(message.rows)) held.rows = message.rows;
+    }
     const session = this.sessions.get(id);
     if (!session) return;
     session.cols = Number.isInteger(message.cols) ? Math.min(500, Math.max(2, message.cols)) : session.cols;
@@ -716,6 +825,8 @@ class HostConnector {
     }
     this.sessions.clear();
     this.streamIndexToId.clear();
+    this.waitingForHerdr.clear();
+    this.probingStarts.clear();
   }
 
   sendHeartbeat(force = false) {

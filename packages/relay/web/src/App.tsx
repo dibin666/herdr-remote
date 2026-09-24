@@ -13,6 +13,7 @@ import { ToastContainer } from './components/ToastContainer';
 import { SessionStatusLine } from './components/SessionStatusLine';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { MobileTerminalShell } from './components/MobileTerminalShell';
+import { HerdrStartPrompt } from './components/HerdrStartPrompt';
 import { observeViewportMetrics } from './utils/viewportMetrics';
 import { useMobileShell } from './utils/mobileShell';
 import { attachWebUIShortcuts } from './utils/shortcuts';
@@ -273,6 +274,7 @@ function AppContent() {
               />
             )}
             <KeyToolbar compact={isMobileShell} onCustomize={() => openSettings('agentKeymaps')} />
+            <HerdrStartPrompt />
           </div>
         )}
 

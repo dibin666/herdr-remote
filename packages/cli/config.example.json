@@ -15,7 +15,8 @@
   },
   "herdr": {
     "socketPath": null,
-    "args": []
+    "args": [],
+    "autoStart": false
   },
   "keepalive": {
     "manager": "auto"

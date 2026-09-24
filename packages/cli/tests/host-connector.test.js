@@ -244,8 +244,8 @@ test('two sessions run side by side and are resized and stopped independently', 
 
   captureSocket(connector);
 
-  connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
-  connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }));
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }));
 
   assert.equal(connector.sessions.size, 2);
   assert.ok(connector.sessions.has('session-1'));
@@ -291,7 +291,7 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
   };
 
   // Start session with streamIndex: 7
-  connector.handleMessage(JSON.stringify({
+  await connector.handleMessage(JSON.stringify({
     type: 'session_start',
     streamId: 'v2-stream',
     streamIndex: 7,
@@ -473,4 +473,163 @@ test('watchdog terminates socket and schedules reconnect when pong is missed', (
   assert.equal(connector.ws, null, 'ws should be cleared after terminate');
   assert.equal(connector.keepaliveTimer, null, 'keepalive timer should be cleared');
   assert.ok(connector.reconnectTimer, 'reconnect timer should be scheduled');
+});
+
+/** A PTY that records how it was started instead of running anything. */
+function recordingPty(started) {
+  return class RecordingPty {
+    constructor(options) {
+      this.options = options;
+      this.command = options.command;
+      this.cwd = options.cwd;
+      this.terminal = { pid: 1 };
+    }
+    start({ cols, rows }) {
+      started.push({ cols, rows, args: this.options.args, socketPath: this.options.socketPath });
+      return this;
+    }
+    resize() {}
+    kill() {}
+  };
+}
+
+function herdrLessConnector(t, overrides = {}) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-noherdr-'));
+  const started = [];
+  const connector = makeConnector(path.join(directory, 'connector.lock'), {
+    PtySession: recordingPty(started),
+    herdrArgs: ['--session', 'work'],
+    ...overrides,
+  });
+  t.after(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  return { connector, started, sent: captureSocket(connector) };
+}
+
+test('a window waits for a Herdr that is not running instead of starting one itself', async (t) => {
+  const { connector, started, sent } = herdrLessConnector(t);
+
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+
+  // No client was launched: a `herdr` client with no server starts a server of
+  // its own, inside this service, without anyone having agreed to it.
+  assert.deepEqual(started, []);
+  assert.equal(connector.waitingForHerdr.has('session-1'), true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].type, 'error');
+  assert.equal(sent[0].code, 'herdr_not_running');
+  assert.equal(sent[0].clientId, 'session-1');
+});
+
+test('a socket file with nothing behind it counts as a stopped Herdr', async (t) => {
+  const { connector, started, sent } = herdrLessConnector(t, {
+    probeHerdr: async () => ({ state: 'stopped', stale: true }),
+  });
+  const socketServer = net.createServer();
+  await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
+  t.after(() => socketServer.close());
+
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+
+  assert.deepEqual(started, []);
+  assert.equal(sent.at(-1).code, 'herdr_not_running');
+});
+
+test('starting Herdr uses this workstation\'s own settings and then opens every waiting window', async (t) => {
+  const calls = [];
+  const { connector, started, sent } = herdrLessConnector(t, {
+    ensureHerdr: async (options) => { calls.push(options); return { started: true }; },
+  });
+
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }));
+  // A window resized while it waited opens at its latest size.
+  connector.handleMessage(JSON.stringify({ type: 'resize', streamId: 'session-1', cols: 100, rows: 30 }));
+
+  // Whatever the message claims about hosts or sockets is not an input.
+  await connector.handleMessage(JSON.stringify({
+    type: 'herdr_start',
+    streamId: 'session-1',
+    hostId: 'somebody-else',
+    socketPath: '/home/somebody-else/.config/herdr/herdr.sock',
+  }));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].socketPath, connector.socketPath);
+  assert.deepEqual(calls[0].args, ['--session', 'work']);
+  assert.equal(calls[0].command, connector.herdrCommand);
+  assert.deepEqual(
+    started.map(({ cols, rows }) => ({ cols, rows })),
+    [{ cols: 100, rows: 30 }, { cols: 120, rows: 40 }],
+  );
+  assert.equal(connector.waitingForHerdr.size, 0);
+  assert.deepEqual(sent.filter((message) => message.type === 'session_ready').map((message) => message.clientId), ['session-1', 'session-2']);
+});
+
+test('windows asking at the same time share one Herdr start', async (t) => {
+  let calls = 0;
+  let release;
+  const { connector, started } = herdrLessConnector(t, {
+    ensureHerdr: () => { calls += 1; return new Promise((resolve) => { release = () => resolve({ started: true }); }); },
+  });
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 80, rows: 24 }));
+
+  const first = connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-1' }));
+  const second = connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-2' }));
+  await new Promise((resolve) => setImmediate(resolve));
+  release();
+  await Promise.all([first, second]);
+
+  assert.equal(calls, 1);
+  assert.equal(started.length, 2);
+});
+
+test('a Herdr that fails to start is reported to the window that asked', async (t) => {
+  const { connector, started, sent } = herdrLessConnector(t, {
+    ensureHerdr: async () => { throw new Error('Herdr server exited (code 1) before opening the socket.'); },
+  });
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+
+  await connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-1' }));
+
+  assert.deepEqual(started, []);
+  assert.equal(sent.at(-1).code, 'herdr_start_failed');
+  assert.equal(sent.at(-1).clientId, 'session-1');
+  assert.match(sent.at(-1).message, /exited \(code 1\)/);
+  // Still waiting: the window can ask again.
+  assert.equal(connector.waitingForHerdr.has('session-1'), true);
+});
+
+test('a window closed while it waited is not opened when Herdr starts', async (t) => {
+  const { connector, started } = herdrLessConnector(t, {
+    ensureHerdr: async () => ({ started: true }),
+  });
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 80, rows: 24 }));
+  connector.handleMessage(JSON.stringify({ type: 'session_stop', streamId: 'session-1' }));
+
+  await connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-2' }));
+
+  assert.equal(started.length, 1);
+  assert.deepEqual([...connector.sessions.keys()], ['session-2']);
+});
+
+test('Herdr starts with the connector only when the user switched that on', async (t) => {
+  for (const autoStart of [false, true]) {
+    let calls = 0;
+    const { connector } = herdrLessConnector(t, {
+      ensureHerdr: async () => { calls += 1; return { started: true }; },
+      config: {
+        herdr: { args: [], cwd: process.cwd(), socketPath: null, autoStart },
+        cleanup: { heartbeatIntervalMs: 10 },
+      },
+    });
+    connector.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    connector.stop();
+    assert.equal(calls, autoStart ? 1 : 0, `autoStart=${autoStart}`);
+  }
 });
