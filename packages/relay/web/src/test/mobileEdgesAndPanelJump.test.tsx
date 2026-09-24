@@ -103,9 +103,12 @@ describe('Panels open without moving the page', () => {
       expect(dialog.className).not.toMatch(/\bh-screen\b/);
       expect(dialog.getAttribute('style') || '').toContain('--app-height');
 
+      // The panel is capped by the frame it sits in, which is the one element
+      // sized from the visible viewport; `max-h-full` also leaves the frame's
+      // padding free, so the panel can never be taller than the screen.
       const panel = dialog.firstElementChild as HTMLElement;
       expect(panel.className).not.toMatch(/max-h-\[90vh\]/);
-      expect(panel.getAttribute('style') || '').toContain('--app-height');
+      expect(panel.className).toMatch(/\bmax-h-full\b/);
     }
   });
 

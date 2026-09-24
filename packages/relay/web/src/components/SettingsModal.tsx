@@ -505,7 +505,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           </div>
 
           {/* Configured layout: one row per key, in send order. */}
-          <div className="max-h-72 overflow-y-auto border border-tui-border bg-tui-mantle">
+          <div className="relative max-h-72 overflow-y-auto overscroll-contain border border-tui-border bg-tui-mantle">
             {currentVirtualKeys.map((keyItem, index) => (
               <div
                 key={keyItem.id}
@@ -585,7 +585,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           {showAddKeyPalette && (
             <div className="space-y-2 border border-tui-border bg-tui-mantle p-2">
               <Rule label={t('virtualKeyboard.availableKeys')} />
-              <div className="flex max-h-48 flex-wrap gap-1 overflow-y-auto">
+              <div className="relative flex max-h-48 flex-wrap gap-1 overflow-y-auto overscroll-contain">
                 {ALL_AVAILABLE_KEYS.map((availableKey) => {
                   const isAlreadyAdded = currentVirtualKeys.some((k) => k.id === availableKey.id);
                   return (
@@ -678,7 +678,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           </div>
 
           <Rule label={t('agentKeymaps.agentGroup')} />
-          <div className="max-h-72 overflow-y-auto border border-tui-border bg-tui-mantle">
+          <div className="relative max-h-72 overflow-y-auto overscroll-contain border border-tui-border bg-tui-mantle">
             {profileActions.map((item, index) => {
               const label = actionLabel(item);
               const defaultText = t('agentKeymaps.defaultCombo', { combo: formatComboCaption(item.defaultCombo) });

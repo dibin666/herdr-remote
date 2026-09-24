@@ -873,9 +873,15 @@ export const Modal: React.FC<{
   const width = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-xl';
   const titleId = `tui-modal-${title.replace(/\s+/g, '-').toLowerCase()}`;
 
+  // Only the body scrolls. The frame is clipped and the panel is capped to the
+  // frame's padded box, so no wheel can carry the whole dialog off the top of
+  // the screen. Absolutely positioned descendants — every `sr-only` field — are
+  // anchored inside the panel: anchored to the fixed frame, a row scrolled out
+  // of a list left its hidden label behind and made the frame taller than the
+  // screen.
   const modal = (
     <div
-      className="fixed inset-0 inset-x-0 z-50 grid place-items-center overflow-y-auto bg-tui-crust/85 p-3 sm:p-6"
+      className="fixed inset-0 inset-x-0 z-50 flex items-center justify-center overflow-hidden bg-tui-crust/85 p-3 sm:p-6"
       style={{ height: 'var(--app-height, 100dvh)', width: '100vw' }}
       role="dialog"
       aria-modal="true"
@@ -886,11 +892,10 @@ export const Modal: React.FC<{
     >
       <div
         className={cn(
-          'flex w-full flex-col border border-tui-border bg-tui-base',
+          'relative flex max-h-full w-full flex-col border border-tui-border bg-tui-base',
           width,
           className
         )}
-        style={{ maxHeight: 'calc(var(--app-height, 100dvh) - 1.5rem)' }}
       >
         <header className="flex shrink-0 items-center gap-2 border-b border-tui-border bg-tui-mantle px-3 py-1.5">
           <h2
@@ -909,7 +914,9 @@ export const Modal: React.FC<{
           </Button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">{children}</div>
+        <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+          {children}
+        </div>
 
         {footer || hints ? (
           <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-tui-border bg-tui-mantle px-3 py-1.5">

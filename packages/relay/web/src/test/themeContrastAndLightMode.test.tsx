@@ -76,7 +76,32 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
       // Modal frames are portalled to the document and centered by the TUI
       // shell, rather than being positioned relative to a clipped flex layer.
       expect(dialog.parentElement).toBe(document.body);
-      expect(dialog.className).toContain('place-items-center');
+      expect(dialog.className).toContain('items-center');
+      expect(dialog.className).toContain('justify-center');
+    }
+  });
+
+  it('keeps a scrolling dialog from carrying the whole frame off screen', () => {
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} initialTab="agentKeymaps" />
+      </TerminalProvider>
+    );
+
+    const dialog = screen.getByRole('dialog');
+    // The frame itself never scrolls: a wheel that ran off the end of a list
+    // used to scroll it and push the dialog's title bar above the screen.
+    expect(dialog.className).toContain('overflow-hidden');
+    expect(dialog.className).not.toContain('overflow-y-auto');
+
+    // Every scroller inside is a positioned box, so an `sr-only` field in a row
+    // scrolled out of view is clipped by its own list instead of being anchored
+    // to the fixed frame and stretching it.
+    const scrollers = Array.from(dialog.querySelectorAll('.overflow-y-auto'));
+    expect(scrollers.length).toBeGreaterThanOrEqual(2);
+    for (const scroller of scrollers) {
+      expect(scroller.className).toContain('relative');
+      expect(scroller.className).toContain('overscroll-contain');
     }
   });
 
