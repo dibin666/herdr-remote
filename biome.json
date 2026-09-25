@@ -105,6 +105,66 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "packages/**",
+        "scripts/**",
+        "!**/tests/**",
+        "!**/test/**",
+        "!**/*.test.*",
+        "!**/i18n/en.*",
+        "!**/i18n/zh.*"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 500
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/relay/src/relay-server.js",
+        "packages/relay/web/src/components/TerminalView.tsx",
+        "packages/relay/web/src/components/tui/index.tsx",
+        "packages/cli/src/terminal-font.js",
+        "packages/relay/web/src/context/TerminalContext.tsx",
+        "packages/relay/web/src/render/HerdrRenderer.ts",
+        "packages/cli/src/host-connector.js",
+        "packages/relay/web/src/utils/predictiveEcho.ts",
+        "packages/relay/web/src/components/SettingsModal.tsx",
+        "packages/relay/web/src/render/customGlyphs.ts",
+        "packages/relay/web/src/utils/touchMouseAdapter.ts",
+        "packages/relay/web/src/protocol/clientAdapter.ts",
+        "packages/relay/web/src/components/admin/AdminDashboard.tsx",
+        "packages/relay/web/src/utils/storage.ts",
+        "packages/relay/web/src/i18n/types.ts",
+        "packages/relay/web/src/components/KeyToolbar.tsx",
+        "packages/relay/web/src/utils/agentKeymaps.ts",
+        "packages/relay/web/src/utils/terminalSelection.ts",
+        "packages/relay/web/src/utils/useHostFont.ts",
+        "scripts/capture-herdr-screens.mjs",
+        "packages/cli/src/service.js",
+        "packages/relay/web/src/utils/inputField.ts",
+        "packages/cli/src/config.js",
+        "scripts/e2e-latency-harness.js",
+        "packages/relay/web/src/utils/virtualKeys.ts",
+        "packages/cli/src/keepalive.js"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": "off"
+          }
+        }
+      }
     }
   ]
 }
