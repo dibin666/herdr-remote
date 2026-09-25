@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm';
-import type { HostTerminalPalette } from '../types/protocol';
+import type { HostTerminalPalette } from '@protocol/terminal';
 
 /**
  * Terminal colors are never decided here.

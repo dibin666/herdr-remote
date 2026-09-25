@@ -2,7 +2,7 @@ import type React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { StatusDot } from './tui';
-import type { ServerAgentStatusMessage } from '../types/protocol';
+import type { ServerAgentStatusMessage } from '@protocol/messages';
 
 /**
  * Whether anything on the workstation needs a person, in one line.

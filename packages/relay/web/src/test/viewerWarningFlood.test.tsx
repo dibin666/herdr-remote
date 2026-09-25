@@ -112,7 +112,7 @@ describe('The read-only warning does not flood the screen', () => {
     await waitFor(() => expect(terminalCtx?.isController).toBe(true));
     act(() => {
       webSocketInstances[0].simulateMessage(
-        JSON.stringify({ type: 'control_revoked', reason: 'taken over' }),
+        JSON.stringify({ type: 'control_state', role: 'viewer', controllerId: 'other-device' }),
       );
     });
     await waitFor(() => expect(terminalCtx?.isController).toBe(false));

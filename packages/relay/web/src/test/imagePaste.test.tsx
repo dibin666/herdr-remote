@@ -5,8 +5,8 @@ import {
   getBase64ByteLength,
   formatByteSize,
   compressAndPrepareImage,
-  MAX_PASTE_BYTES,
 } from '../utils/imagePaste';
+import { PASTE_MAX_BYTES } from '@protocol/paste';
 import * as imagePasteModule from '../utils/imagePaste';
 import {
   readClipboardImage,
@@ -98,7 +98,7 @@ describe('imagePaste pipeline - unit tests', () => {
       expect(result).not.toBeNull();
       expect(result?.width).toBe(1568);
       expect(result?.height).toBe(1176);
-      expect(result?.byteLength).toBeLessThanOrEqual(MAX_PASTE_BYTES);
+      expect(result?.byteLength).toBeLessThanOrEqual(PASTE_MAX_BYTES);
       expect(result?.dataUrl.startsWith('data:')).toBe(true);
       expect(result?.mime).toBe('image/webp');
     });

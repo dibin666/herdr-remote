@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { HostFontSubsetSource, HostTerminalFont } from '../types/protocol';
+import type { HostFontSubsetSource, HostTerminalFont } from '@protocol/terminal';
 import { COMMON_CJK_TEXT } from './commonCjk';
 import {
   HOST_FONT_CONSENT_KEY,

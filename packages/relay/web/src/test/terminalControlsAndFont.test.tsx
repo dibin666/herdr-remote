@@ -153,12 +153,10 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.queryByText(/view isolation/i)).not.toBeInTheDocument();
 
     // Nothing a host says about its own build may put the old copy back.
+    const withFeatures = { type: 'session_ready', features: { independentView: true } };
     act(() => {
       // @ts-expect-error test mock
-      terminalCtx?.adapter?.emit('sessionReady', {
-        type: 'session_ready',
-        features: { independentView: true },
-      });
+      terminalCtx?.adapter?.emit('sessionReady', withFeatures);
     });
     expect(screen.queryByText(/view isolation/i)).not.toBeInTheDocument();
   });

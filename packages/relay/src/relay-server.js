@@ -17,6 +17,12 @@ import {
   sanitizeTerminalFont,
   TERMINAL_FONT_CHUNK_BYTES,
   PROTOCOL_VERSION,
+  WS_HOST_PATH,
+  WS_CLIENT_PATH,
+  CAPABILITY,
+  PASTE_MAX_BYTES,
+  isPasteImageMime,
+  hasImageSignature,
 } from './protocol';
 import { ensureDir } from './state';
 
@@ -151,46 +157,7 @@ function verifyImageMagicBytes(mime, dataBase64) {
     return false;
   }
   if (headerBuf.length === 0) return false;
-
-  switch (mime) {
-    case 'image/png':
-      return (
-        headerBuf.length >= 8 &&
-        headerBuf[0] === 0x89 &&
-        headerBuf[1] === 0x50 &&
-        headerBuf[2] === 0x4e &&
-        headerBuf[3] === 0x47
-      );
-    case 'image/jpeg':
-      return (
-        headerBuf.length >= 3 &&
-        headerBuf[0] === 0xff &&
-        headerBuf[1] === 0xd8 &&
-        headerBuf[2] === 0xff
-      );
-    case 'image/webp':
-      return (
-        headerBuf.length >= 12 &&
-        headerBuf[0] === 0x52 &&
-        headerBuf[1] === 0x49 &&
-        headerBuf[2] === 0x46 &&
-        headerBuf[3] === 0x46 &&
-        headerBuf[8] === 0x57 &&
-        headerBuf[9] === 0x45 &&
-        headerBuf[10] === 0x42 &&
-        headerBuf[11] === 0x50
-      );
-    case 'image/gif':
-      return (
-        headerBuf.length >= 6 &&
-        headerBuf[0] === 0x47 &&
-        headerBuf[1] === 0x49 &&
-        headerBuf[2] === 0x46 &&
-        headerBuf[3] === 0x38
-      );
-    default:
-      return false;
-  }
+  return hasImageSignature(mime, headerBuf);
 }
 
 class RelayServer {
@@ -345,7 +312,7 @@ class RelayServer {
       }
     })();
     if (
-      !['/ws/host', '/ws/client'].includes(pathname) ||
+      ![WS_HOST_PATH, WS_CLIENT_PATH].includes(pathname) ||
       !this.isAllowedOrigin(req.headers.origin, req)
     ) {
       socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
@@ -367,7 +334,7 @@ class RelayServer {
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       this.pendingHandshakes.add(ws);
       ws.once('close', () => this.finishHandshake(ws));
-      if (pathname === '/ws/host') this.handleHostConnection(ws, req);
+      if (pathname === WS_HOST_PATH) this.handleHostConnection(ws, req);
       else this.handleClientConnection(ws, req);
     });
   }
@@ -766,8 +733,8 @@ class RelayServer {
       reconnecting: false,
       reconnectTimer: null,
       connectionGeneration: randomId('host-connection'),
-      handoffCapable: capabilities.includes('host_handoff'),
-      binaryFrameV2: capabilities.includes('binary_frame_v2'),
+      handoffCapable: capabilities.includes(CAPABILITY.hostHandoff),
+      binaryFrameV2: capabilities.includes(CAPABILITY.binaryFrameV2),
       streamIndices: new Map(),
       nextStreamIndex: 0,
       shutdownRequested: false,
@@ -1260,7 +1227,8 @@ class RelayServer {
           browserClientId:
             typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
           handoffCapable:
-            Array.isArray(message.capabilities) && message.capabilities.includes('host_handoff'),
+            Array.isArray(message.capabilities) &&
+            message.capabilities.includes(CAPABILITY.hostHandoff),
           session: null,
           // Every paired window gets its own interactive PTY session. Pairing
           // is the permission boundary; once a device is through it, every
@@ -1445,8 +1413,7 @@ class RelayServer {
         });
         return;
       }
-      const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
-      if (typeof message.mime !== 'string' || !allowedMimes.has(message.mime)) {
+      if (!isPasteImageMime(message.mime)) {
         jsonSend(client.ws, {
           type: 'error',
           code: 'paste_file_unsupported',
@@ -1462,7 +1429,6 @@ class RelayServer {
         });
         return;
       }
-      const MAX_PASTE_BYTES = 3 * 1024 * 1024;
       const rawLength = Buffer.byteLength(message.dataBase64, 'base64');
       if (rawLength === 0) {
         jsonSend(client.ws, {
@@ -1472,7 +1438,7 @@ class RelayServer {
         });
         return;
       }
-      if (rawLength > MAX_PASTE_BYTES) {
+      if (rawLength > PASTE_MAX_BYTES) {
         jsonSend(client.ws, {
           type: 'error',
           code: 'paste_file_too_large',

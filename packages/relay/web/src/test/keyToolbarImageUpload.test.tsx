@@ -81,7 +81,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
         });
       } else {
         act(() => {
-          emitAdapterEvent(capturedCtx, 'controlRevoked', 'other-controller');
+          emitAdapterEvent(capturedCtx, 'roleChange', 'viewer', 'other-controller');
         });
       }
     }

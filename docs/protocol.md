@@ -1,5 +1,11 @@
 # Herdr Remote protocol
 
+The code is the specification: every message, constant and sanitizer lives in
+[`packages/relay/src/protocol/`](../packages/relay/src/protocol/), which the
+relay, the host connector (`herdr-remote-relay/protocol`) and the web app
+(`@protocol/*`) all build against. This page explains the design; where it and
+the code disagree, the code wins.
+
 Protocol version `1` has two WebSocket roles. The host connector is the only
 component that can see Herdr credentials or the local socket. Browsers never
 receive the socket path.

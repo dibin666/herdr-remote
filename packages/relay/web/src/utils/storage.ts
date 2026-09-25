@@ -7,6 +7,7 @@ import type { Language } from '../i18n/types';
 import { type ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
 import type { AgentKeymapsSettings } from './agentKeymaps';
 import { parseKeyCombo } from '../protocol/keyCombo';
+import { WS_CLIENT_PATH } from '@protocol/messages';
 
 /** Draw the session in the workstation's own terminal font. */
 export const DEFAULT_TERMINAL_FONT = 'host';
@@ -250,7 +251,7 @@ export function detectDefaultLanguage(): Language {
 export function getDefaultSettings(): StoredSettings {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   return {
-    wsUrl: '/ws/client',
+    wsUrl: WS_CLIENT_PATH,
     token: '',
     pairCode: '',
     clientId: generateClientId(),
@@ -466,7 +467,7 @@ function normalizeProfiles(localData: Partial<StoredSettings>): {
         wsUrl:
           typeof localData.wsUrl === 'string' && localData.wsUrl.trim()
             ? localData.wsUrl
-            : '/ws/client',
+            : WS_CLIENT_PATH,
         token: localData.token || '',
         pairCode: localData.pairCode || '',
         autoReconnect: localData.autoReconnect !== false,
@@ -719,7 +720,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId);
   next.profiles = profiles;
   next.activeProfileId = activeProfileId;
-  next.wsUrl = activeProfile?.wsUrl || next.wsUrl || '/ws/client';
+  next.wsUrl = activeProfile?.wsUrl || next.wsUrl || WS_CLIENT_PATH;
   next.token = activeProfile?.token || '';
   next.pairCode = activeProfile?.pairCode || '';
   next.autoReconnect = activeProfile?.autoReconnect ?? next.autoReconnect;

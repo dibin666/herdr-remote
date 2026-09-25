@@ -4,7 +4,7 @@
  * disagree about whether the terminal is live.
  */
 
-import type { ConnectionState } from '../types/protocol';
+import type { ConnectionState } from '../types/connection';
 
 export interface ConnectionDescriptor {
   /** Short label for the collapsed status line. */

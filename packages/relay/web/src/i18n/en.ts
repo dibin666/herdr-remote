@@ -594,8 +594,6 @@ export const en: TranslationSchema = {
     connected: 'Connected to relay',
     connectionError: 'Connection error',
     controlGranted: 'Control granted',
-    controlDenied: 'Request denied: another controller is active',
-    controlRevoked: 'Control transferred to another device',
     pairedSuccess: 'Paired successfully',
     sessionEnded: 'Session ended',
     controlReleased: 'Control released',

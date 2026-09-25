@@ -1,4 +1,4 @@
-import type { ServerAgentStatusMessage } from '../types/protocol';
+import type { ServerAgentStatusMessage } from '@protocol/messages';
 
 /**
  * What on the workstation is waiting for a person: agents that stopped to ask

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { ConnectionConfig } from '../types/protocol';
+import type { ConnectionConfig } from '../types/connection';
 
 // Mock WebSocket class
 class MockWebSocket {
@@ -195,10 +195,10 @@ describe('HerdrClientAdapter Protocol', () => {
     expect(roleListener).toHaveBeenCalledWith('controller', 'client-unit-1', undefined, undefined);
   });
 
-  it('handles control_revoked message and reverts role to viewer', async () => {
+  it('handles a control_state that hands the role back to viewer', async () => {
     const adapter = new HerdrClientAdapter(baseConfig);
-    const revokedListener = vi.fn();
-    adapter.on('controlRevoked', revokedListener);
+    const roleListener = vi.fn();
+    adapter.on('roleChange', roleListener);
 
     adapter.connect();
     await new Promise((r) => setTimeout(r, 20));
@@ -208,14 +208,10 @@ describe('HerdrClientAdapter Protocol', () => {
     ws.simulateServerJson({ type: 'control_granted' });
     expect(adapter.getRole()).toBe('controller');
 
-    // Revoke control
-    ws.simulateServerJson({
-      type: 'control_revoked',
-      reason: 'Takeover by admin',
-    });
+    ws.simulateServerJson({ type: 'control_state', role: 'viewer', controllerId: 'other-device' });
 
     expect(adapter.getRole()).toBe('viewer');
-    expect(revokedListener).toHaveBeenCalledWith('Takeover by admin');
+    expect(roleListener).toHaveBeenLastCalledWith('viewer', 'other-device', undefined, undefined);
   });
 
   it('sends claim_control with force: true for explicit takeover', async () => {

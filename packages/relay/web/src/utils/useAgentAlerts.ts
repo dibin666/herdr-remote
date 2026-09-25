@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
-import type { ServerAgentStatusMessage } from '../types/protocol';
+import type { ServerAgentStatusMessage } from '@protocol/messages';
 import {
   attentionCounts,
   attentionLevel,

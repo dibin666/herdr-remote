@@ -14,6 +14,7 @@ import {
   StatusDot,
   type StatusLevel,
 } from './tui';
+import { WS_CLIENT_PATH } from '@protocol/messages';
 
 interface PairingModalProps {
   isOpen: boolean;
@@ -81,7 +82,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({
   const handleSaveAndConnect = (e: React.FormEvent) => {
     e.preventDefault();
     const connection = {
-      wsUrl: wsUrl.trim() || '/ws/client',
+      wsUrl: wsUrl.trim() || WS_CLIENT_PATH,
       token: token.trim(),
       pairCode: pairCode.trim().toUpperCase(),
       clientId: clientId.trim() || settings.clientId,

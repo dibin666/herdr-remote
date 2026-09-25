@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { installWakeListeners } from '../utils/wakeListeners';
-import type { ConnectionConfig } from '../types/protocol';
+import type { ConnectionConfig } from '../types/connection';
 
 class MockWebSocket {
   static readonly CONNECTING = 0;

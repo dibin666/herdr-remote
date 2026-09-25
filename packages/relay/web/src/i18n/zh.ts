@@ -588,8 +588,6 @@ export const zh: TranslationSchema = {
     connected: '已连接至 Relay 服务',
     connectionError: '连接发生错误',
     controlGranted: '已获得控制权',
-    controlDenied: '控制请求被拒绝：已有活跃控制者',
-    controlRevoked: '控制权已转移',
     pairedSuccess: '设备配对成功，已保存凭证',
     sessionEnded: '终端会话已结束',
     controlReleased: '已释放控制权，切回观察者模式',

@@ -6,7 +6,7 @@ import {
   newAttention,
 } from '../utils/agentAttention';
 import { applyFaviconBadge, withFaviconBadge } from '../utils/faviconBadge';
-import type { ServerAgentStatusMessage } from '../types/protocol';
+import type { ServerAgentStatusMessage } from '@protocol/messages';
 
 const report = (
   agents: Array<[string, string]>,

@@ -3,6 +3,7 @@
  * Handles WebSocket lifecycle, binary ANSI streams, and typed JSON control messages.
  */
 
+import type { ConnectionState, ConnectionConfig } from '../types/connection';
 import type {
   ClientHelloMessage,
   ClientClaimControlMessage,
@@ -18,13 +19,12 @@ import type {
   ServerSessionRestartedMessage,
   ServerHostFontChunkMessage,
   ServerHostFontSubsetMessage,
-  HostTerminalFont,
   ClientRole,
-  ConnectionState,
-  ConnectionConfig,
-} from '../types/protocol';
+} from '@protocol/messages';
+import type { HostTerminalFont } from '@protocol/terminal';
 import { encodeStringToBytes } from './keyEncoder';
 import { isWheelOnlyInput } from './scrollInput';
+import { WS_CLIENT_PATH } from '@protocol/messages';
 
 export type AdapterEventMap = {
   /**
@@ -38,7 +38,7 @@ export type AdapterEventMap = {
   stateChange: (state: ConnectionState, detail?: string, code?: string) => void;
   roleChange: (
     role: ClientRole,
-    controllerId?: string,
+    controllerId?: string | null,
     hostId?: string,
     assignedClientId?: string,
   ) => void;
@@ -49,13 +49,10 @@ export type AdapterEventMap = {
     hostId?: string;
     expiresAt?: number | string;
   }) => void;
-  controlState: (role: ClientRole, controllerId?: string) => void;
-  controlRevoked: (reason?: string) => void;
+  controlState: (role: ClientRole, controllerId?: string | null) => void;
   sessionReady: (payload: ServerSessionReadyMessage) => void;
-  exit: (code?: number, reason?: string) => void;
+  exit: (code?: number | null, reason?: string) => void;
   controlGranted: () => void;
-  controlDenied: (message?: string) => void;
-  status: (payload: Record<string, unknown>) => void;
   /** How many windows currently share this terminal, this one included. */
   peerCount: (count: number) => void;
   /** The authenticated host socket is temporarily reconnecting. */
@@ -98,7 +95,7 @@ export class HerdrClientAdapter {
   private config: ConnectionConfig;
   private state: ConnectionState = 'disconnected';
   private currentRole: ClientRole = 'viewer';
-  private controllerId?: string;
+  private controllerId?: string | null;
   private hostId?: string;
   private assignedClientId?: string;
   private reconnectAttempts = 0;
@@ -128,12 +125,9 @@ export class HerdrClientAdapter {
     ready: new Set(),
     paired: new Set(),
     controlState: new Set(),
-    controlRevoked: new Set(),
     sessionReady: new Set(),
     exit: new Set(),
     controlGranted: new Set(),
-    controlDenied: new Set(),
-    status: new Set(),
     peerCount: new Set(),
     hostReconnecting: new Set(),
     sessionRestarted: new Set(),
@@ -171,7 +165,7 @@ export class HerdrClientAdapter {
     return this.currentRole;
   }
 
-  public getControllerId(): string | undefined {
+  public getControllerId(): string | null | undefined {
     return this.controllerId;
   }
 
@@ -489,13 +483,6 @@ export class HerdrClientAdapter {
         break;
       }
 
-      case 'control_revoked': {
-        this.currentRole = 'viewer';
-        this.emit('controlRevoked', msg.reason);
-        this.emit('roleChange', 'viewer', this.controllerId, this.hostId, this.assignedClientId);
-        break;
-      }
-
       case 'session_ready': {
         this.setState('connected');
         this.emit('sessionReady', msg);
@@ -518,16 +505,6 @@ export class HerdrClientAdapter {
           this.hostId,
           this.assignedClientId,
         );
-        break;
-      }
-
-      case 'control_denied': {
-        this.emit('controlDenied', msg.message);
-        break;
-      }
-
-      case 'status': {
-        this.emit('status', msg);
         break;
       }
 
@@ -867,7 +844,7 @@ export class HerdrClientAdapter {
       // those credentials usable while upgrading the transport to ws/wss.
       const url = new URL(configuredUrl);
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      if (!url.pathname || url.pathname === '/') url.pathname = '/ws/client';
+      if (!url.pathname || url.pathname === '/') url.pathname = WS_CLIENT_PATH;
       return url.toString();
     }
 

@@ -10,7 +10,7 @@ import { SESSION_STORAGE_KEY, loadSettings } from '../utils/storage';
 import { resolveTerminalFontFamily } from '../utils/theme';
 import { COMMON_CJK_TEXT } from '../utils/commonCjk';
 import type { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { HostTerminalFont } from '../types/protocol';
+import type { HostTerminalFont } from '@protocol/terminal';
 import type { MockTerminalInstance } from './setup';
 
 /**

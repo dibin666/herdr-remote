@@ -8,14 +8,13 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
+import type { ConnectionState, ConnectionConfig } from '../types/connection';
 import type {
   ClientRole,
-  ConnectionState,
-  ConnectionConfig,
-  HostTerminalPalette,
   ServerAgentStatusMessage,
   ServerUpdateStatusMessage,
-} from '../types/protocol';
+} from '@protocol/messages';
+import type { HostTerminalPalette } from '@protocol/terminal';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { encodeStringToBytes, type KeyModifiers } from '../protocol/keyEncoder';
@@ -41,6 +40,7 @@ import {
   type ImageUploadProgress,
   IDLE_IMAGE_UPLOAD_PROGRESS,
 } from '../utils/imagePaste';
+import { WS_CLIENT_PATH } from '@protocol/messages';
 
 export interface ToastItem {
   id: string;
@@ -92,7 +92,7 @@ interface TerminalContextValue {
   /** The relay's machine-readable reason for the current state, if it gave one. */
   stateCode?: string;
   role: ClientRole;
-  controllerId?: string;
+  controllerId?: string | null;
   hostId?: string;
   hostname?: string;
   assignedClientId?: string;
@@ -105,7 +105,6 @@ interface TerminalContextValue {
   /** Incremented when a profile/session needs the xterm buffer reset. */
   terminalResetVersion: number;
   rttMs: number | null;
-  statusPayload: Record<string, unknown> | null;
   /**
    * What the workstation's agents are doing, or null before it has said.
    * Read from Herdr's socket API by the host connector, not from the terminal.
@@ -233,7 +232,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [stateDetail, setStateDetail] = useState<string | undefined>();
   const [stateCode, setStateCode] = useState<string | undefined>();
   const [role, setRole] = useState<ClientRole>('viewer');
-  const [controllerId, setControllerId] = useState<string | undefined>();
+  const [controllerId, setControllerId] = useState<string | null | undefined>();
   const [hostId, setHostId] = useState<string | undefined>();
   const [hostname, setHostname] = useState<string | undefined>();
   const [herdrLaunch, setHerdrLaunchState] = useState<HerdrLaunchState | null>(null);
@@ -259,7 +258,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [sharedWindowCount, setSharedWindowCount] = useState(1);
   const [terminalResetVersion, setTerminalResetVersion] = useState(0);
-  const [statusPayload, setStatusPayload] = useState<Record<string, unknown> | null>(null);
   /** Null until the workstation has reported; absence is not "no agents". */
   const [agentStatus, setAgentStatus] = useState<ServerAgentStatusMessage | null>(null);
   const [lastPairedAt, setLastPairedAt] = useState<number | null>(null);
@@ -390,7 +388,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setAssignedClientId(undefined);
       setRttMs(null);
       setSharedWindowCount(1);
-      setStatusPayload(null);
       clearPendingOutput();
       if (resetTerminal) setTerminalResetVersion((value) => value + 1);
     },
@@ -516,7 +513,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       const profile = createConnectionProfile(
         {
           ...draft,
-          wsUrl: draft.wsUrl || '/ws/client',
+          wsUrl: draft.wsUrl || WS_CLIENT_PATH,
           token: draft.token || '',
           displayName: draft.displayName || `Herdr ${current.profiles.length + 1}`,
           autoReconnect: draft.autoReconnect !== false,
@@ -596,7 +593,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         : saveSettings({
             profiles: [],
             activeProfileId: '',
-            wsUrl: '/ws/client',
+            wsUrl: WS_CLIENT_PATH,
             token: '',
             pairCode: '',
           });
@@ -636,7 +633,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         active ||
         createConnectionProfile(
           {
-            wsUrl: current.wsUrl || '/ws/client',
+            wsUrl: current.wsUrl || WS_CLIENT_PATH,
             token: '',
             pairCode: current.pairCode || 'PENDING',
             displayName: `Herdr ${current.profiles.length + 1}`,
@@ -762,7 +759,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       setHostPalette(null);
       setRttMs(null);
       setSharedWindowCount(1);
-      setStatusPayload(null);
       clearPendingOutput();
     });
 
@@ -784,15 +780,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     newAdapter.on('controlGranted', () => {
       setRole('controller');
       addToast('success', tRef.current('toasts.controlGranted'));
-    });
-
-    newAdapter.on('controlDenied', (message) => {
-      addToast('warning', message || tRef.current('toasts.controlDenied'));
-    });
-
-    newAdapter.on('controlRevoked', (reason) => {
-      setRole('viewer');
-      addToast('warning', reason || tRef.current('toasts.controlRevoked'));
     });
 
     newAdapter.on('paired', (payload) => {
@@ -817,10 +804,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         'info',
         `${tRef.current('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code !== undefined ? ` (${code})` : ''}`,
       );
-    });
-
-    newAdapter.on('status', (payload) => {
-      setStatusPayload(payload);
     });
 
     newAdapter.on('error', (err) => {
@@ -1303,7 +1286,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         sharedWindowCount,
         terminalResetVersion,
         rttMs,
-        statusPayload,
         agentStatus,
         agentProfile,
         lastPairedAt,

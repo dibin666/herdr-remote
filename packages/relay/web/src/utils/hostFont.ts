@@ -3,7 +3,7 @@ import type {
   HostFontStyle,
   HostFontSubsetSource,
   HostTerminalFont,
-} from '../types/protocol';
+} from '@protocol/terminal';
 
 /**
  * Bringing the workstation's terminal font to this browser.

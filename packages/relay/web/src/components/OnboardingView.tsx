@@ -4,6 +4,7 @@ import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { copyText } from '../utils/clipboard';
 import { Button, FieldLabel, GLYPH, Input, Notice, Panel, Rule, Spinner } from './tui';
+import { WS_CLIENT_PATH } from '@protocol/messages';
 
 interface OnboardingViewProps {
   onPairedSuccess?: () => void;
@@ -27,7 +28,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Advanced settings fields
-  const [wsUrl, setWsUrl] = useState(settings.wsUrl || '/ws/client');
+  const [wsUrl, setWsUrl] = useState(settings.wsUrl || WS_CLIENT_PATH);
   const [token, setToken] = useState(settings.token || '');
   const [clientId, setClientId] = useState(settings.clientId || '');
 
@@ -56,7 +57,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
 
     const updates: Partial<typeof settings> = {
       pairCode: code,
-      wsUrl: wsUrl.trim() || '/ws/client',
+      wsUrl: wsUrl.trim() || WS_CLIENT_PATH,
       clientId: clientId.trim() || settings.clientId,
     };
 
@@ -70,7 +71,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
     connect({
       pairCode: code || undefined,
       token: token.trim() || undefined,
-      wsUrl: wsUrl.trim() || '/ws/client',
+      wsUrl: wsUrl.trim() || WS_CLIENT_PATH,
       clientId: clientId.trim() || settings.clientId,
     });
 

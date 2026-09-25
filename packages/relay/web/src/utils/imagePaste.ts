@@ -21,8 +21,8 @@
  *    The WebSocket server enforces a strict `maxPayload` limit (configured at 5 MiB in
  *    the relay). Frame overflow triggers an immediate hard WebSocket closure with code 1009
  *    rather than a simple frame drop. Because Base64 encoding expands raw binary by ~33%,
- *    the raw image payload is strictly capped at 3 MB (`MAX_PASTE_BYTES = 3 * 1024 * 1024`),
- *    matching the host validator in `packages/cli/src/pasted-files.js`.
+ *    the raw image payload is strictly capped at 3 MB (`PASTE_MAX_BYTES`, shared with the
+ *    relay and the host through the protocol module).
  *    If an image exceeds 3 MB at quality 0.85, we gracefully step down through quality
  *    tiers (0.85 -> 0.7 -> 0.55 -> 0.4). If it still exceeds 3 MB, compression fails
  *    gracefully so the UI can reject it with a toast without terminating the connection.
@@ -33,8 +33,9 @@
  *    Consequently, client-side preview thumbnails MUST use `data:` URLs, never `blob:` URLs.
  */
 
+import { PASTE_MAX_BYTES } from '@protocol/paste';
+
 export const MAX_LONG_EDGE = 1568;
-export const MAX_PASTE_BYTES = 3 * 1024 * 1024; // 3 MB raw payload ceiling
 export const QUALITY_STEPS = [0.85, 0.7, 0.55, 0.4];
 
 export interface PreparedImagePaste {
@@ -42,7 +43,7 @@ export interface PreparedImagePaste {
   dataBase64: string;
   /** CSP-compliant `data:` URL suitable for immediate thumbnail rendering in <img src>. */
   dataUrl: string;
-  /** Decoded raw binary byte length. Guaranteed to be <= MAX_PASTE_BYTES. */
+  /** Decoded raw binary byte length. Guaranteed to be <= PASTE_MAX_BYTES. */
   byteLength: number;
   width: number;
   height: number;
@@ -205,7 +206,7 @@ async function decodeImageSource(blob: Blob): Promise<DecodedSource> {
 export async function compressAndPrepareImage(
   blob: Blob,
   maxLongEdge = MAX_LONG_EDGE,
-  maxBytes = MAX_PASTE_BYTES,
+  maxBytes = PASTE_MAX_BYTES,
 ): Promise<PreparedImagePaste | null> {
   if (!blob || blob.size === 0) {
     return null;

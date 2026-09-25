@@ -4,3 +4,5 @@
 
 export * from './frames';
 export * from './terminal';
+export * from './messages';
+export * from './paste';

@@ -602,8 +602,6 @@ export interface TranslationSchema {
     connected: string;
     connectionError: string;
     controlGranted: string;
-    controlDenied: string;
-    controlRevoked: string;
     pairedSuccess: string;
     sessionEnded: string;
     controlReleased: string;

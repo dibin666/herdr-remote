@@ -11,7 +11,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 | 目录 | 包 | 职责 |
 |---|---|---|
 | `packages/cli` | `herdr-remote`（npm） | `bin/` CLI 入口；`src/` 服务层与 host connector；`tui/` Ink 配置界面；`herdr-plugin.toml` 插件清单 |
-| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/stream-frame.js` 定义线协议；`tsc` 编译到 `dist/`，`bin/` 和 cli 都加载 `dist/` |
+| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`tsc` 编译到 `dist/`，`bin/` 和 cli 都加载 `dist/` |
 | `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布 |
 
 协议细节见 `docs/protocol.md`。
@@ -29,7 +29,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 
 ## 不变量
 
-- 线协议只在 relay 定义，cli 通过 `herdr-remote-relay/protocol` 引用。改 JSON 消息时，relay、cli、web 的 `src/types/protocol.ts` 和 `docs/protocol.md` 要一起改。
+- 线协议（消息类型、常量、校验）只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`），不能引用 `frames`。
 - Herdr socket 路径和 host token 只存在于 host connector，绝不能发给浏览器。
 - 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli。
 - push master 会自动发布 npm 和镜像，所以只通过 PR 合并。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。
