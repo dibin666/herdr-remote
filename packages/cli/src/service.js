@@ -215,7 +215,7 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
   specs.push({
     name: 'host',
     command: process.execPath,
-    args: [path.join(PACKAGE_ROOT, 'src', 'host-connector-main.js')],
+    args: [path.join(PACKAGE_ROOT, 'dist', 'host-connector-main.js')],
     env: {
       // Captured here, where a terminal may still be attached, because the
       // connector itself usually runs detached with no terminal to ask.

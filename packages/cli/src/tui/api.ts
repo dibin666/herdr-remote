@@ -15,13 +15,13 @@ import {
   resolveAdminOrigin,
   resolvePublicUrl,
   stateDir,
-} from '../../src/config.js';
-import { MIN_HERDR_VERSION, herdrVersion } from '../../src/herdr-command.js';
-import { createTranslator, detectLocale as detectLocaleRaw } from '../../src/i18n/index.js';
+} from '../config.js';
+import { MIN_HERDR_VERSION, herdrVersion } from '../herdr-command.js';
+import { createTranslator, detectLocale as detectLocaleRaw } from '../i18n/index.js';
 import {
   listReachableAddresses as listReachableAddressesRaw,
   preferredLanAddress,
-} from '../../src/net-interfaces.js';
+} from '../net-interfaces.js';
 import {
   FIELDS,
   SELECTABLE_MODES,
@@ -35,7 +35,7 @@ import {
   selectedMode,
   setField,
   validateDraft,
-} from '../../src/settings-model.js';
+} from '../settings-model.js';
 import {
   ensureRuntime,
   extractPairingCode,
@@ -45,9 +45,9 @@ import {
   regenerateHostIdentity,
   requestJson,
   setRelayPassword,
-} from '../../src/service.js';
-import { fullStatus, restartAll, startAll, stopAll } from '../../src/lifecycle.js';
-import * as keepalive from '../../src/keepalive.js';
+} from '../service.js';
+import { fullStatus, restartAll, startAll, stopAll } from '../lifecycle.js';
+import * as keepalive from '../keepalive.js';
 import {
   canSelfUpdate,
   checkForUpdate,
@@ -55,7 +55,7 @@ import {
   updateChecksEnabled,
   installKind,
   performUpdate,
-} from '../../src/updater.js';
+} from '../updater.js';
 
 export type AccessMode = 'local' | 'lan' | 'remote';
 export type Locale = 'en' | 'zh';

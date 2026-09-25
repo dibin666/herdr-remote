@@ -10,16 +10,18 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 
 | 目录 | 包 | 职责 |
 |---|---|---|
-| `packages/cli` | `herdr-remote`（npm） | `src/cli.js` 命令行（`bin/` 只是启动器）；`src/` 服务层与 host connector；`tui/` Ink 配置界面；`herdr-plugin.toml` 插件清单 |
-| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`tsc` 编译到 `dist/`，`bin/` 和 cli 都加载 `dist/` |
+| `packages/cli` | `herdr-remote`（npm） | `src/cli.js` 命令行；`src/` 服务层与 host connector；`src/tui/` Ink 配置界面；`herdr-plugin.toml` 插件清单 |
+| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议 |
 | `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布 |
+
+cli 和 relay 都是 ES module，由 `tsc` 把 `src/` 编译到 `dist/`（源码可以是 `.ts` 或 `.js`）。`bin/` 只是启动器，运行时加载的都是 `dist/`。
 
 协议细节见 `docs/protocol.md`。
 
 ## 命令（仓库根目录）
 
 - `npm ci`：安装（node-pty 需要编译工具链）
-- `npm run build`：构建全部产物。本地运行 cli 之前，至少要先跑一次 `npm run build:server -w herdr-remote-relay`
+- `npm run build`：构建全部产物。本地运行 cli 或 relay 之前要先构建；`npm test` 会自动构建
 - `npm run check`：Biome + 类型检查，提交前必跑
 - `npm test`：用 vitest 跑三个包的全部测试
   - 跑单个文件：`npx vitest run packages/relay/tests/x.test.js`

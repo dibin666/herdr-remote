@@ -10,7 +10,8 @@ import { pathToFileURL } from 'node:url';
 const PACKAGE_ROOT = path.join(__dirname, '..');
 
 function runProbe(url, stateDir) {
-  const apiPath = pathToFileURL(path.join(PACKAGE_ROOT, 'tui', 'src', 'api.ts')).href;
+  // The built module (`pretest` builds dist/), as the published TUI runs it.
+  const apiPath = pathToFileURL(path.join(PACKAGE_ROOT, 'dist', 'tui', 'api.js')).href;
   const script = `
     import(${JSON.stringify(apiPath)}).then(async ({ probeRelay }) => {
       const result = await probeRelay({ relay: { mode: 'remote', remoteUrl: ${JSON.stringify(url)} } });
@@ -21,7 +22,7 @@ function runProbe(url, stateDir) {
     });
   `;
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--experimental-strip-types', '-e', script], {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
       env: { ...process.env, HERDR_REMOTE_STATE_DIR: stateDir },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

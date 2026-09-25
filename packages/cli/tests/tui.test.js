@@ -14,7 +14,7 @@ import { readRuntime, setRelayPassword } from '../src/service.js';
 import { bindAddress, loadConfig } from '../src/config.js';
 
 function loadTui() {
-  return import('../tui/src/index.tsx');
+  return import('../src/tui/index.tsx');
 }
 
 function withTemporaryHome() {

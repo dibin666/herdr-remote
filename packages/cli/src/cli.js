@@ -6,7 +6,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import {
   LANGUAGES,
@@ -126,16 +125,8 @@ function describeStatus(status, t) {
 }
 
 async function runTui(options) {
-  const bundle = path.join(PACKAGE_ROOT, 'dist', 'tui.mjs');
-  if (!fs.existsSync(bundle)) {
-    process.stderr.write(
-      'herdr-remote: TUI bundle missing. Build first:\n' + '  npm run build -w herdr-remote\n',
-    );
-    process.exitCode = 1;
-    return;
-  }
-  const module = await import(pathToFileURL(bundle).href);
-  await module.startTui(options);
+  const { startTui } = await import('./tui/index.js');
+  await startTui(options);
 }
 
 async function main(argv = process.argv.slice(2)) {

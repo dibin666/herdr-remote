@@ -10,18 +10,12 @@
       "entry": [
         "bin/*.js",
         "src/host-connector-main.js",
-        "scripts/*.mjs",
-        "tui/src/index.tsx",
+        "src/tui/index.tsx",
         "tests/**/*.test.js"
       ],
-      "project": [
-        "bin/**/*.js",
-        "src/**/*.js",
-        "tui/src/**/*.{ts,tsx}",
-        "scripts/**/*.mjs",
-        "tests/**/*.js"
-      ],
-      "ignoreBinaries": ["loginctl", "fc-match"]
+      "project": ["bin/**/*.js", "src/**/*.{js,ts,tsx}", "tests/**/*.js"],
+      "ignoreBinaries": ["loginctl", "fc-match"],
+      "ignoreDependencies": ["harfbuzzjs"]
     },
     "packages/relay": {
       "entry": ["bin/*.js", "tests/**/*.test.js"],

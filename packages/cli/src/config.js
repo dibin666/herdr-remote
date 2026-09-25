@@ -7,11 +7,10 @@ import { WS_HOST_PATH } from 'herdr-remote-relay/protocol';
 /**
  * Locate the package directory by walking up to our own package.json.
  *
- * `path.resolve(__dirname, '..')` was wrong as soon as this module started
- * being bundled into dist/tui.js, because the bundle sits at a different depth
- * than src/. Everything that matters — the plugin manifest, the host connector
- * entry point, the systemd unit's ExecStart — is resolved from this value, so
- * it has to be independent of where the code happens to be loaded from.
+ * This module runs from src/ under the tests and from dist/ once built.
+ * Everything that matters — the plugin manifest, the host connector entry
+ * point, the systemd unit's ExecStart — is resolved from this value, so it has
+ * to be independent of where the code happens to be loaded from.
  */
 function findPackageRoot(start) {
   let directory = start;

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const ESC = String.fromCharCode(27);
 
 function loadMouse() {
-  return import('../tui/src/mouse/index.tsx');
+  return import('../src/tui/mouse/index.tsx');
 }
 
 test('SGR press, release and motion reports are decoded', async () => {
