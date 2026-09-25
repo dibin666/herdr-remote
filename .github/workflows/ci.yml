@@ -1,0 +1,43 @@
+name: ci
+
+# The gate every change passes before it reaches master. A push to master
+# publishes (see npm-publish.yml), so this has to be green on the pull request,
+# not after the merge.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # A full install: the CLI tests drive a real pty, so node-pty must build.
+      - run: npm ci
+
+      - run: npm run check
+
+      - run: npm run test:all
+
+      - run: npm run build
+
+      # Reported only, until the existing dead code is cleared.
+      - name: Dead code report
+        run: npm run knip -- --no-exit-code

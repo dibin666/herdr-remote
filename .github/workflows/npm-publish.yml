@@ -111,16 +111,15 @@ jobs:
         # `prepack`, which `npm publish` runs.
         run: npm ci
 
+      # The same checks as ci.yml, so nothing reaches npm that a pull request
+      # would have rejected.
+      - name: Check
+        if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
+        run: npm run check
+
       - name: Test
         if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
-        run: |
-          npm test -w herdr-remote-relay
-          npm test -w herdr-remote
-          npm test -w herdr-remote-web
-
-      - name: Typecheck
-        if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
-        run: npm run typecheck
+        run: npm run test:all
 
       # The relay is published first and unconditionally waited on: the CLI
       # depends on it by version range, so a CLI release that lands first would
