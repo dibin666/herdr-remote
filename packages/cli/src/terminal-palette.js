@@ -24,7 +24,7 @@ const { spawnSync } = require('node:child_process');
 // host cannot report a shape the wire rejects.
 const { ANSI_PALETTE_KEYS, sanitizeTerminalPalette } = require('herdr-remote-relay/protocol');
 const { runtimeStatePath, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('./state');
+const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
 
 const ANSI_SLOTS = ANSI_PALETTE_KEYS.length;
 /**

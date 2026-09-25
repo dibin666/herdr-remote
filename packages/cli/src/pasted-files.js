@@ -17,42 +17,17 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { stateDir } = require('./config');
-const { ensureDir } = require('./state');
+const { ensureDir } = require('herdr-remote-relay/state');
+const {
+  PASTE_MAX_BYTES,
+  PASTE_IMAGE_EXTENSIONS,
+  isPasteImageMime,
+  hasImageSignature,
+} = require('herdr-remote-relay/protocol');
 
-const MAX_PASTE_BYTES = 3 * 1024 * 1024; // 3 MB raw payload
 const MAX_SAVED_FILES = 20;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-const MIME_CONFIG = {
-  'image/png': {
-    ext: '.png',
-    check: (buf) =>
-      buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47,
-  },
-  'image/jpeg': {
-    ext: '.jpg',
-    check: (buf) => buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff,
-  },
-  'image/webp': {
-    ext: '.webp',
-    check: (buf) =>
-      buf.length >= 12 &&
-      buf[0] === 0x52 &&
-      buf[1] === 0x49 &&
-      buf[2] === 0x46 &&
-      buf[3] === 0x46 && // 'RIFF'
-      buf[8] === 0x57 &&
-      buf[9] === 0x45 &&
-      buf[10] === 0x42 &&
-      buf[11] === 0x50, // 'WEBP'
-  },
-  'image/gif': {
-    ext: '.gif',
-    check: (buf) =>
-      buf.length >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38, // 'GIF8'
-  },
-};
 
 function getPastedDir() {
   const dir = path.join(stateDir(), 'pasted');
@@ -117,7 +92,7 @@ function cleanPastedDir({
  * writes to state storage with mode 0o600, and returns the absolute local path.
  */
 function savePastedFile({ mime, dataBase64, dir = getPastedDir() }) {
-  if (typeof mime !== 'string' || !Object.hasOwn(MIME_CONFIG, mime)) {
+  if (!isPasteImageMime(mime)) {
     throw new Error(`unsupported MIME type: ${mime}`);
   }
   if (typeof dataBase64 !== 'string') {
@@ -125,22 +100,21 @@ function savePastedFile({ mime, dataBase64, dir = getPastedDir() }) {
   }
 
   const buf = Buffer.from(dataBase64, 'base64');
-  if (buf.length > MAX_PASTE_BYTES) {
+  if (buf.length > PASTE_MAX_BYTES) {
     throw new Error(`file size (${buf.length} bytes) exceeds maximum limit of 3 MB`);
   }
   if (buf.length === 0) {
     throw new Error('file payload is empty');
   }
 
-  const config = MIME_CONFIG[mime];
-  if (!config.check(buf)) {
+  if (!hasImageSignature(mime, buf)) {
     throw new Error(`file magic bytes do not match declared MIME type ${mime}`);
   }
 
   // Prune before writing new file
   cleanPastedDir({ dir });
 
-  const fileName = `${crypto.randomUUID()}${config.ext}`;
+  const fileName = `${crypto.randomUUID()}${PASTE_IMAGE_EXTENSIONS[mime]}`;
   const filePath = path.join(dir, fileName);
 
   fs.writeFileSync(filePath, buf, { mode: 0o600, flag: 'wx' });
@@ -155,11 +129,9 @@ function savePastedFile({ mime, dataBase64, dir = getPastedDir() }) {
 }
 
 module.exports = {
-  MAX_PASTE_BYTES,
   MAX_SAVED_FILES,
   MAX_TOTAL_BYTES,
   MAX_AGE_MS,
-  MIME_CONFIG,
   getPastedDir,
   cleanPastedDir,
   savePastedFile,

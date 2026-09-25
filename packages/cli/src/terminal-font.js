@@ -27,7 +27,7 @@ const {
   sanitizeTerminalFont,
 } = require('herdr-remote-relay/protocol');
 const { runtimeStatePath, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('./state');
+const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
 const { parseBinaryPlist, unarchiveKeyed } = require('./binary-plist');
 
 /** Terminals size fonts in points; CSS pixels are 1/96 inch. */

@@ -17,7 +17,7 @@ const {
   runtimeStatePath,
   stateDir,
 } = require('./config');
-const { ensureDir, randomToken, readJson, writeJsonAtomic } = require('./state');
+const { ensureDir, randomToken, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
 const {
   probeTerminalPalette,
   paletteFromEnvironment,
@@ -46,6 +46,25 @@ function pidAlive(pid) {
   }
 }
 
+/**
+ * What runtime.json holds: this workstation's relay credentials, plus facts
+ * other modules remember there (terminal palette and font).
+ * @typedef {object} RuntimeState
+ * @property {number} [version]
+ * @property {string} hostId
+ * @property {string} hostToken
+ * @property {string} [relayPassword]
+ * @property {string} [mode]
+ * @property {number | null} [relayPid]
+ * @property {number | null} [hostPid]
+ * @property {number | null} [supervisorPid]
+ * @property {string | null} [startedAt]
+ * @property {Array<{ name: string, pid: number, startedAt: string }>} [managedPids]
+ * @property {unknown} [terminalPalette]
+ * @property {unknown} [terminalFont]
+ */
+
+/** @returns {Partial<RuntimeState>} */
 function readRuntime() {
   const state = readJson(runtimeStatePath(), {});
   return state && typeof state === 'object' ? state : {};
@@ -56,6 +75,7 @@ function readRuntime() {
  * workstation uses. These live in the state directory rather than config.json
  * because they are credentials: writeJsonAtomic stores them mode 0600.
  */
+/** @returns {RuntimeState} */
 function ensureRuntime() {
   ensureDir(configDir());
   ensureDir(stateDir());

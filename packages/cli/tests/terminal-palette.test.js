@@ -168,7 +168,7 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
   delete require.cache[require.resolve('../src/service')];
   try {
     const { runtimeStatePath } = require('../src/config');
-    const { ensureDir, writeJsonAtomic, readJson } = require('../src/state');
+    const { ensureDir, writeJsonAtomic, readJson } = require('herdr-remote-relay/state');
     ensureDir(path.join(directory, 'state'));
     writeJsonAtomic(runtimeStatePath(), {
       ...readJson(runtimeStatePath(), {}),

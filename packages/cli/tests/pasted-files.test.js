@@ -5,12 +5,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const {
-  savePastedFile,
-  cleanPastedDir,
-  MIME_CONFIG,
-  MAX_PASTE_BYTES,
-} = require('../src/pasted-files');
+const { savePastedFile, cleanPastedDir } = require('../src/pasted-files');
+const { PASTE_MAX_BYTES, PASTE_IMAGE_EXTENSIONS } = require('herdr-remote-relay/protocol');
 
 // Valid magic byte fixtures for each supported image type
 const FIXTURES = {
@@ -77,7 +73,7 @@ test('savePastedFile derives appropriate extension for all supported MIME types'
       dataBase64: fixture.toString('base64'),
       dir: tmpDir,
     });
-    const ext = MIME_CONFIG[mime].ext;
+    const ext = PASTE_IMAGE_EXTENSIONS[mime];
     assert.ok(savedPath.endsWith(ext), `expected ${savedPath} to end with ${ext}`);
   }
 });
@@ -123,7 +119,7 @@ test('savePastedFile re-checks size limit on host independently of relay', (t) =
   t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // Create oversized PNG buffer (> 3 MB)
-  const oversizedBuf = Buffer.alloc(MAX_PASTE_BYTES + 1024);
+  const oversizedBuf = Buffer.alloc(PASTE_MAX_BYTES + 1024);
   FIXTURES['image/png'].copy(oversizedBuf, 0);
 
   assert.throws(

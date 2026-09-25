@@ -25,7 +25,7 @@ const net = require('node:net');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { inspectSocket } = require('./socket-discovery');
-const { ensureDir } = require('./state');
+const { ensureDir } = require('herdr-remote-relay/state');
 
 /** A Unix socket either accepts at once or is dead; this only guards a hang. */
 const PROBE_TIMEOUT_MS = 1_000;

@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { WebSocket } = require('ws');
 const { loadConfig, hostWebSocketUrl, resolveHostRelayUrl, stateDir } = require('./config');
-const { ensureDir } = require('./state');
+const { ensureDir } = require('herdr-remote-relay/state');
 const { resolveSocketPath, inspectSocket } = require('./socket-discovery');
 const { PtySession } = require('./pty-session');
 const {
@@ -25,6 +25,7 @@ const {
   FRAME_TYPE_OUTPUT,
   PROTOCOL_VERSION,
   TERMINAL_FONT_CHUNK_BYTES,
+  CAPABILITY,
 } = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
 const { loadHostTerminalFont, publicTerminalFont, readFontChunk } = require('./terminal-font');
@@ -327,7 +328,7 @@ class HostConnector {
         arch: process.arch,
         terminalPalette: this.terminalPalette || null,
         terminalFont: publicTerminalFont(this.terminalFont),
-        capabilities: ['host_handoff', 'idle_heartbeat', 'binary_frame_v2'],
+        capabilities: [CAPABILITY.hostHandoff, CAPABILITY.idleHeartbeat, CAPABILITY.binaryFrameV2],
       });
       // The relay sends host_ready with the current browser count. No business
       // heartbeat is started until that message says somebody is watching.

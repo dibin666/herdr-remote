@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { PACKAGE_ROOT, loadConfig, runtimeStatePath, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('./state');
+const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
 const {
   baseEnvironment,
   ensureRuntime,

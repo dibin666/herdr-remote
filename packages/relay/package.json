@@ -40,6 +40,10 @@
       "types": "./dist/relay-config.d.ts",
       "default": "./dist/relay-config.js"
     },
+    "./state": {
+      "types": "./dist/state.d.ts",
+      "default": "./dist/state.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

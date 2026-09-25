@@ -9,7 +9,7 @@ const { spawn } = require('node:child_process');
 
 const { managedPids, pidAlive, recordManagedPid, stopServices } = require('../src/service');
 const { runtimeStatePath } = require('../src/config');
-const { writeJsonAtomic, readJson } = require('../src/state');
+const { writeJsonAtomic, readJson } = require('herdr-remote-relay/state');
 
 // A pid that is certainly not running: above the kernel maximum.
 const DEAD_PID = 4194304;

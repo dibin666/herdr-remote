@@ -13,7 +13,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { PACKAGE_ROOT, loadConfig, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('./state');
+const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
 const { logPath, pidAlive } = require('./service');
 const { findHerdrCommand } = require('./herdr-command');
 

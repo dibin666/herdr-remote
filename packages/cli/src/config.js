@@ -3,6 +3,8 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { DEFAULTS: RELAY_DEFAULTS } = require('herdr-remote-relay/config');
+const { WS_HOST_PATH } = require('herdr-remote-relay/protocol');
 
 /**
  * Locate the package directory by walking up to our own package.json.
@@ -62,15 +64,15 @@ const DEFAULTS = {
     publicUrl: '',
     // Operator-run relay, e.g. wss://herdr.example.com (mode "remote" only).
     remoteUrl: '',
-    // Kept in step with the relay package's own default: the CLI starts a
-    // relay of its own, and a smaller ceiling here would reject an upload the
-    // hosted relay accepts.
-    maxPayloadBytes: 5 * 1024 * 1024,
-    maxClientsPerHost: 16,
-    maxHosts: 1024,
-    maxPendingHandshakes: 1024,
-    maxBufferedBytesPerClient: 4 * 1024 * 1024,
-    hostReconnectGraceMs: 30 * 1000,
+    // The CLI starts a relay of its own, so its limits are the relay
+    // package's: a smaller ceiling here would reject an upload the hosted
+    // relay accepts.
+    maxPayloadBytes: RELAY_DEFAULTS.relay.maxPayloadBytes,
+    maxClientsPerHost: RELAY_DEFAULTS.relay.maxClientsPerHost,
+    maxHosts: RELAY_DEFAULTS.relay.maxHosts,
+    maxPendingHandshakes: RELAY_DEFAULTS.relay.maxPendingHandshakes,
+    maxBufferedBytesPerClient: RELAY_DEFAULTS.relay.maxBufferedBytesPerClient,
+    hostReconnectGraceMs: RELAY_DEFAULTS.relay.hostReconnectGraceMs,
     allowedOrigins: [],
   },
   herdr: {
@@ -82,15 +84,11 @@ const DEFAULTS = {
     autoStart: false,
   },
   auth: {
-    pairingTtlMs: 10 * 60 * 1000,
-    deviceTtlMs: 30 * 24 * 60 * 60 * 1000,
-    maxDevices: 32,
+    pairingTtlMs: RELAY_DEFAULTS.auth.pairingTtlMs,
+    deviceTtlMs: RELAY_DEFAULTS.auth.deviceTtlMs,
+    maxDevices: RELAY_DEFAULTS.auth.maxDevices,
   },
-  cleanup: {
-    intervalMs: 60 * 1000,
-    heartbeatIntervalMs: 30 * 1000,
-    staleAfterMs: 90 * 1000,
-  },
+  cleanup: { ...RELAY_DEFAULTS.cleanup },
   keepalive: {
     manager: 'auto',
   },
@@ -478,19 +476,10 @@ function hostWebSocketUrl(base) {
   if (url.protocol === 'https:') url.protocol = 'wss:';
   const pathname = url.pathname.replace(/\/+$/, '');
   if (!pathname || pathname === '/') {
-    url.pathname = '/ws/host';
-  } else if (!pathname.endsWith('/ws/host')) {
-    url.pathname = `${pathname}/ws/host`;
+    url.pathname = WS_HOST_PATH;
+  } else if (!pathname.endsWith(WS_HOST_PATH)) {
+    url.pathname = `${pathname}${WS_HOST_PATH}`;
   }
-  return url.toString();
-}
-
-function clientWebSocketUrl(locationLike) {
-  const url = new URL(locationLike);
-  if (url.protocol === 'http:') url.protocol = 'ws:';
-  if (url.protocol === 'https:') url.protocol = 'wss:';
-  const pathname = url.pathname.replace(/\/+$/, '');
-  url.pathname = !pathname || pathname === '/' ? '/ws/client' : `${pathname}/ws/client`;
   return url.toString();
 }
 
@@ -517,7 +506,6 @@ module.exports = {
   resolveAdminOrigin,
   resolveHostRelayUrl,
   hostWebSocketUrl,
-  clientWebSocketUrl,
   httpOrigin,
   isLoopbackHost,
   isUnspecifiedAddress,

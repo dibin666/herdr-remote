@@ -20,7 +20,7 @@ const {
   loadConfig,
   resolvePublicUrl,
 } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('./state');
+const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
 const { preferredLanAddress } = require('./net-interfaces');
 
 /**

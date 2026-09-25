@@ -24,7 +24,7 @@ const {
   runsLocalRelay,
   bindAddress,
 } = require('../src/config');
-const { readJson } = require('../src/state');
+const { readJson } = require('herdr-remote-relay/state');
 
 function withTempConfig(run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-settings-'));
