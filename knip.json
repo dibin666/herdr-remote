@@ -2,7 +2,9 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.{js,mjs}"]
+      "entry": ["scripts/*.{js,mjs}"],
+      "ignoreDependencies": ["node-pty", "ws", "esbuild", "@xterm/*"],
+      "ignoreBinaries": ["herdr"]
     },
     "packages/cli": {
       "entry": [
@@ -26,7 +28,8 @@
     },
     "packages/relay/web": {
       "entry": ["src/main.tsx", "src/test/**/*.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["@xterm/addon-canvas"]
     }
   }
 }
