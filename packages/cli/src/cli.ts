@@ -238,7 +238,7 @@ async function main(argv = process.argv.slice(2)) {
       return;
     }
     case 'keepalive': {
-      const keepalive = await import('./keepalive.js');
+      const keepalive = await import('./keepalive/index.js');
       const action = positional[1] || 'status';
       if (action === 'install') printJson(keepalive.install(config));
       else if (action === 'uninstall') printJson(keepalive.uninstall(config));

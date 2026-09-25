@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process';
 import { type Config, loadConfig } from './config.js';
-import { PACKAGE_ROOT, stateDir } from './paths.js';
+import { logPath, PACKAGE_ROOT, stateDir } from './paths.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 import {
   type RuntimeState,
@@ -10,7 +10,7 @@ import {
   recordManagedPid,
   updateRuntime,
 } from './runtime.js';
-import { type ServiceSpec, baseEnvironment, logPath, serviceSpecs } from './service.js';
+import { type ServiceSpec, baseEnvironment, serviceSpecs } from './service.js';
 import { EXIT_REPLACED, EXIT_AUTH_FAILED } from './exit-codes.js';
 import { pidAlive } from './lib/process.js';
 

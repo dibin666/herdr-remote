@@ -57,10 +57,23 @@ function runtimeStatePath(): string {
   return path.join(stateDir(), 'runtime.json');
 }
 
+/** Where a service (relay, host, supervisor) writes its output. */
+function logPath(name: string): string {
+  return path.join(stateDir(), `${name}.log`);
+}
+
 function legacyConfigPath(): string | null {
   return process.env.HERDR_PLUGIN_CONFIG_DIR
     ? path.join(process.env.HERDR_PLUGIN_CONFIG_DIR, 'config.json')
     : null;
 }
 
-export { PACKAGE_ROOT, configDir, stateDir, configPath, runtimeStatePath, legacyConfigPath };
+export {
+  PACKAGE_ROOT,
+  configDir,
+  stateDir,
+  configPath,
+  runtimeStatePath,
+  logPath,
+  legacyConfigPath,
+};

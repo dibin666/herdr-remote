@@ -5,14 +5,23 @@
 // every browser attached to the workstation, so start only starts.
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test, vi } from 'vitest';
 import * as lifecycle from '../src/lifecycle.js';
+
+// Should the keep-alive mock below ever stop applying, lifecycle falls through
+// to the real service layer; keep it out of the real home directory.
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-lifecycle-'));
+process.env.HERDR_REMOTE_CONFIG_DIR = path.join(home, 'config');
+process.env.HERDR_REMOTE_STATE_DIR = path.join(home, 'state');
 
 // The keep-alive manager as lifecycle sees it: a status to report, and a
 // restart that is only counted.
 const manager = vi.hoisted(() => ({ status: null, restarts: [] }));
 
-vi.mock('../src/keepalive.js', async (importOriginal) => ({
+vi.mock('../src/keepalive/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   status: () => manager.status,
   restart: () => {

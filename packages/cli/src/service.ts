@@ -16,7 +16,7 @@ import {
 } from './herdr-command.js';
 import { pidAlive } from './lib/process.js';
 import { preferredLanAddress } from './net-interfaces.js';
-import { PACKAGE_ROOT, stateDir } from './paths.js';
+import { logPath, PACKAGE_ROOT, stateDir } from './paths.js';
 import { healthUrl, hostHeaders, requestJson, waitForHost, waitForRelay } from './relay-client.js';
 import {
   bindAddress,
@@ -44,10 +44,6 @@ export interface ServiceSpec {
   command: string;
   args: string[];
   env: Record<string, string>;
-}
-
-export function logPath(name: string): string {
-  return path.join(stateDir(), `${name}.log`);
 }
 
 export function relayBinPath(): string {

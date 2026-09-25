@@ -33,7 +33,7 @@ import {
 } from '../runtime.js';
 import { pair, readLogTail } from '../service.js';
 import { fullStatus, restartAll, startAll, stopAll } from '../lifecycle.js';
-import * as keepalive from '../keepalive.js';
+import * as keepalive from '../keepalive/index.js';
 import {
   canSelfUpdate,
   checkForUpdate,
@@ -51,16 +51,9 @@ export type { NetworkAddress } from '../net-interfaces.js';
 /** Screens only call `t(key, values)`; the full Translate type lives in i18n. */
 export type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-export type KeepaliveStatus = {
-  manager: string;
-  installed: boolean;
-  active: boolean;
-  enabled: boolean;
-  linger?: boolean;
-  pid?: number | null;
-  unitPath?: string;
-  state?: string;
-};
+import type { KeepaliveStatus } from '../keepalive/index.js';
+
+export type { KeepaliveStatus };
 
 export type Status = {
   ok: boolean;

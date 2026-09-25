@@ -141,8 +141,7 @@
         "scripts/capture-herdr-screens.mjs",
         "packages/relay/web/src/utils/inputField.ts",
         "scripts/e2e-latency-harness.mjs",
-        "packages/relay/web/src/utils/virtualKeys.ts",
-        "packages/cli/src/keepalive.js"
+        "packages/relay/web/src/utils/virtualKeys.ts"
       ],
       "linter": {
         "rules": {

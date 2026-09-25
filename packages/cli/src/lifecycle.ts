@@ -6,7 +6,7 @@
 // here so the managed and unmanaged paths behave the same from the outside.
 
 import { type Config, loadConfig } from './config.js';
-import * as keepalive from './keepalive.js';
+import * as keepalive from './keepalive/index.js';
 import { restartServices, startServices, statusServices, stopServices } from './service.js';
 
 function managerInUse(config: Config) {

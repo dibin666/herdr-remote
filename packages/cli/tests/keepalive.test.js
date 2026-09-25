@@ -11,7 +11,7 @@ import {
   serviceEnvironment,
   servicePath,
   systemdEnvironmentLine,
-} from '../src/keepalive.js';
+} from '../src/keepalive/index.js';
 
 test('the systemd unit restarts the supervisor and installs into the user target', () => {
   const unit = renderSystemdUnit({
