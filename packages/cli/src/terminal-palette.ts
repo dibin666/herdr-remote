@@ -26,8 +26,7 @@ import {
   type HostTerminalPalette,
   sanitizeTerminalPalette,
 } from 'herdr-remote-relay/protocol';
-import { runtimeStatePath, stateDir } from './paths.js';
-import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import { readRuntime, updateRuntime } from './runtime.js';
 
 const ANSI_SLOTS = ANSI_PALETTE_KEYS.length;
 /**
@@ -284,9 +283,9 @@ function rememberTerminalPalette(palette: unknown): HostTerminalPalette | null {
   const clean = sanitizePalette(palette);
   if (!clean) return null;
   try {
-    ensureDir(stateDir());
-    const state = readJson<Record<string, unknown>>(runtimeStatePath(), {});
-    writeJsonAtomic(runtimeStatePath(), { ...state, terminalPalette: clean });
+    updateRuntime((state) => {
+      state.terminalPalette = clean;
+    });
   } catch {
     // A palette is a nicety; failing to remember it must not break a start.
   }
@@ -296,9 +295,7 @@ function rememberTerminalPalette(palette: unknown): HostTerminalPalette | null {
 /** The palette a previous start captured from a terminal, if any. */
 function rememberedTerminalPalette(): HostTerminalPalette | null {
   try {
-    return sanitizePalette(
-      readJson<{ terminalPalette?: unknown }>(runtimeStatePath(), {}).terminalPalette,
-    );
+    return sanitizePalette(readRuntime().terminalPalette);
   } catch {
     return null;
   }
@@ -343,6 +340,29 @@ function captureTerminalPalette({
   return palette;
 }
 
+/**
+ * The colors of the terminal this workstation is looked at through.
+ *
+ * Asked once per process, from whichever start path has a real terminal, and
+ * remembered in the state file: a later start from a service manager has no
+ * terminal to ask, and the workstation's appearance has not changed just
+ * because systemd, and not a person, launched it this time.
+ */
+let cachedHostPalette: HostTerminalPalette | null | undefined;
+function hostTerminalPalette({ refresh = false } = {}): HostTerminalPalette | null {
+  if (!refresh && cachedHostPalette !== undefined) return cachedHostPalette;
+  const inherited = paletteFromEnvironment();
+  if (inherited) {
+    cachedHostPalette = inherited;
+    return cachedHostPalette;
+  }
+  const probed = probeTerminalPalette();
+  // Nothing to ask: fall back to what a start with a terminal wrote down,
+  // re-validated, because a state file is not a trusted wire either.
+  cachedHostPalette = probed ? rememberTerminalPalette(probed) : rememberedTerminalPalette();
+  return cachedHostPalette;
+}
+
 export {
   ANSI_KEYS,
   ANSI_SLOTS,
@@ -354,6 +374,7 @@ export {
   paletteFromEnvironment,
   probeTerminalPalette,
   resolveHostPalette,
+  hostTerminalPalette,
   captureTerminalPalette,
   rememberTerminalPalette,
   rememberedTerminalPalette,

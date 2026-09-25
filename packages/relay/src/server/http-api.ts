@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import { URL } from 'node:url';
+import type { PairStartResponse } from '../protocol/http.js';
 import { PROTOCOL_VERSION } from '../protocol/index.js';
 import { PACKAGE_ROOT } from '../relay-config.js';
 import {
@@ -158,11 +159,12 @@ const startPairing: Handler = (relay, req, res) => {
       hostId,
       String(relay.config.relay.publicUrl).replace(/\/$/, ''),
     );
-    sendJsonResponse(res, 200, {
+    const answer: PairStartResponse = {
       ok: true,
       ...pairing,
       pairUrl: `${pairing.publicUrl}/?pairCode=${encodeURIComponent(pairing.code)}`,
-    });
+    };
+    sendJsonResponse(res, 200, answer);
   } catch (error) {
     const { code, message } = error as NodeJS.ErrnoException;
     sendError(res, 409, code || 'pairing_failed', message);

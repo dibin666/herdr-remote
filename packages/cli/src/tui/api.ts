@@ -24,16 +24,14 @@ import {
   setField,
   validateDraft,
 } from '../settings-model.js';
+import { extractPairingCode, requestJson } from '../relay-client.js';
 import {
   ensureRuntime,
-  extractPairingCode,
-  pair,
-  readLogTail,
   readRuntime,
   regenerateHostIdentity,
-  requestJson,
   setRelayPassword,
-} from '../service.js';
+} from '../runtime.js';
+import { pair, readLogTail } from '../service.js';
 import { fullStatus, restartAll, startAll, stopAll } from '../lifecycle.js';
 import * as keepalive from '../keepalive.js';
 import {

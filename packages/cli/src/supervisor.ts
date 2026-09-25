@@ -1,17 +1,16 @@
 import fs from 'node:fs';
 import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process';
 import { type Config, loadConfig } from './config.js';
-import { PACKAGE_ROOT, runtimeStatePath, stateDir } from './paths.js';
-import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import { PACKAGE_ROOT, stateDir } from './paths.js';
+import { ensureDir } from 'herdr-remote-relay/state';
 import {
   type RuntimeState,
-  baseEnvironment,
   ensureRuntime,
-  logPath,
   managedPids,
   recordManagedPid,
-  serviceSpecs,
-} from './service.js';
+  updateRuntime,
+} from './runtime.js';
+import { type ServiceSpec, baseEnvironment, logPath, serviceSpecs } from './service.js';
 import { EXIT_REPLACED, EXIT_AUTH_FAILED } from './exit-codes.js';
 import { pidAlive } from './lib/process.js';
 
@@ -20,8 +19,6 @@ const MAX_BACKOFF_MS = 30_000;
 // A child that stayed up this long is considered healthy, so the next crash
 // starts backing off from scratch instead of inheriting an old penalty.
 const HEALTHY_UPTIME_MS = 30_000;
-
-type ServiceSpec = ReturnType<typeof serviceSpecs>[number];
 
 /** Something the supervisor did, as it reports it. */
 export interface SupervisorEvent {
@@ -252,20 +249,20 @@ class Supervisor {
 
   persistPids(): void {
     try {
-      const current = readJson<Partial<RuntimeState>>(runtimeStatePath(), {});
-      current.supervisorPid = process.pid;
-      current.relayPid = this.children.get('relay')?.pid || null;
-      current.hostPid = this.children.get('host')?.pid || null;
-      current.startedAt = current.startedAt || new Date().toISOString();
-      current.mode = this.config.relay.mode;
-      // Merge into the ledger rather than replacing it, so a pid recorded by
-      // another writer is never dropped and left running with nobody tracking
-      // it.
-      recordManagedPid(current, 'supervisor', process.pid);
-      for (const [name, entry] of this.children) {
-        if (entry.pid) recordManagedPid(current, name, entry.pid);
-      }
-      writeJsonAtomic(runtimeStatePath(), current);
+      updateRuntime((current) => {
+        current.supervisorPid = process.pid;
+        current.relayPid = this.children.get('relay')?.pid || null;
+        current.hostPid = this.children.get('host')?.pid || null;
+        current.startedAt = current.startedAt || new Date().toISOString();
+        current.mode = this.config.relay.mode;
+        // Merge into the ledger rather than replacing it, so a pid recorded by
+        // another writer is never dropped and left running with nobody tracking
+        // it.
+        recordManagedPid(current, 'supervisor', process.pid);
+        for (const [name, entry] of this.children) {
+          if (entry.pid) recordManagedPid(current, name, entry.pid);
+        }
+      });
     } catch (error) {
       process.stderr.write(
         `herdr-remote supervisor: could not persist pids: ${(error as Error).message}\n`,
@@ -306,15 +303,15 @@ class Supervisor {
     }
     await Promise.all(pending);
     try {
-      const current = readJson<Partial<RuntimeState>>(runtimeStatePath(), {});
-      current.supervisorPid = null;
-      current.relayPid = null;
-      current.hostPid = null;
-      current.startedAt = null;
-      current.managedPids = (current.managedPids || []).filter(
-        (entry) => entry && pidAlive(entry.pid),
-      );
-      writeJsonAtomic(runtimeStatePath(), current);
+      updateRuntime((current) => {
+        current.supervisorPid = null;
+        current.relayPid = null;
+        current.hostPid = null;
+        current.startedAt = null;
+        current.managedPids = (current.managedPids || []).filter(
+          (entry) => entry && pidAlive(entry.pid),
+        );
+      });
     } catch {}
   }
 }

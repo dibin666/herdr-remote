@@ -6,7 +6,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { pidAlive } from '../src/lib/process.js';
-import { managedPids, recordManagedPid, stopServices } from '../src/service.js';
+import { managedPids, recordManagedPid } from '../src/runtime.js';
+import { stopServices } from '../src/service.js';
 import { runtimeStatePath } from '../src/paths.js';
 import { writeJsonAtomic, readJson } from 'herdr-remote-relay/state';
 

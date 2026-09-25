@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { LANGUAGES, loadConfig, migrateLegacyConfig } from './config.js';
 import { PACKAGE_ROOT, configPath, stateDir } from './paths.js';
+import { extractPairingCode } from './relay-client.js';
 import { resolvePublicUrl } from './relay-urls.js';
 import { type Translate, createTranslator, detectLocale } from './i18n/index.js';
 import type { fullStatus } from './lifecycle.js';
@@ -125,7 +126,7 @@ function describeStatus(status: FullStatus, t: Translate): string {
   }
   if (status.relay.health && status.relay.health.ok === false) {
     lines.push(
-      `${t('overview.relay')}: ${t('overview.unreachable', { message: status.relay.health.message })}`,
+      `${t('overview.relay')}: ${t('overview.unreachable', { message: status.relay.health.message ?? '' })}`,
     );
   }
   return lines.join('\n');
@@ -217,7 +218,7 @@ async function main(argv = process.argv.slice(2)) {
         printJson(pairing);
         return;
       }
-      const code = service.extractPairingCode(pairing);
+      const code = extractPairingCode(pairing);
       const url =
         pairing.pairUrl ||
         `${resolvePublicUrl(config, preferredLanAddress())}/?pairCode=${encodeURIComponent(code)}`;

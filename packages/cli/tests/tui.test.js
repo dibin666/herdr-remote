@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readRuntime, setRelayPassword } from '../src/service.js';
+import { readRuntime, setRelayPassword } from '../src/runtime.js';
 import { loadConfig } from '../src/config.js';
 import { bindAddress } from '../src/relay-urls.js';
 

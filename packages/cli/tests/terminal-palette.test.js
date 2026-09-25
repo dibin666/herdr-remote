@@ -180,7 +180,7 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
 
     // A service manager start has no terminal to ask, but the workstation has
     // not changed color since the start that did.
-    const { hostTerminalPalette } = await import('../src/service.js');
+    const { hostTerminalPalette } = await import('../src/terminal-palette.js');
     assert.equal(hostTerminalPalette().background, '#222226');
   } finally {
     for (const [key, value] of [

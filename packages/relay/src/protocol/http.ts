@@ -1,5 +1,5 @@
 // Bodies of the relay's HTTP API: GET /api/info, /api/status and
-// /api/admin/status. Browser-safe: types only.
+// /api/admin/status, and POST /api/pair/start. Browser-safe: types only.
 
 export interface RelayInfoResponse {
   ok: boolean;
@@ -161,4 +161,17 @@ export interface AdminStatusResponse {
   remoteAdminUrl?: string;
   relayMode?: 'local' | 'remote';
   [key: string]: unknown;
+}
+
+/** POST /api/pair/start, answered to a workstation's own host token. */
+export interface PairStartResponse {
+  ok: true;
+  code: string;
+  hostId: string;
+  publicUrl: string;
+  /** Epoch milliseconds. */
+  expiresAt: number;
+  expiresAtIso: string;
+  /** The web app's address with the code filled in. */
+  pairUrl: string;
 }

@@ -24,8 +24,7 @@ import {
   TERMINAL_FONT_STYLES,
   sanitizeTerminalFont,
 } from 'herdr-remote-relay/protocol';
-import { runtimeStatePath, stateDir } from './paths.js';
-import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import { readRuntime, writeRuntime } from './runtime.js';
 import { parseBinaryPlist, unarchiveKeyed } from './binary-plist.js';
 
 /** Terminals size fonts in points; CSS pixels are 1/96 inch. */
@@ -1288,11 +1287,10 @@ function rememberTerminalFont(detected) {
   const clean = sanitizeDetected(detected);
   if (!clean) return null;
   try {
-    ensureDir(stateDir());
-    const state = readJson(runtimeStatePath(), {});
+    const state = readRuntime();
     const previous = state.terminalFont;
     if (!previous || JSON.stringify(previous) !== JSON.stringify(clean)) {
-      writeJsonAtomic(runtimeStatePath(), { ...state, terminalFont: clean });
+      writeRuntime({ ...state, terminalFont: clean });
     }
   } catch {
     // A font is a nicety; failing to remember it must not break a start.
@@ -1302,7 +1300,7 @@ function rememberTerminalFont(detected) {
 
 function rememberedTerminalFont() {
   try {
-    return sanitizeDetected(readJson(runtimeStatePath(), {}).terminalFont);
+    return sanitizeDetected(readRuntime().terminalFont);
   } catch {
     return null;
   }

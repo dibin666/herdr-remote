@@ -6,3 +6,4 @@ export * from './frames.js';
 export * from './terminal.js';
 export * from './messages.js';
 export * from './paste.js';
+export type * from './http.js';
