@@ -36,7 +36,7 @@ const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
     aria-hidden="true"
     className={cn(
       'shrink-0',
-      active ? 'text-tui-accent' : 'text-tui-faint group-hover:text-tui-accent'
+      active ? 'text-tui-accent' : 'text-tui-faint group-hover:text-tui-accent',
     )}
   >
     {GLYPH.cursor}
@@ -98,7 +98,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
       'info',
       translate(nextLang, 'toasts.switchedLanguage', {
         lang: nextLang === 'zh' ? '简体中文' : 'English',
-      })
+      }),
     );
   };
 
@@ -108,11 +108,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         <h2 className="text-tui font-bold uppercase text-tui-accent">
           {t('mobile.sessionControls')}
         </h2>
-        <Button
-          variant="ghost"
-          onClick={onClose}
-          aria-label={t('mobile.closeSessionControls')}
-        >
+        <Button variant="ghost" onClick={onClose} aria-label={t('mobile.closeSessionControls')}>
           esc
         </Button>
       </div>
@@ -129,12 +125,13 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         tone={status.level === 'ok' ? 'ok' : status.level === 'bad' ? 'bad' : 'warn'}
         bodyClassName="space-y-1.5"
       >
-        <div className="flex items-center justify-between gap-2" aria-label={t('mobile.connectionStatusAria')}>
+        <div
+          className="flex items-center justify-between gap-2"
+          aria-label={t('mobile.connectionStatusAria')}
+        >
           <div className="flex min-w-0 items-center gap-1.5">
             <StatusDot level={status.level} />
-            <span className="truncate text-tui uppercase text-tui-text">
-              {status.label}
-            </span>
+            <span className="truncate text-tui uppercase text-tui-text">{status.label}</span>
             {connectionState === 'connected' && rttMs !== null && (
               <span className="text-tui-sm text-tui-muted">{rttMs}ms</span>
             )}
@@ -150,7 +147,11 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           <p className="text-tui-sm leading-snug text-tui-muted">{stateDetail}</p>
         )}
 
-        {hostId && <Row label={t('common.host')} labelWidth={9}>{hostId}</Row>}
+        {hostId && (
+          <Row label={t('common.host')} labelWidth={9}>
+            {hostId}
+          </Row>
+        )}
 
         <button
           type="button"
@@ -215,10 +216,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         <button
           type="button"
           onClick={() => updateSettings({ toolbarVisible: !settings.toolbarVisible })}
-          className={cn(
-            actionRowClass,
-            settings.toolbarVisible ? activeRowClass : idleRowClass
-          )}
+          className={cn(actionRowClass, settings.toolbarVisible ? activeRowClass : idleRowClass)}
           aria-label={t('mobile.keybarAria')}
           aria-pressed={settings.toolbarVisible}
         >

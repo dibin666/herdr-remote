@@ -4,11 +4,17 @@ import { TerminalProvider } from '../context/TerminalContext';
 import { KeyToolbar } from '../components/KeyToolbar';
 import { TerminalView } from '../components/TerminalView';
 import { saveSettings } from '../utils/storage';
-import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, sanitizeVirtualKeys } from '../utils/virtualKeys';
+import {
+  ALL_AVAILABLE_KEYS,
+  DEFAULT_TOOLBAR_KEYS,
+  sanitizeVirtualKeys,
+} from '../utils/virtualKeys';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
-const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] }).__xtermInstances;
-const webSocketInstances = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] }).__webSocketInstances;
+const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
+  .__xtermInstances;
+const webSocketInstances = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] })
+  .__webSocketInstances;
 
 // Typed arrays from the Node realm fail `instanceof Uint8Array` under jsdom, so
 // decode structurally instead of filtering by constructor identity.
@@ -32,13 +38,19 @@ async function mount() {
     <TerminalProvider>
       <TerminalView isActive={true} />
       <KeyToolbar />
-    </TerminalProvider>
+    </TerminalProvider>,
   );
   await waitFor(() => expect(webSocketInstances.length).toBe(1));
   act(() => {
     webSocketInstances[0].simulateOpen();
     webSocketInstances[0].simulateMessage(
-      JSON.stringify({ type: 'ready', role: 'controller', controllerId: 'me', hostId: 'host-1', clientId: 'me' })
+      JSON.stringify({
+        type: 'ready',
+        role: 'controller',
+        controllerId: 'me',
+        hostId: 'host-1',
+        clientId: 'me',
+      }),
     );
   });
   webSocketInstances[0].sent.length = 0;
@@ -75,14 +87,18 @@ describe('Key bar modifiers', () => {
 
   it("sends Shift+Tab from Claude's inline shortcut key", async () => {
     await mount();
-    act(() => webSocketInstances[0].simulateMessage(JSON.stringify({
-      type: 'agent_status',
-      focusedPaneId: 'w1:p1',
-      focusedAgent: 'claude',
-      counts: {},
-      total: 0,
-      agents: [],
-    })));
+    act(() =>
+      webSocketInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'agent_status',
+          focusedPaneId: 'w1:p1',
+          focusedAgent: 'claude',
+          counts: {},
+          total: 0,
+          agents: [],
+        }),
+      ),
+    );
     fireEvent.click(screen.getByTestId('agent-key-mode'));
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[Z']));
   });
@@ -126,15 +142,32 @@ describe('Default key bar layout', () => {
   it('gives an untouched copy of an earlier default the new key', () => {
     const byId = new Map(ALL_AVAILABLE_KEYS.map((key) => [key.id, key]));
     const previous = [
-      'esc', 'tab', 'shift_tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
-      'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter',
+      'esc',
+      'tab',
+      'shift_tab',
+      'ctrl',
+      'alt',
+      'left',
+      'up',
+      'down',
+      'right',
+      'drawer_chords',
+      'drawer_symbols',
+      'drawer_fn',
+      'enter',
     ].map((id) => byId.get(id)!);
-    expect(sanitizeVirtualKeys(previous).map((k) => k.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((k) => k.id));
+    expect(sanitizeVirtualKeys(previous).map((k) => k.id)).toEqual(
+      DEFAULT_TOOLBAR_KEYS.map((k) => k.id),
+    );
   });
 
-  it("leaves a layout the user arranged alone", () => {
+  it('leaves a layout the user arranged alone', () => {
     const shiftTab = ALL_AVAILABLE_KEYS.find((key) => key.id === 'shift_tab')!;
-    const custom = [...DEFAULT_TOOLBAR_KEYS.slice(0, 2), shiftTab, ...DEFAULT_TOOLBAR_KEYS.slice(2)].reverse();
+    const custom = [
+      ...DEFAULT_TOOLBAR_KEYS.slice(0, 2),
+      shiftTab,
+      ...DEFAULT_TOOLBAR_KEYS.slice(2),
+    ].reverse();
     expect(sanitizeVirtualKeys(custom).map((k) => k.id)).toContain('shift_tab');
   });
 });

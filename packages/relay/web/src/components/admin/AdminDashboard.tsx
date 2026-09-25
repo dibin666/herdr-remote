@@ -63,11 +63,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   showBack = false,
 }) => {
   const { settings, updateSettings, addToast, t } = useTerminal();
-  const activeRelayOrigin = relayHttpBase(settings.wsUrl)
-    || (typeof window !== 'undefined' ? window.location.origin : 'local');
-  const savedAdminToken = settings.adminTokens?.[activeRelayOrigin]
-    || (activeRelayOrigin === (typeof window !== 'undefined' ? window.location.origin : 'local') ? settings.adminToken : '')
-    || '';
+  const activeRelayOrigin =
+    relayHttpBase(settings.wsUrl) ||
+    (typeof window !== 'undefined' ? window.location.origin : 'local');
+  const savedAdminToken =
+    settings.adminTokens?.[activeRelayOrigin] ||
+    (activeRelayOrigin === (typeof window !== 'undefined' ? window.location.origin : 'local')
+      ? settings.adminToken
+      : '') ||
+    '';
   const [data, setData] = useState<AdminStatusResponse | null>(null);
   const [relayInfo, setRelayInfo] = useState<RelayInfoResponse | null>(null);
   const [infoLoaded, setInfoLoaded] = useState<boolean>(false);
@@ -76,7 +80,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isAuthError, setIsAuthError] = useState<boolean>(false);
   const [refreshInterval, setRefreshInterval] = useState<number>(3000); // 3 seconds
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys' | 'devices'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys' | 'devices'>(
+    'overview',
+  );
   const [copiedPairCmd, setCopiedPairCmd] = useState(false);
 
   /**
@@ -147,8 +153,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             !settings.wsUrl.startsWith('/') &&
             !settings.wsUrl.includes('localhost') &&
             !settings.wsUrl.includes('127.0.0.1') &&
-            (typeof window !== 'undefined' &&
-              !settings.wsUrl.startsWith(window.location.origin.replace('http', 'ws')))
+            typeof window !== 'undefined' &&
+            !settings.wsUrl.startsWith(window.location.origin.replace('http', 'ws')),
         );
 
         setRelayInfo({
@@ -210,7 +216,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Remote operator mode: strictly request GET /api/admin/status with X-Relay-Admin-Token
       try {
         setLoading(true);
-        const targetEndpoint = relayEndpoint(settings.wsUrl, relayInfo?.adminStatusPath || '/api/admin/status');
+        const targetEndpoint = relayEndpoint(
+          settings.wsUrl,
+          relayInfo?.adminStatusPath || '/api/admin/status',
+        );
         const headers: Record<string, string> = {
           Accept: 'application/json',
           'X-Relay-Admin-Token': activeAdminToken,
@@ -263,7 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (res.status === 401 || res.status === 403) {
         setIsAuthError(true);
         setError(
-          `Authentication failed (HTTP ${res.status}): Access denied. Please configure an authorized token or pair with the host.`
+          `Authentication failed (HTTP ${res.status}): Access denied. Please configure an authorized token or pair with the host.`,
         );
         setData(null);
         return;
@@ -286,28 +295,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [infoLoaded, isRemoteRelay, activeAdminToken, relayInfo, settings.token, settings.wsUrl, activeRelayOrigin, t]);
+  }, [
+    infoLoaded,
+    isRemoteRelay,
+    activeAdminToken,
+    relayInfo,
+    settings.token,
+    settings.wsUrl,
+    activeRelayOrigin,
+    t,
+  ]);
 
   /**
    * Revoke a paired device. The relay drops the stored token hash and closes
    * whatever sockets it still holds, so this refreshes straight afterwards to
    * show the client disappearing rather than waiting for the poll interval.
    */
-  const revokeDevice = useCallback(async (deviceId: string) => {
-    try {
-      const res = await fetch(relayEndpoint(settings.wsUrl, `/api/admin/devices/${encodeURIComponent(deviceId)}`), {
-        method: 'DELETE',
-        headers: { Accept: 'application/json', 'X-Relay-Admin-Token': activeAdminToken },
-      });
-      if (!res.ok) {
+  const revokeDevice = useCallback(
+    async (deviceId: string) => {
+      try {
+        const res = await fetch(
+          relayEndpoint(settings.wsUrl, `/api/admin/devices/${encodeURIComponent(deviceId)}`),
+          {
+            method: 'DELETE',
+            headers: { Accept: 'application/json', 'X-Relay-Admin-Token': activeAdminToken },
+          },
+        );
+        if (!res.ok) {
+          setError(t('admin.revokeFailed'));
+          return;
+        }
+        await fetchStatus();
+      } catch {
         setError(t('admin.revokeFailed'));
-        return;
       }
-      await fetchStatus();
-    } catch {
-      setError(t('admin.revokeFailed'));
-    }
-  }, [activeAdminToken, fetchStatus, settings.wsUrl, t]);
+    },
+    [activeAdminToken, fetchStatus, settings.wsUrl, t],
+  );
 
   useEffect(() => {
     if (!infoLoaded) return;
@@ -376,17 +400,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
    * user. A relay too old to report the figure only knows about connections,
    * which is the closest honest fallback.
    */
-  const activeUserCount = data ? data.activeUserCount ?? data.clients?.length ?? 0 : 0;
+  const activeUserCount = data ? (data.activeUserCount ?? data.clients?.length ?? 0) : 0;
 
   const tabs = data
     ? [
         { id: 'overview', label: t('admin.tabOverview'), index: 1 },
-        { id: 'clients', label: t('admin.tabClients', { count: data.clients?.length || 0 }), index: 2 },
+        {
+          id: 'clients',
+          label: t('admin.tabClients', { count: data.clients?.length || 0 }),
+          index: 2,
+        },
         { id: 'ptys', label: t('admin.tabPtys', { count: data.ptys?.length || 0 }), index: 3 },
         // The roster only exists in the operator response, so the tab only
         // exists once this dashboard is authenticated as the operator.
         ...(data.devices
-          ? [{ id: 'devices', label: t('admin.tabDevices', { count: data.devices.length }), index: 4 }]
+          ? [
+              {
+                id: 'devices',
+                label: t('admin.tabDevices', { count: data.devices.length }),
+                index: 4,
+              },
+            ]
           : []),
       ]
     : [];
@@ -436,24 +470,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   /** Hosts the pairing roster remembers but the relay has no socket for. */
   const offlineHostCount = data
-    ? new Set((data.devices || []).map((device) => device.hostId).filter(
-      (hostId) => hostId && !(data.hosts || []).some((host) => host.id === hostId)
-    )).size
+    ? new Set(
+        (data.devices || [])
+          .map((device) => device.hostId)
+          .filter((hostId) => hostId && !(data.hosts || []).some((host) => host.id === hostId)),
+      ).size
     : 0;
 
-  const toolbarStart = showBack && onBackToTerminal ? (
-    <Button
-      variant="ghost"
-      onClick={onBackToTerminal}
-      title={t('admin.returnToTerminal')}
-      aria-label={t('admin.returnToTerminal')}
-      glyph={GLYPH.arrowLeft}
-      brackets={false}
-      className={TOOLBAR_FIELD}
-    >
-      <span className="sr-only">{t('admin.returnToTerminal')}</span>
-    </Button>
-  ) : null;
+  const toolbarStart =
+    showBack && onBackToTerminal ? (
+      <Button
+        variant="ghost"
+        onClick={onBackToTerminal}
+        title={t('admin.returnToTerminal')}
+        aria-label={t('admin.returnToTerminal')}
+        glyph={GLYPH.arrowLeft}
+        brackets={false}
+        className={TOOLBAR_FIELD}
+      >
+        <span className="sr-only">{t('admin.returnToTerminal')}</span>
+      </Button>
+    ) : null;
 
   /* The board's own controls, on the tab row: where the relay is, and how
      often to ask it. They only mean something once there is data to refresh. */
@@ -498,7 +535,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
 
   const showRemoteGuide = infoLoaded && isRemoteRelay && !isOperatorView && !isSameOriginRelay;
-  const showOperatorSignIn = infoLoaded && isRemoteRelay && (isOperatorView || isSameOriginRelay) && !data;
+  const showOperatorSignIn =
+    infoLoaded && isRemoteRelay && (isOperatorView || isSameOriginRelay) && !data;
 
   return (
     <AppFrame
@@ -509,7 +547,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       toolbarStart={toolbarStart}
       toolbarAside={toolbarAside}
       hints={[
-        ...(data ? [{ keys: '1–4', action: t('admin.hintTabs') }, { keys: 'r', action: t('admin.hintRefresh') }] : []),
+        ...(data
+          ? [
+              { keys: '1–4', action: t('admin.hintTabs') },
+              { keys: 'r', action: t('admin.hintRefresh') },
+            ]
+          : []),
         ...(onBackToTerminal ? [{ keys: 'esc', action: t('admin.hintBack') }] : []),
       ]}
       footerAside={
@@ -547,9 +590,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <Button variant="primary" onClick={handleOpenRemoteAdmin} glyph={GLYPH.arrowRight}>
               {t('admin.openRemoteAdminBtn')}
             </Button>
-            <Button onClick={() => setIsOperatorView(true)}>
-              {t('admin.relayAdminLoginBtn')}
-            </Button>
+            <Button onClick={() => setIsOperatorView(true)}>{t('admin.relayAdminLoginBtn')}</Button>
           </div>
         </Panel>
       )}
@@ -567,9 +608,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <form onSubmit={handleSaveAdminToken} className="space-y-2">
             <div className="space-y-1">
-              <FieldLabel htmlFor="relay-admin-token">
-                {t('admin.relayAdminTokenLabel')}
-              </FieldLabel>
+              <FieldLabel htmlFor="relay-admin-token">{t('admin.relayAdminTokenLabel')}</FieldLabel>
               <Input
                 id="relay-admin-token"
                 type="password"
@@ -668,7 +707,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <StatTile
                   label={t('admin.connectedHosts')}
                   value={data.hosts?.length || 0}
-                  sub={offlineHostCount ? t('admin.hostsOfflineSub', { count: offlineHostCount }) : undefined}
+                  sub={
+                    offlineHostCount
+                      ? t('admin.hostsOfflineSub', { count: offlineHostCount })
+                      : undefined
+                  }
                   tone={data.hosts?.length ? 'ok' : 'idle'}
                 />
                 <StatTile
@@ -685,13 +728,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
                 <StatTile
                   label={t('admin.statInbound')}
-                  value={t('admin.perSecond', { value: formatBytes(data.throughput?.bytesInPerSec || 0) })}
+                  value={t('admin.perSecond', {
+                    value: formatBytes(data.throughput?.bytesInPerSec || 0),
+                  })}
                   sub={t('admin.statTotal', { value: formatBytes(data.throughput?.bytesIn || 0) })}
                   tone="accent"
                 />
                 <StatTile
                   label={t('admin.statOutbound')}
-                  value={t('admin.perSecond', { value: formatBytes(data.throughput?.bytesOutPerSec || 0) })}
+                  value={t('admin.perSecond', {
+                    value: formatBytes(data.throughput?.bytesOutPerSec || 0),
+                  })}
                   sub={t('admin.statTotal', { value: formatBytes(data.throughput?.bytesOut || 0) })}
                   tone="ok"
                 />
@@ -699,19 +746,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   label={t('admin.uptime')}
                   value={formatUptime(data.uptimeSeconds || 0, t, true)}
                   title={formatUptime(data.uptimeSeconds || 0, t)}
-                  sub={data.startTime
-                    ? t('admin.startedAt', { time: new Date(data.startTime).toLocaleTimeString() })
-                    : t('admin.startedRecently')}
+                  sub={
+                    data.startTime
+                      ? t('admin.startedAt', {
+                          time: new Date(data.startTime).toLocaleTimeString(),
+                        })
+                      : t('admin.startedRecently')
+                  }
                 />
               </div>
 
-              <HostsTable hosts={data.hosts || []} devices={data.devices} clients={data.clients || []} />
+              <HostsTable
+                hosts={data.hosts || []}
+                devices={data.devices}
+                clients={data.clients || []}
+              />
             </div>
           )}
 
-          {activeTab === 'clients' && (
-            <ClientsTable clients={data.clients || []} />
-          )}
+          {activeTab === 'clients' && <ClientsTable clients={data.clients || []} />}
 
           {activeTab === 'ptys' && <PtysTable ptys={data.ptys || []} />}
 

@@ -37,7 +37,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={onClose}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const items = screen.getAllByRole('menuitem');
@@ -77,7 +77,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={onClose}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const items = screen.getAllByRole('menuitem');
@@ -104,7 +104,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={vi.fn()}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.queryByText('打开链接')).not.toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={vi.fn()}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.queryByText('复制选中')).toBeNull();
@@ -149,7 +149,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={vi.fn()}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.queryByText('粘贴')).toBeNull();
@@ -174,7 +174,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={vi.fn()}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const items = screen.getAllByRole('menuitem');
@@ -203,7 +203,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
             onClose={vi.fn()}
           />
         </div>
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const menu = container.querySelector('[role="menu"]') as HTMLElement;
@@ -232,7 +232,7 @@ describe('PasteFallbackModal', () => {
     render(
       <TerminalProvider>
         <PasteFallbackModal isOpen={true} onClose={onClose} onSend={onSend} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('粘贴内容')).toBeInTheDocument();
@@ -257,7 +257,7 @@ describe('PasteFallbackModal', () => {
     render(
       <TerminalProvider>
         <PasteFallbackModal isOpen={false} onClose={vi.fn()} onSend={vi.fn()} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
     expect(screen.queryByText('粘贴内容')).toBeNull();
   });
@@ -303,7 +303,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
   };
 
@@ -345,7 +345,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -424,7 +424,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
     await act(async () => {
@@ -441,7 +441,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -483,7 +483,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
     await act(async () => {
@@ -500,7 +500,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -553,7 +553,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
     await act(async () => {
@@ -570,7 +570,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -603,7 +603,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -625,7 +625,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -667,7 +667,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           pointerType: 'touch',
           isPrimary: true,
           bubbles: true,
-        })
+        }),
       );
     });
     await act(async () => {
@@ -686,7 +686,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           pointerType: 'touch',
           isPrimary: true,
           bubbles: true,
-        })
+        }),
       );
     });
 
@@ -733,7 +733,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           pointerType: 'touch',
           isPrimary: true,
           bubbles: true,
-        })
+        }),
       );
     });
     await act(async () => {
@@ -749,7 +749,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
           pointerType: 'touch',
           isPrimary: true,
           bubbles: true,
-        })
+        }),
       );
     });
 

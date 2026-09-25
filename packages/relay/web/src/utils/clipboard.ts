@@ -258,9 +258,9 @@ export async function readClipboardImage(): Promise<ClipboardReadImageResult> {
  * a `contenteditable` container, the image payload appears in `event.clipboardData.files`
  * or `event.clipboardData.items`.
  */
-export function extractImageFromClipboardEvent(
-  event: { clipboardData?: DataTransfer | null }
-): Blob | null {
+export function extractImageFromClipboardEvent(event: {
+  clipboardData?: DataTransfer | null;
+}): Blob | null {
   const data = event.clipboardData;
   if (!data) return null;
 

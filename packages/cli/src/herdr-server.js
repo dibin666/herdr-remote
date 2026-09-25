@@ -45,7 +45,9 @@ const START_POLL_MS = 200;
 function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_TIMEOUT_MS } = {}) {
   const info = inspectSocket(socketPath);
   if (!info.ok) {
-    return Promise.resolve(info.missing ? { state: 'stopped' } : { state: 'unavailable', reason: info.reason });
+    return Promise.resolve(
+      info.missing ? { state: 'stopped' } : { state: 'unavailable', reason: info.reason },
+    );
   }
   return new Promise((resolve) => {
     let socket;
@@ -64,11 +66,13 @@ function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_T
     if (typeof timer.unref === 'function') timer.unref();
     socket = connect(socketPath);
     socket.once('connect', () => finish({ state: 'running' }));
-    socket.once('error', (error) => finish(
-      error.code === 'ECONNREFUSED' || error.code === 'ENOENT'
-        ? { state: 'stopped', stale: true }
-        : { state: 'unavailable', reason: error.message },
-    ));
+    socket.once('error', (error) =>
+      finish(
+        error.code === 'ECONNREFUSED' || error.code === 'ENOENT'
+          ? { state: 'stopped', stale: true }
+          : { state: 'unavailable', reason: error.message },
+      ),
+    );
   });
 }
 
@@ -76,10 +80,15 @@ function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_T
  * True when this process is a systemd service (herdr-remote's keep-alive), so
  * anything it starts would be killed with it.
  */
-function runningInSystemdService({ platform = process.platform, readCgroup = () => fs.readFileSync('/proc/self/cgroup', 'utf8') } = {}) {
+function runningInSystemdService({
+  platform = process.platform,
+  readCgroup = () => fs.readFileSync('/proc/self/cgroup', 'utf8'),
+} = {}) {
   if (platform !== 'linux') return false;
   try {
-    const unified = readCgroup().split('\n').find((line) => line.startsWith('0::'));
+    const unified = readCgroup()
+      .split('\n')
+      .find((line) => line.startsWith('0::'));
     return Boolean(unified) && /\.service$/.test(unified.trim());
   } catch {
     return false;
@@ -106,7 +115,15 @@ function serverCommand({ command, args = [], inService = runningInSystemdService
   if (!inService) return { file: herdr[0], args: herdr.slice(1) };
   return {
     file: 'systemd-run',
-    args: ['--user', '--scope', '--quiet', '--collect', '--description=Herdr server started by herdr-remote', '--', ...herdr],
+    args: [
+      '--user',
+      '--scope',
+      '--quiet',
+      '--collect',
+      '--description=Herdr server started by herdr-remote',
+      '--',
+      ...herdr,
+    ],
   };
 }
 
@@ -115,7 +132,15 @@ function serverCommand({ command, args = [], inService = runningInSystemdService
  * output appended to `logPath` rather than piped here: a pipe would break the
  * moment herdr-remote exits and take the server with it.
  */
-function launchHerdrServer({ command, args = [], socketPath, cwd, logPath, spawnProcess = spawn, inService }) {
+function launchHerdrServer({
+  command,
+  args = [],
+  socketPath,
+  cwd,
+  logPath,
+  spawnProcess = spawn,
+  inService,
+}) {
   const { file, args: argv } = serverCommand({ command, args, inService });
   ensureDir(path.dirname(logPath));
   const out = fs.openSync(logPath, 'a');
@@ -171,7 +196,9 @@ async function ensureHerdrServer({
 
   const child = launch({ command, args, socketPath, cwd, logPath });
   let exit = null;
-  child.once('exit', (code, signal) => { exit = { code, signal }; });
+  child.once('exit', (code, signal) => {
+    exit = { code, signal };
+  });
 
   const deadline = Date.now() + timeout;
   for (;;) {
@@ -181,10 +208,14 @@ async function ensureHerdrServer({
     const tail = readLogTail(logPath);
     const detail = tail ? `\n${tail}` : '';
     if (exit) {
-      throw new Error(`Herdr server exited (${exit.signal || `code ${exit.code}`}) before opening ${socketPath}.${detail}`);
+      throw new Error(
+        `Herdr server exited (${exit.signal || `code ${exit.code}`}) before opening ${socketPath}.${detail}`,
+      );
     }
     if (Date.now() >= deadline) {
-      throw new Error(`Herdr server did not open ${socketPath} within ${Math.round(timeout / 1000)}s.${detail}`);
+      throw new Error(
+        `Herdr server did not open ${socketPath} within ${Math.round(timeout / 1000)}s.${detail}`,
+      );
     }
   }
 }

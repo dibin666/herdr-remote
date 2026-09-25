@@ -35,11 +35,15 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
       ),
     },
     ...(showHost
-      ? [{
-        key: 'host',
-        header: t('admin.colHost'),
-        render: (c: ConnectedClientInfo) => <span className="text-tui-text">{c.hostId || '—'}</span>,
-      }]
+      ? [
+          {
+            key: 'host',
+            header: t('admin.colHost'),
+            render: (c: ConnectedClientInfo) => (
+              <span className="text-tui-text">{c.hostId || '—'}</span>
+            ),
+          },
+        ]
       : []),
     {
       key: 'role',
@@ -106,12 +110,7 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
       title={t('admin.connectedClientsTitle', { count: clients.length })}
       bodyClassName="-mx-1"
     >
-      <Table
-        columns={columns}
-        items={clients}
-        rowKey={(c) => c.id}
-        empty={t('admin.noClients')}
-      />
+      <Table columns={columns} items={clients} rowKey={(c) => c.id} empty={t('admin.noClients')} />
     </Panel>
   );
 };

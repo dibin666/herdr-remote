@@ -3,7 +3,11 @@ import { render, screen, fireEvent, act, waitFor, within } from '@testing-librar
 import { App } from '../App';
 import { saveSettings, createConnectionProfile } from '../utils/storage';
 import { isMobileShellViewport, MOBILE_SHELL_MAX_WIDTH_PX } from '../utils/mobileShell';
-import { computeContainerGridFit, measureCellDimensions, DEFAULT_BASE_FONT_SIZE } from '../utils/terminalFit';
+import {
+  computeContainerGridFit,
+  measureCellDimensions,
+  DEFAULT_BASE_FONT_SIZE,
+} from '../utils/terminalFit';
 import { APP_HEIGHT_VAR } from '../utils/viewportMetrics';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
@@ -54,7 +58,11 @@ const ADMIN_STATUS_FIXTURE = {
 
 function setViewport({ width, height }: { width: number; height: number }): void {
   Object.defineProperty(window, 'innerWidth', { value: width, writable: true, configurable: true });
-  Object.defineProperty(window, 'innerHeight', { value: height, writable: true, configurable: true });
+  Object.defineProperty(window, 'innerHeight', {
+    value: height,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function setPointerKind(kind: 'coarse' | 'fine'): void {
@@ -104,7 +112,7 @@ const openSession = (role: 'controller' | 'viewer', controllerId?: string) =>
         controllerId: controllerId ?? (role === 'controller' ? 'client-me' : undefined),
         hostId: 'host-1',
         clientId: 'client-me',
-      })
+      }),
     );
   });
 
@@ -205,7 +213,9 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect(layer.style.pointerEvents).toBe('auto');
 
     const statusBar = screen.getByTestId('mobile-status-bar');
-    expect(statusBar).toContainElement(screen.getByRole('button', { name: 'Switch Herdr instance' }));
+    expect(statusBar).toContainElement(
+      screen.getByRole('button', { name: 'Switch Herdr instance' }),
+    );
     expect(statusBar).toHaveTextContent('RTT');
     expect(statusBar).toHaveTextContent('—');
 
@@ -247,7 +257,11 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect(menu.className).not.toContain('top-full');
     expect(menu).toHaveTextContent('Home');
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Home/ }));
-    await waitFor(() => expect(within(statusBar).getByRole('button', { name: 'Switch Herdr instance' })).toHaveTextContent('Home'));
+    await waitFor(() =>
+      expect(
+        within(statusBar).getByRole('button', { name: 'Switch Herdr instance' }),
+      ).toHaveTextContent('Home'),
+    );
   });
 
   it('folds the desktop header on a narrow fine-pointer window too', async () => {
@@ -301,7 +315,7 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect(terminalMain).toBeTruthy();
     expect(
       (terminalMain as HTMLElement).compareDocumentPosition(toolbar) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -376,16 +390,18 @@ describe('Phone control sheet', () => {
     // sheet says so rather than offering a control that does nothing.
     expect(within(sheet).getByText(/Full control/i)).toBeInTheDocument();
     expect(
-      within(sheet).queryByRole('button', { name: /Claim Control|Release Control|Takeover/i })
+      within(sheet).queryByRole('button', { name: /Claim Control|Release Control|Takeover/i }),
     ).toBeNull();
 
     expect(within(sheet).getByRole('button', { name: /Terminal Settings/i })).toBeInTheDocument();
     expect(
-      within(sheet).getByRole('button', { name: /Connection & pairing|Connection and Pairing Settings/i })
+      within(sheet).getByRole('button', {
+        name: /Connection & pairing|Connection and Pairing Settings/i,
+      }),
     ).toBeInTheDocument();
     // The dashboard is reached through Settings, not from the sheet.
     expect(
-      within(sheet).queryByRole('button', { name: /Admin dashboard|Open Admin dashboard/i })
+      within(sheet).queryByRole('button', { name: /Admin dashboard|Open Admin dashboard/i }),
     ).toBeNull();
   });
 
@@ -400,7 +416,7 @@ describe('Phone control sheet', () => {
           role: 'controller',
           controllerId: 'client-me',
           clientCount: 3,
-        })
+        }),
       );
     });
 
@@ -431,7 +447,12 @@ describe('Phone control sheet', () => {
     expect(sheet).toBeInTheDocument();
 
     // 1. Fire Ctrl+Escape -> sheet must stay open, preventDefault/stopPropagation NOT called
-    const ctrlEsc = new KeyboardEvent('keydown', { key: 'Escape', ctrlKey: true, bubbles: true, cancelable: true });
+    const ctrlEsc = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
     const pdSpy1 = vi.spyOn(ctrlEsc, 'preventDefault');
     const spSpy1 = vi.spyOn(ctrlEsc, 'stopPropagation');
     window.dispatchEvent(ctrlEsc);
@@ -440,7 +461,12 @@ describe('Phone control sheet', () => {
     expect(spSpy1).not.toHaveBeenCalled();
 
     // 2. Fire Alt+Escape -> sheet must stay open
-    const altEsc = new KeyboardEvent('keydown', { key: 'Escape', altKey: true, bubbles: true, cancelable: true });
+    const altEsc = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
     const pdSpy2 = vi.spyOn(altEsc, 'preventDefault');
     const spSpy2 = vi.spyOn(altEsc, 'stopPropagation');
     window.dispatchEvent(altEsc);
@@ -449,7 +475,12 @@ describe('Phone control sheet', () => {
     expect(spSpy2).not.toHaveBeenCalled();
 
     // 3. Fire Meta+Escape -> sheet must stay open
-    const metaEsc = new KeyboardEvent('keydown', { key: 'Escape', metaKey: true, bubbles: true, cancelable: true });
+    const metaEsc = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
     const pdSpy3 = vi.spyOn(metaEsc, 'preventDefault');
     const spSpy3 = vi.spyOn(metaEsc, 'stopPropagation');
     window.dispatchEvent(metaEsc);
@@ -643,7 +674,6 @@ describe('Desktop shell is untouched by the phone layout', () => {
     expect(row.className).not.toContain('justify-between');
     expect(row.className).not.toContain('flex-wrap');
   });
-
 
   it('collapses the key bar to a handle and restores it from there', async () => {
     render(<App />);

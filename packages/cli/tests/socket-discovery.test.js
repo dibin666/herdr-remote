@@ -9,9 +9,15 @@ const net = require('node:net');
 const { defaultSocketPath, inspectSocket, resolveSocketPath } = require('../src/socket-discovery');
 
 test('socket discovery prefers explicit and injected paths', () => {
-  assert.equal(resolveSocketPath('/explicit.sock', { HERDR_SOCKET_PATH: '/env.sock' }), '/explicit.sock');
+  assert.equal(
+    resolveSocketPath('/explicit.sock', { HERDR_SOCKET_PATH: '/env.sock' }),
+    '/explicit.sock',
+  );
   assert.equal(resolveSocketPath(null, { HERDR_SOCKET_PATH: '/env.sock' }), '/env.sock');
-  assert.equal(defaultSocketPath({ XDG_CONFIG_HOME: '/tmp/config' }, 'linux'), '/tmp/config/herdr/herdr.sock');
+  assert.equal(
+    defaultSocketPath({ XDG_CONFIG_HOME: '/tmp/config' }, 'linux'),
+    '/tmp/config/herdr/herdr.sock',
+  );
 });
 
 test('socket inspection distinguishes regular files from Unix sockets', async (t) => {

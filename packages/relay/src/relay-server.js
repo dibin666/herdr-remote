@@ -82,16 +82,19 @@ function jsonSend(socket, payload) {
 
 /** One outstanding font chunk request of this window was answered. */
 function settleFontChunk(client) {
-  if (Array.isArray(client.fontChunkRequests) && client.fontChunkRequests.length) client.fontChunkRequests.shift();
+  if (Array.isArray(client.fontChunkRequests) && client.fontChunkRequests.length)
+    client.fontChunkRequests.shift();
 }
 
 /** One outstanding font subset request of this window was answered. */
 function settleFontSubset(client) {
-  if (Array.isArray(client.fontSubsetRequests) && client.fontSubsetRequests.length) client.fontSubsetRequests.shift();
+  if (Array.isArray(client.fontSubsetRequests) && client.fontSubsetRequests.length)
+    client.fontSubsetRequests.shift();
 }
 
 function closeSocket(socket, code = 1000, reason = '') {
-  if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) return;
+  if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
+    return;
   try {
     socket.close(code, reason.slice(0, 120));
   } catch {}
@@ -125,7 +128,13 @@ function bearerToken(req) {
 }
 
 function tokenMatches(candidate, expected) {
-  if (typeof candidate !== 'string' || candidate.length === 0 || typeof expected !== 'string' || expected.length === 0) return false;
+  if (
+    typeof candidate !== 'string' ||
+    candidate.length === 0 ||
+    typeof expected !== 'string' ||
+    expected.length === 0
+  )
+    return false;
   // Hashing first gives timingSafeEqual fixed-size buffers, without leaking a
   // length mismatch through the comparison itself.
   const candidateHash = crypto.createHash('sha256').update(candidate, 'utf8').digest();
@@ -206,8 +215,12 @@ class RelayServer {
     this.hostHandshakeAttempts = new Map();
     this.pendingHandshakes = new Set();
     this.startedAt = Date.now();
-    this.metrics = options.metrics || new RelayMetrics({ version: VERSION, protocolVersion: PROTOCOL_VERSION });
-    this.stateFile = options.stateFile || config.auth?.stateFile || path.join(defaultStateDir(), 'relay-auth.json');
+    this.metrics =
+      options.metrics || new RelayMetrics({ version: VERSION, protocolVersion: PROTOCOL_VERSION });
+    this.stateFile =
+      options.stateFile ||
+      config.auth?.stateFile ||
+      path.join(defaultStateDir(), 'relay-auth.json');
     this.password = options.password ?? config.auth?.password ?? null;
     this.adminToken = options.adminToken ?? config.auth?.adminToken ?? null;
     this.trustProxy = Boolean(options.trustProxy ?? config.relay.trustProxy);
@@ -215,18 +228,21 @@ class RelayServer {
     // When unset or 0, this incurs zero overhead and avoids entering the delayed path.
     // RELAY_DEV_LATENCY_MS specifies round-trip delay, so each one-way leg
     // (host -> browser and browser -> host) is delayed by half.
-    const devLatencyRaw = options.devLatencyMs ?? config.relay?.devLatencyMs ?? process.env.RELAY_DEV_LATENCY_MS;
+    const devLatencyRaw =
+      options.devLatencyMs ?? config.relay?.devLatencyMs ?? process.env.RELAY_DEV_LATENCY_MS;
     this.devLatencyMs = devLatencyRaw ? Math.max(0, parseInt(devLatencyRaw, 10) || 0) : 0;
     this.devDelayMs = this.devLatencyMs > 0 ? Math.round(this.devLatencyMs / 2) : 0;
     this.sendQueues = new WeakMap();
     this.activeDelayTimers = new Set();
-    this.auth = options.auth || new AuthStore({
-      stateFile: this.stateFile,
-      pairingTtlMs: config.auth.pairingTtlMs,
-      deviceTtlMs: config.auth.deviceTtlMs,
-      maxDevices: config.auth.maxDevices,
-      password: this.password,
-    });
+    this.auth =
+      options.auth ||
+      new AuthStore({
+        stateFile: this.stateFile,
+        pairingTtlMs: config.auth.pairingTtlMs,
+        deviceTtlMs: config.auth.deviceTtlMs,
+        maxDevices: config.auth.maxDevices,
+        password: this.password,
+      });
     this.server = http.createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({
       noServer: true,
@@ -259,7 +275,10 @@ class RelayServer {
       };
       const onListening = () => {
         this.server.off('error', onError);
-        this.heartbeatTimer = setInterval(() => this.heartbeat(), this.config.cleanup.heartbeatIntervalMs);
+        this.heartbeatTimer = setInterval(
+          () => this.heartbeat(),
+          this.config.cleanup.heartbeatIntervalMs,
+        );
         this.cleanupTimer = setInterval(() => this.sweep(), this.config.cleanup.intervalMs);
         resolve(this.address());
       };
@@ -272,7 +291,9 @@ class RelayServer {
   address() {
     const address = this.server.address();
     if (!address) return null;
-    return typeof address === 'string' ? { path: address } : { host: address.address, port: address.port };
+    return typeof address === 'string'
+      ? { path: address }
+      : { host: address.address, port: address.port };
   }
 
   async close() {
@@ -323,7 +344,10 @@ class RelayServer {
         return '';
       }
     })();
-    if (!['/ws/host', '/ws/client'].includes(pathname) || !this.isAllowedOrigin(req.headers.origin, req)) {
+    if (
+      !['/ws/host', '/ws/client'].includes(pathname) ||
+      !this.isAllowedOrigin(req.headers.origin, req)
+    ) {
       socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
       socket.destroy();
       return;
@@ -354,7 +378,10 @@ class RelayServer {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'");
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+    );
   }
 
   sendJsonResponse(res, status, payload) {
@@ -471,12 +498,17 @@ class RelayServer {
     }
     if (req.method === 'OPTIONS') {
       if (!this.requestOriginAllowed(req)) {
-        this.sendJsonResponse(res, 403, { ok: false, code: 'origin_denied', message: 'origin is not allowed' });
+        this.sendJsonResponse(res, 403, {
+          ok: false,
+          code: 'origin_denied',
+          message: 'origin is not allowed',
+        });
         return;
       }
       res.writeHead(204, {
         'Access-Control-Allow-Origin': req.headers.origin || '*',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Herdr-Host-Id, X-Herdr-Host-Token, X-Relay-Admin-Token',
+        'Access-Control-Allow-Headers':
+          'Authorization, Content-Type, X-Herdr-Host-Id, X-Herdr-Host-Token, X-Relay-Admin-Token',
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         Vary: 'Origin',
       });
@@ -484,7 +516,11 @@ class RelayServer {
       return;
     }
     if (!this.requestOriginAllowed(req)) {
-      this.sendJsonResponse(res, 403, { ok: false, code: 'origin_denied', message: 'origin is not allowed' });
+      this.sendJsonResponse(res, 403, {
+        ok: false,
+        code: 'origin_denied',
+        message: 'origin is not allowed',
+      });
       return;
     }
     // Only echo an origin after the exact allowlist/same-host check above. This
@@ -524,7 +560,11 @@ class RelayServer {
     if (requestUrl.pathname === '/api/status' && req.method === 'GET') {
       const subject = this.authorizedSubject(req);
       if (!subject) {
-        this.sendJsonResponse(res, 401, { ok: false, code: 'auth_required', message: 'an authorized device or host token is required' });
+        this.sendJsonResponse(res, 401, {
+          ok: false,
+          code: 'auth_required',
+          message: 'an authorized device or host token is required',
+        });
         return;
       }
       this.sendJsonResponse(res, 200, this.statusSnapshot({ scopeHostId: subject.hostId }));
@@ -532,11 +572,19 @@ class RelayServer {
     }
     if (requestUrl.pathname === '/api/admin/status' && req.method === 'GET') {
       if (!this.adminToken) {
-        this.sendJsonResponse(res, 503, { ok: false, code: 'admin_not_configured', message: 'configure RELAY_ADMIN_TOKEN to access the relay dashboard' });
+        this.sendJsonResponse(res, 503, {
+          ok: false,
+          code: 'admin_not_configured',
+          message: 'configure RELAY_ADMIN_TOKEN to access the relay dashboard',
+        });
         return;
       }
       if (!this.authorizedAdmin(req)) {
-        this.sendJsonResponse(res, 401, { ok: false, code: 'admin_auth_required', message: 'a valid relay admin token is required' });
+        this.sendJsonResponse(res, 401, {
+          ok: false,
+          code: 'admin_auth_required',
+          message: 'a valid relay admin token is required',
+        });
         return;
       }
       this.sendJsonResponse(res, 200, this.statusSnapshot({ includeDevices: true }));
@@ -544,17 +592,29 @@ class RelayServer {
     }
     if (requestUrl.pathname.startsWith('/api/admin/devices/') && req.method === 'DELETE') {
       if (!this.adminToken) {
-        this.sendJsonResponse(res, 503, { ok: false, code: 'admin_not_configured', message: 'configure RELAY_ADMIN_TOKEN to access the relay dashboard' });
+        this.sendJsonResponse(res, 503, {
+          ok: false,
+          code: 'admin_not_configured',
+          message: 'configure RELAY_ADMIN_TOKEN to access the relay dashboard',
+        });
         return;
       }
       if (!this.authorizedAdmin(req)) {
-        this.sendJsonResponse(res, 401, { ok: false, code: 'admin_auth_required', message: 'a valid relay admin token is required' });
+        this.sendJsonResponse(res, 401, {
+          ok: false,
+          code: 'admin_auth_required',
+          message: 'a valid relay admin token is required',
+        });
         return;
       }
       const deviceId = decodeURIComponent(requestUrl.pathname.slice('/api/admin/devices/'.length));
       const revoked = this.auth.revokeDevice(deviceId);
       if (!revoked) {
-        this.sendJsonResponse(res, 404, { ok: false, code: 'device_not_found', message: 'no such paired device' });
+        this.sendJsonResponse(res, 404, {
+          ok: false,
+          code: 'device_not_found',
+          message: 'no such paired device',
+        });
         return;
       }
       // Revocation has to take effect now, not at the next reconnect: drop any
@@ -565,29 +625,56 @@ class RelayServer {
     }
     if (requestUrl.pathname === '/api/pair/start' && req.method === 'POST') {
       if (!this.allowPairAttempt(req)) {
-        this.sendJsonResponse(res, 429, { ok: false, code: 'rate_limited', message: 'too many pairing attempts' });
+        this.sendJsonResponse(res, 429, {
+          ok: false,
+          code: 'rate_limited',
+          message: 'too many pairing attempts',
+        });
         return;
       }
       const hostId = this.authorizedHost(req);
       if (!hostId) {
-        this.sendJsonResponse(res, 401, { ok: false, code: 'host_auth_required', message: 'a valid host id and token are required' });
+        this.sendJsonResponse(res, 401, {
+          ok: false,
+          code: 'host_auth_required',
+          message: 'a valid host id and token are required',
+        });
         return;
       }
       const host = this.hosts.get(hostId);
       if (!host || host.reconnecting || !isOpen(host.ws)) {
-        this.sendJsonResponse(res, 409, { ok: false, code: 'host_offline', message: 'no Herdr host is connected' });
+        this.sendJsonResponse(res, 409, {
+          ok: false,
+          code: 'host_offline',
+          message: 'no Herdr host is connected',
+        });
         return;
       }
       try {
-        const pairing = this.auth.startPairing(hostId, String(this.config.relay.publicUrl).replace(/\/$/, ''));
-        this.sendJsonResponse(res, 200, { ok: true, ...pairing, pairUrl: `${pairing.publicUrl}/?pairCode=${encodeURIComponent(pairing.code)}` });
+        const pairing = this.auth.startPairing(
+          hostId,
+          String(this.config.relay.publicUrl).replace(/\/$/, ''),
+        );
+        this.sendJsonResponse(res, 200, {
+          ok: true,
+          ...pairing,
+          pairUrl: `${pairing.publicUrl}/?pairCode=${encodeURIComponent(pairing.code)}`,
+        });
       } catch (error) {
-        this.sendJsonResponse(res, 409, { ok: false, code: error.code || 'pairing_failed', message: error.message });
+        this.sendJsonResponse(res, 409, {
+          ok: false,
+          code: error.code || 'pairing_failed',
+          message: error.message,
+        });
       }
       return;
     }
     if (requestUrl.pathname.startsWith('/api/')) {
-      this.sendJsonResponse(res, 404, { ok: false, code: 'not_found', message: 'API route not found' });
+      this.sendJsonResponse(res, 404, {
+        ok: false,
+        code: 'not_found',
+        message: 'API route not found',
+      });
       return;
     }
     this.serveStatic(requestUrl.pathname, res);
@@ -595,17 +682,31 @@ class RelayServer {
 
   serveStatic(requestPath, res) {
     const publicDir = path.join(PACKAGE_ROOT, 'web', 'dist');
-    const relative = requestPath === '/' || requestPath === '/admin' ? 'index.html' : requestPath.replace(/^\/+/, '');
+    const relative =
+      requestPath === '/' || requestPath === '/admin'
+        ? 'index.html'
+        : requestPath.replace(/^\/+/, '');
     const candidate = path.resolve(publicDir, relative);
-    if (!candidate.startsWith(`${publicDir}${path.sep}`) && candidate !== path.join(publicDir, 'index.html')) {
-      this.sendJsonResponse(res, 403, { ok: false, code: 'forbidden', message: 'path is not allowed' });
+    if (
+      !candidate.startsWith(`${publicDir}${path.sep}`) &&
+      candidate !== path.join(publicDir, 'index.html')
+    ) {
+      this.sendJsonResponse(res, 403, {
+        ok: false,
+        code: 'forbidden',
+        message: 'path is not allowed',
+      });
       return;
     }
     fs.readFile(candidate, (error, data) => {
       if (error && !path.extname(relative)) {
         fs.readFile(path.join(publicDir, 'index.html'), (fallbackError, fallbackData) => {
           if (fallbackError) {
-            this.sendJsonResponse(res, 503, { ok: false, code: 'web_not_built', message: 'frontend has not been built' });
+            this.sendJsonResponse(res, 503, {
+              ok: false,
+              code: 'web_not_built',
+              message: 'frontend has not been built',
+            });
             return;
           }
           this.setResponseHeaders(res, 'text/html; charset=utf-8');
@@ -614,20 +715,25 @@ class RelayServer {
         return;
       }
       if (error) {
-        this.sendJsonResponse(res, 404, { ok: false, code: 'not_found', message: 'file not found' });
+        this.sendJsonResponse(res, 404, {
+          ok: false,
+          code: 'not_found',
+          message: 'file not found',
+        });
         return;
       }
       const extension = path.extname(candidate).toLowerCase();
-      const mime = {
-        '.html': 'text/html; charset=utf-8',
-        '.js': 'text/javascript; charset=utf-8',
-        '.css': 'text/css; charset=utf-8',
-        '.json': 'application/json',
-        '.svg': 'image/svg+xml',
-        '.png': 'image/png',
-        '.ico': 'image/x-icon',
-        '.woff2': 'font/woff2',
-      }[extension] || 'application/octet-stream';
+      const mime =
+        {
+          '.html': 'text/html; charset=utf-8',
+          '.js': 'text/javascript; charset=utf-8',
+          '.css': 'text/css; charset=utf-8',
+          '.json': 'application/json',
+          '.svg': 'image/svg+xml',
+          '.png': 'image/png',
+          '.ico': 'image/x-icon',
+          '.woff2': 'font/woff2',
+        }[extension] || 'application/octet-stream';
       this.setResponseHeaders(res, mime);
       res.end(data);
     });
@@ -638,8 +744,10 @@ class RelayServer {
     return {
       id: message.hostId,
       ws,
-      hostname: typeof message.hostname === 'string' ? message.hostname.slice(0, 128) : os.hostname(),
-      platform: typeof message.platform === 'string' ? message.platform.slice(0, 32) : process.platform,
+      hostname:
+        typeof message.hostname === 'string' ? message.hostname.slice(0, 128) : os.hostname(),
+      platform:
+        typeof message.platform === 'string' ? message.platform.slice(0, 32) : process.platform,
       arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
       connectedAt: new Date(pending.connectedAt).toISOString(),
       connectedAtMs: pending.connectedAt,
@@ -721,7 +829,12 @@ class RelayServer {
   }
 
   handleHostConnection(ws, req) {
-    const pending = { ws, remoteAddress: req.socket.remoteAddress, connectedAt: Date.now(), authenticated: false };
+    const pending = {
+      ws,
+      remoteAddress: req.socket.remoteAddress,
+      connectedAt: Date.now(),
+      authenticated: false,
+    };
     const deadline = setTimeout(() => {
       if (!pending.authenticated) closeSocket(ws, 1008, 'host hello timeout');
     }, 10000);
@@ -738,14 +851,21 @@ class RelayServer {
       if (!pending.authenticated) {
         if (isBinary) return this.rejectHandshake(ws, 'host hello must be JSON');
         const message = parseJson(raw.toString());
-        if (!message || message.type !== 'host_hello' || message.protocol !== PROTOCOL_VERSION) return this.rejectHandshake(ws, 'invalid host hello');
-        if (!this.allowHostHandshake(req)) return this.rejectHandshake(ws, 'too many connection attempts', 'rate_limited');
+        if (!message || message.type !== 'host_hello' || message.protocol !== PROTOCOL_VERSION)
+          return this.rejectHandshake(ws, 'invalid host hello');
+        if (!this.allowHostHandshake(req))
+          return this.rejectHandshake(ws, 'too many connection attempts', 'rate_limited');
         const oldHost = this.hosts.get(message.hostId);
         if (!oldHost && this.hosts.size >= this.config.relay.maxHosts) {
           return this.rejectHandshake(ws, 'relay host limit reached', 'too_many_hosts');
         }
-        const registration = this.auth.registerHost(message.hostId, message.token, message.password ?? null);
-        if (!registration.ok) return this.rejectHandshake(ws, registration.message, registration.code);
+        const registration = this.auth.registerHost(
+          message.hostId,
+          message.token,
+          message.password ?? null,
+        );
+        if (!registration.ok)
+          return this.rejectHandshake(ws, registration.message, registration.code);
         clearTimeout(deadline);
         pending.authenticated = true;
         this.finishHandshake(ws);
@@ -766,7 +886,10 @@ class RelayServer {
                     streamId: client.session.streamId,
                   });
                 }
-                if (client.session.streamIndex !== null && client.session.streamIndex !== undefined) {
+                if (
+                  client.session.streamIndex !== null &&
+                  client.session.streamIndex !== undefined
+                ) {
                   oldHost.streamIndices.delete(client.session.streamIndex);
                 }
                 this.streams.delete(client.session.streamId);
@@ -775,7 +898,10 @@ class RelayServer {
             }
             oldHost.load = {};
             oldHost.ptys = [];
-            this.broadcastToClients(oldHost, () => ({ type: 'host_reconnecting', code: 'host_replaced' }));
+            this.broadcastToClients(oldHost, () => ({
+              type: 'host_reconnecting',
+              code: 'host_replaced',
+            }));
           } else {
             this.detachHost(oldHost, { notify: true, reason: 'host_replaced' });
           }
@@ -812,7 +938,10 @@ class RelayServer {
       const reason = rawReason ? rawReason.toString() : '';
       if (reason === 'host_shutdown') host.shutdownRequested = true;
       if (host.shutdownRequested || !this.canHandoffHost(host)) {
-        this.detachHost(host, { notify: true, reason: host.shutdownRequested ? 'host_shutdown' : 'host_disconnected' });
+        this.detachHost(host, {
+          notify: true,
+          reason: host.shutdownRequested ? 'host_shutdown' : 'host_disconnected',
+        });
         return;
       }
       this.beginHostReconnect(host, 'host_disconnected');
@@ -843,9 +972,10 @@ class RelayServer {
       // no routed client instead of having its entire connection severed.
       // Output is routed to the single client owning the stream rather than broadcast.
       if (frame.type !== 'output') return;
-      const clientId = frame.version === 2
-        ? host.streamIndices.get(frame.streamIndex)
-        : this.streams.get(frame.streamId);
+      const clientId =
+        frame.version === 2
+          ? host.streamIndices.get(frame.streamIndex)
+          : this.streams.get(frame.streamId);
       if (!clientId) return;
       const client = this.clients.get(clientId);
       if (!client || !isOpen(client.ws)) return;
@@ -861,7 +991,8 @@ class RelayServer {
     }
     if (message.type === 'host_shutdown') {
       host.shutdownRequested = true;
-      if (this.hosts.get(host.id) === host) this.detachHost(host, { notify: true, reason: 'host_shutdown' });
+      if (this.hosts.get(host.id) === host)
+        this.detachHost(host, { notify: true, reason: 'host_shutdown' });
       return;
     }
     // What the workstation's agents are doing belongs to the workstation, not
@@ -1084,24 +1215,38 @@ class RelayServer {
       if (!pending.authenticated) {
         if (isBinary) return this.rejectHandshake(ws, 'client hello must be JSON');
         const message = parseJson(raw.toString());
-        if (!message || message.type !== 'hello' || message.protocol !== PROTOCOL_VERSION) return this.rejectHandshake(ws, 'invalid client hello');
-        if (!this.allowClientHandshake(req)) return this.rejectHandshake(ws, 'too many connection attempts', 'rate_limited');
+        if (!message || message.type !== 'hello' || message.protocol !== PROTOCOL_VERSION)
+          return this.rejectHandshake(ws, 'invalid client hello');
+        if (!this.allowClientHandshake(req))
+          return this.rejectHandshake(ws, 'too many connection attempts', 'rate_limited');
         let device = null;
         let paired = null;
         if (message.pairCode) {
-          if (!this.allowPairAttempt(req)) return this.rejectHandshake(ws, 'too many pairing attempts', 'rate_limited');
+          if (!this.allowPairAttempt(req))
+            return this.rejectHandshake(ws, 'too many pairing attempts', 'rate_limited');
           paired = this.auth.completePairing(message.pairCode);
         }
         if (paired) device = paired;
         else if (message.token) device = this.auth.authenticateDevice(message.token);
-        if (!device) return this.rejectHandshake(ws, 'valid device token or pairing code required', 'auth_required');
+        if (!device)
+          return this.rejectHandshake(
+            ws,
+            'valid device token or pairing code required',
+            'auth_required',
+          );
         const host = this.hosts.get(device.hostId);
-        if (!host || host.reconnecting || !isOpen(host.ws)) return this.rejectHandshake(ws, 'paired Herdr host is offline', host?.reconnecting ? 'host_reconnecting' : 'host_offline');
+        if (!host || host.reconnecting || !isOpen(host.ws))
+          return this.rejectHandshake(
+            ws,
+            'paired Herdr host is offline',
+            host?.reconnecting ? 'host_reconnecting' : 'host_offline',
+          );
 
         // Two tabs of one browser are separate windows with their own PTY sessions,
         // not rivals. Nothing is retired here: each connection gets its own stream
         // without evicting existing clients.
-        if (host.clients.size >= this.config.relay.maxClientsPerHost) return this.rejectHandshake(ws, 'host client limit reached', 'too_many_clients');
+        if (host.clients.size >= this.config.relay.maxClientsPerHost)
+          return this.rejectHandshake(ws, 'host client limit reached', 'too_many_clients');
         clearTimeout(deadline);
         this.finishHandshake(ws);
         const clientId = randomId('client');
@@ -1112,8 +1257,10 @@ class RelayServer {
           deviceId: device.deviceId,
           // Stable per browser profile; used to recognise a reconnect from the
           // same browser rather than a genuinely separate viewer.
-          browserClientId: typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
-          handoffCapable: Array.isArray(message.capabilities) && message.capabilities.includes('host_handoff'),
+          browserClientId:
+            typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
+          handoffCapable:
+            Array.isArray(message.capabilities) && message.capabilities.includes('host_handoff'),
           session: null,
           // Every paired window gets its own interactive PTY session. Pairing
           // is the permission boundary; once a device is through it, every
@@ -1141,7 +1288,14 @@ class RelayServer {
         host.clients.add(client.id);
         this.notifyHostClientCount(host);
         ws.isAlive = true;
-        if (paired) jsonSend(ws, { type: 'paired', token: paired.token, deviceId: paired.deviceId, hostId: paired.hostId, expiresAt: paired.expiresAtIso });
+        if (paired)
+          jsonSend(ws, {
+            type: 'paired',
+            token: paired.token,
+            deviceId: paired.deviceId,
+            hostId: paired.hostId,
+            expiresAt: paired.expiresAtIso,
+          });
         // Expose the relay-assigned connection id so clients can distinguish
         // their own controller lease from another device's lease. The browser
         // supplied clientId identifies a device, not this live WebSocket.
@@ -1186,9 +1340,10 @@ class RelayServer {
       if (!client.session) return;
       // Each window owns its own PTY session, so input is stamped with the
       // client's dedicated stream id or streamIndex.
-      const frame = host.binaryFrameV2 && typeof client.session.streamIndex === 'number'
-        ? packStreamFrameV2(FRAME_TYPE_INPUT, client.session.streamIndex, raw)
-        : packStreamFrame('input', client.session.streamId, raw);
+      const frame =
+        host.binaryFrameV2 && typeof client.session.streamIndex === 'number'
+          ? packStreamFrameV2(FRAME_TYPE_INPUT, client.session.streamIndex, raw)
+          : packStreamFrame('input', client.session.streamId, raw);
       if (isOpen(host.ws)) {
         const doSend = () => {
           if (!isOpen(host.ws)) return;
@@ -1238,14 +1393,22 @@ class RelayServer {
       // Repeats are dropped — one click is enough, and the host shares a
       // start between windows anyway.
       if (!client.session) {
-        jsonSend(client.ws, { type: 'error', code: 'no_session', message: 'terminal session is not ready' });
+        jsonSend(client.ws, {
+          type: 'error',
+          code: 'no_session',
+          message: 'terminal session is not ready',
+        });
         return;
       }
       const now = Date.now();
       if (client.herdrStartAt && now - client.herdrStartAt < HERDR_START_REPEAT_MS) return;
       client.herdrStartAt = now;
       if (isOpen(host.ws)) {
-        jsonSend(host.ws, { type: 'herdr_start', clientId: client.session.streamId, streamId: client.session.streamId });
+        jsonSend(host.ws, {
+          type: 'herdr_start',
+          clientId: client.session.streamId,
+          streamId: client.session.streamId,
+        });
       }
     } else if (message.type === 'host_font_chunk_request') {
       this.requestFontChunk(host, client, message);
@@ -1259,7 +1422,11 @@ class RelayServer {
       const now = Date.now();
       if (client.fontRefreshAt && now - client.fontRefreshAt < FONT_REFRESH_REPEAT_MS) return;
       client.fontRefreshAt = now;
-      jsonSend(host.ws, { type: 'host_font_refresh', clientId: client.session.streamId, streamId: client.session.streamId });
+      jsonSend(host.ws, {
+        type: 'host_font_refresh',
+        clientId: client.session.streamId,
+        streamId: client.session.streamId,
+      });
     } else if (message.type === 'claim_control') {
       // Control is no longer a lease. Answering the old request keeps clients
       // built against the previous protocol working.
@@ -1269,8 +1436,7 @@ class RelayServer {
       // Nothing to release: the window keeps its input either way, and saying
       // so beats a silence an older client would wait on.
       jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: null });
-    }
-    else if (message.type === 'paste_file') {
+    } else if (message.type === 'paste_file') {
       if (client.role === 'viewer') {
         jsonSend(client.ws, {
           type: 'error',
@@ -1402,7 +1568,9 @@ class RelayServer {
       focusedPaneId: text(message.focusedPaneId, 64),
       focusedAgent: text(message.focusedAgent, 32),
       counts,
-      total: Number.isFinite(message.total) ? Math.max(0, Math.trunc(message.total)) : agents.length,
+      total: Number.isFinite(message.total)
+        ? Math.max(0, Math.trunc(message.total))
+        : agents.length,
       agents,
     };
     host.agentStatus = payload;
@@ -1439,11 +1607,17 @@ class RelayServer {
     const bytes = face ? face.bytes : client.fontSubsets?.get(message.sha256) || 0;
     const total = Math.ceil(bytes / TERMINAL_FONT_CHUNK_BYTES);
     if (!bytes || !Number.isInteger(message.index) || message.index < 0 || message.index >= total) {
-      jsonSend(client.ws, { type: 'error', code: 'host_font_unavailable', message: 'The workstation did not offer this font file' });
+      jsonSend(client.ws, {
+        type: 'error',
+        code: 'host_font_unavailable',
+        message: 'The workstation did not offer this font file',
+      });
       return;
     }
     const now = Date.now();
-    client.fontChunkRequests = (client.fontChunkRequests || []).filter((at) => now - at < FONT_CHUNK_TIMEOUT_MS);
+    client.fontChunkRequests = (client.fontChunkRequests || []).filter(
+      (at) => now - at < FONT_CHUNK_TIMEOUT_MS,
+    );
     if (client.fontChunkRequests.length >= MAX_FONT_CHUNKS_IN_FLIGHT) return;
     client.fontChunkRequests.push(now);
     jsonSend(host.ws, {
@@ -1462,15 +1636,25 @@ class RelayServer {
   requestFontSubset(host, client, message) {
     if (!client.session || !isOpen(host.ws)) return;
     const known = host.terminalFont?.subsets?.some((source) => source.sha256 === message.sha256);
-    const valid = known && typeof message.text === 'string' && message.text.length > 0
-      && message.text.length <= MAX_FONT_SUBSET_TEXT
-      && typeof message.requestId === 'string' && REQUEST_ID.test(message.requestId);
+    const valid =
+      known &&
+      typeof message.text === 'string' &&
+      message.text.length > 0 &&
+      message.text.length <= MAX_FONT_SUBSET_TEXT &&
+      typeof message.requestId === 'string' &&
+      REQUEST_ID.test(message.requestId);
     if (!valid) {
-      jsonSend(client.ws, { type: 'error', code: 'host_font_unavailable', message: 'The workstation did not offer this font' });
+      jsonSend(client.ws, {
+        type: 'error',
+        code: 'host_font_unavailable',
+        message: 'The workstation did not offer this font',
+      });
       return;
     }
     const now = Date.now();
-    client.fontSubsetRequests = (client.fontSubsetRequests || []).filter((at) => now - at < FONT_CHUNK_TIMEOUT_MS);
+    client.fontSubsetRequests = (client.fontSubsetRequests || []).filter(
+      (at) => now - at < FONT_CHUNK_TIMEOUT_MS,
+    );
     if (client.fontSubsetRequests.length >= MAX_FONT_CHUNKS_IN_FLIGHT) return;
     client.fontSubsetRequests.push(now);
     jsonSend(host.ws, {
@@ -1485,12 +1669,19 @@ class RelayServer {
 
   forwardFontSubset(client, message) {
     settleFontSubset(client);
-    const valid = typeof message.sha256 === 'string' && SHA256_HEX.test(message.sha256)
-      && typeof message.subsetSha === 'string' && SHA256_HEX.test(message.subsetSha)
-      && typeof message.requestId === 'string' && REQUEST_ID.test(message.requestId)
-      && Number.isInteger(message.bytes) && message.bytes > 0 && message.bytes <= MAX_FONT_SUBSET_BYTES
-      && (message.dataBase64 === undefined
-        || (typeof message.dataBase64 === 'string' && message.dataBase64.length <= MAX_FONT_CHUNK_BASE64));
+    const valid =
+      typeof message.sha256 === 'string' &&
+      SHA256_HEX.test(message.sha256) &&
+      typeof message.subsetSha === 'string' &&
+      SHA256_HEX.test(message.subsetSha) &&
+      typeof message.requestId === 'string' &&
+      REQUEST_ID.test(message.requestId) &&
+      Number.isInteger(message.bytes) &&
+      message.bytes > 0 &&
+      message.bytes <= MAX_FONT_SUBSET_BYTES &&
+      (message.dataBase64 === undefined ||
+        (typeof message.dataBase64 === 'string' &&
+          message.dataBase64.length <= MAX_FONT_CHUNK_BASE64));
     if (!valid) return;
     if (message.dataBase64 === undefined) {
       // Pulled in slices next: make this hash fetchable for this window only.
@@ -1513,10 +1704,15 @@ class RelayServer {
 
   forwardFontChunk(host, client, message) {
     settleFontChunk(client);
-    const valid = typeof message.sha256 === 'string' && SHA256_HEX.test(message.sha256)
-      && Number.isInteger(message.index) && message.index >= 0
-      && Number.isInteger(message.total) && message.total > message.index
-      && typeof message.dataBase64 === 'string' && message.dataBase64.length <= MAX_FONT_CHUNK_BASE64;
+    const valid =
+      typeof message.sha256 === 'string' &&
+      SHA256_HEX.test(message.sha256) &&
+      Number.isInteger(message.index) &&
+      message.index >= 0 &&
+      Number.isInteger(message.total) &&
+      message.total > message.index &&
+      typeof message.dataBase64 === 'string' &&
+      message.dataBase64.length <= MAX_FONT_CHUNK_BASE64;
     if (!valid) return;
     jsonSend(client.ws, {
       type: 'host_font_chunk',
@@ -1528,7 +1724,8 @@ class RelayServer {
   }
 
   broadcastUpdateStatus(host, message) {
-    const version = (value) => (typeof value === 'string' && RELEASE_VERSION.test(value) ? value : null);
+    const version = (value) =>
+      typeof value === 'string' && RELEASE_VERSION.test(value) ? value : null;
     const current = version(message.current);
     const latest = version(message.latest);
     if (!current || !latest) return;
@@ -1565,7 +1762,10 @@ class RelayServer {
     return closed;
   }
 
-  detachClient(client, { notify = true, reason = 'client_disconnected', closeCode = 1000, terminate = false } = {}) {
+  detachClient(
+    client,
+    { notify = true, reason = 'client_disconnected', closeCode = 1000, terminate = false } = {},
+  ) {
     if (!client || !this.clients.has(client.id)) return;
     this.clients.delete(client.id);
     const host = this.hosts.get(client.hostId);
@@ -1593,7 +1793,12 @@ class RelayServer {
     }
     const clientSocket = client.ws;
     client.ws = null;
-    if (notify) jsonSend(clientSocket, { type: 'error', code: reason, message: reason === 'host_offline' ? 'Herdr host is offline' : 'connection closed' });
+    if (notify)
+      jsonSend(clientSocket, {
+        type: 'error',
+        code: reason,
+        message: reason === 'host_offline' ? 'Herdr host is offline' : 'connection closed',
+      });
     if (terminate || clientSocket?.readyState === WebSocket.CLOSING) {
       terminateSocket(clientSocket);
     } else {
@@ -1620,7 +1825,8 @@ class RelayServer {
       }
       const clientSocket = client.ws;
       client.ws = null;
-      if (notify) jsonSend(clientSocket, { type: 'error', code: reason, message: 'Herdr host disconnected' });
+      if (notify)
+        jsonSend(clientSocket, { type: 'error', code: reason, message: 'Herdr host disconnected' });
       if (terminate || clientSocket?.readyState === WebSocket.CLOSING) {
         terminateSocket(clientSocket);
       } else {
@@ -1688,7 +1894,8 @@ class RelayServer {
       }
     }
     const authCleanup = this.auth.cleanup(now);
-    if (authCleanup.removedDevices || authCleanup.removedPairings) this.metrics.recordCleanup('staleClientsPurged', authCleanup.removedDevices);
+    if (authCleanup.removedDevices || authCleanup.removedPairings)
+      this.metrics.recordCleanup('staleClientsPurged', authCleanup.removedDevices);
     this.metrics.cleanup.lastCleanupAt = new Date(now).toISOString();
   }
 
@@ -1731,7 +1938,7 @@ class RelayServer {
       // Distinct devices attached to this workstation, not open sockets: a
       // phone with two tabs open is one device on the operator's board.
       connectedDeviceCount: countActiveUsers(
-        [...host.clients].map((id) => this.clients.get(id)).filter(Boolean)
+        [...host.clients].map((id) => this.clients.get(id)).filter(Boolean),
       ),
       pairedDeviceCount: pairedPerHost.get(host.id) || 0,
       load: host.load,
@@ -1740,11 +1947,13 @@ class RelayServer {
     // windows are watching it; the relay does, and that is the number an
     // operator needs when the session is shared. Scoped callers only receive
     // the PTYs belonging to their authenticated host.
-    const ptys = scopedHosts.flatMap((host) => host.ptys.map((pty) => ({
-      ...pty,
-      ...(scopeHostId ? {} : { hostId: host.id }),
-      activeClients: host.clients.size,
-    })));
+    const ptys = scopedHosts.flatMap((host) =>
+      host.ptys.map((pty) => ({
+        ...pty,
+        ...(scopeHostId ? {} : { hostId: host.id }),
+        activeClients: host.clients.size,
+      })),
+    );
     // The paired-device roster identifies people's hardware, so it is served to
     // the relay operator only — never on /api/status, which any paired device
     // may read.
@@ -1764,9 +1973,10 @@ class RelayServer {
       ...(devices ? { devices } : {}),
       relayMode: this.relayMode,
       isRemoteRelay: this.relayMode === 'remote',
-      remoteAdminUrl: this.relayMode === 'remote'
-        ? `${String(this.config.relay.publicUrl || '').replace(/\/+$/, '')}/admin`
-        : undefined,
+      remoteAdminUrl:
+        this.relayMode === 'remote'
+          ? `${String(this.config.relay.publicUrl || '').replace(/\/+$/, '')}/admin`
+          : undefined,
       relay: {
         mode: this.relayMode,
         publicUrl: this.config.relay.publicUrl,

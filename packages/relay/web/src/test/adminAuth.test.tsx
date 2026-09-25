@@ -59,9 +59,18 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
         framesOutPerSec: 2,
       },
       cpu: { load1m: 0.1, load5m: 0.2, load15m: 0.3, cpuPercent: 5.0, cores: 4 },
-      memory: { rssBytes: 1024 * 1024 * 10, heapUsedBytes: 1024 * 1024 * 5, heapTotalBytes: 1024 * 1024 * 8 },
+      memory: {
+        rssBytes: 1024 * 1024 * 10,
+        heapUsedBytes: 1024 * 1024 * 5,
+        heapTotalBytes: 1024 * 1024 * 8,
+      },
       eventLoopDelay: { p50Ms: 1.0, p99Ms: 2.0, maxMs: 3.0 },
-      cleanup: { staleClientsPurged: 0, closedPtysCleaned: 0, deadConnectionsClosed: 0, idleHostsTerminated: 0 },
+      cleanup: {
+        staleClientsPurged: 0,
+        closedPtysCleaned: 0,
+        deadConnectionsClosed: 0,
+        idleHostsTerminated: 0,
+      },
       protocolVersion: 1,
     };
 
@@ -81,7 +90,7 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // The overview is hosts and traffic now; the rows live behind their tabs.
@@ -116,13 +125,11 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Unauthorized \(401\/403\)/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Unauthorized \(401\/403\)/i)).toBeInTheDocument();
     });
 
     // Ensure NO fabricated demo metrics/clients are rendered
@@ -148,13 +155,11 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Unauthorized \(401\/403\)/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Unauthorized \(401\/403\)/i)).toBeInTheDocument();
     });
 
     expect(screen.queryByText('client-master')).not.toBeInTheDocument();

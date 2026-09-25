@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isEventFromTerminal, isEventFromFormInput, attachWebUIShortcuts } from '../utils/shortcuts';
+import {
+  isEventFromTerminal,
+  isEventFromFormInput,
+  attachWebUIShortcuts,
+} from '../utils/shortcuts';
 
 describe('WebUI Shortcuts Non-Conflict Isolation & Safety', () => {
   beforeEach(() => {

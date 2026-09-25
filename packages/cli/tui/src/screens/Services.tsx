@@ -26,28 +26,46 @@ export function Services({ ctx }: { ctx: AppContext }) {
       return;
     }
     return run(() => {
-    const config = ctx.config;
-    if (id === 'start') {
-      const result = startAll(config);
-      ctx.notify(result.managed ? t('services.managedNotice', { manager: result.manager ?? '' }) : t('services.started'), 'success');
-      return;
-    }
-    if (id === 'stop') {
-      const result = stopAll(config);
-      ctx.notify(result.managed ? t('services.managedNotice', { manager: result.manager ?? '' }) : t('services.stopped'), 'success');
-      return;
-    }
-    const result = restartAll(config);
-    ctx.notify(result.managed ? t('services.managedNotice', { manager: result.manager ?? '' }) : t('services.restarted'), 'success');
+      const config = ctx.config;
+      if (id === 'start') {
+        const result = startAll(config);
+        ctx.notify(
+          result.managed
+            ? t('services.managedNotice', { manager: result.manager ?? '' })
+            : t('services.started'),
+          'success',
+        );
+        return;
+      }
+      if (id === 'stop') {
+        const result = stopAll(config);
+        ctx.notify(
+          result.managed
+            ? t('services.managedNotice', { manager: result.manager ?? '' })
+            : t('services.stopped'),
+          'success',
+        );
+        return;
+      }
+      const result = restartAll(config);
+      ctx.notify(
+        result.managed
+          ? t('services.managedNotice', { manager: result.manager ?? '' })
+          : t('services.restarted'),
+        'success',
+      );
     });
   };
 
-  useInput((_input, key) => {
-    const index = items.findIndex((item) => item.id === selected);
-    if (key.upArrow) setSelected(items[(index - 1 + items.length) % items.length].id);
-    else if (key.downArrow) setSelected(items[(index + 1) % items.length].id);
-    else if (key.return) activate(selected);
-  }, { isActive: ctx.editingId === null });
+  useInput(
+    (_input, key) => {
+      const index = items.findIndex((item) => item.id === selected);
+      if (key.upArrow) setSelected(items[(index - 1 + items.length) % items.length].id);
+      else if (key.downArrow) setSelected(items[(index + 1) % items.length].id);
+      else if (key.return) activate(selected);
+    },
+    { isActive: ctx.editingId === null },
+  );
 
   const relayLog = readLogTail('relay', LOG_LINES);
   const hostLog = readLogTail('host', LOG_LINES);
@@ -64,14 +82,24 @@ export function Services({ ctx }: { ctx: AppContext }) {
 
       {status?.keepalive.installed ? (
         <Box marginTop={1}>
-          <Text color={theme.muted}>{t('services.managedNotice', { manager: status.keepalive.manager })}</Text>
+          <Text color={theme.muted}>
+            {t('services.managedNotice', { manager: status.keepalive.manager })}
+          </Text>
         </Box>
       ) : null}
 
       <Box flexDirection="column" marginTop={1}>
         <Text color={theme.muted}>{t('services.logs')}</Text>
-        <LogBlock title={t('services.logRelay')} lines={relayLog} emptyText={t('services.logEmpty')} />
-        <LogBlock title={t('services.logHost')} lines={hostLog} emptyText={t('services.logEmpty')} />
+        <LogBlock
+          title={t('services.logRelay')}
+          lines={relayLog}
+          emptyText={t('services.logEmpty')}
+        />
+        <LogBlock
+          title={t('services.logHost')}
+          lines={hostLog}
+          emptyText={t('services.logEmpty')}
+        />
       </Box>
 
       <Message text={ctx.message?.text ?? null} level={ctx.message?.level ?? 'info'} />
@@ -79,10 +107,20 @@ export function Services({ ctx }: { ctx: AppContext }) {
   );
 }
 
-function LogBlock({ title, lines, emptyText }: { title: string; lines: string[]; emptyText: string }) {
+function LogBlock({
+  title,
+  lines,
+  emptyText,
+}: {
+  title: string;
+  lines: string[];
+  emptyText: string;
+}) {
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text bold color={theme.muted}>{title}</Text>
+      <Text bold color={theme.muted}>
+        {title}
+      </Text>
       {lines.length === 0 ? (
         <Text color={theme.muted}>{emptyText}</Text>
       ) : (
@@ -90,7 +128,9 @@ function LogBlock({ title, lines, emptyText }: { title: string; lines: string[];
           // Log lines are positional and may repeat, so the index is the only
           // stable identity available here.
           // eslint-disable-next-line react/no-array-index-key
-          <Text key={index} color={theme.muted} wrap="truncate-end">{line}</Text>
+          <Text key={index} color={theme.muted} wrap="truncate-end">
+            {line}
+          </Text>
         ))
       )}
     </Box>

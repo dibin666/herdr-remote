@@ -141,15 +141,18 @@ module.exports = {
   'keepalive.lingerDisabled': 'Start at boot disabled (runs while logged in).',
   'keepalive.enableLinger': 'Enable start at boot',
   'keepalive.lingerDone': 'Start at boot enabled for {username}.',
-  'keepalive.fallbackNote': 'No system service manager found; background process will not survive reboot.',
+  'keepalive.fallbackNote':
+    'No system service manager found; background process will not survive reboot.',
 
   'herdr.title': 'Herdr integration',
   'herdr.socketPath': 'Socket path',
   'herdr.args': 'Extra arguments',
-  'herdr.autoStartHint': 'Off: Herdr starts only when you run it, or when you confirm it from a browser. On: herdr-remote also starts it every time it starts, at boot included. Takes effect the next time herdr-remote starts.',
+  'herdr.autoStartHint':
+    'Off: Herdr starts only when you run it, or when you confirm it from a browser. On: herdr-remote also starts it every time it starts, at boot included. Takes effect the next time herdr-remote starts.',
   'herdr.cliMissing': 'Command herdr not found. Set HERDR_BIN_PATH to its full path.',
   'herdr.version': 'Herdr version',
-  'herdr.versionOutdated': 'Herdr {version} is older than {minimum}. Run "herdr update": window titles, background machine activation and large pastes misbehave in browser windows before that release.',
+  'herdr.versionOutdated':
+    'Herdr {version} is older than {minimum}. Run "herdr update": window titles, background machine activation and large pastes misbehave in browser windows before that release.',
 
   'about.title': 'Language & about',
   'about.language': 'Interface language',
@@ -195,9 +198,11 @@ module.exports = {
 
   'error.invalidMode': 'Unknown access mode.',
   'error.invalidPort': 'Port must be a number between 1 and 65535.',
-  'error.invalidLanHost': 'Browser address must be a reachable LAN or Tailscale address, not loopback or 0.0.0.0.',
+  'error.invalidLanHost':
+    'Browser address must be a reachable LAN or Tailscale address, not loopback or 0.0.0.0.',
   'error.invalidRelayUrl': 'Relay URL must start with wss://, ws://, https:// or http://.',
-  'error.invalidPublicUrl': 'Browser URL must start with https:// or http:// and cannot use 0.0.0.0 or ::.',
+  'error.invalidPublicUrl':
+    'Browser URL must start with https:// or http:// and cannot use 0.0.0.0 or ::.',
   'error.invalidLanguage': 'Unknown language.',
   'error.invalidKeepalive': 'Unknown keep-alive manager.',
   'error.unknownField': 'Unknown setting.',
@@ -219,7 +224,8 @@ module.exports = {
   'hint.save': 's save',
   'hint.editing': '↵ confirm · esc cancel',
   'update.title': 'Updates',
-  'update.banner': 'herdr-remote {latest} is out (running {current}). Press 7 and Enter on the update row to install.',
+  'update.banner':
+    'herdr-remote {latest} is out (running {current}). Press 7 and Enter on the update row to install.',
   'update.check': 'Check for updates',
   'update.checking': 'Checking npm…',
   'update.upToDate': 'Up to date ({version})',
@@ -232,7 +238,8 @@ module.exports = {
   'update.errorNetworkDetail': 'No registry answered: {message}',
   'update.errorFailed': 'Update failed. Run: npm install -g herdr-remote@{version} --prefer-online',
   'update.errorFailedDetail': 'npm: {message}',
-  'update.errorNotYetPublished': 'npm has not caught up with {version} yet (common in the first minutes after a release). Press Enter to try again shortly.',
+  'update.errorNotYetPublished':
+    'npm has not caught up with {version} yet (common in the first minutes after a release). Press Enter to try again shortly.',
   'update.errorNotApplied': 'npm reported success, but {installed} is still installed',
   'update.mirrorBehind': '{registries} still has an older version; installing from {source}',
   'update.cannot.source': 'Source checkout — update with git',

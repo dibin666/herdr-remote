@@ -24,7 +24,10 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
   ];
 
   const activate = (id: string) => {
-    if (id === 'manager') { ctx.setEditing('keepaliveManager'); return; }
+    if (id === 'manager') {
+      ctx.setEditing('keepaliveManager');
+      return;
+    }
     ctx.run(() => {
       if (id === 'install') {
         const result = keepalive.install(ctx.config);
@@ -48,12 +51,15 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
     });
   };
 
-  useInput((_input, key) => {
-    const index = entries.findIndex((entry) => entry.id === selected);
-    if (key.upArrow) setSelected(entries[(index - 1 + entries.length) % entries.length].id);
-    else if (key.downArrow) setSelected(entries[(index + 1) % entries.length].id);
-    else if (key.return) activate(selected);
-  }, { isActive: editingId === null });
+  useInput(
+    (_input, key) => {
+      const index = entries.findIndex((entry) => entry.id === selected);
+      if (key.upArrow) setSelected(entries[(index - 1 + entries.length) % entries.length].id);
+      else if (key.downArrow) setSelected(entries[(index + 1) % entries.length].id);
+      else if (key.return) activate(selected);
+    },
+    { isActive: editingId === null },
+  );
 
   if (editingId === 'keepaliveManager') {
     return (
@@ -63,7 +69,10 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
           current={draft.keepalive.manager}
           onPick={(manager) => {
             const result = setField(draft, 'keepaliveManager', manager);
-            if (result.errorKey) { ctx.notify(t(result.errorKey), 'error'); return; }
+            if (result.errorKey) {
+              ctx.notify(t(result.errorKey), 'error');
+              return;
+            }
             ctx.updateDraft(result.draft);
             try {
               saveDraft(result.draft);
@@ -89,7 +98,11 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
           <StatusDot level={current?.active ? 'ok' : current?.installed ? 'warn' : 'idle'} />
           <Text>
             {' '}
-            {current?.active ? t('common.running') : current?.installed ? t('common.installed') : t('common.notInstalled')}
+            {current?.active
+              ? t('common.running')
+              : current?.installed
+                ? t('common.installed')
+                : t('common.notInstalled')}
           </Text>
         </Box>
       </Row>
@@ -104,7 +117,10 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
           <Selectable
             key={entry.id}
             selected={selected === entry.id}
-            onSelect={() => { setSelected(entry.id); activate(entry.id); }}
+            onSelect={() => {
+              setSelected(entry.id);
+              activate(entry.id);
+            }}
             onHover={() => setSelected(entry.id)}
           >
             {entry.label}
@@ -121,7 +137,9 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
         {current?.manager === 'supervisor' ? (
           <Text color={theme.warn}>{t('keepalive.fallbackNote')}</Text>
         ) : null}
-        <Text color={theme.muted}>{t('keepalive.logsHint', { command: status?.logsHint ?? '' })}</Text>
+        <Text color={theme.muted}>
+          {t('keepalive.logsHint', { command: status?.logsHint ?? '' })}
+        </Text>
       </Box>
 
       <Message text={ctx.message?.text ?? null} level={ctx.message?.level ?? 'info'} />

@@ -17,7 +17,7 @@ export const translations: Record<Language, TranslationSchema> = {
 export function translate(
   lang: Language,
   path: string,
-  params?: Record<string, string | number>
+  params?: Record<string, string | number>,
 ): string {
   const dict = translations[lang] || translations.en;
   const parts = path.split('.');

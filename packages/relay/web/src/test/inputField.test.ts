@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { detectInputField, InputFieldTracker, type FieldScreen, type InputField } from '../utils/inputField';
+import {
+  detectInputField,
+  InputFieldTracker,
+  type FieldScreen,
+  type InputField,
+} from '../utils/inputField';
 import {
   createTestScreen,
   listScreenFixtures,
@@ -13,7 +18,12 @@ function detectFixture(name: string): InputField | null {
   return detectInputField(screen, screen.cursor);
 }
 
-type Expected = null | { kind: InputField['kind']; startCol: number; endCol: number; vimInsert?: boolean | null };
+type Expected = null | {
+  kind: InputField['kind'];
+  startCol: number;
+  endCol: number;
+  vimInsert?: boolean | null;
+};
 
 /**
  * What each screen captured from Herdr 0.9.1 should be read as. Expectations
@@ -115,7 +125,7 @@ describe('detectInputField on captured Herdr screens', () => {
     expect(wrapped.key).toBe(detectFixture('mobile-claude-typed')!.key);
   });
 
-  it("keys a field by its pane and kind, never by the rows it sits on", () => {
+  it('keys a field by its pane and kind, never by the rows it sits on', () => {
     // Claude's box moves as the status area below it grows; a shell's next
     // prompt is on a new row. Both are the field they were.
     const screen = screenFromFixture(loadScreenFixture('desktop-claude-empty'));
@@ -138,8 +148,12 @@ describe('detectInputField on captured Herdr screens', () => {
   });
 
   it('tells apart fields in panes of their own', () => {
-    expect(detectFixture('desktop-split-claude')!.key).not.toBe(detectFixture('desktop-claude-empty')!.key);
-    expect(detectFixture('desktop-claude-empty')!.key).not.toBe(detectFixture('desktop-fish-empty')!.key);
+    expect(detectFixture('desktop-split-claude')!.key).not.toBe(
+      detectFixture('desktop-claude-empty')!.key,
+    );
+    expect(detectFixture('desktop-claude-empty')!.key).not.toBe(
+      detectFixture('desktop-fish-empty')!.key,
+    );
   });
 
   it('marks a box in vim insert mode as modal, and a shell prompt as not', () => {
@@ -188,16 +202,19 @@ describe('detectInputField edge cases', () => {
     expect(detectInputField(screen, { row: 2, col: 2, hidden: true })).toBeNull();
   });
 
-  it("finds -- INSERT -- under the taller status area Claude shows while it works", () => {
+  it('finds -- INSERT -- under the taller status area Claude shows while it works', () => {
     const screen = createTestScreen(60, 20);
     screen.write(4, 0, '─'.repeat(60));
     screen.write(5, 0, '❯ typing ahead');
     screen.write(6, 0, '─'.repeat(60));
-    ['[Opus]', '✓ Bash ×20', 'Context 42%', '1 CLAUDE.md', '✓ agent: done', '~file.ts(+1)'].forEach((text, i) =>
-      screen.write(7 + i, 2, text)
+    ['[Opus]', '✓ Bash ×20', 'Context 42%', '1 CLAUDE.md', '✓ agent: done', '~file.ts(+1)'].forEach(
+      (text, i) => screen.write(7 + i, 2, text),
     );
     screen.write(13, 2, '-- INSERT -- ⏵⏵ bypass permissions on');
-    expect(detectInputField(screen, { row: 5, col: 14, hidden: true })).toMatchObject({ kind: 'rule', vimInsert: true });
+    expect(detectInputField(screen, { row: 5, col: 14, hidden: true })).toMatchObject({
+      kind: 'rule',
+      vimInsert: true,
+    });
   });
 
   it('stops reading status rows at the bottom border of its pane', () => {
@@ -213,7 +230,9 @@ describe('detectInputField edge cases', () => {
     for (let row = 14; row < 17; row++) screen.write(row, 0, `│${' '.repeat(28)}│`);
     screen.write(14, 1, '  Esc to cancel');
     screen.write(17, 0, `└${'─'.repeat(28)}┘`);
-    expect(detectInputField(screen, { row: 10, col: 5, hidden: true })).toMatchObject({ kind: 'rule' });
+    expect(detectInputField(screen, { row: 10, col: 5, hidden: true })).toMatchObject({
+      kind: 'rule',
+    });
   });
 
   it('refuses a box whose hint line says it is a menu', () => {

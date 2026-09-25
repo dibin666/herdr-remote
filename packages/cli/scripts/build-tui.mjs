@@ -33,5 +33,7 @@ const result = await build({
 
 const output = Object.entries(result.metafile.outputs)[0];
 if (output) {
-  process.stdout.write(`herdr-remote: built ${path.relative(packageRoot, output[0])} (${(output[1].bytes / 1024).toFixed(1)} kB)\n`);
+  process.stdout.write(
+    `herdr-remote: built ${path.relative(packageRoot, output[0])} (${(output[1].bytes / 1024).toFixed(1)} kB)\n`,
+  );
 }

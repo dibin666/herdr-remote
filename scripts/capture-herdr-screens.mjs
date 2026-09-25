@@ -66,7 +66,11 @@ function childEnv() {
 
 function herdrCli(args) {
   try {
-    return execFileSync('herdr', args, { env: childEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return execFileSync('herdr', args, {
+      env: childEnv(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } catch (error) {
     return String(error.stdout || '') + String(error.stderr || '');
   }
@@ -74,7 +78,9 @@ function herdrCli(args) {
 
 function probeSessionExists() {
   try {
-    return (JSON.parse(herdrCli(['session', 'list', '--json'])).sessions || []).some((s) => s.name === SESSION);
+    return (JSON.parse(herdrCli(['session', 'list', '--json'])).sessions || []).some(
+      (s) => s.name === SESSION,
+    );
   } catch {
     return false;
   }
@@ -98,7 +104,13 @@ class Probe {
   }
 
   start() {
-    const term = new Terminal({ cols: this.cols, rows: this.rows, scrollback: 5000, convertEol: true, allowProposedApi: true });
+    const term = new Terminal({
+      cols: this.cols,
+      rows: this.rows,
+      scrollback: 5000,
+      convertEol: true,
+      allowProposedApi: true,
+    });
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = '11';
     this.term = term;
@@ -164,12 +176,19 @@ class Probe {
 
   lines() {
     const buffer = this.term.buffer.active;
-    return Array.from({ length: this.rows }, (_, y) => buffer.getLine(buffer.baseY + y)?.translateToString(false) ?? '');
+    return Array.from(
+      { length: this.rows },
+      (_, y) => buffer.getLine(buffer.baseY + y)?.translateToString(false) ?? '',
+    );
   }
 
   cursor() {
     const buffer = this.term.buffer.active;
-    return { x: buffer.cursorX, y: buffer.cursorY, hidden: Boolean(this.term._core?.coreService?.isCursorHidden) };
+    return {
+      x: buffer.cursorX,
+      y: buffer.cursorY,
+      hidden: Boolean(this.term._core?.coreService?.isCursorHidden),
+    };
   }
 
   async waitFor(pattern, timeoutMs = 15000) {
@@ -212,7 +231,13 @@ class Probe {
           run = null;
           continue;
         }
-        if (run && run.inverse === inverse && run.dim === dim && run.bg === bg && run.col + run.len === x) {
+        if (
+          run &&
+          run.inverse === inverse &&
+          run.dim === dim &&
+          run.bg === bg &&
+          run.col + run.len === x
+        ) {
           run.len++;
         } else {
           run = { row: y, col: x, len: 1, inverse, dim, bg };
@@ -259,7 +284,10 @@ async function shell(probe, command) {
 async function ensureShell(probe) {
   for (let i = 0; i < 4; i++) {
     const { y, hidden } = probe.cursor();
-    const nearby = probe.lines().slice(Math.max(0, y - 1), y + 1).join('\n');
+    const nearby = probe
+      .lines()
+      .slice(Math.max(0, y - 1), y + 1)
+      .join('\n');
     if (!hidden && /hr-probe-\w+(?: \[\d+\])?>\s*($|\n)/.test(nearby)) return true;
     await probe.send(i < 2 ? ESC : CTRL_C);
     await probe.settle(800, 4000);
@@ -269,7 +297,8 @@ async function ensureShell(probe) {
 
 async function startClaude(probe, capture) {
   await probe.send('claude\r');
-  if (!(await probe.waitFor(/trust this folder|-- INSERT --/i, 40000))) throw new Error('claude did not start');
+  if (!(await probe.waitFor(/trust this folder|-- INSERT --/i, 40000)))
+    throw new Error('claude did not start');
   await probe.settle(1500, 10000);
   if (/trust this folder/i.test(probe.lines().join('\n'))) {
     if (capture) await capture('claude-trust');
@@ -279,7 +308,8 @@ async function startClaude(probe, capture) {
       await probe.send(`${ESC}[B`);
       await probe.settle(400);
     }
-    if (!/❯\s*Yes/.test(probe.lines().join('\n'))) throw new Error('could not select the trust option');
+    if (!/❯\s*Yes/.test(probe.lines().join('\n')))
+      throw new Error('could not select the trust option');
     await probe.send('\r');
   }
   if (!(await probe.waitFor(/-- INSERT --/, 40000))) throw new Error('claude input never appeared');
@@ -461,7 +491,8 @@ const scenarios = [
       await probe.settle(2000, 15000);
       if (/Trust this folder/.test(probe.lines().join('\n'))) {
         await capture('codex-trust');
-        if (!/› 1\. Trust and continue/.test(probe.lines().join('\n'))) throw new Error('unexpected codex trust menu');
+        if (!/› 1\. Trust and continue/.test(probe.lines().join('\n')))
+          throw new Error('unexpected codex trust menu');
         await probe.send('\r');
         await probe.settle(3000, 20000);
       }
@@ -494,9 +525,12 @@ const scenarios = [
 
 function printScreen(fixture) {
   const { cursor } = fixture;
-  process.stdout.write(`\n=== ${fixture.name} cursor=${cursor.x},${cursor.y} hidden=${cursor.hidden} sync=${fixture.sync.begins}/${fixture.sync.ends}\n`);
+  process.stdout.write(
+    `\n=== ${fixture.name} cursor=${cursor.x},${cursor.y} hidden=${cursor.hidden} sync=${fixture.sync.begins}/${fixture.sync.ends}\n`,
+  );
   fixture.lines.forEach((line, y) => {
-    if (Math.abs(y - cursor.y) <= 5) process.stdout.write(`${y === cursor.y ? '>' : ' '}${String(y).padStart(2)}|${line}|\n`);
+    if (Math.abs(y - cursor.y) <= 5)
+      process.stdout.write(`${y === cursor.y ? '>' : ' '}${String(y).padStart(2)}|${line}|\n`);
   });
 }
 
@@ -506,7 +540,10 @@ async function main() {
   const layouts = layoutArg === 'both' ? ['desktop', 'mobile'] : [layoutArg];
   const only = option('only', '').split(',').filter(Boolean);
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'hr-probe-'));
-  fs.writeFileSync(path.join(workdir, 'notes.txt'), Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join('\n'));
+  fs.writeFileSync(
+    path.join(workdir, 'notes.txt'),
+    Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join('\n'),
+  );
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   try {
@@ -518,7 +555,10 @@ async function main() {
         await probe.settle(settleMs);
         const fixture = probe.snapshot(name);
         if (flag('explore')) printScreen(fixture);
-        fs.writeFileSync(path.join(OUT_DIR, `${layout}-${name}.json`), `${JSON.stringify(fixture)}\n`);
+        fs.writeFileSync(
+          path.join(OUT_DIR, `${layout}-${name}.json`),
+          `${JSON.stringify(fixture)}\n`,
+        );
       };
       try {
         await probe.settle(1500, 15000);
@@ -531,7 +571,9 @@ async function main() {
             await scenario.run({ probe, capture, layout });
           } catch (error) {
             // One broken scenario must not cost the rest of the run.
-            process.stderr.write(`[capture] ${layout}: ${scenario.name} failed: ${error.message}\n`);
+            process.stderr.write(
+              `[capture] ${layout}: ${scenario.name} failed: ${error.message}\n`,
+            );
             await quitAgent(probe);
           }
         }

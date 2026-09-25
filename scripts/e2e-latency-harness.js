@@ -31,11 +31,11 @@ const webIndexHtml = path.join(webDistDir, 'index.html');
 if (!fs.existsSync(webIndexHtml)) {
   process.stderr.write(
     '\n[e2e-harness] ERROR: Frontend build assets not found.\n' +
-    `Expected entrypoint: ${webIndexHtml}\n\n` +
-    'Please build the web client first by running:\n' +
-    '  npm run build -w herdr-remote-web\n' +
-    'or:\n' +
-    '  npm run build -w herdr-remote-relay\n\n'
+      `Expected entrypoint: ${webIndexHtml}\n\n` +
+      'Please build the web client first by running:\n' +
+      '  npm run build -w herdr-remote-web\n' +
+      'or:\n' +
+      '  npm run build -w herdr-remote-relay\n\n',
   );
   process.exit(1);
 }
@@ -70,9 +70,10 @@ function sendOutput(session, data) {
   const payload = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
   if (payload.length === 0) return;
 
-  const frame = typeof session.streamIndex === 'number'
-    ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
-    : packStreamFrame('output', session.streamId, payload);
+  const frame =
+    typeof session.streamIndex === 'number'
+      ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
+      : packStreamFrame('output', session.streamId, payload);
 
   hostWs.send(frame);
 }
@@ -175,7 +176,7 @@ function handleSessionInput(session, payload) {
         i += 1;
         continue;
       }
-      session.lastWasCr = (ch === '\r');
+      session.lastWasCr = ch === '\r';
       flushEcho();
 
       const command = session.lineBuffer.trim();
@@ -185,9 +186,10 @@ function handleSessionInput(session, payload) {
         sendOutput(session, '\r\n');
         triggerFlood(session);
       } else {
-        const resultLine = command.length > 0
-          ? `[fake-shell] command executed: ${command}\r\n`
-          : `[fake-shell] ok\r\n`;
+        const resultLine =
+          command.length > 0
+            ? `[fake-shell] command executed: ${command}\r\n`
+            : `[fake-shell] ok\r\n`;
         sendOutput(session, `\r\n${resultLine}$ `);
       }
       i += 1;
@@ -240,7 +242,9 @@ function requestPairing(port) {
       },
       (res) => {
         let body = '';
-        res.on('data', (chunk) => { body += chunk; });
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
         res.on('end', () => {
           try {
             const data = JSON.parse(body);
@@ -253,7 +257,7 @@ function requestPairing(port) {
             reject(new Error(`Failed to parse pairing response: ${err.message}`));
           }
         });
-      }
+      },
     );
 
     req.on('error', reject);
@@ -324,7 +328,9 @@ async function main() {
     address = await relayServer.listen(TARGET_PORT, config.relay.host);
   } catch (err) {
     if (err.code === 'EADDRINUSE' && !process.env.PORT) {
-      process.stdout.write(`[e2e-harness] Port ${TARGET_PORT} in use, choosing available port...\n`);
+      process.stdout.write(
+        `[e2e-harness] Port ${TARGET_PORT} in use, choosing available port...\n`,
+      );
       address = await relayServer.listen(0, config.relay.host);
     } else {
       throw err;
@@ -356,7 +362,7 @@ async function main() {
           arch: process.arch,
           terminalPalette: null,
           capabilities: ['host_handoff', 'idle_heartbeat', 'binary_frame_v2'],
-        })
+        }),
       );
     });
 
@@ -404,9 +410,8 @@ async function main() {
 
       if (frame.type !== 'input') return;
 
-      const streamId = frame.version === 2
-        ? streamIndexToId.get(frame.streamIndex)
-        : frame.streamId;
+      const streamId =
+        frame.version === 2 ? streamIndexToId.get(frame.streamIndex) : frame.streamId;
       if (!streamId) return;
 
       const session = sessions.get(streamId);
@@ -448,7 +453,7 @@ async function main() {
           type: 'session_ready',
           clientId: streamId,
           streamId,
-        })
+        }),
       );
 
       // Print initial shell prompt
@@ -476,9 +481,10 @@ async function main() {
   const pairing = await requestPairing(boundPort);
 
   // Print status
-  const latencyDisplay = devLatencyMs > 0
-    ? `${devLatencyMs} ms (RTT, ~${Math.round(devLatencyMs / 2)} ms one-way)`
-    : '0 ms (disabled, real-time)';
+  const latencyDisplay =
+    devLatencyMs > 0
+      ? `${devLatencyMs} ms (RTT, ~${Math.round(devLatencyMs / 2)} ms one-way)`
+      : '0 ms (disabled, real-time)';
 
   process.stdout.write('\n' + '='.repeat(64) + '\n');
   process.stdout.write('  Herdr Remote E2E Latency Harness\n');

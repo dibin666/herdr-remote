@@ -158,7 +158,9 @@ export class GlyphAtlas {
       ctx.textBaseline = this.baseline;
       const measured = ctx.measureText(chars);
       const right =
-        typeof measured.actualBoundingBoxRight === 'number' ? measured.actualBoundingBoxRight : measured.width;
+        typeof measured.actualBoundingBoxRight === 'number'
+          ? measured.actualBoundingBoxRight
+          : measured.width;
       value = Math.max(0, Math.ceil(this.metrics.charLeft + right - this.metrics.cellWidth));
     }
     this.inkCache.set(key, value);
@@ -190,7 +192,16 @@ export class GlyphAtlas {
     if (request.dim) ctx.globalAlpha = DIM_OPACITY;
     let drawn = false;
     if (font.customGlyphs) {
-      drawn = tryDrawCustomChar(ctx, request.chars, x, y, metrics.cellWidth, metrics.cellHeight, font.fontSize, metrics.dpr);
+      drawn = tryDrawCustomChar(
+        ctx,
+        request.chars,
+        x,
+        y,
+        metrics.cellWidth,
+        metrics.cellHeight,
+        font.fontSize,
+        metrics.dpr,
+      );
     }
     if (!drawn) {
       ctx.font = this.fontString(request.bold, request.italic);
@@ -220,7 +231,11 @@ export class GlyphAtlas {
     return this.pages[0] ? this.fit(this.pages[0], width, height) : null;
   }
 
-  private fit(page: Page, width: number, height: number): { page: Page; x: number; y: number } | null {
+  private fit(
+    page: Page,
+    width: number,
+    height: number,
+  ): { page: Page; x: number; y: number } | null {
     if (page.shelfX + width > page.canvas.width) {
       page.shelfX = 0;
       page.shelfY += height;

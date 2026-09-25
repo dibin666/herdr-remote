@@ -18,10 +18,22 @@ const FIXTURES = {
   'image/jpeg': Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]),
   'image/gif': Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00]),
   'image/webp': Buffer.from([
-    0x52, 0x49, 0x46, 0x46, // 'RIFF'
-    0x20, 0x00, 0x00, 0x00, // size
-    0x57, 0x45, 0x42, 0x50, // 'WEBP'
-    0x56, 0x50, 0x38, 0x20, // 'VP8 '
+    0x52,
+    0x49,
+    0x46,
+    0x46, // 'RIFF'
+    0x20,
+    0x00,
+    0x00,
+    0x00, // size
+    0x57,
+    0x45,
+    0x42,
+    0x50, // 'WEBP'
+    0x56,
+    0x50,
+    0x38,
+    0x20, // 'VP8 '
   ]),
 };
 
@@ -77,21 +89,32 @@ test('savePastedFile rejects file when magic bytes do not match declared MIME (s
   // 1. ELF executable binary spoofed as image/png
   const fakePngElf = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00]);
   assert.throws(
-    () => savePastedFile({ mime: 'image/png', dataBase64: fakePngElf.toString('base64'), dir: tmpDir }),
-    /magic bytes do not match/i
+    () =>
+      savePastedFile({ mime: 'image/png', dataBase64: fakePngElf.toString('base64'), dir: tmpDir }),
+    /magic bytes do not match/i,
   );
 
   // 2. Plain text spoofed as image/jpeg
   const fakeJpgText = Buffer.from('Hello world this is not a JPEG');
   assert.throws(
-    () => savePastedFile({ mime: 'image/jpeg', dataBase64: fakeJpgText.toString('base64'), dir: tmpDir }),
-    /magic bytes do not match/i
+    () =>
+      savePastedFile({
+        mime: 'image/jpeg',
+        dataBase64: fakeJpgText.toString('base64'),
+        dir: tmpDir,
+      }),
+    /magic bytes do not match/i,
   );
 
   // 3. PNG magic bytes passed with declared image/webp
   assert.throws(
-    () => savePastedFile({ mime: 'image/webp', dataBase64: FIXTURES['image/png'].toString('base64'), dir: tmpDir }),
-    /magic bytes do not match/i
+    () =>
+      savePastedFile({
+        mime: 'image/webp',
+        dataBase64: FIXTURES['image/png'].toString('base64'),
+        dir: tmpDir,
+      }),
+    /magic bytes do not match/i,
   );
 });
 
@@ -104,8 +127,13 @@ test('savePastedFile re-checks size limit on host independently of relay', (t) =
   FIXTURES['image/png'].copy(oversizedBuf, 0);
 
   assert.throws(
-    () => savePastedFile({ mime: 'image/png', dataBase64: oversizedBuf.toString('base64'), dir: tmpDir }),
-    /exceeds maximum limit of 3 MB/i
+    () =>
+      savePastedFile({
+        mime: 'image/png',
+        dataBase64: oversizedBuf.toString('base64'),
+        dir: tmpDir,
+      }),
+    /exceeds maximum limit of 3 MB/i,
   );
 });
 

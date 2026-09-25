@@ -67,10 +67,7 @@ function writeConfig(contents) {
 
 /** Mount a screen. The mouse layer degrades to keyboard-only without a provider. */
 async function mount(element) {
-  const [{ render }, React] = await Promise.all([
-    import('ink-testing-library'),
-    import('react'),
-  ]);
+  const [{ render }, React] = await Promise.all([import('ink-testing-library'), import('react')]);
   const instance = render(element);
   // Let the first effects (status fetch, Herdr version probe) settle.
   await new Promise((resolve) => setTimeout(resolve, 60));
@@ -83,7 +80,9 @@ test('the overview renders the service picture in English', async (t) => {
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const output = instance.lastFrame();
@@ -100,7 +99,9 @@ test('the interface switches to Chinese from the saved preference', async (t) =>
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: null, needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: null, needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const output = instance.lastFrame();
@@ -116,7 +117,9 @@ test('an explicit language flag overrides the saved preference', async (t) => {
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   assert.match(instance.lastFrame(), /Access mode/);
@@ -128,10 +131,20 @@ test('every tab is reachable and titled', async (t) => {
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
-  for (const label of ['Overview', 'Pair a device', 'Services', 'Relay', 'Keep-alive', 'Herdr', 'Language & about']) {
+  for (const label of [
+    'Overview',
+    'Pair a device',
+    'Services',
+    'Relay',
+    'Keep-alive',
+    'Herdr',
+    'Language & about',
+  ]) {
     assert.match(instance.lastFrame(), new RegExp(label.replace(/[&]/g, '\\&')));
   }
 });
@@ -141,7 +154,9 @@ test('the first-run wizard opens on the language step', async (t) => {
   t.after(cleanup);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
   t.after(() => instance.unmount());
 
   const output = instance.lastFrame();
@@ -157,7 +172,9 @@ test('the wizard walks language, access mode and finish', async (t) => {
   t.after(cleanup);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
@@ -181,7 +198,9 @@ test('choosing the self-hosted relay adds the URL and credential steps', async (
   t.after(cleanup);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
@@ -217,7 +236,9 @@ test('the Herdr screen shows the installed version and offers no plugin registra
   });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   instance.stdin.write('6'); // Herdr tab
@@ -238,7 +259,9 @@ test('the Herdr screen switches starting Herdr with herdr-remote, off by default
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'zh', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'zh', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
@@ -262,10 +285,15 @@ test('the Herdr screen switches starting Herdr with herdr-remote, off by default
 test('the relay screen offers a password only for a self-hosted relay', async (t) => {
   const cleanup = withTemporaryHome();
   t.after(cleanup);
-  writeConfig({ ui: { language: 'en' }, relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' } });
+  writeConfig({
+    ui: { language: 'en' },
+    relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
+  });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   instance.stdin.write('4'); // jump to the Relay tab
@@ -287,7 +315,9 @@ test('a local relay needs no password, so the field is not offered', async (t) =
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   instance.stdin.write('4');
@@ -310,7 +340,9 @@ test('the relay screen commits an access-mode change to disk from its own row', 
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -352,7 +384,9 @@ test('the services screen refuses to restart onto a stale configuration', async 
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -378,7 +412,9 @@ test('the official relay is offered during setup and needs no further answers', 
   t.after(cleanup);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
@@ -418,7 +454,9 @@ test('choosing the official relay sets both the mode and the URL', async (t) => 
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -456,7 +494,9 @@ test('the official relay is shown as itself, with a fixed address and no passwor
   });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -467,7 +507,11 @@ test('the official relay is shown as itself, with a fixed address and no passwor
   const frame = instance.lastFrame();
   assert.match(frame, /Official relay/, 'the mode names the relay that is actually in use');
   assert.doesNotMatch(frame, /Self-hosted relay/);
-  assert.match(frame, /wss:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/, 'the address is stated, not offered for editing');
+  assert.match(
+    frame,
+    /wss:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/,
+    'the address is stated, not offered for editing',
+  );
   assert.doesNotMatch(frame, /Relay password/, 'the official relay takes no password');
   assert.match(frame, /no password is needed/);
 });
@@ -481,7 +525,9 @@ test('switching from the official relay to a self-hosted one clears the address'
   });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -520,7 +566,9 @@ test('choosing the official relay drops the password typed for a self-hosted one
   assert.equal(readRuntime().relayPassword, 'self-hosted-secret');
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
   t.after(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -562,7 +610,9 @@ test('opening the TUI checks for a newer release and says so where it opens', as
     };
   };
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'zh', needsWizard: false, updateChecker }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'zh', needsWizard: false, updateChecker }),
+  );
   t.after(() => instance.unmount());
 
   assert.equal(checks, 1);
@@ -572,7 +622,10 @@ test('opening the TUI checks for a newer release and says so where it opens', as
   instance.stdin.write('7');
   await new Promise((resolve) => setTimeout(resolve, 60));
   assert.match(instance.lastFrame(), /新版本 0\.3\.0 可用（按 Enter 安装）/);
-  assert.match(instance.lastFrame(), /registry\.npmmirror\.com 0\.2\.16 仍是旧版本，将从 registry\.npmjs\.org 安装/);
+  assert.match(
+    instance.lastFrame(),
+    /registry\.npmmirror\.com 0\.2\.16 仍是旧版本，将从 registry\.npmjs\.org 安装/,
+  );
 });
 
 test('a TUI that is up to date says nothing about updates', async (t) => {
@@ -580,9 +633,16 @@ test('a TUI that is up to date says nothing about updates', async (t) => {
   t.after(cleanup);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
-  const updateChecker = async () => ({ ok: true, current: '0.3.0', latest: '0.3.0', updateAvailable: false });
+  const updateChecker = async () => ({
+    ok: true,
+    current: '0.3.0',
+    latest: '0.3.0',
+    updateAvailable: false,
+  });
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false, updateChecker }));
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false, updateChecker }),
+  );
   t.after(() => instance.unmount());
 
   assert.doesNotMatch(instance.lastFrame(), /is out \(running/);

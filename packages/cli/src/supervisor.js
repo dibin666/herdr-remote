@@ -4,7 +4,15 @@ const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { PACKAGE_ROOT, loadConfig, runtimeStatePath, stateDir } = require('./config');
 const { ensureDir, readJson, writeJsonAtomic } = require('./state');
-const { baseEnvironment, ensureRuntime, logPath, managedPids, pidAlive, recordManagedPid, serviceSpecs } = require('./service');
+const {
+  baseEnvironment,
+  ensureRuntime,
+  logPath,
+  managedPids,
+  pidAlive,
+  recordManagedPid,
+  serviceSpecs,
+} = require('./service');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
 
 const MIN_BACKOFF_MS = 500;
@@ -22,7 +30,12 @@ const HEALTHY_UPTIME_MS = 30_000;
  * fallback daemon on systems where neither is available.
  */
 class Supervisor {
-  constructor({ config = loadConfig(), state = ensureRuntime(), logToFiles = false, onEvent = null } = {}) {
+  constructor({
+    config = loadConfig(),
+    state = ensureRuntime(),
+    logToFiles = false,
+    onEvent = null,
+  } = {}) {
     this.config = config;
     this.state = state;
     this.logToFiles = logToFiles;
@@ -51,8 +64,15 @@ class Supervisor {
     if (strays.length === 0) return strays;
 
     for (const { pid, name } of strays) {
-      this.emit({ type: 'reclaim', name, pid, message: `stopping stray ${name} from an earlier start (pid ${pid})` });
-      try { process.kill(pid, 'SIGTERM'); } catch {}
+      this.emit({
+        type: 'reclaim',
+        name,
+        pid,
+        message: `stopping stray ${name} from an earlier start (pid ${pid})`,
+      });
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch {}
     }
 
     // Wait for them to actually go: the relay only releases its port on exit,
@@ -60,12 +80,21 @@ class Supervisor {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (strays.every(({ pid }) => !pidAlive(pid))) return strays;
-      await new Promise((resolve) => { setTimeout(resolve, 100); });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
     }
     for (const { pid, name } of strays) {
       if (!pidAlive(pid)) continue;
-      this.emit({ type: 'reclaim', name, pid, message: `stray ${name} (pid ${pid}) ignored SIGTERM, killing` });
-      try { process.kill(pid, 'SIGKILL'); } catch {}
+      this.emit({
+        type: 'reclaim',
+        name,
+        pid,
+        message: `stray ${name} (pid ${pid}) ignored SIGTERM, killing`,
+      });
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
     }
     return strays;
   }
@@ -76,7 +105,14 @@ class Supervisor {
     await this.reclaimStrays();
     if (this.stopping) return;
     for (const spec of serviceSpecs(this.config, this.state)) {
-      this.children.set(spec.name, { spec, child: null, pid: null, restarts: 0, backoffMs: MIN_BACKOFF_MS, timer: null });
+      this.children.set(spec.name, {
+        spec,
+        child: null,
+        pid: null,
+        restarts: 0,
+        backoffMs: MIN_BACKOFF_MS,
+        timer: null,
+      });
       this.spawnChild(spec.name);
     }
     this.persistPids();
@@ -102,20 +138,31 @@ class Supervisor {
         stdio,
       });
     } catch (error) {
-      this.emit({ type: 'spawn_failed', name, message: `could not start ${name}: ${error.message}` });
+      this.emit({
+        type: 'spawn_failed',
+        name,
+        message: `could not start ${name}: ${error.message}`,
+      });
       this.scheduleRestart(name);
       return;
     } finally {
       // The child inherited the descriptor during spawn, so this copy is done.
       if (fd !== null) {
-        try { fs.closeSync(fd); } catch {}
+        try {
+          fs.closeSync(fd);
+        } catch {}
       }
     }
 
     entry.child = child;
     entry.pid = child.pid;
     entry.startedAt = Date.now();
-    this.emit({ type: 'started', name, pid: child.pid, message: `${name} started (pid ${child.pid})` });
+    this.emit({
+      type: 'started',
+      name,
+      pid: child.pid,
+      message: `${name} started (pid ${child.pid})`,
+    });
     this.persistPids();
 
     child.on('exit', (code, signal) => {
@@ -201,18 +248,26 @@ class Supervisor {
       }
       const child = entry.child;
       if (!child) continue;
-      pending.push(new Promise((resolve) => {
-        const killTimer = setTimeout(() => {
-          try { child.kill('SIGKILL'); } catch {}
-          resolve();
-        }, graceMs);
-        killTimer.unref?.();
-        child.once('exit', () => {
-          clearTimeout(killTimer);
-          resolve();
-        });
-        try { child.kill('SIGTERM'); } catch { resolve(); }
-      }));
+      pending.push(
+        new Promise((resolve) => {
+          const killTimer = setTimeout(() => {
+            try {
+              child.kill('SIGKILL');
+            } catch {}
+            resolve();
+          }, graceMs);
+          killTimer.unref?.();
+          child.once('exit', () => {
+            clearTimeout(killTimer);
+            resolve();
+          });
+          try {
+            child.kill('SIGTERM');
+          } catch {
+            resolve();
+          }
+        }),
+      );
     }
     await Promise.all(pending);
     try {
@@ -221,7 +276,9 @@ class Supervisor {
       current.relayPid = null;
       current.hostPid = null;
       current.startedAt = null;
-      current.managedPids = (current.managedPids || []).filter((entry) => entry && pidAlive(entry.pid));
+      current.managedPids = (current.managedPids || []).filter(
+        (entry) => entry && pidAlive(entry.pid),
+      );
       writeJsonAtomic(runtimeStatePath(), current);
     } catch {}
   }
@@ -241,9 +298,15 @@ async function runForeground({ logToFiles = false } = {}) {
       await supervisor.stop();
       resolve(0);
     };
-    process.on('SIGINT', () => { shutdown('SIGINT'); });
-    process.on('SIGTERM', () => { shutdown('SIGTERM'); });
-    process.on('SIGHUP', () => { shutdown('SIGHUP'); });
+    process.on('SIGINT', () => {
+      shutdown('SIGINT');
+    });
+    process.on('SIGTERM', () => {
+      shutdown('SIGTERM');
+    });
+    process.on('SIGHUP', () => {
+      shutdown('SIGHUP');
+    });
   });
 }
 

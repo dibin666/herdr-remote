@@ -19,7 +19,9 @@ interface SessionStatusLineProps {
  * then be a terminal, a wizard, or an admin screen without changing the shell
  * around it.
  */
-export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfile = () => {} }) => {
+export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
+  onAddProfile = () => {},
+}) => {
   const {
     connectionState,
     role,
@@ -42,33 +44,33 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfi
           <HostSwitcher onAddProfile={onAddProfile} />
           <Segments
             items={[
-            <span key="status" className="flex items-center gap-1">
-              <StatusDot level={status.level} />
-              <span className="text-tui-text">{status.label}</span>
-            </span>,
-            // Nothing is being controlled while the session is down, so the
-            // line says nothing about it rather than claiming a role that has
-            // no session to apply to.
-            connected ? (
-              <Badge key="role" tone={role === 'controller' ? 'ok' : 'warn'}>
-                {role === 'controller' ? t('role.sharedControl') : t('common.viewer')}
-              </Badge>
-            ) : null,
-            connected && sharedWindowCount > 1 ? (
-              <span key="windows" className="text-tui-muted">
-                {t('role.sharedWindows', { count: sharedWindowCount })}
-              </span>
-            ) : null,
-            hostId ? (
-              <span key="host">
-                <span className="text-tui-faint">{t('common.host')}:</span>{' '}
-                <span className="text-tui-text">{hostId}</span>
-              </span>
-            ) : null,
-            <span key="client">
-              <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
-              <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
-            </span>,
+              <span key="status" className="flex items-center gap-1">
+                <StatusDot level={status.level} />
+                <span className="text-tui-text">{status.label}</span>
+              </span>,
+              // Nothing is being controlled while the session is down, so the
+              // line says nothing about it rather than claiming a role that has
+              // no session to apply to.
+              connected ? (
+                <Badge key="role" tone={role === 'controller' ? 'ok' : 'warn'}>
+                  {role === 'controller' ? t('role.sharedControl') : t('common.viewer')}
+                </Badge>
+              ) : null,
+              connected && sharedWindowCount > 1 ? (
+                <span key="windows" className="text-tui-muted">
+                  {t('role.sharedWindows', { count: sharedWindowCount })}
+                </span>
+              ) : null,
+              hostId ? (
+                <span key="host">
+                  <span className="text-tui-faint">{t('common.host')}:</span>{' '}
+                  <span className="text-tui-text">{hostId}</span>
+                </span>
+              ) : null,
+              <span key="client">
+                <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
+                <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
+              </span>,
             ]}
           />
         </>
@@ -77,7 +79,9 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({ onAddProfi
         <Segments
           items={[
             updateVisible ? <UpdateChip key="update" /> : null,
-            connected && agentStatusHasContent(agentStatus) ? <AgentStatusChip key="agents" /> : null,
+            connected && agentStatusHasContent(agentStatus) ? (
+              <AgentStatusChip key="agents" />
+            ) : null,
             rttMs !== null ? (
               <span key="rtt" className="text-tui-muted">
                 {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>

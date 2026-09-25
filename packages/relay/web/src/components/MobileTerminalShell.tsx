@@ -99,7 +99,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
               ? 'border-tui-warn text-tui-warn'
               : isController
                 ? 'border-tui-border text-tui-muted'
-                : 'border-tui-accent text-tui-accent'
+                : 'border-tui-accent text-tui-accent',
           )}
         >
           {!isController && !status.needsAttention && (

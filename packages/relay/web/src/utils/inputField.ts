@@ -99,12 +99,52 @@ export interface InputField {
 /** Vertical strokes that form pane borders, box sides and Herdr's scrollbar. */
 const EDGE_CHARS = new Set(['│', '┃', '║', '▐', '▕', '▏', '▌']);
 const CORNER_OR_JUNCTION_CHARS = new Set([
-  '┌', '┐', '└', '┘', '╭', '╮', '╰', '╯', '├', '┤', '┬', '┴', '┼',
-  '┏', '┓', '┗', '┛', '╔', '╗', '╚', '╝', '╠', '╣', '╟', '╢', '╞', '╡',
+  '┌',
+  '┐',
+  '└',
+  '┘',
+  '╭',
+  '╮',
+  '╰',
+  '╯',
+  '├',
+  '┤',
+  '┬',
+  '┴',
+  '┼',
+  '┏',
+  '┓',
+  '┗',
+  '┛',
+  '╔',
+  '╗',
+  '╚',
+  '╝',
+  '╠',
+  '╣',
+  '╟',
+  '╢',
+  '╞',
+  '╡',
 ]);
 const TOP_LEFT = new Set(['╭', '┌', '┏', '╔']);
 /** Where a pane's left border starts: its top corner, or a junction with the pane above. */
-const PANE_TOP_LEFT = new Set(['╭', '┌', '┏', '╔', '├', '┣', '┠', '┝', '╟', '╠', '┞', '┟', '┡', '┢']);
+const PANE_TOP_LEFT = new Set([
+  '╭',
+  '┌',
+  '┏',
+  '╔',
+  '├',
+  '┣',
+  '┠',
+  '┝',
+  '╟',
+  '╠',
+  '┞',
+  '┟',
+  '┡',
+  '┢',
+]);
 const TOP_RIGHT = new Set(['╮', '┐', '┓', '╗']);
 const BOTTOM_LEFT = new Set(['╰', '└', '┗', '╚']);
 const BOTTOM_RIGHT = new Set(['╯', '┘', '┛', '╝']);
@@ -131,7 +171,8 @@ const MAX_WRAPPED_ROWS = 3;
 
 const VIM_INSERT = /-- INSERT --/;
 const VIM_OTHER_MODE = /-- (?:NORMAL|VISUAL(?: LINE| BLOCK)?|REPLACE) --/;
-const MENU_HINT = /Esc to cancel|Enter to (?:confirm|select)|to navigate|Space to (?:change|toggle|select)/i;
+const MENU_HINT =
+  /Esc to cancel|Enter to (?:confirm|select)|to navigate|Space to (?:change|toggle|select)/i;
 const NUMBERED_CHOICE = /^\s*\d+[.)]\s/;
 
 function isBlank(chars: string): boolean {
@@ -177,8 +218,10 @@ class ScreenReader {
     const above = this.char(row - 1, col);
     const below = this.char(row + 1, col);
     return (
-      EDGE_CHARS.has(above) || CORNER_OR_JUNCTION_CHARS.has(above) ||
-      EDGE_CHARS.has(below) || CORNER_OR_JUNCTION_CHARS.has(below)
+      EDGE_CHARS.has(above) ||
+      CORNER_OR_JUNCTION_CHARS.has(above) ||
+      EDGE_CHARS.has(below) ||
+      CORNER_OR_JUNCTION_CHARS.has(below)
     );
   }
 
@@ -223,7 +266,11 @@ function segmentAt(screen: ScreenReader, row: number, col: number): Segment | nu
  * rule inside the pane never does.
  */
 function isRuleRow(screen: ScreenReader, row: number, seg: Segment): boolean {
-  if (!RULE_CHARS.has(screen.char(row, seg.start)) || !RULE_CHARS.has(screen.char(row, seg.end - 1))) return false;
+  if (
+    !RULE_CHARS.has(screen.char(row, seg.start)) ||
+    !RULE_CHARS.has(screen.char(row, seg.end - 1))
+  )
+    return false;
   if (CORNER_OR_JUNCTION_CHARS.has(screen.char(row, seg.start - 1))) return false;
   const width = seg.end - seg.start;
   let rules = 0;
@@ -265,7 +312,8 @@ function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): I
   while (bottom <= screen.bottom && screen.char(bottom, left) === side) bottom++;
   if (bottom - top - 1 > MAX_INPUT_ROWS) return null;
   if (!TOP_LEFT.has(screen.char(top, left)) || !TOP_RIGHT.has(screen.char(top, right))) return null;
-  if (!BOTTOM_LEFT.has(screen.char(bottom, left)) || !BOTTOM_RIGHT.has(screen.char(bottom, right))) return null;
+  if (!BOTTOM_LEFT.has(screen.char(bottom, left)) || !BOTTOM_RIGHT.has(screen.char(bottom, right)))
+    return null;
   if (screen.dim(row, left)) return null;
 
   const startCol = seg.start + FRAME_PAD;
@@ -280,7 +328,8 @@ function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): I
     caretCol: cursor.col,
     startCol,
     endCol,
-    empty: top + 2 === bottom && cursor.col === startCol && screen.blankOrDim(row, startCol, endCol),
+    empty:
+      top + 2 === bottom && cursor.col === startCol && screen.blankOrDim(row, startCol, endCol),
     agentLike: true,
     vimInsert: null,
     modal: false,
@@ -343,14 +392,21 @@ function detectRuleBox(screen: ScreenReader, cursor: FieldCursor, seg: Segment):
     caretCol: cursor.col,
     startCol,
     endCol: seg.end,
-    empty: bottomRule - topRule === 2 && cursor.col === startCol && screen.blankOrDim(row, startCol, seg.end),
+    empty:
+      bottomRule - topRule === 2 &&
+      cursor.col === startCol &&
+      screen.blankOrDim(row, startCol, seg.end),
     agentLike: true,
     vimInsert: VIM_INSERT.test(status),
     modal: VIM_INSERT.test(status),
   };
 }
 
-function detectPromptLine(screen: ScreenReader, cursor: FieldCursor, seg: Segment): InputField | null {
+function detectPromptLine(
+  screen: ScreenReader,
+  cursor: FieldCursor,
+  seg: Segment,
+): InputField | null {
   // Only a visible cursor is trusted here: Herdr hides it while an overlay or
   // a program that paints its own caret has the keys.
   if (cursor.hidden) return null;
@@ -365,7 +421,11 @@ function detectPromptLine(screen: ScreenReader, cursor: FieldCursor, seg: Segmen
   }
 
   // A prompt that fills its row pushes the command onto the next one.
-  for (let promptRow = row - 1; promptRow >= Math.max(screen.top, row - MAX_WRAPPED_ROWS); promptRow--) {
+  for (
+    let promptRow = row - 1;
+    promptRow >= Math.max(screen.top, row - MAX_WRAPPED_ROWS);
+    promptRow--
+  ) {
     let last = seg.end - 1;
     while (last >= seg.start && isBlank(screen.char(promptRow, last))) last--;
     if (last >= seg.end - 1 - WRAP_SLACK && PROMPT_TERMINATORS.has(screen.char(promptRow, last))) {
@@ -397,7 +457,10 @@ function promptField(
     caretCol: cursor.col,
     startCol,
     endCol: seg.end,
-    empty: cursor.row === promptRow && cursor.col === startCol && screen.blankOrDim(cursor.row, startCol, seg.end),
+    empty:
+      cursor.row === promptRow &&
+      cursor.col === startCol &&
+      screen.blankOrDim(cursor.row, startCol, seg.end),
     // A prompt that is nothing but a glyph (`› `) is an agent's, not a shell's.
     agentLike: bareGlyph,
     vimInsert: null,
@@ -407,7 +470,12 @@ function promptField(
 
 export function detectInputField(screen: FieldScreen, cursor: FieldCursor): InputField | null {
   const reader = new ScreenReader(screen);
-  if (cursor.row < reader.top || cursor.row > reader.bottom || cursor.col < 0 || cursor.col >= screen.cols) {
+  if (
+    cursor.row < reader.top ||
+    cursor.row > reader.bottom ||
+    cursor.col < 0 ||
+    cursor.col >= screen.cols
+  ) {
     return null;
   }
   const seg = segmentAt(reader, cursor.row, cursor.col);

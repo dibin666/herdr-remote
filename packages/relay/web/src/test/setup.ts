@@ -281,7 +281,10 @@ vi.mock('@xterm/xterm', () => ({
       onResize: vi.fn(() => ({ dispose: vi.fn() })),
       registerMarker: vi.fn((cursorYOffset?: number) => ({
         id: 1,
-        line: (instance.buffer.active.baseY ?? 0) + (instance.buffer.active.cursorY ?? 0) + (cursorYOffset ?? 0),
+        line:
+          (instance.buffer.active.baseY ?? 0) +
+          (instance.buffer.active.cursorY ?? 0) +
+          (cursorYOffset ?? 0),
         isDisposed: false,
         onDispose: vi.fn(),
         dispose: vi.fn(),
@@ -310,7 +313,7 @@ vi.mock('@xterm/xterm', () => ({
     };
 
     (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] }).__xtermInstances.push(
-      instance
+      instance,
     );
     return instance;
   },
@@ -324,7 +327,13 @@ vi.mock('@xterm/xterm', () => ({
  * tests against a real xterm.
  */
 export interface MockHerdrRenderer {
-  stats: { frames: number; heldFrames: number; lastPaintMs: number; lastCells: number; lastInputToPaintMs: number | null };
+  stats: {
+    frames: number;
+    heldFrames: number;
+    lastPaintMs: number;
+    lastCells: number;
+    lastInputToPaintMs: number | null;
+  };
   textCanvas: HTMLCanvasElement;
   overlayProvider: (() => unknown) | null;
   overlayInvalidations: number;

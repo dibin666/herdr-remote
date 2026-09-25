@@ -1,6 +1,6 @@
-import { classifyInput, isLoneEscape } from "./inputClassifier";
-import { predictableWidth } from "./wideChars";
-import { readCellStyle, type CellStyle } from "../render/cell";
+import { classifyInput, isLoneEscape } from './inputClassifier';
+import { predictableWidth } from './wideChars';
+import { readCellStyle, type CellStyle } from '../render/cell';
 
 /**
  * Minimal read-only interface required by PredictiveEcho.
@@ -78,7 +78,7 @@ export interface ResetOptions {
   demote?: boolean;
 }
 
-export type PredictiveEchoState = "tentative" | "confident";
+export type PredictiveEchoState = 'tentative' | 'confident';
 
 export interface VisiblePrediction {
   row: number;
@@ -95,7 +95,7 @@ export interface OverlayItem {
   col: number;
   char: string;
   width: 1 | 2;
-  kind: "char" | "erase" | "caret" | "mask";
+  kind: 'char' | 'erase' | 'caret' | 'mask';
   /**
    * How the program draws typed text in this field, learned from an echo it
    * sent back, so a predicted cell looks exactly like the echo that replaces
@@ -116,7 +116,7 @@ interface PendingPrediction {
   col: number;
   char: string;
   width: 1 | 2;
-  kind: "char" | "erase";
+  kind: 'char' | 'erase';
   /** What the cell may still show while the echo is in flight. */
   before: string[];
   sentAt: number;
@@ -152,7 +152,7 @@ const HERDR_PREFIX = 0x02;
  * into an empty box: Claude opens help on `?` and enters shell mode on `!`,
  * turning the prompt glyph into `!` instead of inserting it.
  */
-const MODE_SWITCH_FIRST_KEYS = "?!#";
+const MODE_SWITCH_FIRST_KEYS = '?!#';
 /** Fields whose confidence is remembered, so hopping between two panes does not re-learn each time. */
 const MAX_CONFIDENT_FIELDS = 8;
 /** Predictions without any server feedback for this long are dropped; stretched on slow links. */
@@ -161,7 +161,7 @@ const MAX_PREDICTION_TIMEOUT_MS = 4000;
 const TRACE_LENGTH = 20;
 
 function normalizeBlank(chars: string): string {
-  return chars === "" || chars === " " ? " " : chars;
+  return chars === '' || chars === ' ' ? ' ' : chars;
 }
 
 /** Up to `limit` characters drawn just before `col` on `row`, oldest first. */
@@ -195,7 +195,7 @@ export function echoedPrefix(sent: ReadonlyArray<string>, before: ReadonlyArray<
 function legacyField(terminal: PredictionTerminal): PredictionField {
   const active = terminal.buffer.active;
   return {
-    key: "legacy",
+    key: 'legacy',
     row: active.baseY + active.cursorY,
     caretCol: active.cursorX,
     // Where the input starts is unknown, so text the server drew is never erased.
@@ -228,7 +228,7 @@ export class PredictiveEcho {
   private readonly getFieldOption: (() => PredictionField | null) | undefined;
   private readonly charWidth: ((codePoint: number) => number) | undefined;
   private readonly now: () => number;
-  private readonly textDecoder = new TextDecoder("utf-8");
+  private readonly textDecoder = new TextDecoder('utf-8');
 
   private readonly confidentKeys = new Set<string>();
   /** How each field draws typed text, learned from its echoes. */
@@ -269,7 +269,7 @@ export class PredictiveEcho {
     this.charWidth = options.charWidth;
     this.now =
       options.now ??
-      (typeof performance !== "undefined" && typeof performance.now === "function"
+      (typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? () => performance.now()
         : () => Date.now());
   }
@@ -292,17 +292,17 @@ export class PredictiveEcho {
     // Hover and focus reports and terminal replies are not edits. Herdr asks
     // for any-motion mouse reports, so these arrive whenever the pointer moves.
     const inputClass = classifyInput(text);
-    if (inputClass === "passive") {
+    if (inputClass === 'passive') {
       return;
     }
-    if (inputClass === "pointer") {
-      this.freeze("pointer");
+    if (inputClass === 'pointer') {
+      this.freeze('pointer');
       return;
     }
 
     if (this.awaitingPrefixCommand) {
       this.awaitingPrefixCommand = false;
-      this.freeze("Herdr prefix command", { demote: true });
+      this.freeze('Herdr prefix command', { demote: true });
       return;
     }
 
@@ -312,13 +312,13 @@ export class PredictiveEcho {
     // is as trustworthy as it was.
     if (isLoneEscape(text)) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
-      this.freeze("escape", { demote: !field || field.modal !== false });
+      this.freeze('escape', { demote: !field || field.modal !== false });
       return;
     }
 
     const terminal = this.getTerminal();
     if (!terminal) {
-      this.reset("terminal unavailable", true);
+      this.reset('terminal unavailable', true);
       return;
     }
 
@@ -332,7 +332,7 @@ export class PredictiveEcho {
 
       if (codePoint === HERDR_PREFIX) {
         this.awaitingPrefixCommand = true;
-        this.freeze("Herdr prefix", { demote: true });
+        this.freeze('Herdr prefix', { demote: true });
         return;
       }
 
@@ -347,7 +347,7 @@ export class PredictiveEcho {
         codePoint === 0x0d ||
         (codePoint < 0x20 && codePoint !== 0x08)
       ) {
-        this.freeze("control or escape sequence");
+        this.freeze('control or escape sequence');
         return;
       }
 
@@ -363,7 +363,7 @@ export class PredictiveEcho {
         // The key still goes out, so the caret has it to come; so does the
         // rest of this chunk (an IME commit, a fast burst).
         this.inFlight.push(char);
-        this.note("refused: waiting for the caret to move");
+        this.note('refused: waiting for the caret to move');
         continue;
       }
 
@@ -437,7 +437,6 @@ export class PredictiveEcho {
 
   /** Compares the pending predictions against what the server has drawn. */
   private settle(terminal: PredictionTerminal, caret: { row: number; col: number }): void {
-
     // The field the predictions were typed into must still be under the caret.
     // If it closed or became something else, whatever the server drew there
     // was not an echo.
@@ -452,7 +451,7 @@ export class PredictiveEcho {
           this.predictedCursor = null;
           return;
         }
-        this.mismatch("field changed");
+        this.mismatch('field changed');
         return;
       }
       if (current.layout !== field.layout) {
@@ -462,7 +461,7 @@ export class PredictiveEcho {
         this.predictions = [];
         this.predictedCursor = null;
         this.field = current;
-        this.note("layout changed");
+        this.note('layout changed');
         return;
       }
     }
@@ -471,21 +470,21 @@ export class PredictiveEcho {
 
     for (const p of this.predictions) {
       const cell = terminal.buffer.active.getLine(p.row)?.getCell(p.col);
-      const actual = normalizeBlank(cell ? cell.getChars() : "");
+      const actual = normalizeBlank(cell ? cell.getChars() : '');
       const matches =
-        p.kind === "char"
+        p.kind === 'char'
           ? actual === p.char && (p.width === 1 || (cell?.getWidth?.() ?? 2) === 2)
-          : actual === " ";
+          : actual === ' ';
       // The server has processed a keystroke once its caret has moved past
       // the cell that keystroke affects.
       const settled =
-        p.kind === "char"
+        p.kind === 'char'
           ? caret.row > p.row || (caret.row === p.row && caret.col >= p.col + p.width)
           : caret.row < p.row || (caret.row === p.row && caret.col <= p.col);
       const unchanged = p.before.includes(actual);
       // The character arrived, one cell wide where two were predicted (or
       // the reverse): that is a verdict, whether or not the caret has passed.
-      const wrongWidth = p.kind === "char" && actual === p.char && !matches;
+      const wrongWidth = p.kind === 'char' && actual === p.char && !matches;
 
       if (p.echoed && !matches) {
         // The server drew it, then drew something else before its caret
@@ -496,7 +495,7 @@ export class PredictiveEcho {
         if (!p.echoed) this.confirm(p, field);
         if (settled) {
           // Settled: what the cell shows now is how the program draws typed text.
-          if (p.kind === "char" && field && !p.frozenFrom) this.learnStyle(field.key, cell);
+          if (p.kind === 'char' && field && !p.frozenFrom) this.learnStyle(field.key, cell);
           continue;
         }
         p.echoed = true;
@@ -522,8 +521,9 @@ export class PredictiveEcho {
         // A guess placed while earlier keys were still in flight: wrong, but
         // never shown. Its keys went out all the same: they join what is in
         // flight, and the next run is placed after them again.
-        this.note("probation guess dropped");
-        if (this.predictions.some((q) => !q.frozenFrom && q.kind === "erase")) this.inFlightUnknown = true;
+        this.note('probation guess dropped');
+        if (this.predictions.some((q) => !q.frozenFrom && q.kind === 'erase'))
+          this.inFlightUnknown = true;
         this.inFlight = [...this.runInFlight, ...this.runSent, ...this.inFlight];
         this.runInFlight = [];
         this.runSent = [];
@@ -555,12 +555,9 @@ export class PredictiveEcho {
     this.predictions = [];
     this.predictedCursor = null;
 
-    const shouldSuppress =
-      typeof options === "boolean"
-        ? options
-        : (options?.suppress ?? true);
-    const shouldDemote = typeof options === "object" && options?.demote === true;
-    this.note(`reset: ${reason ?? "unspecified"}`);
+    const shouldSuppress = typeof options === 'boolean' ? options : (options?.suppress ?? true);
+    const shouldDemote = typeof options === 'object' && options?.demote === true;
+    this.note(`reset: ${reason ?? 'unspecified'}`);
 
     if (shouldDemote) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
@@ -645,7 +642,7 @@ export class PredictiveEcho {
     const last = visible[visible.length - 1];
     const next = this.predictedCursor ?? {
       row: last.row,
-      col: last.kind === "erase" ? last.col : last.col + last.width,
+      col: last.kind === 'erase' ? last.col : last.col + last.width,
     };
     const covers = (row: number, col: number) =>
       items.some((p) => p.row === row && p.col <= col && col < p.col + p.width);
@@ -659,8 +656,8 @@ export class PredictiveEcho {
       const line = active.getLine(next.row);
       for (let col = next.col; col < field.endCol; col++) {
         if (covers(next.row, col)) continue;
-        if (normalizeBlank(line?.getCell(col)?.getChars() ?? "") === " ") continue;
-        const item: OverlayItem = { row: next.row, col, char: " ", width: 1, kind: "erase" };
+        if (normalizeBlank(line?.getCell(col)?.getChars() ?? '') === ' ') continue;
+        const item: OverlayItem = { row: next.row, col, char: ' ', width: 1, kind: 'erase' };
         if (style) item.style = style;
         items.push(item);
       }
@@ -669,8 +666,14 @@ export class PredictiveEcho {
     if (active) {
       const server = { row: active.baseY + active.cursorY, col: active.cursorX };
       if (!covers(server.row, server.col) && (server.row !== next.row || server.col !== next.col)) {
-        const chars = active.getLine(server.row)?.getCell(server.col)?.getChars() ?? "";
-        const item: OverlayItem = { row: server.row, col: server.col, char: normalizeBlank(chars), width: 1, kind: "mask" };
+        const chars = active.getLine(server.row)?.getCell(server.col)?.getChars() ?? '';
+        const item: OverlayItem = {
+          row: server.row,
+          col: server.col,
+          char: normalizeBlank(chars),
+          width: 1,
+          kind: 'mask',
+        };
         if (style) item.style = style;
         items.push(item);
       }
@@ -678,16 +681,18 @@ export class PredictiveEcho {
 
     // A block caret is drawn over the character under it, so carry that
     // along: what a pending prediction puts there, else what the server drew.
-    const pending = items.find((p) => p.row === next.row && p.col === next.col && p.kind !== "mask");
+    const pending = items.find(
+      (p) => p.row === next.row && p.col === next.col && p.kind !== 'mask',
+    );
     const under = pending
       ? pending.char
-      : normalizeBlank(active?.getLine(next.row)?.getCell(next.col)?.getChars() ?? "");
-    items.push({ row: next.row, col: next.col, char: under, width: 1, kind: "caret" });
+      : normalizeBlank(active?.getLine(next.row)?.getCell(next.col)?.getChars() ?? '');
+    items.push({ row: next.row, col: next.col, char: under, width: 1, kind: 'caret' });
     return items;
   }
 
   getState(): PredictiveEchoState {
-    return this.field && this.confidentKeys.has(this.field.key) ? "confident" : "tentative";
+    return this.field && this.confidentKeys.has(this.field.key) ? 'confident' : 'tentative';
   }
 
   getField(): PredictionField | null {
@@ -713,8 +718,10 @@ export class PredictiveEcho {
    * probation shows nothing until one of its guesses is confirmed.
    */
   private visiblePredictions(): PendingPrediction[] {
-    const confident = this.getState() === "confident";
-    return this.predictions.filter((p) => (p.frozenFrom ? p.shownWhenFrozen : confident && !p.probation));
+    const confident = this.getState() === 'confident';
+    return this.predictions.filter((p) =>
+      p.frozenFrom ? p.shownWhenFrozen : confident && !p.probation,
+    );
   }
 
   /**
@@ -726,9 +733,12 @@ export class PredictiveEcho {
   private freeze(reason: string, options: { demote?: boolean } = {}): void {
     const terminal = this.getTerminal();
     const caret = terminal
-      ? { row: terminal.buffer.active.baseY + terminal.buffer.active.cursorY, col: terminal.buffer.active.cursorX }
+      ? {
+          row: terminal.buffer.active.baseY + terminal.buffer.active.cursorY,
+          col: terminal.buffer.active.cursorX,
+        }
       : null;
-    const shown = this.getState() === "confident";
+    const shown = this.getState() === 'confident';
     for (const p of this.predictions) {
       if (!p.frozenFrom) {
         p.frozenFrom = caret ?? { row: p.row, col: p.col };
@@ -744,7 +754,7 @@ export class PredictiveEcho {
     // prediction lands; see `settle`.)
     const untracked = this.inFlight.length > 0 || this.inFlightUnknown || this.lastSentUndrawn;
     this.predictedCursor = null;
-    this.note(`freeze: ${reason}${options.demote ? " (demote)" : ""}`);
+    this.note(`freeze: ${reason}${options.demote ? ' (demote)' : ''}`);
 
     if (options.demote) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
@@ -774,7 +784,10 @@ export class PredictiveEcho {
   }
 
   private predictionTimeout(): number {
-    return Math.min(MAX_PREDICTION_TIMEOUT_MS, Math.max(MIN_PREDICTION_TIMEOUT_MS, (this.srtt ?? 0) * 4));
+    return Math.min(
+      MAX_PREDICTION_TIMEOUT_MS,
+      Math.max(MIN_PREDICTION_TIMEOUT_MS, (this.srtt ?? 0) * 4),
+    );
   }
 
   /**
@@ -803,14 +816,15 @@ export class PredictiveEcho {
     const field = this.ensureField(terminal);
     if (!field || !this.predictedCursor) {
       // Not an input field: the key goes to the server untouched.
-      this.note("refused: caret is not in an input field");
+      this.note('refused: caret is not in an input field');
       return false;
     }
 
     const cursor = this.predictedCursor;
-    const atFieldStart = this.predictions.every((p) => p.frozenFrom) && cursor.col === field.caretCol;
+    const atFieldStart =
+      this.predictions.every((p) => p.frozenFrom) && cursor.col === field.caretCol;
     if (field.agentLike && field.empty && atFieldStart && MODE_SWITCH_FIRST_KEYS.includes(char)) {
-      this.freeze("agent mode switch");
+      this.freeze('agent mode switch');
       return false;
     }
 
@@ -818,20 +832,26 @@ export class PredictiveEcho {
     // modelled caret would drift from the real one: end the whole run instead.
     // Never predict into the last cell, where wrap behaviour is unknowable.
     if (cursor.col + width > field.endCol - 1) {
-      this.freeze("cursor would reach the edge of the field");
+      this.freeze('cursor would reach the edge of the field');
       return false;
     }
 
     const cell = terminal.buffer.active.getLine(cursor.row)?.getCell(cursor.col);
-    const before = [normalizeBlank(cell ? cell.getChars() : "")];
+    const before = [normalizeBlank(cell ? cell.getChars() : '')];
 
     // Retyping a cell that a pending backspace is clearing: the server may
     // still show the old character, the cleared cell, or the new one.
     const last = this.predictions[this.predictions.length - 1];
     let replaces: PendingPrediction | undefined;
-    if (last && last.kind === "erase" && !last.frozenFrom && last.row === cursor.row && last.col === cursor.col) {
+    if (
+      last &&
+      last.kind === 'erase' &&
+      !last.frozenFrom &&
+      last.row === cursor.row &&
+      last.col === cursor.col
+    ) {
       replaces = this.predictions.pop();
-      before.push(...last.before, " ");
+      before.push(...last.before, ' ');
     }
 
     this.predictions.push({
@@ -839,7 +859,7 @@ export class PredictiveEcho {
       col: cursor.col,
       char,
       width,
-      kind: "char",
+      kind: 'char',
       before,
       sentAt: this.now(),
       replaces,
@@ -860,16 +880,20 @@ export class PredictiveEcho {
    * without a trace. Ending the run here instead left every key after it to
    * be placed from a caret still catching up with the keys before it.
    */
-  private skipUnpredictable(char: string, codePoint: number, terminal: PredictionTerminal): boolean {
+  private skipUnpredictable(
+    char: string,
+    codePoint: number,
+    terminal: PredictionTerminal,
+  ): boolean {
     const field = this.ensureField(terminal);
     const cursor = this.predictedCursor;
     if (!field || !cursor) {
-      this.note("refused: caret is not in an input field");
+      this.note('refused: caret is not in an input field');
       return false;
     }
     const width = this.assumedWidth(codePoint);
     if (cursor.col + width > field.endCol - 1) {
-      this.freeze("cursor would reach the edge of the field");
+      this.freeze('cursor would reach the edge of the field');
       return false;
     }
     if (!this.probationRun) {
@@ -879,7 +903,7 @@ export class PredictiveEcho {
     this.runSent.push(char);
     this.lastSentUndrawn = true;
     cursor.col += width;
-    this.note("width unknown: guessing");
+    this.note('width unknown: guessing');
     return true;
   }
 
@@ -897,7 +921,7 @@ export class PredictiveEcho {
       last &&
       !last.frozenFrom &&
       !last.echoed &&
-      last.kind === "char" &&
+      last.kind === 'char' &&
       last.row === this.predictedCursor.row &&
       last.col + last.width === this.predictedCursor.col
     ) {
@@ -924,19 +948,23 @@ export class PredictiveEcho {
         // and only at the end of the text, where nothing shifts left to fill the gap.
         let restIsBlank = true;
         for (let x = cursor.col; x < field.endCol && restIsBlank; x++) {
-          restIsBlank = this.coveredByPrediction(cursor.row, x) || normalizeBlank(line?.getCell(x)?.getChars() ?? "") === " ";
+          restIsBlank =
+            this.coveredByPrediction(cursor.row, x) ||
+            normalizeBlank(line?.getCell(x)?.getChars() ?? '') === ' ';
         }
-        const erased = normalizeBlank(line?.getCell(col)?.getChars() ?? "");
-        if (col > field.startCol && restIsBlank && erased !== " ") {
+        const erased = normalizeBlank(line?.getCell(col)?.getChars() ?? '');
+        if (col > field.startCol && restIsBlank && erased !== ' ') {
           // A character the server has echoed but not yet moved past is
           // what this backspace deletes: it must not be painted back.
-          this.predictions = this.predictions.filter((p) => !(p.echoed && p.row === cursor.row && p.col + p.width > col));
+          this.predictions = this.predictions.filter(
+            (p) => !(p.echoed && p.row === cursor.row && p.col + p.width > col),
+          );
           this.predictions.push({
             row: cursor.row,
             col,
-            char: " ",
+            char: ' ',
             width,
-            kind: "erase",
+            kind: 'erase',
             before: [erased],
             sentAt: this.now(),
             probation: this.probationRun || undefined,
@@ -953,12 +981,14 @@ export class PredictiveEcho {
     // Backspacing into server-rendered characters cannot be predicted locally
     // because we do not know whether the remote program handles wide characters, tabs,
     // or protected shell prompt boundaries. Wipe all speculation and suppress until server responds.
-    this.freeze("backspace into server content");
+    this.freeze('backspace into server content');
     return false;
   }
 
   private coveredByPrediction(row: number, col: number): boolean {
-    return this.predictions.some((p) => p.echoed && p.row === row && p.col <= col && col < p.col + p.width);
+    return this.predictions.some(
+      (p) => p.echoed && p.row === row && p.col <= col && col < p.col + p.width,
+    );
   }
 
   /**
@@ -980,7 +1010,9 @@ export class PredictiveEcho {
     let pending: string[] = [];
     let onProbation = this.inFlightUnknown;
     if (this.inFlight.length > 0 && !this.inFlightUnknown) {
-      pending = this.inFlight.slice(echoedPrefix(this.inFlight, charsBefore(terminal, field.row, caretCol)));
+      pending = this.inFlight.slice(
+        echoedPrefix(this.inFlight, charsBefore(terminal, field.row, caretCol)),
+      );
       for (const char of pending) {
         const codePoint = char.codePointAt(0) ?? 0;
         caretCol += predictableWidth(codePoint) || this.assumedWidth(codePoint);
@@ -1079,7 +1111,7 @@ export class PredictiveEcho {
     const fresh = this.predictions.filter((p) => currentTime - p.sentAt <= timeout);
 
     if (fresh.length !== this.predictions.length) {
-      this.note("expired without an echo");
+      this.note('expired without an echo');
       this.predictions = fresh;
       if (this.predictions.length === 0) {
         this.predictedCursor = null;

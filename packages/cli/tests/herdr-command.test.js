@@ -91,11 +91,13 @@ test('a minimal PATH still finds a ~/.local/bin install', (t) => {
   const home = withTempHome(t);
   const binary = makeInstall(path.join(home, '.local', 'bin'));
   // Stand-ins for the /usr/local/bin:/usr/bin:/bin a systemd --user unit gets.
-  const minimalPath = ['usr-local-bin', 'usr-bin', 'bin'].map((name) => {
-    const directory = path.join(home, 'system', name);
-    fs.mkdirSync(directory, { recursive: true });
-    return directory;
-  }).join(path.delimiter);
+  const minimalPath = ['usr-local-bin', 'usr-bin', 'bin']
+    .map((name) => {
+      const directory = path.join(home, 'system', name);
+      fs.mkdirSync(directory, { recursive: true });
+      return directory;
+    })
+    .join(path.delimiter);
 
   const found = findHerdrCommand({ env: { PATH: minimalPath }, home });
 
@@ -139,17 +141,21 @@ test('the well-known directories are probed home-first', () => {
   assert.deepEqual(FALLBACK_DIRECTORIES.slice(0, 3), ['~/.local/bin', '~/.cargo/bin', '~/bin']);
   assert.ok(FALLBACK_DIRECTORIES.includes('/opt/homebrew/bin'));
   assert.ok(FALLBACK_DIRECTORIES.includes('/usr/local/bin'));
-  assert.deepEqual(fallbackDirectories('/home/someone').slice(0, 2), ['/home/someone/.local/bin', '/home/someone/.cargo/bin']);
+  assert.deepEqual(fallbackDirectories('/home/someone').slice(0, 2), [
+    '/home/someone/.local/bin',
+    '/home/someone/.cargo/bin',
+  ]);
 });
 
 test('verify keeps a still-valid absolute path and re-searches a broken one', (t) => {
   const home = withTempHome(t);
   const binary = makeInstall(path.join(home, '.local', 'bin'));
 
-  assert.deepEqual(
-    verifyHerdrCommand(binary, { env: { PATH: '' }, home }),
-    { command: binary, source: 'verified', found: true },
-  );
+  assert.deepEqual(verifyHerdrCommand(binary, { env: { PATH: '' }, home }), {
+    command: binary,
+    source: 'verified',
+    found: true,
+  });
   // A connector that started before Herdr existed picks it up without a restart.
   const rediscovered = verifyHerdrCommand('herdr', { env: { PATH: '' }, home });
   assert.equal(rediscovered.command, binary);
@@ -157,7 +163,8 @@ test('verify keeps a still-valid absolute path and re-searches a broken one', (t
 
   fs.rmSync(binary, { force: true });
   assert.equal(
-    verifyHerdrCommand(binary, { env: { PATH: '' }, home, directories: homeDirectories(home) }).found,
+    verifyHerdrCommand(binary, { env: { PATH: '' }, home, directories: homeDirectories(home) })
+      .found,
     false,
   );
 });
@@ -229,9 +236,16 @@ test('version parsing and comparison cover the shapes Herdr prints', () => {
 test('the not-found message names the override and the directories tried', (t) => {
   const home = withTempHome(t);
 
-  const message = herdrNotFoundMessage({ env: { HERDR_BIN_PATH: '/gone/herdr', PATH: '' }, home, directories: fallbackDirectories(home) });
+  const message = herdrNotFoundMessage({
+    env: { HERDR_BIN_PATH: '/gone/herdr', PATH: '' },
+    home,
+    directories: fallbackDirectories(home),
+  });
 
   assert.match(message, /HERDR_BIN_PATH=\/gone\/herdr/);
-  assert.match(message, new RegExp(path.join(home, '.local', 'bin').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(
+    message,
+    new RegExp(path.join(home, '.local', 'bin').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  );
   assert.match(message, /set HERDR_BIN_PATH/i);
 });

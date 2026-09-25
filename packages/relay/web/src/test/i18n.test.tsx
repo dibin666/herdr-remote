@@ -131,12 +131,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'zh' });
     const { unmount } = render(
       <TerminalProvider>
-        <MobileControlSheet
-          onClose={() => {}}
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-        />
-      </TerminalProvider>
+        <MobileControlSheet onClose={() => {}} onOpenPairing={() => {}} onOpenSettings={() => {}} />
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('会话控制')).toBeInTheDocument();
@@ -154,12 +150,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <MobileControlSheet
-          onClose={() => {}}
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-        />
-      </TerminalProvider>
+        <MobileControlSheet onClose={() => {}} onOpenPairing={() => {}} onOpenSettings={() => {}} />
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('Session controls')).toBeInTheDocument();
@@ -178,7 +170,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       <TerminalProvider>
         <ClientsTable clients={[]} />
         <PtysTable ptys={[]} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('当前暂无客户端连接')).toBeInTheDocument();
@@ -197,7 +189,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
           ]}
         />
         <PtysTable ptys={[]} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('No active PTY sessions')).toBeInTheDocument();
@@ -218,7 +210,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
             { id: 'client-2', role: 'viewer', connectedAt: new Date().toISOString() },
           ]}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('控制端')).toBeInTheDocument();
@@ -232,7 +224,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     render(
       <TerminalProvider>
         <TerminalView />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const xtermInstances = (globalThis as unknown as { __xtermInstances: any[] }).__xtermInstances;
@@ -278,7 +270,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     const { unmount } = render(
       <TerminalProvider>
         <KeyToolbar />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByTitle('Escape (ESC)')).toBeInTheDocument();
@@ -291,7 +283,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     fireEvent.click(screen.getByText('虚拟按键'));
@@ -339,7 +331,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
           onToggleVirtualKeyboard={() => {}}
           isVirtualKeyboardOpen={false}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByTitle('切换语言 (EN / 中文)')).toBeInTheDocument();
@@ -361,7 +353,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
           onToggleVirtualKeyboard={() => {}}
           isVirtualKeyboardOpen={false}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByTitle('Switch language (EN / 中文)')).toBeInTheDocument();
@@ -391,7 +383,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     };
 
     const sourceFiles = getFiles(srcDir);
-    const keyRegex = /\b(?:t|tRef\.current|translate)\(\s*(?:lang|nextLang)?\s*,?\s*['"]([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)['"]/g;
+    const keyRegex =
+      /\b(?:t|tRef\.current|translate)\(\s*(?:lang|nextLang)?\s*,?\s*['"]([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)['"]/g;
     const foundKeys = new Set<string>();
 
     for (const file of sourceFiles) {
@@ -437,7 +430,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('宿主机终端字体（默认）')).toBeInTheDocument();

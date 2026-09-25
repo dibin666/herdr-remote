@@ -23,7 +23,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     const { container } = render(
       <TerminalProvider>
         <OnboardingView />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const layer = container.firstElementChild as HTMLElement;
@@ -39,23 +39,19 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     render(
       <TerminalProvider>
         <OnboardingView />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // Verifies the onboarding title and explanation
     expect(screen.getByText(/Pair with Herdr Remote/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Control Herdr sessions/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Control Herdr sessions/i)).toBeInTheDocument();
 
     // Verifies copyable host pairing command
     expect(screen.getByText(/node bin\/service\.js pair/i)).toBeInTheDocument();
 
     // Verifies pairing code input and connect CTA
     expect(screen.getByPlaceholderText(/e\.g\. 7X9K2A/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /Connect & Pair/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
   });
 
   it('copies pairing command to clipboard with visual feedback', async () => {
@@ -72,7 +68,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     render(
       <TerminalProvider>
         <OnboardingView />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const copyBtn = screen.getByRole('button', { name: /^Copy$/i });
@@ -93,7 +89,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
           onToggleVirtualKeyboard={() => {}}
           isVirtualKeyboardOpen={false}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.queryByLabelText(/Toggle theme/i)).not.toBeInTheDocument();

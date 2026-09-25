@@ -145,7 +145,9 @@ interface TerminalContextValue {
   connect: (overrideConfig?: Partial<ConnectionConfig>) => void;
   disconnect: () => void;
   switchProfile: (profileId: string) => void;
-  addProfileAndConnect: (profile: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>) => void;
+  addProfileAndConnect: (
+    profile: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>,
+  ) => void;
   renameProfile: (profileId: string, displayName: string) => void;
   removeProfile: (profileId: string) => void;
   claimControl: (force?: boolean) => void;
@@ -279,7 +281,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   dimensionsRef.current = terminalDimensions;
   const pasteFileReadyListenersRef = useRef<Set<(path: string) => void>>(new Set());
   const keyInputObserversRef = useRef<Set<(bytes: Uint8Array) => void>>(new Set());
-  const [uploadProgress, setUploadProgress] = useState<ImageUploadProgress>(IDLE_IMAGE_UPLOAD_PROGRESS);
+  const [uploadProgress, setUploadProgress] = useState<ImageUploadProgress>(
+    IDLE_IMAGE_UPLOAD_PROGRESS,
+  );
   const activeUploadTaskIdRef = useRef<number | null>(null);
   const uploadTaskIdCounterRef = useRef<number>(0);
   const uploadTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -288,7 +292,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     (path: string, params?: Record<string, string | number>) => {
       return translate(settings.language, path, params);
     },
-    [settings.language]
+    [settings.language],
   );
 
   const tRef = useRef(t);
@@ -330,40 +334,43 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
       enqueueOutput(data);
     },
-    [enqueueOutput]
+    [enqueueOutput],
   );
 
   const handleBinaryOutputRef = useRef(handleBinaryOutput);
   handleBinaryOutputRef.current = handleBinaryOutput;
 
-  const subscribeToOutput = useCallback((sink: TerminalOutputSink) => {
-    outputSinkRef.current = sink;
+  const subscribeToOutput = useCallback(
+    (sink: TerminalOutputSink) => {
+      outputSinkRef.current = sink;
 
-    // Replay everything buffered while detached, preserving arrival order. A
-    // sink that throws part-way through (terminal not painted yet) must not
-    // cost us the rest of the stream, so the unflushed tail goes back on the
-    // queue ahead of any live chunk.
-    const queued = pendingOutputRef.current;
-    pendingOutputRef.current = [];
-    pendingOutputBytesRef.current = 0;
-    for (let i = 0; i < queued.length; i++) {
-      try {
-        sink(queued[i]);
-      } catch (err) {
-        console.debug('Terminal sink threw while flushing, re-buffering the tail:', err);
-        for (let j = i; j < queued.length; j++) {
-          enqueueOutput(queued[j]);
+      // Replay everything buffered while detached, preserving arrival order. A
+      // sink that throws part-way through (terminal not painted yet) must not
+      // cost us the rest of the stream, so the unflushed tail goes back on the
+      // queue ahead of any live chunk.
+      const queued = pendingOutputRef.current;
+      pendingOutputRef.current = [];
+      pendingOutputBytesRef.current = 0;
+      for (let i = 0; i < queued.length; i++) {
+        try {
+          sink(queued[i]);
+        } catch (err) {
+          console.debug('Terminal sink threw while flushing, re-buffering the tail:', err);
+          for (let j = i; j < queued.length; j++) {
+            enqueueOutput(queued[j]);
+          }
+          break;
         }
-        break;
       }
-    }
 
-    return () => {
-      if (outputSinkRef.current === sink) {
-        outputSinkRef.current = null;
-      }
-    };
-  }, [enqueueOutput]);
+      return () => {
+        if (outputSinkRef.current === sink) {
+          outputSinkRef.current = null;
+        }
+      };
+    },
+    [enqueueOutput],
+  );
 
   const getPendingOutputChunkCount = useCallback(() => pendingOutputRef.current.length, []);
 
@@ -372,19 +379,22 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     pendingOutputBytesRef.current = 0;
   }, []);
 
-  const resetConnectionPresentation = useCallback((resetTerminal = true) => {
-    setRole('viewer');
-    setControllerId(undefined);
-    setHostId(undefined);
-    setHostname(undefined);
-    setHostPalette(null);
-    setAssignedClientId(undefined);
-    setRttMs(null);
-    setSharedWindowCount(1);
-    setStatusPayload(null);
-    clearPendingOutput();
-    if (resetTerminal) setTerminalResetVersion((value) => value + 1);
-  }, [clearPendingOutput]);
+  const resetConnectionPresentation = useCallback(
+    (resetTerminal = true) => {
+      setRole('viewer');
+      setControllerId(undefined);
+      setHostId(undefined);
+      setHostname(undefined);
+      setHostPalette(null);
+      setAssignedClientId(undefined);
+      setRttMs(null);
+      setSharedWindowCount(1);
+      setStatusPayload(null);
+      clearPendingOutput();
+      if (resetTerminal) setTerminalResetVersion((value) => value + 1);
+    },
+    [clearPendingOutput],
+  );
 
   // The live list is held in a ref as well as in state: `addToast` can fire many
   // times between two renders (once per keystroke), and a reducer reading stale
@@ -397,54 +407,60 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     setToasts(next);
   }, []);
 
-  const dropToast = useCallback((id: string) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      toastTimersRef.current.delete(id);
-    }
-    commitToasts(toastListRef.current.filter((item) => item.id !== id));
-  }, [commitToasts]);
+  const dropToast = useCallback(
+    (id: string) => {
+      const timer = toastTimersRef.current.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        toastTimersRef.current.delete(id);
+      }
+      commitToasts(toastListRef.current.filter((item) => item.id !== id));
+    },
+    [commitToasts],
+  );
 
   const dropToastRef = useRef(dropToast);
   dropToastRef.current = dropToast;
 
-  const addToast = useCallback((type: ToastItem['type'], message: string) => {
-    const now = Date.now();
-    const current = toastListRef.current;
-    const existing = current.find((item) => item.type === type && item.message === message);
-    const id = existing ? existing.id : `${now}-${Math.random().toString(36).substring(2, 6)}`;
+  const addToast = useCallback(
+    (type: ToastItem['type'], message: string) => {
+      const now = Date.now();
+      const current = toastListRef.current;
+      const existing = current.find((item) => item.type === type && item.message === message);
+      const id = existing ? existing.id : `${now}-${Math.random().toString(36).substring(2, 6)}`;
 
-    let next: ToastItem[];
-    if (existing) {
-      next = current.map((item) =>
-        item.id === id ? { ...item, count: item.count + 1, timestamp: now } : item
-      );
-    } else {
-      next = [...current, { id, type, message, timestamp: now, count: 1 }];
-      // Whatever falls off the end has to give up its dismissal timer too, or
-      // it would keep matching as "already on screen" after it is gone.
-      while (next.length > MAX_VISIBLE_TOASTS) {
-        const [dropped, ...rest] = next;
-        const timer = toastTimersRef.current.get(dropped.id);
-        if (timer) {
-          clearTimeout(timer);
-          toastTimersRef.current.delete(dropped.id);
+      let next: ToastItem[];
+      if (existing) {
+        next = current.map((item) =>
+          item.id === id ? { ...item, count: item.count + 1, timestamp: now } : item,
+        );
+      } else {
+        next = [...current, { id, type, message, timestamp: now, count: 1 }];
+        // Whatever falls off the end has to give up its dismissal timer too, or
+        // it would keep matching as "already on screen" after it is gone.
+        while (next.length > MAX_VISIBLE_TOASTS) {
+          const [dropped, ...rest] = next;
+          const timer = toastTimersRef.current.get(dropped.id);
+          if (timer) {
+            clearTimeout(timer);
+            toastTimersRef.current.delete(dropped.id);
+          }
+          next = rest;
         }
-        next = rest;
       }
-    }
 
-    commitToasts(next);
+      commitToasts(next);
 
-    // Each repeat restarts the countdown, so a burst clears once it stops.
-    const running = toastTimersRef.current.get(id);
-    if (running) clearTimeout(running);
-    toastTimersRef.current.set(
-      id,
-      setTimeout(() => dropToastRef.current(id), TOAST_DISMISS_MS)
-    );
-  }, [commitToasts]);
+      // Each repeat restarts the countdown, so a burst clears once it stops.
+      const running = toastTimersRef.current.get(id);
+      if (running) clearTimeout(running);
+      toastTimersRef.current.set(
+        id,
+        setTimeout(() => dropToastRef.current(id), TOAST_DISMISS_MS),
+      );
+    },
+    [commitToasts],
+  );
 
   const removeToast = useCallback((id: string) => {
     dropToastRef.current(id);
@@ -479,9 +495,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     setSettingsState(updated);
   }, []);
 
-  const setLanguage = useCallback((lang: Language) => {
-    updateSettings({ language: lang });
-  }, [updateSettings]);
+  const setLanguage = useCallback(
+    (lang: Language) => {
+      updateSettings({ language: lang });
+    },
+    [updateSettings],
+  );
 
   const applySavedSettings = useCallback((next: StoredSettings) => {
     // Keep the ref current immediately: pairing and reconnect events can arrive
@@ -490,145 +509,191 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     setSettingsState(next);
   }, []);
 
-  const addProfileAndConnect = useCallback((draft: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>) => {
-    const current = settingsRef.current;
-    const profile = createConnectionProfile({
-      ...draft,
-      wsUrl: draft.wsUrl || '/ws/client',
-      token: draft.token || '',
-      displayName: draft.displayName || `Herdr ${current.profiles.length + 1}`,
-      autoReconnect: draft.autoReconnect !== false,
-    }, current.profiles.length);
-    const next = saveSettings({
-      profiles: [...current.profiles, profile],
-      activeProfileId: profile.id,
-      wsUrl: profile.wsUrl,
-      token: profile.token,
-      pairCode: profile.pairCode || '',
-      autoReconnect: profile.autoReconnect,
-    });
-    applySavedSettings(next);
-    resetConnectionPresentation();
-    adapterRef.current?.reconnectWith(buildConnectionConfig(next));
-  }, [applySavedSettings, resetConnectionPresentation]);
-
-  const switchProfile = useCallback((profileId: string) => {
-    const current = settingsRef.current;
-    const target = current.profiles.find((profile) => profile.id === profileId);
-    if (!target || target.id === current.activeProfileId) return;
-    const next = saveSettings({
-      activeProfileId: target.id,
-      wsUrl: target.wsUrl,
-      token: target.token,
-      pairCode: target.pairCode || '',
-      autoReconnect: target.autoReconnect,
-      profiles: current.profiles.map((profile) => profile.id === target.id
-        ? { ...profile, lastUsedAt: Date.now() }
-        : profile),
-    });
-    applySavedSettings(next);
-    resetConnectionPresentation();
-    adapterRef.current?.reconnectWith(buildConnectionConfig(next));
-  }, [applySavedSettings, resetConnectionPresentation]);
-
-  const renameProfile = useCallback((profileId: string, displayName: string) => {
-    const current = settingsRef.current;
-    const profile = current.profiles.find((item) => item.id === profileId);
-    if (!profile) return;
-    const trimmed = displayName.trim().slice(0, 64);
-    if (!trimmed) return;
-    const next = saveSettings({
-      profiles: current.profiles.map((item) => item.id === profileId
-        ? { ...item, displayName: trimmed }
-        : item),
-    });
-    applySavedSettings(next);
-  }, [applySavedSettings]);
-
-  const removeProfile = useCallback((profileId: string) => {
-    const current = settingsRef.current;
-    if (!current.profiles.some((profile) => profile.id === profileId)) return;
-    const remaining = current.profiles.filter((profile) => profile.id !== profileId);
-    const nextActive = remaining.find((profile) => profile.id === current.activeProfileId)
-      || remaining[0];
-    const next = nextActive
-      ? saveSettings({
-          profiles: remaining,
-          activeProfileId: nextActive.id,
-          wsUrl: nextActive.wsUrl,
-          token: nextActive.token,
-          pairCode: nextActive.pairCode || '',
-          autoReconnect: nextActive.autoReconnect,
-        })
-      : saveSettings({ profiles: [], activeProfileId: '', wsUrl: '/ws/client', token: '', pairCode: '' });
-    applySavedSettings(next);
-    if (profileId === current.activeProfileId) {
+  const addProfileAndConnect = useCallback(
+    (draft: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>) => {
+      const current = settingsRef.current;
+      const profile = createConnectionProfile(
+        {
+          ...draft,
+          wsUrl: draft.wsUrl || '/ws/client',
+          token: draft.token || '',
+          displayName: draft.displayName || `Herdr ${current.profiles.length + 1}`,
+          autoReconnect: draft.autoReconnect !== false,
+        },
+        current.profiles.length,
+      );
+      const next = saveSettings({
+        profiles: [...current.profiles, profile],
+        activeProfileId: profile.id,
+        wsUrl: profile.wsUrl,
+        token: profile.token,
+        pairCode: profile.pairCode || '',
+        autoReconnect: profile.autoReconnect,
+      });
+      applySavedSettings(next);
       resetConnectionPresentation();
       adapterRef.current?.reconnectWith(buildConnectionConfig(next));
-    }
-  }, [applySavedSettings, resetConnectionPresentation]);
+    },
+    [applySavedSettings, resetConnectionPresentation],
+  );
 
-  const savePairedProfile = useCallback((payload: { token: string; hostId?: string; deviceId?: string; expiresAt?: number | string }) => {
-    const current = settingsRef.current;
-    const active = current.profiles.find((profile) => profile.id === current.activeProfileId);
-    const key = payload.hostId
-      ? profileKey({ wsUrl: current.wsUrl, hostId: payload.hostId })
-      : null;
-    const matchIndex = key
-      ? current.profiles.findIndex((profile) => profileKey(profile) === key)
-      : -1;
-    const targetIndex = matchIndex >= 0 ? matchIndex : Math.max(0, current.profiles.findIndex((profile) => profile.id === current.activeProfileId));
-    const base = current.profiles[targetIndex] || active || createConnectionProfile({
-      wsUrl: current.wsUrl || '/ws/client',
-      token: '',
-      pairCode: current.pairCode || 'PENDING',
-      displayName: `Herdr ${current.profiles.length + 1}`,
-    }, current.profiles.length);
-    const updated: ConnectionProfile = {
-      ...base,
-      token: payload.token,
-      pairCode: undefined,
-      ...(payload.hostId ? { hostId: payload.hostId } : {}),
-      ...(payload.deviceId ? { deviceId: payload.deviceId } : {}),
-      lastUsedAt: Date.now(),
-    };
-    let profiles = [...current.profiles];
-    if (targetIndex >= 0 && targetIndex < profiles.length) profiles[targetIndex] = updated;
-    else profiles.push(updated);
-    // If re-pairing found an older profile, remove the temporary pending one
-    // that initiated this flow while preserving the older profile's alias.
-    const pendingId = active?.id;
-    profiles = profiles.filter((profile, index) => {
-      if (index === targetIndex || profile.id === updated.id) return true;
-      if (matchIndex >= 0 && pendingId && profile.id === pendingId) return false;
-      return true;
-    });
-    const next = saveSettings({
-      profiles,
-      activeProfileId: updated.id,
-      wsUrl: updated.wsUrl,
-      token: updated.token,
-      pairCode: '',
-      autoReconnect: updated.autoReconnect,
-    });
-    applySavedSettings(next);
-    return next;
-  }, [applySavedSettings]);
+  const switchProfile = useCallback(
+    (profileId: string) => {
+      const current = settingsRef.current;
+      const target = current.profiles.find((profile) => profile.id === profileId);
+      if (!target || target.id === current.activeProfileId) return;
+      const next = saveSettings({
+        activeProfileId: target.id,
+        wsUrl: target.wsUrl,
+        token: target.token,
+        pairCode: target.pairCode || '',
+        autoReconnect: target.autoReconnect,
+        profiles: current.profiles.map((profile) =>
+          profile.id === target.id ? { ...profile, lastUsedAt: Date.now() } : profile,
+        ),
+      });
+      applySavedSettings(next);
+      resetConnectionPresentation();
+      adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+    },
+    [applySavedSettings, resetConnectionPresentation],
+  );
 
-  const noteReadyProfile = useCallback((ready: { hostId?: string; hostname?: string }) => {
-    const current = settingsRef.current;
-    const active = current.profiles.find((profile) => profile.id === current.activeProfileId);
-    if (!active || (!ready.hostId && !ready.hostname)) return;
-    const fallbackName = /^Herdr \d+$/.test(active.displayName);
-    const updated = {
-      ...active,
-      ...(ready.hostId ? { hostId: ready.hostId } : {}),
-      ...(ready.hostname ? { hostname: ready.hostname } : {}),
-      ...(ready.hostname && fallbackName ? { displayName: ready.hostname } : {}),
-    };
-    const next = saveSettings({ profiles: current.profiles.map((profile) => profile.id === active.id ? updated : profile) });
-    applySavedSettings(next);
-  }, [applySavedSettings]);
+  const renameProfile = useCallback(
+    (profileId: string, displayName: string) => {
+      const current = settingsRef.current;
+      const profile = current.profiles.find((item) => item.id === profileId);
+      if (!profile) return;
+      const trimmed = displayName.trim().slice(0, 64);
+      if (!trimmed) return;
+      const next = saveSettings({
+        profiles: current.profiles.map((item) =>
+          item.id === profileId ? { ...item, displayName: trimmed } : item,
+        ),
+      });
+      applySavedSettings(next);
+    },
+    [applySavedSettings],
+  );
+
+  const removeProfile = useCallback(
+    (profileId: string) => {
+      const current = settingsRef.current;
+      if (!current.profiles.some((profile) => profile.id === profileId)) return;
+      const remaining = current.profiles.filter((profile) => profile.id !== profileId);
+      const nextActive =
+        remaining.find((profile) => profile.id === current.activeProfileId) || remaining[0];
+      const next = nextActive
+        ? saveSettings({
+            profiles: remaining,
+            activeProfileId: nextActive.id,
+            wsUrl: nextActive.wsUrl,
+            token: nextActive.token,
+            pairCode: nextActive.pairCode || '',
+            autoReconnect: nextActive.autoReconnect,
+          })
+        : saveSettings({
+            profiles: [],
+            activeProfileId: '',
+            wsUrl: '/ws/client',
+            token: '',
+            pairCode: '',
+          });
+      applySavedSettings(next);
+      if (profileId === current.activeProfileId) {
+        resetConnectionPresentation();
+        adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+      }
+    },
+    [applySavedSettings, resetConnectionPresentation],
+  );
+
+  const savePairedProfile = useCallback(
+    (payload: {
+      token: string;
+      hostId?: string;
+      deviceId?: string;
+      expiresAt?: number | string;
+    }) => {
+      const current = settingsRef.current;
+      const active = current.profiles.find((profile) => profile.id === current.activeProfileId);
+      const key = payload.hostId
+        ? profileKey({ wsUrl: current.wsUrl, hostId: payload.hostId })
+        : null;
+      const matchIndex = key
+        ? current.profiles.findIndex((profile) => profileKey(profile) === key)
+        : -1;
+      const targetIndex =
+        matchIndex >= 0
+          ? matchIndex
+          : Math.max(
+              0,
+              current.profiles.findIndex((profile) => profile.id === current.activeProfileId),
+            );
+      const base =
+        current.profiles[targetIndex] ||
+        active ||
+        createConnectionProfile(
+          {
+            wsUrl: current.wsUrl || '/ws/client',
+            token: '',
+            pairCode: current.pairCode || 'PENDING',
+            displayName: `Herdr ${current.profiles.length + 1}`,
+          },
+          current.profiles.length,
+        );
+      const updated: ConnectionProfile = {
+        ...base,
+        token: payload.token,
+        pairCode: undefined,
+        ...(payload.hostId ? { hostId: payload.hostId } : {}),
+        ...(payload.deviceId ? { deviceId: payload.deviceId } : {}),
+        lastUsedAt: Date.now(),
+      };
+      let profiles = [...current.profiles];
+      if (targetIndex >= 0 && targetIndex < profiles.length) profiles[targetIndex] = updated;
+      else profiles.push(updated);
+      // If re-pairing found an older profile, remove the temporary pending one
+      // that initiated this flow while preserving the older profile's alias.
+      const pendingId = active?.id;
+      profiles = profiles.filter((profile, index) => {
+        if (index === targetIndex || profile.id === updated.id) return true;
+        if (matchIndex >= 0 && pendingId && profile.id === pendingId) return false;
+        return true;
+      });
+      const next = saveSettings({
+        profiles,
+        activeProfileId: updated.id,
+        wsUrl: updated.wsUrl,
+        token: updated.token,
+        pairCode: '',
+        autoReconnect: updated.autoReconnect,
+      });
+      applySavedSettings(next);
+      return next;
+    },
+    [applySavedSettings],
+  );
+
+  const noteReadyProfile = useCallback(
+    (ready: { hostId?: string; hostname?: string }) => {
+      const current = settingsRef.current;
+      const active = current.profiles.find((profile) => profile.id === current.activeProfileId);
+      if (!active || (!ready.hostId && !ready.hostname)) return;
+      const fallbackName = /^Herdr \d+$/.test(active.displayName);
+      const updated = {
+        ...active,
+        ...(ready.hostId ? { hostId: ready.hostId } : {}),
+        ...(ready.hostname ? { hostname: ready.hostname } : {}),
+        ...(ready.hostname && fallbackName ? { displayName: ready.hostname } : {}),
+      };
+      const next = saveSettings({
+        profiles: current.profiles.map((profile) => (profile.id === active.id ? updated : profile)),
+      });
+      applySavedSettings(next);
+    },
+    [applySavedSettings],
+  );
 
   /**
    * The adapter is constructed and wired during the first render, not from an
@@ -721,10 +786,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
 
     newAdapter.on('controlDenied', (message) => {
-      addToast(
-        'warning',
-        message || tRef.current('toasts.controlDenied')
-      );
+      addToast('warning', message || tRef.current('toasts.controlDenied'));
     });
 
     newAdapter.on('controlRevoked', (reason) => {
@@ -752,7 +814,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     newAdapter.on('exit', (code, reason) => {
       addToast(
         'info',
-        `${tRef.current('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code !== undefined ? ` (${code})` : ''}`
+        `${tRef.current('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code !== undefined ? ` (${code})` : ''}`,
       );
     });
 
@@ -784,7 +846,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       const codeStr = String(err.code);
       const key = `serverErrors.${codeStr}`;
       const translated = tRef.current(key);
-      const message = translated && translated !== key ? translated : (err.message || `[${err.code}]`);
+      const message =
+        translated && translated !== key ? translated : err.message || `[${err.code}]`;
       addToast('error', message);
     });
 
@@ -846,9 +909,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       const key = `${status.latest}:${status.restartPending ? 'restart' : 'update'}`;
       if (announcedUpdatesRef.current.has(key)) return;
       announcedUpdatesRef.current.add(key);
-      addToast('info', status.restartPending
-        ? tRef.current('update.toastRestart', { version: status.latest })
-        : tRef.current('update.toast', { version: status.latest }));
+      addToast(
+        'info',
+        status.restartPending
+          ? tRef.current('update.toastRestart', { version: status.latest })
+          : tRef.current('update.toast', { version: status.latest }),
+      );
     });
 
     // Single lifetime subscription: survives TerminalView unmount/hide so no
@@ -859,24 +925,32 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   }
 
   const adapter = adapterRef.current;
-  const activeProfile = settings.profiles.find((profile) => profile.id === settings.activeProfileId);
+  const activeProfile = settings.profiles.find(
+    (profile) => profile.id === settings.activeProfileId,
+  );
 
-  const { hostFont, loadHostFont, declineHostFont, syncHostFont, ensureHostGlyphs } = useHostFont(adapter);
+  const { hostFont, loadHostFont, declineHostFont, syncHostFont, ensureHostGlyphs } =
+    useHostFont(adapter);
   const terminalFontFamily = resolveTerminalFontFamily(
     settings.fontFamily,
     hostFont.font
       ? {
-        family: hostFont.font.family,
-        alias: hostFont.status === 'loaded' ? hostFont.alias : null,
-        glyphs: hostFont.glyphs.source
-          ? { family: hostFont.glyphs.source.family, scope: hostFont.glyphs.source.scope, alias: hostFont.glyphs.alias }
-          : null,
-      }
+          family: hostFont.font.family,
+          alias: hostFont.status === 'loaded' ? hostFont.alias : null,
+          glyphs: hostFont.glyphs.source
+            ? {
+                family: hostFont.glyphs.source.family,
+                scope: hostFont.glyphs.source.scope,
+                alias: hostFont.glyphs.alias,
+              }
+            : null,
+        }
       : null,
   );
-  const terminalFontSize = settings.fontSizeFollowsHost && hostFont.font?.sizePx
-    ? clampFontSize(hostFont.font.sizePx, settings.fontSize)
-    : settings.fontSize;
+  const terminalFontSize =
+    settings.fontSizeFollowsHost && hostFont.font?.sizePx
+      ? clampFontSize(hostFont.font.sizePx, settings.fontSize)
+      : settings.fontSize;
 
   // The interface around the terminal is drawn as terminal cells too; it uses
   // the terminal's face so the two read as one screen. Sizes stay fixed.
@@ -925,9 +999,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     }, HERDR_START_TIMEOUT_MS);
   }, [setHerdrLaunch]);
 
-  useEffect(() => () => {
-    if (herdrStartTimerRef.current) clearTimeout(herdrStartTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (herdrStartTimerRef.current) clearTimeout(herdrStartTimerRef.current);
+    },
+    [],
+  );
 
   const claimControl = useCallback((force: boolean = false) => {
     if (adapterRef.current) {
@@ -947,23 +1024,26 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     adapterRef.current?.releaseControl();
   }, []);
 
-  const sendKey = useCallback((rawKey: string) => {
-    if (role !== 'controller') {
-      warnViewerMode();
-      return;
-    }
-    const adapter = adapterRef.current;
-    if (!adapter) return;
-    const bytes = encodeStringToBytes(rawKey);
-    for (const observer of keyInputObserversRef.current) {
-      try {
-        observer(bytes);
-      } catch (err) {
-        console.debug('Key input observer threw:', err);
+  const sendKey = useCallback(
+    (rawKey: string) => {
+      if (role !== 'controller') {
+        warnViewerMode();
+        return;
       }
-    }
-    adapter.sendInput(bytes);
-  }, [role, warnViewerMode]);
+      const adapter = adapterRef.current;
+      if (!adapter) return;
+      const bytes = encodeStringToBytes(rawKey);
+      for (const observer of keyInputObserversRef.current) {
+        try {
+          observer(bytes);
+        } catch (err) {
+          console.debug('Key input observer threw:', err);
+        }
+      }
+      adapter.sendInput(bytes);
+    },
+    [role, warnViewerMode],
+  );
 
   const observeKeyInput = useCallback((observer: (bytes: Uint8Array) => void) => {
     keyInputObserversRef.current.add(observer);
@@ -995,19 +1075,22 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     return adapter ? installWakeListeners(adapter) : undefined;
   }, []);
 
-  const sendBinary = useCallback((data: Uint8Array | ArrayBuffer) => {
-    // Viewers are read-only for terminal *input*, but scrolling is not input
-    // into the shared session: each client drives its own PTY stream, so a
-    // wheel report only moves this device's own screen. Letting it through is
-    // what makes a viewer able to read back through an agent's output at all,
-    // since a full-screen TUI owns its history and has no xterm scrollback.
-    if (role !== 'controller' && !isWheelOnlyInput(data)) {
-      return;
-    }
-    if (adapterRef.current) {
-      adapterRef.current.sendInput(data);
-    }
-  }, [role]);
+  const sendBinary = useCallback(
+    (data: Uint8Array | ArrayBuffer) => {
+      // Viewers are read-only for terminal *input*, but scrolling is not input
+      // into the shared session: each client drives its own PTY stream, so a
+      // wheel report only moves this device's own screen. Letting it through is
+      // what makes a viewer able to read back through an agent's output at all,
+      // since a full-screen TUI owns its history and has no xterm scrollback.
+      if (role !== 'controller' && !isWheelOnlyInput(data)) {
+        return;
+      }
+      if (adapterRef.current) {
+        adapterRef.current.sendInput(data);
+      }
+    },
+    [role],
+  );
 
   const sendResize = useCallback((cols: number, rows: number) => {
     dimensionsRef.current = { cols, rows };
@@ -1029,7 +1112,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
       return false;
     },
-    [role, warnViewerMode]
+    [role, warnViewerMode],
   );
 
   const subscribeToPasteFileReady = useCallback((handler: (path: string) => void) => {
@@ -1198,7 +1281,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         return false;
       }
     },
-    [role, connectionState, warnViewerMode, addToast, t, sendPasteFile]
+    [role, connectionState, warnViewerMode, addToast, t, sendPasteFile],
   );
 
   return (
@@ -1226,7 +1309,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         settings,
         hostPalette,
         hostFont,
-        loadHostFont: () => { void loadHostFont(); },
+        loadHostFont: () => {
+          void loadHostFont();
+        },
         declineHostFont,
         syncHostFont,
         ensureHostGlyphs,

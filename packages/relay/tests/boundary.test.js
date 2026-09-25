@@ -44,13 +44,18 @@ test('the relay depends on nothing but ws', () => {
 });
 
 test('no relay source imports the workstation package', () => {
-  const forbidden = [/require\(['"]herdr-remote['"]/, /require\(['"][^'"]*packages\/cli/, /require\(['"]node-pty['"]/];
+  const forbidden = [
+    /require\(['"]herdr-remote['"]/,
+    /require\(['"][^'"]*packages\/cli/,
+    /require\(['"]node-pty['"]/,
+  ];
   const offenders = [];
 
   for (const file of scannedFiles()) {
     const contents = fs.readFileSync(file, 'utf8');
     for (const pattern of forbidden) {
-      if (pattern.test(contents)) offenders.push(`${path.relative(PACKAGE_ROOT, file)} matches ${pattern}`);
+      if (pattern.test(contents))
+        offenders.push(`${path.relative(PACKAGE_ROOT, file)} matches ${pattern}`);
     }
   }
 
@@ -84,7 +89,9 @@ test('the relay loads and serves without any workstation module present', () => 
   assert.equal(typeof loadRelayConfig, 'function');
   assert.equal(require.cache[require.resolve('../src/relay-server')] !== undefined, true);
 
-  const loadedNodePty = Object.keys(require.cache).some((key) => key.includes(`${path.sep}node-pty${path.sep}`));
+  const loadedNodePty = Object.keys(require.cache).some((key) =>
+    key.includes(`${path.sep}node-pty${path.sep}`),
+  );
   assert.equal(loadedNodePty, false, 'the relay must not pull in node-pty');
 });
 

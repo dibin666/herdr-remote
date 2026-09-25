@@ -4,11 +4,7 @@ import { ANSI_KEYS, encodeKeyWithModifiers } from '../protocol/keyEncoder';
 import { formatComboCaption, parseKeyCombo } from '../protocol/keyCombo';
 import { cn } from '../utils/cn';
 import { ToolbarKeyDef, DEFAULT_TOOLBAR_KEYS, getLocalizedKeyTitle } from '../utils/virtualKeys';
-import {
-  AGENT_PROFILES,
-  getDrawerGroups,
-  type AppliedAgentAction,
-} from '../utils/agentKeymaps';
+import { AGENT_PROFILES, getDrawerGroups, type AppliedAgentAction } from '../utils/agentKeymaps';
 import { Gauge } from './tui';
 
 interface KeyToolbarProps {
@@ -106,7 +102,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       if (!file) return;
       uploadImage(file);
     },
-    [uploadImage]
+    [uploadImage],
   );
 
   const renderFileInputs = () => (
@@ -145,8 +141,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             uploadProgress.phase === 'completed'
               ? 'ok'
               : uploadProgress.phase === 'error'
-              ? 'bad'
-              : 'accent'
+                ? 'bad'
+                : 'accent'
           }
           aria-label={uploadProgress.statusText}
         />
@@ -167,7 +163,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
           keyClass,
           isUploading
             ? 'border-tui-border-dim bg-tui-surface opacity-60 cursor-not-allowed'
-            : CAP_IDLE
+            : CAP_IDLE,
         )}
         title={isUploading ? uploadProgress.statusText : t('virtualKeyboard.uploadImageTitle')}
         aria-label={t('virtualKeyboard.uploadImage')}
@@ -185,10 +181,13 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
   const [showQuickChords, setShowQuickChords] = useState(false);
   const comboTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  useEffect(() => () => {
-    comboTimersRef.current.forEach((timer) => clearTimeout(timer));
-    comboTimersRef.current = [];
-  }, []);
+  useEffect(
+    () => () => {
+      comboTimersRef.current.forEach((timer) => clearTimeout(timer));
+      comboTimersRef.current = [];
+    },
+    [],
+  );
 
   // Whether the sideways strip hides keys past its right edge, which is when it
   // fades out there to say so.
@@ -196,7 +195,9 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
   const [moreToRight, setMoreToRight] = useState(false);
   const measureScroll = useCallback(() => {
     const strip = scrollRef.current;
-    setMoreToRight(Boolean(strip) && strip!.scrollLeft + strip!.clientWidth < strip!.scrollWidth - 1);
+    setMoreToRight(
+      Boolean(strip) && strip!.scrollLeft + strip!.clientWidth < strip!.scrollWidth - 1,
+    );
   }, []);
   // Keys can come and go without the strip changing size (a profile switch, a
   // key added in settings), so every render re-measures; an unchanged answer
@@ -210,51 +211,55 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     return () => observer.disconnect();
   }, [measureScroll, settings.toolbarVisible]);
 
-  const sendAgentCombo = useCallback((combo: string) => {
-    vibrate();
-    if (!isController) {
-      warnViewerMode();
-      return;
-    }
+  const sendAgentCombo = useCallback(
+    (combo: string) => {
+      vibrate();
+      if (!isController) {
+        warnViewerMode();
+        return;
+      }
 
-    let steps: string[];
-    try {
-      steps = parseKeyCombo(combo);
-    } catch {
-      return;
-    }
-    // A ready-made shortcut consumes a pending modifier the same way a Ctrl
-    // chord does; its own declared modifiers are already part of the combo.
-    consumeModifierLatch();
-    if (steps.length === 1) {
-      sendKey(steps[0]);
-      return;
-    }
+      let steps: string[];
+      try {
+        steps = parseKeyCombo(combo);
+      } catch {
+        return;
+      }
+      // A ready-made shortcut consumes a pending modifier the same way a Ctrl
+      // chord does; its own declared modifiers are already part of the combo.
+      consumeModifierLatch();
+      if (steps.length === 1) {
+        sendKey(steps[0]);
+        return;
+      }
 
-    // The adapter merges writes queued in one microtask. Spacing sequence steps
-    // keeps Esc Esc as two keypresses so rewind menus still receive both.
-    steps.forEach((step, index) => {
-      const timer = setTimeout(() => {
-        comboTimersRef.current = comboTimersRef.current.filter((item) => item !== timer);
-        sendKey(step);
-      }, index * 120);
-      comboTimersRef.current.push(timer);
-    });
-  }, [consumeModifierLatch, isController, sendKey, vibrate, warnViewerMode]);
+      // The adapter merges writes queued in one microtask. Spacing sequence steps
+      // keeps Esc Esc as two keypresses so rewind menus still receive both.
+      steps.forEach((step, index) => {
+        const timer = setTimeout(() => {
+          comboTimersRef.current = comboTimersRef.current.filter((item) => item !== timer);
+          sendKey(step);
+        }, index * 120);
+        comboTimersRef.current.push(timer);
+      });
+    },
+    [consumeModifierLatch, isController, sendKey, vibrate, warnViewerMode],
+  );
 
   const agentGroups = getDrawerGroups(agentProfile, settings.agentKeymaps[agentProfile]);
 
   const renderAgentAction = (item: AppliedAgentAction) => {
     let caption = '';
-    try { caption = formatComboCaption(item.combo); } catch {}
-    const label = item.custom
-      ? item.customLabel || ''
-      : t(`agentActions.${item.labelKey}`);
-    const tone = item.labelKey === 'interrupt' && item.combo.trim().toLowerCase() === 'ctrl+c'
-      ? 'bad'
-      : item.combo.trim().toLowerCase() === 'ctrl+z'
-        ? 'warn'
-        : 'default';
+    try {
+      caption = formatComboCaption(item.combo);
+    } catch {}
+    const label = item.custom ? item.customLabel || '' : t(`agentActions.${item.labelKey}`);
+    const tone =
+      item.labelKey === 'interrupt' && item.combo.trim().toLowerCase() === 'ctrl+c'
+        ? 'bad'
+        : item.combo.trim().toLowerCase() === 'ctrl+z'
+          ? 'warn'
+          : 'default';
     return (
       <button
         key={item.id}
@@ -291,7 +296,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             className={cn(
               CAP_BASE,
               capHeight,
-              'px-1.5 text-tui-sm border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent'
+              'px-1.5 text-tui-sm border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent',
             )}
             title={t('agentKeymaps.customizeBar')}
             aria-label={t('agentKeymaps.customizeBar')}
@@ -320,7 +325,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       const modifiers = consumeModifierLatch();
       sendKey(modifiable && modifiers ? encodeKeyWithModifiers(keySeq, modifiers) : keySeq);
     },
-    [isController, sendKey, warnViewerMode, vibrate, consumeModifierLatch]
+    [isController, sendKey, warnViewerMode, vibrate, consumeModifierLatch],
   );
 
   // Collapsed, the bar leaves a handle behind rather than vanishing: a key bar
@@ -397,7 +402,11 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
 
     // Modifier toggles
     if (keyDef.type === 'modifier') {
-      if (keyDef.modifierType === 'ctrl' || keyDef.modifierType === 'alt' || keyDef.modifierType === 'shift') {
+      if (
+        keyDef.modifierType === 'ctrl' ||
+        keyDef.modifierType === 'alt' ||
+        keyDef.modifierType === 'shift'
+      ) {
         toggleModifierLatch(keyDef.modifierType);
       } else if (keyDef.modifierType === 'meta') {
         handleKeyPress(ANSI_KEYS.ESC);
@@ -455,7 +464,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         className={cn(
           CAP_BASE,
           isSquare ? squareKeyClass : isDrawer ? drawerToggleClass : keyClass,
-          keyDef.id === 'enter' ? CAP_COMMIT : active ? CAP_ACTIVE : CAP_IDLE
+          keyDef.id === 'enter' ? CAP_COMMIT : active ? CAP_ACTIVE : CAP_IDLE,
         )}
         title={accessibleTitle}
         aria-label={accessibleTitle}
@@ -477,17 +486,12 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     caption: string,
     title: string,
     badge: string,
-    tone: 'default' | 'bad' | 'warn' = 'default'
+    tone: 'default' | 'bad' | 'warn' = 'default',
   ) => (
     <button
       type="button"
       onClick={() => handleKeyPress(code, false)}
-      className={cn(
-        CAP_BASE,
-        capHeight,
-        'gap-1.5 px-2',
-        CHORD_TONE_CLASS[tone]
-      )}
+      className={cn(CAP_BASE, capHeight, 'gap-1.5 px-2', CHORD_TONE_CLASS[tone])}
       title={title}
     >
       <span className="font-bold">{caption}</span>
@@ -502,7 +506,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         'z-20 flex shrink-0 select-none flex-col border-t border-tui-border bg-tui-mantle',
         compact
           ? 'pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]'
-          : 'pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]'
+          : 'pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]',
       )}
       role="toolbar"
       aria-label={t('virtualKeyboard.touchKeyboardShortcuts')}
@@ -531,33 +535,95 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       {/* Control chords */}
       {showQuickChords && (
         <div className="scrollbar-none flex items-center gap-1 overflow-x-auto border-b border-tui-border-dim bg-tui-crust p-1.5">
-          {chord(ANSI_KEYS.CTRL_C, '^C', t('virtualKeyboard.ctrlCTitle'), t('virtualKeyboard.badgeSigint'), 'bad')}
-          {chord(ANSI_KEYS.CTRL_D, '^D', t('virtualKeyboard.ctrlDTitle'), t('virtualKeyboard.badgeEof'))}
-          {chord(ANSI_KEYS.CTRL_Z, '^Z', t('virtualKeyboard.ctrlZTitle'), t('virtualKeyboard.badgeTstp'), 'warn')}
-          {chord(ANSI_KEYS.CTRL_L, '^L', t('virtualKeyboard.ctrlLTitle'), t('virtualKeyboard.badgeClear'))}
-          {chord(ANSI_KEYS.CTRL_R, '^R', t('virtualKeyboard.ctrlRTitle'), t('virtualKeyboard.badgeSearch'))}
-          {chord(ANSI_KEYS.CTRL_A, '^A', t('virtualKeyboard.ctrlATitle'), t('virtualKeyboard.badgeStart'))}
-          {chord(ANSI_KEYS.CTRL_E, '^E', t('virtualKeyboard.ctrlETitle'), t('virtualKeyboard.badgeEnd'))}
-          {chord(ANSI_KEYS.CTRL_K, '^K', t('virtualKeyboard.ctrlKTitle'), t('virtualKeyboard.badgeKill'))}
+          {chord(
+            ANSI_KEYS.CTRL_C,
+            '^C',
+            t('virtualKeyboard.ctrlCTitle'),
+            t('virtualKeyboard.badgeSigint'),
+            'bad',
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_D,
+            '^D',
+            t('virtualKeyboard.ctrlDTitle'),
+            t('virtualKeyboard.badgeEof'),
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_Z,
+            '^Z',
+            t('virtualKeyboard.ctrlZTitle'),
+            t('virtualKeyboard.badgeTstp'),
+            'warn',
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_L,
+            '^L',
+            t('virtualKeyboard.ctrlLTitle'),
+            t('virtualKeyboard.badgeClear'),
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_R,
+            '^R',
+            t('virtualKeyboard.ctrlRTitle'),
+            t('virtualKeyboard.badgeSearch'),
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_A,
+            '^A',
+            t('virtualKeyboard.ctrlATitle'),
+            t('virtualKeyboard.badgeStart'),
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_E,
+            '^E',
+            t('virtualKeyboard.ctrlETitle'),
+            t('virtualKeyboard.badgeEnd'),
+          )}
+          {chord(
+            ANSI_KEYS.CTRL_K,
+            '^K',
+            t('virtualKeyboard.ctrlKTitle'),
+            t('virtualKeyboard.badgeKill'),
+          )}
         </div>
       )}
-
 
       {/* Symbols a phone keyboard buries three layers deep */}
       {showSymbols && (
         <div className="scrollbar-none flex items-center gap-1 overflow-x-auto border-b border-tui-border-dim bg-tui-crust p-1.5">
-          {['|', '~', '/', '\\', '-', '_', '$', '&', ';', ':', '`', '"', "'", '>', '<', '=', '#', '@', '{', '}', '[', ']'].map(
-            (sym) => (
-              <button
-                key={sym}
-                type="button"
-                onClick={() => handleKeyPress(sym, true)}
-                className={cn(CAP_BASE, CAP_IDLE, squareKeyClass, 'font-bold')}
-              >
-                {sym}
-              </button>
-            )
-          )}
+          {[
+            '|',
+            '~',
+            '/',
+            '\\',
+            '-',
+            '_',
+            '$',
+            '&',
+            ';',
+            ':',
+            '`',
+            '"',
+            "'",
+            '>',
+            '<',
+            '=',
+            '#',
+            '@',
+            '{',
+            '}',
+            '[',
+            ']',
+          ].map((sym) => (
+            <button
+              key={sym}
+              type="button"
+              onClick={() => handleKeyPress(sym, true)}
+              className={cn(CAP_BASE, CAP_IDLE, squareKeyClass, 'font-bold')}
+            >
+              {sym}
+            </button>
+          ))}
         </div>
       )}
 
@@ -571,7 +637,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         data-testid="key-toolbar-row"
         className={cn(
           'flex flex-nowrap items-center justify-start gap-1',
-          compact ? 'px-1.5 py-1' : 'px-2 py-1.5'
+          compact ? 'px-1.5 py-1' : 'px-2 py-1.5',
         )}
       >
         <div className="relative min-w-0">
@@ -590,7 +656,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               className={cn(
                 CAP_BASE,
                 squareKeyClass,
-                'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text'
+                'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text',
               )}
               title={t('virtualKeyboard.collapseToolbar')}
               aria-label={t('virtualKeyboard.collapseToolbar')}

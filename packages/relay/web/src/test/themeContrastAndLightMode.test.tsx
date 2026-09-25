@@ -24,10 +24,12 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
 
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(document.documentElement.classList.contains('light')).toBe(false);
-    expect(screen.queryByRole('button', { name: /Toggle color mode|Toggle theme/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Toggle color mode|Toggle theme/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it('renders Toast notifications as TUI status lines on Herdr\'s own palette', () => {
+  it("renders Toast notifications as TUI status lines on Herdr's own palette", () => {
     const ToastTrigger = () => {
       const { addToast } = useTerminal();
       return (
@@ -44,7 +46,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
       <TerminalProvider>
         <ToastContainer />
         <ToastTrigger />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -65,7 +67,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
         <PairingModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const dialogs = screen.getAllByRole('dialog');
@@ -85,7 +87,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} initialTab="agentKeymaps" />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const dialog = screen.getByRole('dialog');
@@ -118,7 +120,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
   it('never invents colors or contrast floors of its own', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, '../components/TerminalView.tsx'),
-      'utf-8'
+      'utf-8',
     );
 
     expect(source).not.toMatch(/minimumContrastRatio\s*[:=]/);

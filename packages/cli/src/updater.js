@@ -121,10 +121,11 @@ function registryCandidates({ env = process.env, home = os.homedir(), cwd = proc
 
 /** Compare two `MAJOR.MINOR.PATCH` strings. Returns 1, -1 or 0. */
 function compareVersions(a, b) {
-  const parse = (value) => String(value)
-    .split('-')[0]
-    .split('.')
-    .map((part) => Number.parseInt(part, 10) || 0);
+  const parse = (value) =>
+    String(value)
+      .split('-')[0]
+      .split('.')
+      .map((part) => Number.parseInt(part, 10) || 0);
   const left = parse(a);
   const right = parse(b);
   for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
@@ -147,7 +148,10 @@ async function fetchJson(url, { timeoutMs, fetchImpl }) {
     if (!response.ok) return { ok: false, message: `HTTP ${response.status ?? '?'}` };
     return { ok: true, body: await response.json() };
   } catch (error) {
-    return { ok: false, message: error?.name === 'AbortError' ? 'timed out' : String(error?.message || error) };
+    return {
+      ok: false,
+      message: error?.name === 'AbortError' ? 'timed out' : String(error?.message || error),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -199,10 +203,12 @@ async function checkForUpdate({
   registries = registryCandidates(),
 } = {}) {
   const current = currentVersion();
-  const attempts = await Promise.all(registries.map(async (registry) => ({
-    registry,
-    ...(await askRegistry(registry, { timeoutMs, fetchImpl })),
-  })));
+  const attempts = await Promise.all(
+    registries.map(async (registry) => ({
+      registry,
+      ...(await askRegistry(registry, { timeoutMs, fetchImpl })),
+    })),
+  );
   const answers = attempts.filter((attempt) => attempt.ok);
 
   if (answers.length === 0) {
@@ -241,12 +247,20 @@ async function checkForUpdate({
 
 /** Just the lines npm meant for a person: its `npm error` / `npm ERR!` summary. */
 function npmErrorSummary(output) {
-  const lines = String(output || '').split(/\r?\n/)
+  const lines = String(output || '')
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => /^npm (error|ERR!)/.test(line) && !/complete log of this run/i.test(line))
     .map((line) => line.replace(/^npm (error|ERR!)\s*/, ''))
     .filter(Boolean);
-  return (lines.length > 0 ? lines.slice(0, 3) : String(output || '').trim().split(/\r?\n/).slice(-3)).join(' ');
+  return (
+    lines.length > 0
+      ? lines.slice(0, 3)
+      : String(output || '')
+          .trim()
+          .split(/\r?\n/)
+          .slice(-3)
+  ).join(' ');
 }
 
 /** "No matching version": the registry has not caught up with its own dist-tag. */
@@ -274,8 +288,15 @@ function runNpm(spawnImpl, args, timeoutMs) {
     }
     let output = '';
     let settled = false;
-    const finish = (result) => { if (!settled) { settled = true; resolve(result); } };
-    const collect = (chunk) => { output += String(chunk); };
+    const finish = (result) => {
+      if (!settled) {
+        settled = true;
+        resolve(result);
+      }
+    };
+    const collect = (chunk) => {
+      output += String(chunk);
+    };
     child.stdout?.on('data', collect);
     child.stderr?.on('data', collect);
     child.on('error', (error) => finish({ ok: false, spawnFailed: true, output: error.message }));
@@ -356,13 +377,23 @@ async function performUpdate({
       if (result.ok) {
         const installed = readInstalledVersion();
         if (target && installed && compareVersions(installed, target) < 0) {
-          return { ok: false, errorKey: 'update.errorNotApplied', installed, output: result.output.slice(-2000) };
+          return {
+            ok: false,
+            errorKey: 'update.errorNotApplied',
+            installed,
+            output: result.output.slice(-2000),
+          };
         }
         return { ok: true, installed, output: result.output.slice(-2000) };
       }
       last = result;
       if (result.spawnFailed) {
-        return { ok: false, errorKey: 'update.errorFailed', output: result.output, summary: result.output };
+        return {
+          ok: false,
+          errorKey: 'update.errorFailed',
+          output: result.output,
+          summary: result.output,
+        };
       }
       notYetPublished = isNotYetPublished(result.output);
       if (!notYetPublished) break; // Not a wait: this registry will not do better.

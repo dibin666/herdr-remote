@@ -64,7 +64,7 @@ describe('Session auto-connect', () => {
             }
           }}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(adapterOnFirstRender).not.toBeNull();
@@ -98,8 +98,12 @@ describe('Live terminal output stream', () => {
     let ctx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <TestControlHelper onReady={(c) => { ctx = c; }} />
-      </TerminalProvider>
+        <TestControlHelper
+          onReady={(c) => {
+            ctx = c;
+          }}
+        />
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -149,8 +153,12 @@ describe('Live terminal output stream', () => {
     let ctx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <TestControlHelper onReady={(c) => { ctx = c; }} />
-      </TerminalProvider>
+        <TestControlHelper
+          onReady={(c) => {
+            ctx = c;
+          }}
+        />
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -170,9 +178,13 @@ describe('Live terminal output stream', () => {
     let ctx: ReturnType<typeof useTerminal> | undefined;
     const { rerender } = render(
       <TerminalProvider>
-        <TestControlHelper onReady={(c) => { ctx = c; }} />
+        <TestControlHelper
+          onReady={(c) => {
+            ctx = c;
+          }}
+        />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -189,9 +201,13 @@ describe('Live terminal output stream', () => {
     // Going inactive (Admin on top) must not detach the sink or drop chunks.
     rerender(
       <TerminalProvider>
-        <TestControlHelper onReady={(c) => { ctx = c; }} />
+        <TestControlHelper
+          onReady={(c) => {
+            ctx = c;
+          }}
+        />
         <TerminalView isActive={false} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -208,8 +224,12 @@ describe('Live terminal output stream', () => {
     let ctx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <TestControlHelper onReady={(c) => { ctx = c; }} />
-      </TerminalProvider>
+        <TestControlHelper
+          onReady={(c) => {
+            ctx = c;
+          }}
+        />
+      </TerminalProvider>,
     );
 
     act(() => {

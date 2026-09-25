@@ -4,7 +4,14 @@ import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
 import { FieldRow, Message, Panel, Row, Selectable, StatusDot } from '../components/common.js';
 import { TextField } from '../components/TextField.js';
-import { MIN_HERDR_VERSION, getField, getFieldPlaceholder, herdrVersion, saveDraft, setField } from '../api.js';
+import {
+  MIN_HERDR_VERSION,
+  getField,
+  getFieldPlaceholder,
+  herdrVersion,
+  saveDraft,
+  setField,
+} from '../api.js';
 
 type InstalledHerdr = {
   /** False when no herdr executable answered. */
@@ -31,7 +38,10 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
 
   const applyField = (id: string, value: string) => {
     const result = setField(draft, id, value);
-    if (result.errorKey) { ctx.notify(t(result.errorKey), 'error'); return false; }
+    if (result.errorKey) {
+      ctx.notify(t(result.errorKey), 'error');
+      return false;
+    }
     ctx.updateDraft(result.draft);
     return true;
   };
@@ -47,29 +57,41 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
   };
 
   const activate = (id: string) => {
-    if (id === 'socketPath' || id === 'herdrArgs') { ctx.setEditing(id); return; }
-    if (id === 'herdrAutoStart') { applyField(id, draft.herdr.autoStart ? 'off' : 'on'); return; }
+    if (id === 'socketPath' || id === 'herdrArgs') {
+      ctx.setEditing(id);
+      return;
+    }
+    if (id === 'herdrAutoStart') {
+      applyField(id, draft.herdr.autoStart ? 'off' : 'on');
+      return;
+    }
     if (id === 'save') save();
   };
 
-  useInput((input, key) => {
-    const index = entries.findIndex((entry) => entry.id === selected);
-    const safeIndex = index >= 0 ? index : 0;
-    if (key.upArrow) setSelected(entries[(safeIndex - 1 + entries.length) % entries.length].id);
-    else if (key.downArrow) setSelected(entries[(safeIndex + 1) % entries.length].id);
-    else if (key.return) activate(selected);
-    else if (input === 's') save();
-  }, { isActive: editingId === null });
+  useInput(
+    (input, key) => {
+      const index = entries.findIndex((entry) => entry.id === selected);
+      const safeIndex = index >= 0 ? index : 0;
+      if (key.upArrow) setSelected(entries[(safeIndex - 1 + entries.length) % entries.length].id);
+      else if (key.downArrow) setSelected(entries[(safeIndex + 1) % entries.length].id);
+      else if (key.return) activate(selected);
+      else if (input === 's') save();
+    },
+    { isActive: editingId === null },
+  );
 
   return (
     <Panel title={t('herdr.title')}>
-      {entries.map((entry) => (
+      {entries.map((entry) =>
         entry.kind === 'toggle' ? (
           <FieldRow
             key={entry.id}
             label={entry.label}
             selected={selected === entry.id}
-            onSelect={() => { setSelected(entry.id); activate(entry.id); }}
+            onSelect={() => {
+              setSelected(entry.id);
+              activate(entry.id);
+            }}
             onHover={() => setSelected(entry.id)}
           >
             <Text color={draft.herdr.autoStart ? theme.ok : theme.muted}>
@@ -88,7 +110,9 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
               value={getField(draft, entry.id)}
               placeholder={ctx.t(getFieldPlaceholder(draft, entry.id))}
               active={editingId === entry.id}
-              onSubmit={(value) => { if (applyField(entry.id, value)) ctx.setEditing(null); }}
+              onSubmit={(value) => {
+                if (applyField(entry.id, value)) ctx.setEditing(null);
+              }}
               onCancel={() => ctx.setEditing(null)}
             />
           </FieldRow>
@@ -96,14 +120,17 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
           <Box key={entry.id} marginTop={1}>
             <Selectable
               selected={selected === entry.id}
-              onSelect={() => { setSelected(entry.id); activate(entry.id); }}
+              onSelect={() => {
+                setSelected(entry.id);
+                activate(entry.id);
+              }}
               onHover={() => setSelected(entry.id)}
             >
               {entry.label}
             </Selectable>
           </Box>
-        )
-      ))}
+        ),
+      )}
 
       {selected === 'herdrAutoStart' ? (
         <Box marginTop={1}>

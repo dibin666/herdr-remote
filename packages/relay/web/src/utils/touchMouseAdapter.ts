@@ -118,20 +118,29 @@ export function isMouseTrackingActive(term: Terminal | null): boolean {
   try {
     // xterm 5+ modes object
     const modes = (term as unknown as { modes?: { mouseTrackingMode?: string } }).modes;
-    if (modes && typeof modes.mouseTrackingMode === 'string' && modes.mouseTrackingMode !== 'none') {
+    if (
+      modes &&
+      typeof modes.mouseTrackingMode === 'string' &&
+      modes.mouseTrackingMode !== 'none'
+    ) {
       return true;
     }
 
     // Fallback to internal core mouse service if accessible
-    const core = (term as unknown as {
-      _core?: {
-        _coreMouseService?: { areMouseEventsActive?: boolean };
-        coreMouseService?: { areMouseEventsActive?: boolean };
-        mouseMode?: string;
-      };
-    })._core;
+    const core = (
+      term as unknown as {
+        _core?: {
+          _coreMouseService?: { areMouseEventsActive?: boolean };
+          coreMouseService?: { areMouseEventsActive?: boolean };
+          mouseMode?: string;
+        };
+      }
+    )._core;
 
-    if (core?._coreMouseService?.areMouseEventsActive || core?.coreMouseService?.areMouseEventsActive) {
+    if (
+      core?._coreMouseService?.areMouseEventsActive ||
+      core?.coreMouseService?.areMouseEventsActive
+    ) {
       return true;
     }
     if (core?.mouseMode && core.mouseMode !== 'none') {
@@ -148,7 +157,7 @@ export function isMouseTrackingActive(term: Terminal | null): boolean {
  */
 export function createSyntheticMouseEvent(
   type: 'mousedown' | 'mousemove' | 'mouseup',
-  coords: { clientX: number; clientY: number; button?: number; buttons?: number }
+  coords: { clientX: number; clientY: number; button?: number; buttons?: number },
 ): MouseEvent {
   const button = coords.button ?? 0;
   const buttons = coords.buttons ?? (type === 'mouseup' ? 0 : 1);
@@ -171,7 +180,7 @@ export function createSyntheticMouseEvent(
 export function dispatchSyntheticMouseEvent(
   target: EventTarget,
   type: 'mousedown' | 'mousemove' | 'mouseup',
-  coords: { clientX: number; clientY: number; button?: number; buttons?: number }
+  coords: { clientX: number; clientY: number; button?: number; buttons?: number },
 ): boolean {
   const event = createSyntheticMouseEvent(type, coords);
   return target.dispatchEvent(event);
@@ -215,7 +224,7 @@ export class TerminalPointerController {
 
   private getActiveBuffer(term: Terminal): ActiveBuffer | null {
     try {
-      return ((term as unknown as { buffer?: { active?: ActiveBuffer } }).buffer?.active || null);
+      return (term as unknown as { buffer?: { active?: ActiveBuffer } }).buffer?.active || null;
     } catch {
       return null;
     }
@@ -234,7 +243,10 @@ export class TerminalPointerController {
     }
   }
 
-  private getLogicalCoordinates(screenX: number, screenY: number): { clientX: number; clientY: number } {
+  private getLogicalCoordinates(
+    screenX: number,
+    screenY: number,
+  ): { clientX: number; clientY: number } {
     const scale = this.options.getScale ? this.options.getScale() : 1.0;
     const surfaceEl = this.options.getSurfaceElement ? this.options.getSurfaceElement() : null;
 
@@ -261,22 +273,22 @@ export class TerminalPointerController {
    * A tap on a historical/output row must not summon the Android keyboard.
    */
   private isInputLineHit(point: GesturePoint, term: Terminal): boolean {
-    const active = (term as unknown as {
-      buffer?: {
-        active?: {
-          cursorY?: number;
-          viewportY?: number;
-          baseY?: number;
+    const active = (
+      term as unknown as {
+        buffer?: {
+          active?: {
+            cursorY?: number;
+            viewportY?: number;
+            baseY?: number;
+          };
         };
-      };
-    }).buffer?.active;
+      }
+    ).buffer?.active;
 
     const surface = this.options.getSurfaceElement ? this.options.getSurfaceElement() : null;
-    const screen = (
-      surface?.querySelector('.xterm-screen') ||
+    const screen = (surface?.querySelector('.xterm-screen') ||
       term.element ||
-      surface
-    ) as HTMLElement | null;
+      surface) as HTMLElement | null;
     const cell = measureCellDimensions(term);
     if (!screen || typeof screen.getBoundingClientRect !== 'function' || cell.cellHeight <= 0) {
       return false;
@@ -286,7 +298,7 @@ export class TerminalPointerController {
     const logical = this.getLogicalCoordinates(point.clientX, point.clientY);
     const hasScreenBox = rect.width > 0 && rect.height > 0;
     const hasCursorPosition = [active?.cursorY, active?.viewportY, active?.baseY].every(
-      (value) => typeof value === 'number' && Number.isFinite(value)
+      (value) => typeof value === 'number' && Number.isFinite(value),
     );
 
     // Do not use the helper textarea's box for hit testing. xterm deliberately
@@ -309,8 +321,7 @@ export class TerminalPointerController {
       (!Number.isFinite(terminalRows) || visibleCursorRow < terminalRows) &&
       logical.clientY >= lineTop - 2 &&
       logical.clientY <= lineBottom + 2 &&
-      (!hasScreenBox ||
-        (logical.clientX >= rect.left && logical.clientX <= rect.right))
+      (!hasScreenBox || (logical.clientX >= rect.left && logical.clientX <= rect.right))
     );
   }
 
@@ -430,7 +441,7 @@ export class TerminalPointerController {
     point: GesturePoint,
     lines: number,
     term: Terminal,
-    event?: CancellableEvent
+    event?: CancellableEvent,
   ): boolean {
     const target = this.getWheelDispatchTarget(term);
     if (!target || typeof WheelEvent === 'undefined' || lines === 0) return false;
@@ -474,7 +485,7 @@ export class TerminalPointerController {
     point: GesturePoint,
     lines: number,
     term: Terminal,
-    event?: CancellableEvent
+    event?: CancellableEvent,
   ): boolean {
     if (lines === 0) return false;
     if (this.dispatchWheel(point, lines, term, event)) return true;
@@ -506,7 +517,7 @@ export class TerminalPointerController {
     point: GesturePoint,
     lines: number,
     term: Terminal,
-    event?: CancellableEvent
+    event?: CancellableEvent,
   ): ScrollMode {
     if (lines === 0) return 'none';
 
@@ -540,7 +551,7 @@ export class TerminalPointerController {
   private emitMouse(
     type: 'mousedown' | 'mousemove' | 'mouseup',
     point: GesturePoint,
-    event?: CancellableEvent
+    event?: CancellableEvent,
   ): void {
     const term = this.options.getTerminal();
     if (!term) return;
@@ -703,9 +714,7 @@ export class TerminalPointerController {
         const afterViewportY = this.getViewportY(term);
         scrollMode = 'buffer';
         moved =
-          beforeViewportY === null ||
-          afterViewportY === null ||
-          beforeViewportY !== afterViewportY;
+          beforeViewportY === null || afterViewportY === null || beforeViewportY !== afterViewportY;
       }
       this.scrollRemainderY -= rows * step;
     }

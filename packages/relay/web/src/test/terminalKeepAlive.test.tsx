@@ -49,8 +49,7 @@ const goToAdmin = async () => {
     fireEvent.click(screen.getByRole('button', { name: /^Open$/ }));
   });
 };
-const goToTerminal = () =>
-  fireEvent.click(screen.getByRole('button', { name: /^Terminal$/i }));
+const goToTerminal = () => fireEvent.click(screen.getByRole('button', { name: /^Terminal$/i }));
 
 describe('Terminal keep-alive across view navigation', () => {
   beforeEach(() => {

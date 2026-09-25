@@ -14,8 +14,12 @@ import {
   clearProbeMemoryStore,
 } from '../utils/terminalRenderer';
 
-const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] }).__herdrRenderers;
-const RendererStub = HerdrRenderer as unknown as { failNext: Error | null; unavailableNext: boolean };
+const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] })
+  .__herdrRenderers;
+const RendererStub = HerdrRenderer as unknown as {
+  failNext: Error | null;
+  unavailableNext: boolean;
+};
 
 /** The renderer module is stubbed in setup.ts; the terminal is never looked at. */
 function createMockTerminal(): { term: Terminal } {
@@ -32,7 +36,7 @@ function installedCanvas(width = 800, height = 400): HTMLCanvasElement {
 
 function mockCanvasContext(
   canvas: HTMLCanvasElement,
-  pixelDataGenerator: (w: number, h: number) => Uint8ClampedArray
+  pixelDataGenerator: (w: number, h: number) => Uint8ClampedArray,
 ) {
   const mockCtx = {
     getImageData: vi.fn((_x: number, _y: number, w: number, h: number) => {
@@ -397,7 +401,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(isCanvasProbeFailed()).toBe(true);
     });
 
-    it('keeps xterm\'s own renderer, without recording a failure, when this xterm exposes nothing to install into', () => {
+    it("keeps xterm's own renderer, without recording a failure, when this xterm exposes nothing to install into", () => {
       RendererStub.unavailableNext = true;
       const { term } = createMockTerminal();
 

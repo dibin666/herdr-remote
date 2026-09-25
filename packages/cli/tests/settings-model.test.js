@@ -6,8 +6,24 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { createDraft, fieldsForMode, getField, requiresRestart, saveDraft, setField, validateDraft } = require('../src/settings-model');
-const { DEFAULTS, configPath, loadConfig, resolvePublicUrl, resolveHostRelayUrl, runsLocalRelay, bindAddress } = require('../src/config');
+const {
+  createDraft,
+  fieldsForMode,
+  getField,
+  requiresRestart,
+  saveDraft,
+  setField,
+  validateDraft,
+} = require('../src/settings-model');
+const {
+  DEFAULTS,
+  configPath,
+  loadConfig,
+  resolvePublicUrl,
+  resolveHostRelayUrl,
+  runsLocalRelay,
+  bindAddress,
+} = require('../src/config');
 const { readJson } = require('../src/state');
 
 function withTempConfig(run) {
@@ -93,10 +109,13 @@ test('remote mode requires a relay URL before it can be saved', () => {
 test('saving writes the file atomically and drops superseded 0.1 keys', () => {
   withTempConfig(() => {
     fs.mkdirSync(path.dirname(configPath()), { recursive: true });
-    fs.writeFileSync(configPath(), JSON.stringify({
-      relay: { local: true, host: '127.0.0.1', url: 'ws://127.0.0.1:8787', port: 8787 },
-      unknownSection: { keepMe: true },
-    }));
+    fs.writeFileSync(
+      configPath(),
+      JSON.stringify({
+        relay: { local: true, host: '127.0.0.1', url: 'ws://127.0.0.1:8787', port: 8787 },
+        unknownSection: { keepMe: true },
+      }),
+    );
 
     let draft = createDraft(loadConfig());
     draft = setField(draft, 'port', '8888').draft;
@@ -159,7 +178,11 @@ test('fields are limited to the modes where they apply', () => {
   assert.ok(remoteIds.includes('remoteUrl'));
   assert.equal(remoteIds.includes('port'), false);
 
-  assert.ok(fieldsForMode('lan').map((field) => field.id).includes('lanHost'));
+  assert.ok(
+    fieldsForMode('lan')
+      .map((field) => field.id)
+      .includes('lanHost'),
+  );
 });
 
 test('setting herdrArgs with --no-session is rejected and leaves the draft untouched', () => {

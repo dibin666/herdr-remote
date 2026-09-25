@@ -34,7 +34,7 @@ function createMockCell(char: string, width: number) {
  */
 function createMockBufferLine(
   textWithWidths: Array<{ char: string; width: number }>,
-  lineLength: number
+  lineLength: number,
 ) {
   return {
     isWrapped: false,
@@ -442,7 +442,7 @@ describe('terminalSelection utils', () => {
     function createGridMockTerm(
       lines: ReturnType<typeof buildTerminalLine>[],
       cols = 80,
-      viewportY = 0
+      viewportY = 0,
     ) {
       return {
         cols,
@@ -461,7 +461,13 @@ describe('terminalSelection utils', () => {
      * Helper to construct a mock line where column `dividerCol` contains a vertical bar
      * and other columns contain padding or content.
      */
-    function makeDividedLine(leftText: string, dividerCol: number, rightText: string, dividerChar = '│', totalCols = 80) {
+    function makeDividedLine(
+      leftText: string,
+      dividerCol: number,
+      rightText: string,
+      dividerChar = '│',
+      totalCols = 80,
+    ) {
       const cells: Array<{ char: string; width: number }> = [];
       // Fill up to dividerCol
       let x = 0;
@@ -703,10 +709,7 @@ describe('terminalSelection utils', () => {
   });
 
   describe('rectText', () => {
-    function createGridMockTerm(
-      lines: ReturnType<typeof buildTerminalLine>[],
-      cols = 80
-    ) {
+    function createGridMockTerm(lines: ReturnType<typeof buildTerminalLine>[], cols = 80) {
       return {
         cols,
         rows: lines.length,

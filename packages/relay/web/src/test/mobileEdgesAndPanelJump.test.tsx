@@ -93,7 +93,7 @@ describe('Panels open without moving the page', () => {
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
         <PairingModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     for (const dialog of screen.getAllByRole('dialog')) {
@@ -119,12 +119,13 @@ describe('Panels open without moving the page', () => {
     let terminalContext: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <ContextCapture onReady={(context) => { terminalContext = context; }} />
-        <MobileTerminalShell
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
+        <ContextCapture
+          onReady={(context) => {
+            terminalContext = context;
+          }}
         />
-      </TerminalProvider>
+        <MobileTerminalShell onOpenPairing={() => {}} onOpenSettings={() => {}} />
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -171,11 +172,8 @@ describe('Panels open without moving the page', () => {
 
     render(
       <TerminalProvider>
-        <MobileTerminalShell
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-        />
-      </TerminalProvider>
+        <MobileTerminalShell onOpenPairing={() => {}} onOpenSettings={() => {}} />
+      </TerminalProvider>,
     );
 
     fireEvent.click(screen.getByTestId('mobile-chrome-trigger'));
@@ -194,7 +192,10 @@ describe('Panels open without moving the page', () => {
     // not lay out content, so provide the measured range a phone browser would
     // expose and verify that the element remains the scroll owner.
     Object.defineProperty(sheet, 'scrollHeight', { configurable: true, value: height * 2 });
-    Object.defineProperty(sheet, 'clientHeight', { configurable: true, value: Math.floor(height * 0.8) });
+    Object.defineProperty(sheet, 'clientHeight', {
+      configurable: true,
+      value: Math.floor(height * 0.8),
+    });
     sheet.scrollTop = 0;
     sheet.scrollTop = 120;
     expect(sheet.scrollTop).toBe(120);
@@ -205,7 +206,7 @@ describe('Panels open without moving the page', () => {
     const originalFocus = HTMLElement.prototype.focus;
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
       this: HTMLElement,
-      options?: FocusOptions
+      options?: FocusOptions,
     ) {
       focusOptions.push(options);
       return originalFocus.call(this, options);
@@ -215,11 +216,8 @@ describe('Panels open without moving the page', () => {
     const onOpenSettings = vi.fn();
     render(
       <TerminalProvider>
-        <MobileTerminalShell
-          onOpenPairing={() => {}}
-          onOpenSettings={onOpenSettings}
-        />
-      </TerminalProvider>
+        <MobileTerminalShell onOpenPairing={() => {}} onOpenSettings={onOpenSettings} />
+      </TerminalProvider>,
     );
 
     act(() => {

@@ -75,11 +75,27 @@ export interface FontPreset {
 export const FONT_PRESETS: readonly FontPreset[] = [
   { id: 'host', name: 'Host terminal font', faces: [] },
   { id: 'system', name: 'System monospace', faces: SYSTEM_MONOSPACE },
-  { id: 'jetbrains-mono', name: 'JetBrains Mono', faces: ['"JetBrains Mono"', '"Herdr JetBrains Mono"'] },
+  {
+    id: 'jetbrains-mono',
+    name: 'JetBrains Mono',
+    faces: ['"JetBrains Mono"', '"Herdr JetBrains Mono"'],
+  },
   { id: 'fira-code', name: 'Fira Code', faces: ['"Fira Code"', '"Herdr Fira Code"'] },
-  { id: 'cascadia-code', name: 'Cascadia Code', faces: ['"Cascadia Code"', '"Herdr Cascadia Code"'] },
-  { id: 'source-code-pro', name: 'Source Code Pro', faces: ['"Source Code Pro"', '"Herdr Source Code Pro"'] },
-  { id: 'ibm-plex-mono', name: 'IBM Plex Mono', faces: ['"IBM Plex Mono"', '"Herdr IBM Plex Mono"'] },
+  {
+    id: 'cascadia-code',
+    name: 'Cascadia Code',
+    faces: ['"Cascadia Code"', '"Herdr Cascadia Code"'],
+  },
+  {
+    id: 'source-code-pro',
+    name: 'Source Code Pro',
+    faces: ['"Source Code Pro"', '"Herdr Source Code Pro"'],
+  },
+  {
+    id: 'ibm-plex-mono',
+    name: 'IBM Plex Mono',
+    faces: ['"IBM Plex Mono"', '"Herdr IBM Plex Mono"'],
+  },
 ];
 
 export function isFontPresetId(value: unknown): value is FontPresetId {
@@ -162,7 +178,8 @@ export function resolveTerminalFontFamily(
   if (value.includes('Symbols Nerd Font')) return value;
   if (/^['"]?monospace['"]?$/i.test(value)) return '"Symbols Nerd Font Mono", monospace';
   const hasMonospace = /,\s*['"]?monospace['"]?\s*$/i;
-  if (hasMonospace.test(value)) return value.replace(hasMonospace, ', "Symbols Nerd Font Mono", monospace');
+  if (hasMonospace.test(value))
+    return value.replace(hasMonospace, ', "Symbols Nerd Font Mono", monospace');
   return `${value}, "Symbols Nerd Font Mono", monospace`;
 }
 

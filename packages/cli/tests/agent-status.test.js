@@ -40,10 +40,18 @@ test('a snapshot becomes counts a status bar can show', () => {
 // The list is capped, so what survives the cap has to be what a person came for.
 test('agents are ordered by how much they want attention', () => {
   const summary = summarizeAgents({
-    agents: [agent('p1', 'idle'), agent('p2', 'working'), agent('p3', 'blocked'), agent('p4', 'done')],
+    agents: [
+      agent('p1', 'idle'),
+      agent('p2', 'working'),
+      agent('p3', 'blocked'),
+      agent('p4', 'done'),
+    ],
   });
 
-  assert.deepEqual(summary.agents.map((entry) => entry.status), ['blocked', 'done', 'working', 'idle']);
+  assert.deepEqual(
+    summary.agents.map((entry) => entry.status),
+    ['blocked', 'done', 'working', 'idle'],
+  );
 });
 
 test('a status Herdr has not taught us is unknown, not a new column', () => {
@@ -55,7 +63,11 @@ test('a status Herdr has not taught us is unknown, not a new column', () => {
 
 test('a title from a remote program is stripped and clamped', () => {
   const summary = summarizeAgents({
-    agents: [agent('p1', 'working', { terminal_title_stripped: `we\u001B[31mird\ntitle ${'x'.repeat(100)}` })],
+    agents: [
+      agent('p1', 'working', {
+        terminal_title_stripped: `we\u001B[31mird\ntitle ${'x'.repeat(100)}`,
+      }),
+    ],
   });
 
   const { title } = summary.agents[0];
@@ -89,16 +101,25 @@ test('the focused pane and its agent are carried even without a tracked agent', 
 
   assert.equal(summary.focusedPaneId, 'wA:p2');
   assert.equal(summary.focusedAgent, 'pi');
-  assert.equal(sameSummary(summary, summarizeAgents({
-    focused_pane_id: 'wA:p3',
-    panes: [{ pane_id: 'wA:p3', agent: 'pi' }],
-    agents: [agent('wA:p1', 'working')],
-  })), false);
-  assert.equal(summarizeAgents({
-    focused_pane_id: 'wA:p1',
-    panes: [],
-    agents: [agent('wA:p1', 'working', { agent: 'claude-code' })],
-  }).focusedAgent, 'claude-code');
+  assert.equal(
+    sameSummary(
+      summary,
+      summarizeAgents({
+        focused_pane_id: 'wA:p3',
+        panes: [{ pane_id: 'wA:p3', agent: 'pi' }],
+        agents: [agent('wA:p1', 'working')],
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    summarizeAgents({
+      focused_pane_id: 'wA:p1',
+      panes: [],
+      agents: [agent('wA:p1', 'working', { agent: 'claude-code' })],
+    }).focusedAgent,
+    'claude-code',
+  );
 });
 
 test('falls back to focused pane and agent markers when the top-level focus ID is absent', () => {
@@ -130,10 +151,7 @@ test('falls back to focused pane and agent markers when the top-level focus ID i
  * per question. `connections` counts them.
  */
 function fakeHerdrSocket(t, handler) {
-  const socketPath = path.join(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-api-')),
-    'herdr.sock',
-  );
+  const socketPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-api-')), 'herdr.sock');
   const state = { socketPath, connections: 0 };
   const server = net.createServer((connection) => {
     state.connections += 1;
@@ -163,7 +181,10 @@ test('one question, one connection, newline-delimited JSON', async (t) => {
   const herdr = await fakeHerdrSocket(t, (request, connection) => {
     assert.equal(request.method, 'session.snapshot');
     assert.equal(typeof request.id, 'string');
-    answer(connection, { id: request.id, result: { snapshot: { agents: [agent('p1', 'blocked')] } } });
+    answer(connection, {
+      id: request.id,
+      result: { snapshot: { agents: [agent('p1', 'blocked')] } },
+    });
   });
 
   const first = await requestHerdr(herdr.socketPath, 'session.snapshot', {});
@@ -185,11 +206,15 @@ test('a Herdr subscription parses the live event envelope and can be closed', as
   const herdr = await fakeHerdrSocket(t, (request, connection) => {
     assert.equal(request.method, 'events.subscribe');
     assert.deepEqual(request.params.subscriptions, subscriptions);
-    connection.write(`${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`);
-    connection.write(`${JSON.stringify({
-      event: 'pane_focused',
-      data: { type: 'pane_focused', pane_id: 'w1:p1', workspace_id: 'w1' },
-    })}\n`);
+    connection.write(
+      `${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`,
+    );
+    connection.write(
+      `${JSON.stringify({
+        event: 'pane_focused',
+        data: { type: 'pane_focused', pane_id: 'w1:p1', workspace_id: 'w1' },
+      })}\n`,
+    );
   });
 
   const { subscribeHerdr } = require('../src/herdr-api');
@@ -217,7 +242,9 @@ test('an acknowledged subscription resets the reconnect backoff', async (t) => {
   let thirdConnectedAt = 0;
   let resolveThird;
   let subscription;
-  const thirdConnection = new Promise((resolve) => { resolveThird = resolve; });
+  const thirdConnection = new Promise((resolve) => {
+    resolveThird = resolve;
+  });
   const server = net.createServer((connection) => {
     connectionCount += 1;
     const current = connectionCount;
@@ -231,7 +258,9 @@ test('an acknowledged subscription resets the reconnect backoff', async (t) => {
       if (current === 1) {
         connection.end();
       } else if (current === 2) {
-        connection.write(`${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`);
+        connection.write(
+          `${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`,
+        );
         setTimeout(() => {
           secondCloseAt = Date.now();
           connection.end();
@@ -268,8 +297,10 @@ test('an acknowledged subscription resets the reconnect backoff', async (t) => {
   }
 
   assert.equal(connectionCount, 3);
-  assert.ok(thirdConnectedAt - secondCloseAt < 350,
-    `expected base backoff after acknowledgement; elapsed ${thirdConnectedAt - secondCloseAt}ms`);
+  assert.ok(
+    thirdConnectedAt - secondCloseAt < 350,
+    `expected base backoff after acknowledgement; elapsed ${thirdConnectedAt - secondCloseAt}ms`,
+  );
 });
 
 test('an error answer rejects with the code Herdr gave', async (t) => {
@@ -311,8 +342,5 @@ test('a server that never answers gives up on its own', async (t) => {
 test('a line that is not JSON is refused, not half-parsed', async (t) => {
   const herdr = await fakeHerdrSocket(t, (_request, connection) => connection.end('not json\n'));
 
-  await assert.rejects(
-    () => requestHerdr(herdr.socketPath, 'session.snapshot', {}),
-    /not JSON/,
-  );
+  await assert.rejects(() => requestHerdr(herdr.socketPath, 'session.snapshot', {}), /not JSON/);
 });

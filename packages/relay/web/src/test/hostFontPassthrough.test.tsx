@@ -35,9 +35,12 @@ const FONT: HostTerminalFont = {
 type Listener = (...args: unknown[]) => void;
 
 /** Just enough adapter: events in, font requests out, answered by `serve`. */
-function fakeAdapter(serve: (sha256: string, index: number) => { dataBase64?: string; error?: string }) {
+function fakeAdapter(
+  serve: (sha256: string, index: number) => { dataBase64?: string; error?: string },
+) {
   const listeners = new Map<string, Set<Listener>>();
-  const emit = (event: string, ...args: unknown[]) => listeners.get(event)?.forEach((fn) => fn(...args));
+  const emit = (event: string, ...args: unknown[]) =>
+    listeners.get(event)?.forEach((fn) => fn(...args));
   const requests: Array<[string, number]> = [];
   let refreshes = 0;
   const adapter = {
@@ -52,10 +55,19 @@ function fakeAdapter(serve: (sha256: string, index: number) => { dataBase64?: st
       const answer = serve(sha256, index);
       queueMicrotask(() => {
         if (answer.error) emit('error', { code: answer.error, message: '' });
-        else emit('hostFontChunk', { type: 'host_font_chunk', sha256, index, total: 1, dataBase64: answer.dataBase64 });
+        else
+          emit('hostFontChunk', {
+            type: 'host_font_chunk',
+            sha256,
+            index,
+            total: 1,
+            dataBase64: answer.dataBase64,
+          });
       });
     },
-    sendHostFontRefresh() { refreshes += 1; },
+    sendHostFontRefresh() {
+      refreshes += 1;
+    },
   };
   return {
     adapter: adapter as unknown as HerdrClientAdapter,
@@ -80,8 +92,12 @@ function fakeDeps(overrides: Partial<HostFontDeps> = {}) {
   const deps: HostFontDeps = {
     isInstalled: () => false,
     readCached: async (sha256) => cache.get(sha256) ?? null,
-    writeCached: async (sha256, data) => { cache.set(sha256, data); },
-    register: async (alias, faces) => { registered.push({ alias, sizes: faces.map(({ data }) => data.byteLength) }); },
+    writeCached: async (sha256, data) => {
+      cache.set(sha256, data);
+    },
+    register: async (alias, faces) => {
+      registered.push({ alias, sizes: faces.map(({ data }) => data.byteLength) });
+    },
     isRegistered: () => false,
     ...overrides,
   };
@@ -112,11 +128,19 @@ describe('useHostFont', () => {
     await waitFor(() => expect(result.current.hostFont.status).toBe('available'));
     expect(wire.requests).toEqual([]);
 
-    await act(async () => { await result.current.loadHostFont(); });
+    await act(async () => {
+      await result.current.loadHostFont();
+    });
     expect(result.current.hostFont.status).toBe('loaded');
     expect(result.current.hostFont.alias).toBe(hostFontAlias(FONT));
-    expect(wire.requests).toEqual([[REGULAR, 0], [REGULAR, 1], [BOLD, 0]]);
-    expect(registered).toEqual([{ alias: hostFontAlias(FONT), sizes: [HOST_FONT_CHUNK_BYTES + 10, 20] }]);
+    expect(wire.requests).toEqual([
+      [REGULAR, 0],
+      [REGULAR, 1],
+      [BOLD, 0],
+    ]);
+    expect(registered).toEqual([
+      { alias: hostFontAlias(FONT), sizes: [HOST_FONT_CHUNK_BYTES + 10, 20] },
+    ]);
     expect(cache.size).toBe(2);
   });
 
@@ -126,7 +150,9 @@ describe('useHostFont', () => {
     const first = renderHook(() => useHostFont(wire.adapter, deps));
     act(() => wire.emit('terminalFont', FONT));
     await waitFor(() => expect(first.result.current.hostFont.status).toBe('available'));
-    await act(async () => { await first.result.current.loadHostFont(); });
+    await act(async () => {
+      await first.result.current.loadHostFont();
+    });
     first.unmount();
 
     // A later visit: same font, files already on this device.
@@ -145,7 +171,9 @@ describe('useHostFont', () => {
     act(() => refused.result.current.declineHostFont());
     act(() => wire.emit('terminalFont', { ...FONT }));
     await waitFor(() => expect(refused.result.current.hostFont.status).toBe('declined'));
-    act(() => wire.emit('terminalFont', { ...FONT, faces: [{ ...FONT.faces[0], sha256: 'f'.repeat(64) }] }));
+    act(() =>
+      wire.emit('terminalFont', { ...FONT, faces: [{ ...FONT.faces[0], sha256: 'f'.repeat(64) }] }),
+    );
     await waitFor(() => expect(refused.result.current.hostFont.status).toBe('available'));
   });
 
@@ -156,7 +184,9 @@ describe('useHostFont', () => {
     act(() => wire.emit('terminalFont', FONT));
     await waitFor(() => expect(result.current.hostFont.status).toBe('available'));
 
-    await act(async () => { await result.current.loadHostFont(); });
+    await act(async () => {
+      await result.current.loadHostFont();
+    });
     expect(result.current.hostFont.status).toBe('failed');
     expect(result.current.hostFont.error).toBe('host_font_unavailable');
   });
@@ -169,7 +199,9 @@ describe('useHostFont', () => {
     await waitFor(() => expect(result.current.hostFont.status).toBe('available'));
     act(() => result.current.declineHostFont());
 
-    await act(async () => { result.current.syncHostFont(); });
+    await act(async () => {
+      result.current.syncHostFont();
+    });
     await waitFor(() => expect(result.current.hostFont.status).toBe('loaded'));
     expect(wire.refreshes()).toBe(1);
     expect(registered.length).toBe(1);
@@ -196,7 +228,13 @@ const CaptureContext: React.FC = () => {
 const sendReady = (terminalFont: HostTerminalFont | null) =>
   act(() => {
     // @ts-expect-error emit is private; the relay drives it over the wire
-    terminalCtx?.adapter?.emit('ready', { type: 'ready', role: 'controller', hostId: 'host-1', hostname: 'workstation', terminalFont });
+    terminalCtx?.adapter?.emit('ready', {
+      type: 'ready',
+      role: 'controller',
+      hostId: 'host-1',
+      hostname: 'workstation',
+      terminalFont,
+    });
     // @ts-expect-error emit is private; the relay drives it over the wire
     terminalCtx?.adapter?.emit('terminalFont', terminalFont);
   });
@@ -215,15 +253,21 @@ describe('Host terminal font in the window', () => {
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
     await waitFor(() => expect(xtermInstances.length).toBe(1));
     const term = xtermInstances[0];
 
     sendReady({ ...FONT, sizePx: 17 });
     await waitFor(() => expect(term.options.fontSize).toBe(17));
-    expect(String(term.options.fontFamily).startsWith('"JetBrainsMono Nerd Font", "Herdr JetBrains Mono"')).toBe(true);
-    expect(document.documentElement.style.getPropertyValue('--tui-font')).toBe(term.options.fontFamily);
+    expect(
+      String(term.options.fontFamily).startsWith(
+        '"JetBrainsMono Nerd Font", "Herdr JetBrains Mono"',
+      ),
+    ).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--tui-font')).toBe(
+      term.options.fontFamily,
+    );
   });
 
   it('asks once, names the terminal, and stays quiet after "use this device’s fonts"', async () => {
@@ -231,7 +275,7 @@ describe('Host terminal font in the window', () => {
       <TerminalProvider>
         <CaptureContext />
         <HostFontPrompt />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
     sendReady(FONT);
 
@@ -251,7 +295,7 @@ describe('Host terminal font in the window', () => {
       <TerminalProvider>
         <CaptureContext />
         <HostFontPrompt />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
     expect(terminalCtx?.settings.fontFamily).toBe('fira-code');
     sendReady(FONT);
@@ -264,14 +308,19 @@ describe('Host terminal font in the window', () => {
       <TerminalProvider>
         <CaptureContext />
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
     sendReady(FONT);
-    await waitFor(() => expect(screen.getByTestId('host-font-status').textContent)
-      .toBe('JetBrainsMono Nerd Font · 12px · GNOME Terminal · Not loaded'));
+    await waitFor(() =>
+      expect(screen.getByTestId('host-font-status').textContent).toBe(
+        'JetBrainsMono Nerd Font · 12px · GNOME Terminal · Not loaded',
+      ),
+    );
     expect(screen.getByRole('button', { name: /Sync host font/ })).toBeInTheDocument();
 
-    const follow = screen.getByLabelText(/Same size as the workstation terminal \(12px\)/) as HTMLInputElement;
+    const follow = screen.getByLabelText(
+      /Same size as the workstation terminal \(12px\)/,
+    ) as HTMLInputElement;
     expect(follow.checked).toBe(true);
     expect(terminalCtx?.terminalFontSize).toBe(12);
 
@@ -282,7 +331,12 @@ describe('Host terminal font in the window', () => {
 });
 
 describe('useHostFont: a large CJK font, cut to what is drawn', () => {
-  const CJK_SOURCE = { family: 'Noto Sans CJK SC', style: 'regular' as const, scope: 'cjk' as const, sha256: 'c'.repeat(64) };
+  const CJK_SOURCE = {
+    family: 'Noto Sans CJK SC',
+    style: 'regular' as const,
+    scope: 'cjk' as const,
+    sha256: 'c'.repeat(64),
+  };
   const WITH_CJK: HostTerminalFont = { ...FONT, subsets: [CJK_SOURCE] };
   /** 3,755 common Hanzi plus CJK punctuation and full-width forms. */
   const COMMON_COUNT = new Set(COMMON_CJK_TEXT).size;
@@ -304,10 +358,23 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
       const subsetSha = String(cuts.length).padStart(64, '0');
       queueMicrotask(() => {
         if (bytes <= inlineLimit) {
-          wire.emit('hostFontSubset', { type: 'host_font_subset_ready', requestId, sha256, subsetSha, bytes, dataBase64: btoa('\0'.repeat(bytes)) });
+          wire.emit('hostFontSubset', {
+            type: 'host_font_subset_ready',
+            requestId,
+            sha256,
+            subsetSha,
+            bytes,
+            dataBase64: btoa('\0'.repeat(bytes)),
+          });
         } else {
           held.set(subsetSha, bytes);
-          wire.emit('hostFontSubset', { type: 'host_font_subset_ready', requestId, sha256, subsetSha, bytes });
+          wire.emit('hostFontSubset', {
+            type: 'host_font_subset_ready',
+            requestId,
+            sha256,
+            subsetSha,
+            bytes,
+          });
         }
       });
     };
@@ -316,19 +383,34 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
       if (bytes === undefined) return serveChunk(sha256, index);
       const length = Math.min(HOST_FONT_CHUNK_BYTES, bytes - index * HOST_FONT_CHUNK_BYTES);
       wire.requests.push([sha256, index]);
-      queueMicrotask(() => wire.emit('hostFontChunk', { type: 'host_font_chunk', sha256, index, total: 1, dataBase64: btoa('\0'.repeat(length)) }));
+      queueMicrotask(() =>
+        wire.emit('hostFontChunk', {
+          type: 'host_font_chunk',
+          sha256,
+          index,
+          total: 1,
+          dataBase64: btoa('\0'.repeat(length)),
+        }),
+      );
     };
     return { ...wire, cuts };
   }
 
   function glyphDeps(installed: string[] = []) {
-    const subsets = new Map<string, Array<{ subsetSha: string; data: ArrayBuffer; codepoints: number[] }>>();
+    const subsets = new Map<
+      string,
+      Array<{ subsetSha: string; data: ArrayBuffer; codepoints: number[] }>
+    >();
     const glyphs: Array<{ alias: string; codepoints: number[]; bytes: number }> = [];
     const { deps } = fakeDeps({
       isInstalled: (family) => installed.includes(family),
       readSubsets: async (sha256) => subsets.get(sha256) ?? [],
-      writeSubset: async (sha256, subset) => { subsets.set(sha256, [...(subsets.get(sha256) ?? []), subset]); },
-      registerGlyphs: async (alias, subset) => { glyphs.push({ alias, codepoints: subset.codepoints, bytes: subset.data.byteLength }); },
+      writeSubset: async (sha256, subset) => {
+        subsets.set(sha256, [...(subsets.get(sha256) ?? []), subset]);
+      },
+      registerGlyphs: async (alias, subset) => {
+        glyphs.push({ alias, codepoints: subset.codepoints, bytes: subset.data.byteLength });
+      },
     });
     return { deps, subsets, glyphs };
   }
@@ -343,7 +425,9 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
     // The Latin family is on this device; only the CJK part is asked about.
     expect(result.current.hostFont.status).toBe('installed');
 
-    await act(async () => { await result.current.loadHostFont(); });
+    await act(async () => {
+      await result.current.loadHostFont();
+    });
     expect(result.current.hostFont.glyphs.status).toBe('ready');
     expect([...wire.cuts[0]].length).toBe(COMMON_COUNT);
     expect(glyphs[0].alias).toBe('Herdr Glyphs cccccccccccc');
@@ -371,7 +455,9 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
     act(() => wire.emit('terminalFont', WITH_CJK));
     await waitFor(() => expect(result.current.hostFont.glyphs.status).toBe('available'));
 
-    await act(async () => { await result.current.loadHostFont(); });
+    await act(async () => {
+      await result.current.loadHostFont();
+    });
     expect(result.current.hostFont.glyphs.status).toBe('ready');
     expect(wire.requests.length).toBe(1);
     expect(glyphs[0].bytes).toBe(COMMON_COUNT * 10);
@@ -384,7 +470,9 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
     const first = renderHook(() => useHostFont(wire.adapter, deps));
     act(() => wire.emit('terminalFont', WITH_CJK));
     await waitFor(() => expect(first.result.current.hostFont.glyphs.status).toBe('available'));
-    await act(async () => { await first.result.current.loadHostFont(); });
+    await act(async () => {
+      await first.result.current.loadHostFont();
+    });
     first.unmount();
     localStorage.clear();
 
@@ -409,11 +497,17 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
       family: 'JetBrainsMono Nerd Font',
       glyphs: { family: 'Noto Sans CJK SC', scope: 'cjk', alias: 'Herdr Glyphs cccccccccccc' },
     });
-    expect(stack.startsWith('"JetBrainsMono Nerd Font", "Herdr JetBrains Mono", "Herdr Glyphs cccccccccccc", "Noto Sans CJK SC", ui-monospace')).toBe(true);
+    expect(
+      stack.startsWith(
+        '"JetBrainsMono Nerd Font", "Herdr JetBrains Mono", "Herdr Glyphs cccccccccccc", "Noto Sans CJK SC", ui-monospace',
+      ),
+    ).toBe(true);
     const whole = resolveTerminalFontFamily('host', {
       family: 'Sarasa Mono SC',
       glyphs: { family: 'Sarasa Mono SC', scope: 'all', alias: 'Herdr Glyphs dddddddddddd' },
     });
-    expect(whole.startsWith('"Herdr Glyphs dddddddddddd", "Sarasa Mono SC", ui-monospace')).toBe(true);
+    expect(whole.startsWith('"Herdr Glyphs dddddddddddd", "Sarasa Mono SC", ui-monospace')).toBe(
+      true,
+    );
   });
 });

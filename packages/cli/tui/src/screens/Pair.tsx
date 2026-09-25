@@ -27,33 +27,48 @@ export function PairScreen({ ctx }: { ctx: AppContext }) {
   }, [pairing]);
 
   useEffect(() => {
-    if (!pairing || columns < MIN_QR_COLUMNS) { setQr(null); return; }
+    if (!pairing || columns < MIN_QR_COLUMNS) {
+      setQr(null);
+      return;
+    }
     let cancelled = false;
     QRCode.toString(pairing.pairUrl, { type: 'terminal', small: true, errorCorrectionLevel: 'L' })
-      .then((value: string) => { if (!cancelled) setQr(value.replace(/\n$/, '')); })
-      .catch(() => { if (!cancelled) setQr(null); });
-    return () => { cancelled = true; };
+      .then((value: string) => {
+        if (!cancelled) setQr(value.replace(/\n$/, ''));
+      })
+      .catch(() => {
+        if (!cancelled) setQr(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [pairing, columns]);
 
-  const generate = () => run(async () => {
-    ctx.notify(t('pair.working'));
-    try {
-      const result = await pair();
-      const code = extractPairingCode(result);
-      setPairing({ ...result, code });
-      ctx.notify('', 'info');
-    } catch (error) {
-      const message = (error as Error).message;
-      setPairing(null);
-      throw new Error(/host_offline|no Herdr host|did not register/i.test(message)
-        ? t('pair.hostOffline')
-        : t('pair.failed', { message }));
-    }
-  });
+  const generate = () =>
+    run(async () => {
+      ctx.notify(t('pair.working'));
+      try {
+        const result = await pair();
+        const code = extractPairingCode(result);
+        setPairing({ ...result, code });
+        ctx.notify('', 'info');
+      } catch (error) {
+        const message = (error as Error).message;
+        setPairing(null);
+        throw new Error(
+          /host_offline|no Herdr host|did not register/i.test(message)
+            ? t('pair.hostOffline')
+            : t('pair.failed', { message }),
+        );
+      }
+    });
 
-  useInput((_input, key) => {
-    if (key.return) generate();
-  }, { isActive: ctx.editingId === null });
+  useInput(
+    (_input, key) => {
+      if (key.return) generate();
+    },
+    { isActive: ctx.editingId === null },
+  );
 
   const expired = pairing !== null && remainingMs <= 0;
   const minutes = Math.floor(remainingMs / 60000);
@@ -85,9 +100,9 @@ export function PairScreen({ ctx }: { ctx: AppContext }) {
               {expired
                 ? t('pair.expired')
                 : t('pair.expires', {
-                  minutes: `${minutes}:${String(seconds).padStart(2, '0')}`,
-                  time: new Date(pairing.expiresAt).toLocaleTimeString(),
-                })}
+                    minutes: `${minutes}:${String(seconds).padStart(2, '0')}`,
+                    time: new Date(pairing.expiresAt).toLocaleTimeString(),
+                  })}
             </Text>
           </Box>
 

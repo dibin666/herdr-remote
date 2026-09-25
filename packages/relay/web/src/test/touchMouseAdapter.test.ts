@@ -25,7 +25,13 @@ const touch = (clientX: number, clientY: number) => ({ clientX, clientY }) as To
 
 const pointer = (
   type: string,
-  init: { clientX?: number; clientY?: number; pointerType?: string; pointerId?: number; isPrimary?: boolean } = {}
+  init: {
+    clientX?: number;
+    clientY?: number;
+    pointerType?: string;
+    pointerId?: number;
+    isPrimary?: boolean;
+  } = {},
 ): PointerEvent =>
   new PointerEvent(type, {
     bubbles: true,
@@ -147,7 +153,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       const controller = makeController({ onFocus: focusSpy });
 
       expect(
-        controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 150 }), mockContainer)
+        controller.handlePointerDown(
+          pointer('pointerdown', { clientX: 100, clientY: 150 }),
+          mockContainer,
+        ),
       ).toBe(true);
       expect(controller.getState()).toBe('pending');
 
@@ -171,7 +180,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
         onFocus: focusSpy,
       });
 
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 35, clientY: 45 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 35, clientY: 45 }),
+        mockContainer,
+      );
       controller.handlePointerUp(pointer('pointerup', { clientX: 35, clientY: 45 }));
 
       expect(focusSpy).not.toHaveBeenCalled();
@@ -200,17 +212,26 @@ describe('TouchToMouseAdapter Unit Tests', () => {
         getSurfaceElement: () => mockContainer,
       });
 
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 35, clientY: 45 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 35, clientY: 45 }),
+        mockContainer,
+      );
       controller.handlePointerUp(pointer('pointerup', { clientX: 35, clientY: 45 }));
 
       expect(triggerMouseEvent).toHaveBeenCalledTimes(2);
-      const reports = (triggerMouseEvent.mock.calls as unknown as Array<[{
-        action: number;
-        col: number;
-        row: number;
-        x: number;
-        y: number;
-      }]>).map(([event]) => event);
+      const reports = (
+        triggerMouseEvent.mock.calls as unknown as Array<
+          [
+            {
+              action: number;
+              col: number;
+              row: number;
+              x: number;
+              y: number;
+            },
+          ]
+        >
+      ).map(([event]) => event);
       expect(reports.map((event) => event.action)).toEqual([1, 0]);
       expect(reports[0]).toMatchObject({ col: 3, row: 2, x: 35, y: 45 });
       expect(mockTerm.focus).not.toHaveBeenCalled();
@@ -223,7 +244,9 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       controller.handlePointerDown(down, mockContainer);
       expect(mockContainer.hasPointerCapture(7)).toBe(false);
 
-      controller.handlePointerMove(pointer('pointermove', { clientX: 50, clientY: 75, pointerId: 7 }));
+      controller.handlePointerMove(
+        pointer('pointermove', { clientX: 50, clientY: 75, pointerId: 7 }),
+      );
       expect(controller.getState()).toBe('scrolling');
 
       controller.handlePointerUp(pointer('pointerup', { clientX: 50, clientY: 75, pointerId: 7 }));
@@ -232,11 +255,18 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
     it('captures a non-touch pointer for an application drag', () => {
       const controller = makeController();
-      const down = pointer('pointerdown', { clientX: 50, clientY: 50, pointerId: 8, pointerType: 'pen' });
+      const down = pointer('pointerdown', {
+        clientX: 50,
+        clientY: 50,
+        pointerId: 8,
+        pointerType: 'pen',
+      });
 
       controller.handlePointerDown(down, mockContainer);
       expect(mockContainer.hasPointerCapture(8)).toBe(true);
-      controller.handlePointerCancel(pointer('pointercancel', { clientX: 50, clientY: 50, pointerId: 8, pointerType: 'pen' }));
+      controller.handlePointerCancel(
+        pointer('pointercancel', { clientX: 50, clientY: 50, pointerId: 8, pointerType: 'pen' }),
+      );
       expect(mockContainer.hasPointerCapture(8)).toBe(false);
     });
 
@@ -244,12 +274,15 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       const seen: { type: string; x: number; y: number }[] = [];
       for (const type of ['mousedown', 'mousemove', 'mouseup'] as const) {
         mockScreen.addEventListener(type, (e) =>
-          seen.push({ type, x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY })
+          seen.push({ type, x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }),
         );
       }
 
       const controller = makeController();
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 50, clientY: 50 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 50, clientY: 50 }),
+        mockContainer,
+      );
       controller.handlePointerMove(pointer('pointermove', { clientX: 75, clientY: 50 }));
       controller.handlePointerMove(pointer('pointermove', { clientX: 90, clientY: 50 }));
       controller.handlePointerUp(pointer('pointerup', { clientX: 90, clientY: 50 }));
@@ -267,11 +300,13 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       expect(
         controller.handlePointerDown(
           pointer('pointerdown', { clientX: 10, clientY: 10, pointerType: 'mouse' }),
-          mockContainer
-        )
+          mockContainer,
+        ),
       ).toBe(false);
 
-      controller.handlePointerUp(pointer('pointerup', { clientX: 10, clientY: 10, pointerType: 'mouse' }));
+      controller.handlePointerUp(
+        pointer('pointerup', { clientX: 10, clientY: 10, pointerType: 'mouse' }),
+      );
       expect(seen).toEqual([]);
       expect(controller.getState()).toBe('idle');
     });
@@ -280,7 +315,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       mockTerm.modes.mouseTrackingMode = 'none';
       const controller = makeController({ scrollLineHeightPx: 10 });
 
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer,
+      );
       // The content follows the finger: swiping up 30px moves 3 rows down,
       // towards newer output, exactly like every other mobile scroller.
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
@@ -292,7 +330,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       mockTerm.modes.mouseTrackingMode = 'none';
       const controller = makeController({ scrollLineHeightPx: 10 });
 
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer,
+      );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 130 }));
 
       expect(mockTerm.scrollLines).toHaveBeenCalledWith(-3);
@@ -302,7 +343,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       mockTerm.modes.mouseTrackingMode = 'any-event';
       const controller = makeController({ scrollLineHeightPx: 10 });
 
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer,
+      );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
       expect(controller.getState()).toBe('scrolling');
@@ -338,7 +382,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       });
       controller.handlePointerDown(
         pointer('pointerdown', { clientX: 100, clientY: 100 }),
-        mockContainer
+        mockContainer,
       );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
@@ -378,11 +422,13 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       });
       controller.handlePointerDown(
         pointer('pointerdown', { clientX: 100, clientY: 100 }),
-        mockContainer
+        mockContainer,
       );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
-      const reports = triggerMouseEvent.mock.calls as unknown as Array<[{ button: number; action: number }]>;
+      const reports = triggerMouseEvent.mock.calls as unknown as Array<
+        [{ button: number; action: number }]
+      >;
       expect(reports).toHaveLength(3);
       // Swiping up scrolls down: CoreMouseButton.WHEEL with CoreMouseAction.DOWN.
       expect(reports.every(([event]) => event.button === 4 && event.action === 1)).toBe(true);
@@ -410,7 +456,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       });
       controller.handlePointerDown(
         pointer('pointerdown', { clientX: 100, clientY: 100 }),
-        mockContainer
+        mockContainer,
       );
       controller.handlePointerMove(pointer('pointermove', { clientX: 100, clientY: 70 }));
 
@@ -436,7 +482,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       });
       const move = pointer('pointermove', { clientX: 100, clientY: 70 });
       const preventDefault = vi.spyOn(move, 'preventDefault');
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 100, clientY: 100 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 100, clientY: 100 }),
+        mockContainer,
+      );
       controller.handlePointerMove(move);
 
       expect(mockTerm.scrollLines).toHaveBeenCalledWith(3);
@@ -466,7 +515,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       xtermRoot.addEventListener('mouseup', () => seen.push('mouseup'));
 
       const controller = makeController({ getSurfaceElement: () => surface });
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 10, clientY: 900 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 10, clientY: 900 }),
+        mockContainer,
+      );
       controller.handlePointerUp(pointer('pointerup', { clientX: 10, clientY: 900 }));
 
       expect(seen).toEqual(['mousedown', 'mouseup']);
@@ -501,7 +553,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       // at row 0. A tap on row 0 must remain a safe output/history tap.
       controller.handlePointerDown(
         pointer('pointerdown', { clientX: 20, clientY: 10 }),
-        mockContainer
+        mockContainer,
       );
       controller.handlePointerUp(pointer('pointerup', { clientX: 20, clientY: 10 }));
 
@@ -524,7 +576,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       xtermRoot.addEventListener('mousedown', (e) => targets.push(e.target as EventTarget));
 
       const controller = makeController({ getSurfaceElement: () => surface });
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 10, clientY: 10 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 10, clientY: 10 }),
+        mockContainer,
+      );
       controller.handlePointerUp(pointer('pointerup', { clientX: 10, clientY: 10 }));
 
       expect(targets).toEqual([helper]);
@@ -544,7 +599,9 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       // vertical panning if the gesture is reclassified by the platform.
       expect(mockContainer.hasPointerCapture(3)).toBe(false);
 
-      controller.handlePointerUp(pointer('pointerup', { clientX: 100, clientY: 100, pointerId: 3 }));
+      controller.handlePointerUp(
+        pointer('pointerup', { clientX: 100, clientY: 100, pointerId: 3 }),
+      );
       expect(mousedownSpy).not.toHaveBeenCalled();
     });
 
@@ -553,7 +610,10 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       mockScreen.addEventListener('mouseup', mouseupSpy);
 
       const controller = makeController();
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 50, clientY: 50 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 50, clientY: 50 }),
+        mockContainer,
+      );
       controller.handlePointerMove(pointer('pointermove', { clientX: 70, clientY: 50 }));
       expect(controller.getState()).toBe('dragging');
 
@@ -570,7 +630,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       const controller = makeController({ allowSyntheticMouseFallback: false });
       controller.handlePointerDown(
         pointer('pointerdown', { clientX: 100, clientY: 150 }),
-        mockContainer
+        mockContainer,
       );
       controller.handlePointerUp(pointer('pointerup', { clientX: 100, clientY: 150 }));
 
@@ -585,7 +645,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       const controller = makeController();
       controller.handleTouchStart(
         new TouchEvent('touchstart', { touches: [touch(100, 150)] }),
-        mockContainer
+        mockContainer,
       );
       expect(controller.getState()).toBe('pending');
 
@@ -599,12 +659,15 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
     it('drops the gesture when a second finger joins', () => {
       const controller = makeController();
-      controller.handlePointerDown(pointer('pointerdown', { clientX: 50, clientY: 50 }), mockContainer);
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 50, clientY: 50 }),
+        mockContainer,
+      );
       expect(controller.getState()).toBe('pending');
 
       controller.handlePointerDown(
         pointer('pointerdown', { clientX: 200, clientY: 200, pointerId: 2, isPrimary: false }),
-        mockContainer
+        mockContainer,
       );
       expect(controller.getState()).toBe('idle');
     });
@@ -621,7 +684,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
         controller.handlePointerDown(
           pointer('pointerdown', { clientX: 120, clientY: 80 }),
-          mockContainer
+          mockContainer,
         );
         expect(controller.getState()).toBe('pending');
         expect(onLongPress).not.toHaveBeenCalled();
@@ -643,7 +706,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
         controller.handlePointerDown(
           pointer('pointerdown', { clientX: 100, clientY: 100 }),
-          mockContainer
+          mockContainer,
         );
         await new Promise((r) => setTimeout(r, 70));
         expect(controller.getState()).toBe('longpress');
@@ -683,7 +746,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
         controller.handlePointerDown(
           pointer('pointerdown', { clientX: 50, clientY: 50 }),
-          mockContainer
+          mockContainer,
         );
         await new Promise((r) => setTimeout(r, 70));
         expect(controller.getState()).toBe('longpress');

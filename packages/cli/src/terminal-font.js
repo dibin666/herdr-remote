@@ -35,7 +35,15 @@ const PX_PER_PT = 96 / 72;
 const COMMAND_TIMEOUT_MS = 3000;
 
 /** Names a terminal accepts in place of a real family. */
-const GENERIC_FAMILIES = new Set(['monospace', 'mono', 'sans', 'sans-serif', 'serif', 'system-ui', 'ui-monospace']);
+const GENERIC_FAMILIES = new Set([
+  'monospace',
+  'mono',
+  'sans',
+  'sans-serif',
+  'serif',
+  'system-ui',
+  'ui-monospace',
+]);
 
 // ── Small readers ────────────────────────────────────────────────────────
 
@@ -135,13 +143,52 @@ function gsettingsGet(deps, schema, key) {
 // ── Font description formats ────────────────────────────────────────────
 
 const PANGO_STYLE_WORDS = new Set([
-  'normal', 'roman', 'oblique', 'italic', 'small-caps', 'all-small-caps', 'petite-caps',
-  'all-petite-caps', 'unicase', 'title-caps', 'ultra-condensed', 'extra-condensed', 'condensed',
-  'semi-condensed', 'semi-expanded', 'expanded', 'extra-expanded', 'ultra-expanded', 'thin',
-  'ultra-light', 'extra-light', 'light', 'semi-light', 'demi-light', 'book', 'regular', 'medium',
-  'semi-bold', 'demi-bold', 'bold', 'ultra-bold', 'extra-bold', 'heavy', 'black', 'ultra-black',
-  'extra-black', 'ultra-heavy', 'extra-heavy', 'not-rotated', 'south', 'upside-down', 'north',
-  'rotated-left', 'east', 'rotated-right', 'west',
+  'normal',
+  'roman',
+  'oblique',
+  'italic',
+  'small-caps',
+  'all-small-caps',
+  'petite-caps',
+  'all-petite-caps',
+  'unicase',
+  'title-caps',
+  'ultra-condensed',
+  'extra-condensed',
+  'condensed',
+  'semi-condensed',
+  'semi-expanded',
+  'expanded',
+  'extra-expanded',
+  'ultra-expanded',
+  'thin',
+  'ultra-light',
+  'extra-light',
+  'light',
+  'semi-light',
+  'demi-light',
+  'book',
+  'regular',
+  'medium',
+  'semi-bold',
+  'demi-bold',
+  'bold',
+  'ultra-bold',
+  'extra-bold',
+  'heavy',
+  'black',
+  'ultra-black',
+  'extra-black',
+  'ultra-heavy',
+  'extra-heavy',
+  'not-rotated',
+  'south',
+  'upside-down',
+  'north',
+  'rotated-left',
+  'east',
+  'rotated-right',
+  'west',
 ]);
 
 /**
@@ -202,7 +249,11 @@ function parseFontconfigPattern(value) {
 /** The first entry of a CSS font-family list: `'Fira Code', monospace` → `Fira Code`. */
 function firstCssFamily(value) {
   if (typeof value !== 'string') return null;
-  const first = value.split(',')[0].trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+  const first = value
+    .split(',')[0]
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .trim();
   return first || null;
 }
 
@@ -215,10 +266,17 @@ function parseJsonc(text) {
     const char = text[i];
     if (inString) {
       out += char;
-      if (char === '\\') { out += text[i + 1] || ''; i += 1; } else if (char === '"') inString = false;
+      if (char === '\\') {
+        out += text[i + 1] || '';
+        i += 1;
+      } else if (char === '"') inString = false;
       continue;
     }
-    if (char === '"') { inString = true; out += char; continue; }
+    if (char === '"') {
+      inString = true;
+      out += char;
+      continue;
+    }
     if (char === '/' && text[i + 1] === '/') {
       while (i < text.length && text[i] !== '\n') i += 1;
       out += '\n';
@@ -257,7 +315,8 @@ function parseTomlSubset(text) {
     const number = Number(value.replace(/#.*$/, '').trim());
     return Number.isFinite(number) ? number : undefined;
   };
-  const keyPath = (raw) => raw.split('.').map((part) => part.trim().replace(/^(['"])(.*)\1$/, '$2'));
+  const keyPath = (raw) =>
+    raw.split('.').map((part) => part.trim().replace(/^(['"])(.*)\1$/, '$2'));
   const assign = (prefix, rawKey, rawValue) => {
     const key = [...(prefix ? [prefix] : []), ...keyPath(rawKey)].join('.');
     const value = rawValue.trim();
@@ -281,8 +340,14 @@ function parseTomlSubset(text) {
     const line = lines[index].trim();
     if (!line || line.startsWith('#')) continue;
     const header = /^\[([^[\]]+)\]/.exec(line);
-    if (header) { table = keyPath(header[1]).join('.'); continue; }
-    if (line.startsWith('[[')) { table = '\0'; continue; }
+    if (header) {
+      table = keyPath(header[1]).join('.');
+      continue;
+    }
+    if (line.startsWith('[[')) {
+      table = '\0';
+      continue;
+    }
     if (table === '\0') continue;
     const equals = line.indexOf('=');
     if (equals === -1) continue;
@@ -357,7 +422,11 @@ function identifyTerminal({ env = process.env, ancestry = [] } = {}) {
 }
 
 /** This process's ancestors, nearest first: `{ pid, name }`. */
-function processLineage({ platform = process.platform, pid = process.ppid, run = defaultRun } = {}) {
+function processLineage({
+  platform = process.platform,
+  pid = process.ppid,
+  run = defaultRun,
+} = {}) {
   const lineage = [];
   if (platform === 'linux') {
     let current = pid;
@@ -412,9 +481,13 @@ function processArguments(pid, { platform = process.platform } = {}) {
 
 /** The ancestor process that is `source`'s emulator, if any. */
 function terminalProcess(source, lineage) {
-  return lineage.find((entry) => TERMINAL_PROCESSES.some(([pattern, id]) => (
-    id === source && pattern.test(path.basename(String(entry.name || '')))
-  ))) || null;
+  return (
+    lineage.find((entry) =>
+      TERMINAL_PROCESSES.some(
+        ([pattern, id]) => id === source && pattern.test(path.basename(String(entry.name || ''))),
+      ),
+    ) || null
+  );
 }
 
 // ── Per-terminal settings ───────────────────────────────────────────────
@@ -424,21 +497,25 @@ function readGSettingsProfileFont(deps, { schema, path: profilePath, fontKey = '
   const useSystem = gsettingsGet(deps, `${schema}:${profilePath}`, 'use-system-font');
   if (useSystem === null) return null;
   if (useSystem === 'false') {
-    const font = parsePangoFontDescription(parseGVariantString(gsettingsGet(deps, `${schema}:${profilePath}`, fontKey)));
+    const font = parsePangoFontDescription(
+      parseGVariantString(gsettingsGet(deps, `${schema}:${profilePath}`, fontKey)),
+    );
     if (font) return font;
   }
   return systemMonospaceFont(deps);
 }
 
 function systemMonospaceFont(deps) {
-  return parsePangoFontDescription(parseGVariantString(
-    gsettingsGet(deps, 'org.gnome.desktop.interface', 'monospace-font-name'),
-  ));
+  return parsePangoFontDescription(
+    parseGVariantString(gsettingsGet(deps, 'org.gnome.desktop.interface', 'monospace-font-name')),
+  );
 }
 
 const READERS = {
   'gnome-terminal': (deps) => {
-    const id = parseGVariantString(gsettingsGet(deps, 'org.gnome.Terminal.ProfilesList', 'default'));
+    const id = parseGVariantString(
+      gsettingsGet(deps, 'org.gnome.Terminal.ProfilesList', 'default'),
+    );
     if (!id) return null;
     return readGSettingsProfileFont(deps, {
       schema: 'org.gnome.Terminal.Legacy.Profile',
@@ -447,7 +524,9 @@ const READERS = {
   },
 
   tilix: (deps) => {
-    const id = parseGVariantString(gsettingsGet(deps, 'com.gexperts.Tilix.ProfilesList', 'default'));
+    const id = parseGVariantString(
+      gsettingsGet(deps, 'com.gexperts.Tilix.ProfilesList', 'default'),
+    );
     if (!id) return null;
     return readGSettingsProfileFont(deps, {
       schema: 'com.gexperts.Tilix.Profile',
@@ -458,7 +537,9 @@ const READERS = {
   ptyxis: (deps) => {
     const useSystem = gsettingsGet(deps, 'org.gnome.Ptyxis', 'use-system-font');
     if (useSystem === 'false') {
-      const font = parsePangoFontDescription(parseGVariantString(gsettingsGet(deps, 'org.gnome.Ptyxis', 'font-name')));
+      const font = parsePangoFontDescription(
+        parseGVariantString(gsettingsGet(deps, 'org.gnome.Ptyxis', 'font-name')),
+      );
       if (font) return font;
     }
     return useSystem === null ? null : systemMonospaceFont(deps);
@@ -483,8 +564,11 @@ const READERS = {
       const result = deps.run('xfconf-query', ['-c', 'xfce4-terminal', '-p', property]);
       return result.status === 0 ? result.stdout.trim() : null;
     };
-    const rc = parseIni(deps.readFile(path.join(configHome(deps), 'xfce4', 'terminal', 'terminalrc'))).Configuration || {};
-    const useSystem = (query('/font-use-system') ?? rc.FontUseSystem ?? 'false').toLowerCase() === 'true';
+    const rc =
+      parseIni(deps.readFile(path.join(configHome(deps), 'xfce4', 'terminal', 'terminalrc')))
+        .Configuration || {};
+    const useSystem =
+      (query('/font-use-system') ?? rc.FontUseSystem ?? 'false').toLowerCase() === 'true';
     if (!useSystem) {
       const font = parsePangoFontDescription(query('/font-name') ?? rc.FontName ?? 'Monospace 12');
       if (font) return font;
@@ -512,7 +596,7 @@ const READERS = {
     // kitty 0.33+ also accepts `font_family family="JetBrains Mono" style=...`.
     const raw = settings.font_family || 'monospace';
     const quoted = /family\s*=\s*(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(raw);
-    const family = quoted ? (quoted[1] || quoted[2] || quoted[3]) : raw;
+    const family = quoted ? quoted[1] || quoted[2] || quoted[3] : raw;
     return { family, sizePx: pointsToPx(settings.font_size || 11) };
   },
 
@@ -553,10 +637,14 @@ const READERS = {
         const equals = line.indexOf('=');
         if (equals === -1) continue;
         const key = line.slice(0, equals).trim();
-        const value = line.slice(equals + 1).trim().replace(/^"(.*)"$/, '$1');
+        const value = line
+          .slice(equals + 1)
+          .trim()
+          .replace(/^"(.*)"$/, '$1');
         if (key === 'font-family') {
           // An empty value resets the list, per Ghostty's repeatable keys.
-          if (value) settings.families.push(value); else settings.families = [];
+          if (value) settings.families.push(value);
+          else settings.families = [];
         } else if (key === 'font-size') {
           settings.size = value;
         } else if (key === 'config-file') {
@@ -567,7 +655,10 @@ const READERS = {
     };
     visit(path.join(configHome(deps), 'ghostty', 'config'), 0);
     if (deps.platform === 'darwin') {
-      visit(path.join(deps.home, 'Library', 'Application Support', 'com.mitchellh.ghostty', 'config'), 0);
+      visit(
+        path.join(deps.home, 'Library', 'Application Support', 'com.mitchellh.ghostty', 'config'),
+        0,
+      );
     }
     // Ghostty ships JetBrains Mono inside the binary and draws with it by default.
     return {
@@ -579,11 +670,19 @@ const READERS = {
   wezterm: (deps) => {
     const result = deps.run('wezterm', ['ls-fonts']);
     const listing = result.status === 0 ? result.stdout : '';
-    const match = /family\s*=\s*"([^"]+)"/.exec(listing) || /font_with_fallback\(\{[\s\S]*?"([^"]+)"/.exec(listing);
+    const match =
+      /family\s*=\s*"([^"]+)"/.exec(listing) ||
+      /font_with_fallback\(\{[\s\S]*?"([^"]+)"/.exec(listing);
     let sizePt = 12;
-    for (const file of [path.join(deps.home, '.wezterm.lua'), path.join(configHome(deps), 'wezterm', 'wezterm.lua')]) {
+    for (const file of [
+      path.join(deps.home, '.wezterm.lua'),
+      path.join(configHome(deps), 'wezterm', 'wezterm.lua'),
+    ]) {
       const size = /font_size\s*=\s*(\d+(?:\.\d+)?)/.exec(deps.readFile(file) || '');
-      if (size) { sizePt = Number(size[1]); break; }
+      if (size) {
+        sizePt = Number(size[1]);
+        break;
+      }
     }
     // WezTerm, like Ghostty, embeds JetBrains Mono as its default.
     return { family: match ? match[1] : 'JetBrains Mono', sizePx: pointsToPx(sizePt) };
@@ -596,17 +695,20 @@ const READERS = {
   },
 
   vscode: (deps) => {
-    const base = deps.platform === 'darwin'
-      ? path.join(deps.home, 'Library', 'Application Support')
-      : configHome(deps);
+    const base =
+      deps.platform === 'darwin'
+        ? path.join(deps.home, 'Library', 'Application Support')
+        : configHome(deps);
     for (const product of ['Code', 'Cursor', 'Code - Insiders', 'VSCodium', 'Windsurf']) {
       const settings = parseJsonc(deps.readFile(path.join(base, product, 'User', 'settings.json')));
       if (!settings) continue;
-      const family = firstCssFamily(settings['terminal.integrated.fontFamily'])
-        || firstCssFamily(settings['editor.fontFamily']);
-      const sizePx = positiveNumber(settings['terminal.integrated.fontSize'])
-        || positiveNumber(settings['editor.fontSize'])
-        || 14;
+      const family =
+        firstCssFamily(settings['terminal.integrated.fontFamily']) ||
+        firstCssFamily(settings['editor.fontFamily']);
+      const sizePx =
+        positiveNumber(settings['terminal.integrated.fontSize']) ||
+        positiveNumber(settings['editor.fontSize']) ||
+        14;
       if (family) return { family, sizePx };
     }
     return { family: deps.platform === 'darwin' ? 'Menlo' : 'Droid Sans Mono', sizePx: 14 };
@@ -615,7 +717,9 @@ const READERS = {
   iterm2: (deps) => {
     const prefs = readPreferences('com.googlecode.iterm2', deps);
     const profiles = Array.isArray(prefs?.['New Bookmarks']) ? prefs['New Bookmarks'] : [];
-    const profile = profiles.find((candidate) => candidate?.Guid === prefs['Default Bookmark Guid']) || profiles[0];
+    const profile =
+      profiles.find((candidate) => candidate?.Guid === prefs['Default Bookmark Guid']) ||
+      profiles[0];
     // `JetBrainsMonoNF-Regular 13`: a PostScript name, then the size in points.
     const match = /^(.+?)\s+(\d+(?:\.\d+)?)$/.exec(String(profile?.['Normal Font'] || '').trim());
     if (!match) return null;
@@ -649,18 +753,23 @@ const READERS = {
     const classes = ['XTerm', 'xterm', 'UXTerm', 'uxterm'];
     const args = deps.terminalArgs || [];
     const resources = [...xResources(deps), ...xrmResources(args)];
-    const face = optionValue(args, ['-fa', '-faceName']) || xResource(resources, classes, 'faceName');
+    const face =
+      optionValue(args, ['-fa', '-faceName']) || xResource(resources, classes, 'faceName');
     if (!face) return null;
     const font = parseXFontName(face, { bareIsPattern: true });
     if (!font) return null;
-    const size = Number(optionValue(args, ['-fs', '-faceSize']) || xResource(resources, classes, 'faceSize'));
+    const size = Number(
+      optionValue(args, ['-fs', '-faceSize']) || xResource(resources, classes, 'faceSize'),
+    );
     return size > 0 ? { ...font, sizePx: pointsToPx(size) } : font;
   },
 
   urxvt: (deps) => {
     const args = deps.terminalArgs || [];
     const resources = [...xResources(deps), ...xrmResources(args)];
-    const font = optionValue(args, ['-fn']) || xResource(resources, ['URxvt', 'urxvt', 'Rxvt', 'rxvt'], 'font');
+    const font =
+      optionValue(args, ['-fn']) ||
+      xResource(resources, ['URxvt', 'urxvt', 'Rxvt', 'rxvt'], 'font');
     return font ? parseXFontName(font) : null;
   },
 };
@@ -694,7 +803,8 @@ function xrmResources(args) {
   for (let i = 0; i < args.length - 1; i += 1) {
     if (args[i] !== '-xrm') continue;
     const colon = args[i + 1].indexOf(':');
-    if (colon !== -1) entries.push([args[i + 1].slice(0, colon).trim(), args[i + 1].slice(colon + 1).trim()]);
+    if (colon !== -1)
+      entries.push([args[i + 1].slice(0, colon).trim(), args[i + 1].slice(colon + 1).trim()]);
   }
   return entries;
 }
@@ -703,10 +813,13 @@ function xrmResources(args) {
 function xResources(deps) {
   const result = deps.run('xrdb', ['-query']);
   if (result.status !== 0) return [];
-  return result.stdout.split('\n').map((line) => {
-    const colon = line.indexOf(':');
-    return colon === -1 ? null : [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
-  }).filter(Boolean);
+  return result.stdout
+    .split('\n')
+    .map((line) => {
+      const colon = line.indexOf(':');
+      return colon === -1 ? null : [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+    })
+    .filter(Boolean);
 }
 
 /**
@@ -734,7 +847,9 @@ function xResource(resources, classes, resource) {
  * except in xterm's `faceName`, which is always a FreeType pattern.
  */
 function parseXFontName(value, { bareIsPattern = false } = {}) {
-  const first = String(value || '').split(/,(?=\s*(?:xft:|-))/)[0].trim();
+  const first = String(value || '')
+    .split(/,(?=\s*(?:xft:|-))/)[0]
+    .trim();
   if (/^xft:/i.test(first)) return parseFontconfigPattern(first.slice(4));
   if (first.startsWith('-')) {
     const fields = first.split('-');
@@ -742,7 +857,10 @@ function parseXFontName(value, { bareIsPattern = false } = {}) {
     if (!family || family === '*' || /^(fixed|misc)$/i.test(family)) return null;
     const pixels = Number(fields[7]);
     const decipoints = Number(fields[8]);
-    return { family, sizePx: pixels > 0 ? pixels : decipoints > 0 ? pointsToPx(decipoints / 10) : undefined };
+    return {
+      family,
+      sizePx: pixels > 0 ? pixels : decipoints > 0 ? pointsToPx(decipoints / 10) : undefined,
+    };
   }
   if (!first) return null;
   return bareIsPattern || first.includes(':') ? parseFontconfigPattern(first) : null;
@@ -780,7 +898,10 @@ function readHeader(filePath, length) {
   } catch {
     return null;
   } finally {
-    if (fd !== undefined) try { fs.closeSync(fd); } catch {}
+    if (fd !== undefined)
+      try {
+        fs.closeSync(fd);
+      } catch {}
   }
 }
 
@@ -838,7 +959,10 @@ function readSfntNames(filePath) {
   } catch {
     return null;
   } finally {
-    if (fd !== undefined) try { fs.closeSync(fd); } catch {}
+    if (fd !== undefined)
+      try {
+        fs.closeSync(fd);
+      } catch {}
   }
 }
 
@@ -851,7 +975,11 @@ function macFontFiles(deps) {
   const files = [];
   const walk = (directory, depth) => {
     let entries;
-    try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { return; }
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const entry of entries) {
       const full = path.join(directory, entry.name);
       if (entry.isDirectory() && depth < 2) walk(full, depth + 1);
@@ -875,7 +1003,8 @@ function familyForPostScriptName(postscript, deps) {
   const apple = APPLE_POSTSCRIPT_FAMILIES.find(([pattern]) => pattern.test(postscript));
   if (apple && deps.platform === 'darwin') return apple[1];
   const listed = deps.run('fc-list', [`:postscriptname=${escapeFontconfig(postscript)}`, 'family']);
-  if (listed.status === 0 && listed.stdout.trim()) return listed.stdout.trim().split('\n')[0].split(',')[0].trim();
+  if (listed.status === 0 && listed.stdout.trim())
+    return listed.stdout.trim().split('\n')[0].split(',')[0].trim();
   if (deps.platform !== 'darwin') return null;
   for (const file of macFontFiles(deps)) {
     const names = readSfntNames(file);
@@ -899,7 +1028,11 @@ function locateFaceFiles(family, deps) {
   const located = {};
   let fontconfig = false;
   for (const style of TERMINAL_FONT_STYLES) {
-    const result = deps.run('fc-match', ['-f', '%{file}\n%{family}\n%{index}\n', `${escapeFontconfig(family)}${FACE_PATTERNS[style]}`]);
+    const result = deps.run('fc-match', [
+      '-f',
+      '%{file}\n%{family}\n%{index}\n',
+      `${escapeFontconfig(family)}${FACE_PATTERNS[style]}`,
+    ]);
     if (result.status !== 0) continue;
     fontconfig = true;
     const [file, families = '', index = '0'] = result.stdout.split('\n');
@@ -947,12 +1080,23 @@ function resolveFontFaces(family, deps = {}) {
     if (/^\/System\//.test(file) || /\.app\/Contents\//.test(file)) continue;
     if (style !== 'regular' && !faces.length) continue;
     let stat;
-    try { stat = fs.statSync(file); } catch { continue; }
+    try {
+      stat = fs.statSync(file);
+    } catch {
+      continue;
+    }
     if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_TERMINAL_FONT_BYTES) continue;
     const format = sfntFormat(readHeader(file, 4));
     if (!format) continue;
     usedFiles.add(file);
-    faces.push({ style, format, bytes: stat.size, sha256: hashFile(file), path: file, mtimeMs: stat.mtimeMs });
+    faces.push({
+      style,
+      format,
+      bytes: stat.size,
+      sha256: hashFile(file),
+      path: file,
+      mtimeMs: stat.mtimeMs,
+    });
   }
   return faces;
 }
@@ -966,7 +1110,14 @@ function locateFont(pattern, deps) {
   if (result.status !== 0) return null;
   const [file, families = '', index = '0'] = result.stdout.split('\n');
   if (!file) return null;
-  return { file, families: families.split(',').map((name) => name.trim()).filter(Boolean), index: Number(index) || 0 };
+  return {
+    file,
+    families: families
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean),
+    index: Number(index) || 0,
+  };
 }
 
 /**
@@ -987,19 +1138,31 @@ function resolveSubsetSources(family, faces, deps = {}) {
   const wanted = family.toLowerCase();
   const sources = [];
   const add = (located, scope, name) => {
-    if (!located || /^\/System\//.test(located.file) || /\.app\/Contents\//.test(located.file)) return;
+    if (!located || /^\/System\//.test(located.file) || /\.app\/Contents\//.test(located.file))
+      return;
     let stat;
-    try { stat = fs.statSync(located.file); } catch { return; }
+    try {
+      stat = fs.statSync(located.file);
+    } catch {
+      return;
+    }
     if (!stat.isFile() || stat.size > MAX_SUBSET_SOURCE_BYTES) return;
     const header = readHeader(located.file, 4);
     if (!sfntFormat(header) && header?.toString('latin1') !== 'ttcf') return;
     // Identifies the face without reading 20 MB: a browser caches by it.
-    const sha256 = crypto.createHash('sha256')
+    const sha256 = crypto
+      .createHash('sha256')
       .update(`${located.file}\0${located.index}\0${stat.size}\0${stat.mtimeMs}`)
       .digest('hex');
     sources.push({
-      family: name, style: 'regular', scope, sha256,
-      path: located.file, index: located.index, bytes: stat.size, mtimeMs: stat.mtimeMs,
+      family: name,
+      style: 'regular',
+      scope,
+      sha256,
+      path: located.file,
+      index: located.index,
+      bytes: stat.size,
+      mtimeMs: stat.mtimeMs,
     });
   };
 
@@ -1007,7 +1170,10 @@ function resolveSubsetSources(family, faces, deps = {}) {
   const selfInstalled = self && self.families.some((name) => name.toLowerCase() === wanted);
   if (selfInstalled && !faces.some((face) => face.style === 'regular')) add(self, 'all', family);
 
-  const cjk = locateFont(`${escapeFontconfig(family)}:charset=4e00${FACE_PATTERNS.regular}`, resolved);
+  const cjk = locateFont(
+    `${escapeFontconfig(family)}:charset=4e00${FACE_PATTERNS.regular}`,
+    resolved,
+  );
   const coveredBySelf = cjk && cjk.families.some((name) => name.toLowerCase() === wanted);
   if (cjk && !coveredBySelf && cjk.families[0]) add(cjk, 'cjk', cjk.families[0]);
   return sources;
@@ -1042,7 +1208,9 @@ function readTerminalFont(source, deps = {}) {
 
 /** Identifies the terminal and reads its font. */
 function detectTerminalFont({ env = process.env, ancestry, lineage, deps = {} } = {}) {
-  const processes = lineage || (ancestry ? ancestry.map((name) => ({ pid: 0, name })) : processLineage({ run: deps.run }));
+  const processes =
+    lineage ||
+    (ancestry ? ancestry.map((name) => ({ pid: 0, name })) : processLineage({ run: deps.run }));
   const source = identifyTerminal({ env, ancestry: processes.map((entry) => entry.name) });
   if (!source) return null;
   // A terminal configured on its command line (xterm's `-fa`) says so there.
@@ -1096,7 +1264,10 @@ function readFontChunk(record, sha256, index) {
   } catch {
     return null;
   } finally {
-    if (fd !== undefined) try { fs.closeSync(fd); } catch {}
+    if (fd !== undefined)
+      try {
+        fs.closeSync(fd);
+      } catch {}
   }
 }
 

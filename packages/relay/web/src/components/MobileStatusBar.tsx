@@ -25,7 +25,9 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
       className="absolute inset-x-0 bottom-0 z-40 flex h-11 shrink-0 items-center gap-2 border-t border-tui-border bg-tui-mantle px-1 text-tui-sm"
     >
       <HostSwitcher statusBar onAddProfile={onAddProfile} />
-      <span aria-hidden="true" className="shrink-0 text-tui-border">│</span>
+      <span aria-hidden="true" className="shrink-0 text-tui-border">
+        │
+      </span>
       {/*
         Between the host and the latency, because "is anything waiting on me?"
         is why a phone is looking at this bar at all. It renders nothing until
@@ -34,7 +36,10 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
       */}
       <AgentStatusChip compact />
       <UpdateChip compact />
-      <span className="flex shrink-0 items-center gap-1 px-1 text-tui-muted" title={t('header.latencyTitle')}>
+      <span
+        className="flex shrink-0 items-center gap-1 px-1 text-tui-muted"
+        title={t('header.latencyTitle')}
+      >
         <span className="text-tui-faint">RTT</span>
         <span className={cn(rttMs === null ? 'text-tui-faint' : 'text-tui-text')}>
           {rttMs === null ? '—' : `${rttMs}ms`}

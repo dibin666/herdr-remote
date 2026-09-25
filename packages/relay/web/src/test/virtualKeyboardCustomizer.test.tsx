@@ -4,7 +4,12 @@ import { SettingsModal } from '../components/SettingsModal';
 import { KeyToolbar } from '../components/KeyToolbar';
 import { TerminalProvider } from '../context/TerminalContext';
 import { saveSettings, loadSettings } from '../utils/storage';
-import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, getDefaultVirtualKeys, sanitizeVirtualKeys } from '../utils/virtualKeys';
+import {
+  ALL_AVAILABLE_KEYS,
+  DEFAULT_TOOLBAR_KEYS,
+  getDefaultVirtualKeys,
+  sanitizeVirtualKeys,
+} from '../utils/virtualKeys';
 
 describe('Virtual Keyboard Customization (Requirement 5)', () => {
   beforeEach(() => {
@@ -15,30 +20,83 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
   it('omits the agent drawer from the default row and migrates old layouts', () => {
     expect(DEFAULT_TOOLBAR_KEYS.map((key) => key.id)).not.toContain('drawer_agent');
     expect(ALL_AVAILABLE_KEYS.map((key) => key.id)).not.toContain('drawer_agent');
-    expect(DEFAULT_TOOLBAR_KEYS.some((key) => key.id === 'shift_tab' || key.id === 'drawer_chords')).toBe(false);
+    expect(
+      DEFAULT_TOOLBAR_KEYS.some((key) => key.id === 'shift_tab' || key.id === 'drawer_chords'),
+    ).toBe(false);
 
     const byId = new Map(ALL_AVAILABLE_KEYS.map((key) => [key.id, key]));
     const previousDefault = [
-      'esc', 'tab', 'shift_tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
-      'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter',
+      'esc',
+      'tab',
+      'shift_tab',
+      'ctrl',
+      'alt',
+      'left',
+      'up',
+      'down',
+      'right',
+      'drawer_chords',
+      'drawer_symbols',
+      'drawer_fn',
+      'enter',
     ].map((id) => byId.get(id)!);
     saveSettings({ virtualKeys: previousDefault });
-    expect(loadSettings().virtualKeys.map((key) => key.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
+    expect(loadSettings().virtualKeys.map((key) => key.id)).toEqual(
+      DEFAULT_TOOLBAR_KEYS.map((key) => key.id),
+    );
 
     const previousAgentDrawerDefault = [
-      'esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
-      { id: 'drawer_agent', label: 'Agent', code: '', type: 'drawer', enabled: true, drawerType: 'agent' },
-      'drawer_symbols', 'drawer_fn', 'enter',
-    ].map((item) => typeof item === 'string' ? byId.get(item)! : item);
-    expect(sanitizeVirtualKeys(previousAgentDrawerDefault).map((key) => key.id))
-      .toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
+      'esc',
+      'tab',
+      'ctrl',
+      'alt',
+      'left',
+      'up',
+      'down',
+      'right',
+      {
+        id: 'drawer_agent',
+        label: 'Agent',
+        code: '',
+        type: 'drawer',
+        enabled: true,
+        drawerType: 'agent',
+      },
+      'drawer_symbols',
+      'drawer_fn',
+      'enter',
+    ].map((item) => (typeof item === 'string' ? byId.get(item)! : item));
+    expect(sanitizeVirtualKeys(previousAgentDrawerDefault).map((key) => key.id)).toEqual(
+      DEFAULT_TOOLBAR_KEYS.map((key) => key.id),
+    );
   });
 
   it('renders customized keys in KeyToolbar based on settings', () => {
     const customKeys = [
-      { id: 'custom_esc', label: 'ESC', code: '\x1b', type: 'key' as const, enabled: true, title: 'Escape' },
-      { id: 'custom_enter', label: 'Enter', code: '\r', type: 'key' as const, enabled: true, title: 'Enter' },
-      { id: 'custom_disabled', label: 'DISABLED', code: 'x', type: 'key' as const, enabled: false, title: 'Disabled' },
+      {
+        id: 'custom_esc',
+        label: 'ESC',
+        code: '\x1b',
+        type: 'key' as const,
+        enabled: true,
+        title: 'Escape',
+      },
+      {
+        id: 'custom_enter',
+        label: 'Enter',
+        code: '\r',
+        type: 'key' as const,
+        enabled: true,
+        title: 'Enter',
+      },
+      {
+        id: 'custom_disabled',
+        label: 'DISABLED',
+        code: 'x',
+        type: 'key' as const,
+        enabled: false,
+        title: 'Disabled',
+      },
     ];
 
     saveSettings({ virtualKeys: customKeys, toolbarVisible: true });
@@ -46,7 +104,7 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     render(
       <TerminalProvider>
         <KeyToolbar />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('ESC')).toBeInTheDocument();
@@ -58,11 +116,13 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // Switch to Virtual Keys Tab
-    const virtualKeysTab = screen.getByRole('button', { name: /Virtual (Keys|Keyboard)|虚拟按键/i });
+    const virtualKeysTab = screen.getByRole('button', {
+      name: /Virtual (Keys|Keyboard)|虚拟按键/i,
+    });
     fireEvent.click(virtualKeysTab);
 
     expect(screen.getByText(/Custom Key Toolbar|自定义虚拟按键/i)).toBeInTheDocument();
@@ -83,10 +143,12 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
-    const virtualKeysTab = screen.getByRole('button', { name: /Virtual (Keys|Keyboard)|虚拟按键/i });
+    const virtualKeysTab = screen.getByRole('button', {
+      name: /Virtual (Keys|Keyboard)|虚拟按键/i,
+    });
     fireEvent.click(virtualKeysTab);
 
     // Click Add Key button
@@ -112,10 +174,12 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
-    const virtualKeysTab = screen.getByRole('button', { name: /Virtual (Keys|Keyboard)|虚拟按键/i });
+    const virtualKeysTab = screen.getByRole('button', {
+      name: /Virtual (Keys|Keyboard)|虚拟按键/i,
+    });
     fireEvent.click(virtualKeysTab);
 
     const resetBtn = screen.getByRole('button', { name: /^Reset to Default$|恢复默认布局/i });

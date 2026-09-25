@@ -19,7 +19,7 @@ export interface ConnectionDescriptor {
 
 export function describeConnection(
   state: ConnectionState,
-  t?: (key: string, params?: Record<string, string | number>) => string
+  t?: (key: string, params?: Record<string, string | number>) => string,
 ): ConnectionDescriptor {
   const tr = (key: string, fallback: string) => (t ? t(key) : fallback);
 

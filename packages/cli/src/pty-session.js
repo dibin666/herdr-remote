@@ -10,8 +10,10 @@ class PtySession {
   static MAX_DIMENSION = 500;
 
   constructor({ command, args = [], cwd = os.homedir(), socketPath } = {}) {
-    if (typeof command !== 'string' || command.length === 0) throw new TypeError('command must be a non-empty string');
-    if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string')) throw new TypeError('args must be strings');
+    if (typeof command !== 'string' || command.length === 0)
+      throw new TypeError('command must be a non-empty string');
+    if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string'))
+      throw new TypeError('args must be strings');
     this.command = command;
     this.args = args;
     this.cwd = cwd;

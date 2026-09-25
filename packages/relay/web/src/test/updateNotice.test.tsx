@@ -13,7 +13,9 @@ import { loadIgnoredUpdate, saveSettings } from '../utils/storage';
  * again and again: it may raise one toast per release, never one per window.
  */
 
-const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({ onReady }) => {
+const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
+  onReady,
+}) => {
   onReady(useTerminal());
   return null;
 };
@@ -22,26 +24,39 @@ function mount(children: React.ReactNode = <UpdateChip />) {
   let ctx: ReturnType<typeof useTerminal> | undefined;
   render(
     <TerminalProvider>
-      <Probe onReady={(value) => { ctx = value; }} />
+      <Probe
+        onReady={(value) => {
+          ctx = value;
+        }}
+      />
       {children}
     </TerminalProvider>,
   );
   const emit = (event: string, ...args: unknown[]) => {
-    // @ts-expect-error test mock
-    act(() => { ctx?.adapter?.emit(event, ...args); });
+    act(() => {
+      // @ts-expect-error test mock
+      ctx?.adapter?.emit(event, ...args);
+    });
   };
-  emit('ready', { type: 'ready', role: 'controller', hostId: 'host-a', hostname: 'workbox', clientId: 'client-1' });
+  emit('ready', {
+    type: 'ready',
+    role: 'controller',
+    hostId: 'host-a',
+    hostname: 'workbox',
+    clientId: 'client-1',
+  });
   return {
     emit,
-    report: (status: Record<string, unknown>) => emit('updateStatus', {
-      type: 'update_status',
-      current: '0.2.16',
-      installed: '0.2.16',
-      latest: '0.3.0',
-      updateAvailable: true,
-      restartPending: false,
-      ...status,
-    }),
+    report: (status: Record<string, unknown>) =>
+      emit('updateStatus', {
+        type: 'update_status',
+        current: '0.2.16',
+        installed: '0.2.16',
+        latest: '0.3.0',
+        updateAvailable: true,
+        restartPending: false,
+        ...status,
+      }),
     get toasts() {
       return ctx?.toasts ?? [];
     },
@@ -69,7 +84,12 @@ describe('herdr-remote update notice', () => {
 
     session.report({});
     session.report({});
-    session.emit('ready', { type: 'ready', role: 'controller', hostId: 'host-a', clientId: 'client-2' });
+    session.emit('ready', {
+      type: 'ready',
+      role: 'controller',
+      hostId: 'host-a',
+      clientId: 'client-2',
+    });
     session.report({});
 
     expect(screen.getByTestId('update-chip')).toHaveTextContent('herdr-remote 0.3.0');

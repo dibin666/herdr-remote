@@ -2,7 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isTailscaleAddress, listReachableAddresses, preferredLanAddress } = require('../src/net-interfaces');
+const {
+  isTailscaleAddress,
+  listReachableAddresses,
+  preferredLanAddress,
+} = require('../src/net-interfaces');
 
 test('the Tailscale CGNAT range is recognised by address', () => {
   // Interface names differ per platform (tailscale0 on Linux, utunN on macOS),
@@ -32,7 +36,10 @@ test('reachable addresses are classified and ranked', () => {
   const kinds = addresses.map((entry) => entry.kind);
   const firstLoopback = kinds.indexOf('loopback');
   if (firstLoopback !== -1) {
-    assert.equal(kinds.slice(firstLoopback).every((kind) => kind === 'loopback'), true);
+    assert.equal(
+      kinds.slice(firstLoopback).every((kind) => kind === 'loopback'),
+      true,
+    );
   }
 
   // Tailscale outranks plain LAN, which is what makes it a usable default.
@@ -43,7 +50,10 @@ test('reachable addresses are classified and ranked', () => {
 
 test('excluding loopback leaves only addresses another device could reach', () => {
   const addresses = listReachableAddresses({ includeLoopback: false });
-  assert.equal(addresses.some((entry) => entry.internal), false);
+  assert.equal(
+    addresses.some((entry) => entry.internal),
+    false,
+  );
 
   const preferred = preferredLanAddress();
   if (addresses.length === 0) assert.equal(preferred, null);

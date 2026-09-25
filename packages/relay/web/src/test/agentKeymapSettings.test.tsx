@@ -8,15 +8,21 @@ import { TerminalView } from '../components/TerminalView';
 import { LOCAL_STORAGE_KEY, loadSettings, saveSettings } from '../utils/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
-const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] }).__xtermInstances;
-const webSocketInstances = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] }).__webSocketInstances;
+const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
+  .__xtermInstances;
+const webSocketInstances = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] })
+  .__webSocketInstances;
 
-const ContextProbe: React.FC<{ onValue: (value: ReturnType<typeof useTerminal>) => void }> = ({ onValue }) => {
+const ContextProbe: React.FC<{ onValue: (value: ReturnType<typeof useTerminal>) => void }> = ({
+  onValue,
+}) => {
   onValue(useTerminal());
   return null;
 };
 
-const SettingsAndToolbar: React.FC<{ onContext: (value: ReturnType<typeof useTerminal>) => void }> = ({ onContext }) => {
+const SettingsAndToolbar: React.FC<{
+  onContext: (value: ReturnType<typeof useTerminal>) => void;
+}> = ({ onContext }) => {
   const [settingsOpen, setSettingsOpen] = useState(true);
   return (
     <>
@@ -24,20 +30,30 @@ const SettingsAndToolbar: React.FC<{ onContext: (value: ReturnType<typeof useTer
       <TerminalView isActive={true} />
       <KeyToolbar />
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {!settingsOpen && <button type="button" onClick={() => setSettingsOpen(true)}>Open settings</button>}
+      {!settingsOpen && (
+        <button type="button" onClick={() => setSettingsOpen(true)}>
+          Open settings
+        </button>
+      )}
     </>
   );
 };
 
 /** The App wiring: the key bar's Edit cap opens settings on the agent tab. */
-const ToolbarOpensSettings: React.FC<{ onContext: (value: ReturnType<typeof useTerminal>) => void }> = ({ onContext }) => {
+const ToolbarOpensSettings: React.FC<{
+  onContext: (value: ReturnType<typeof useTerminal>) => void;
+}> = ({ onContext }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <>
       <ContextProbe onValue={onContext} />
       <TerminalView isActive={true} />
       <KeyToolbar onCustomize={() => setSettingsOpen(true)} />
-      <SettingsModal isOpen={settingsOpen} initialTab="agentKeymaps" onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={settingsOpen}
+        initialTab="agentKeymaps"
+        onClose={() => setSettingsOpen(false)}
+      />
     </>
   );
 };
@@ -46,13 +62,25 @@ async function connectFocused(agent: string) {
   await waitFor(() => expect(webSocketInstances).toHaveLength(1));
   act(() => {
     webSocketInstances[0].simulateOpen();
-    webSocketInstances[0].simulateMessage(JSON.stringify({
-      type: 'ready', role: 'controller', controllerId: 'me', hostId: 'host-1', clientId: 'me',
-    }));
-    webSocketInstances[0].simulateMessage(JSON.stringify({
-      type: 'agent_status', focusedPaneId: 'w1:p1', focusedAgent: agent,
-      counts: {}, total: 0, agents: [],
-    }));
+    webSocketInstances[0].simulateMessage(
+      JSON.stringify({
+        type: 'ready',
+        role: 'controller',
+        controllerId: 'me',
+        hostId: 'host-1',
+        clientId: 'me',
+      }),
+    );
+    webSocketInstances[0].simulateMessage(
+      JSON.stringify({
+        type: 'agent_status',
+        focusedPaneId: 'w1:p1',
+        focusedAgent: agent,
+        counts: {},
+        total: 0,
+        agents: [],
+      }),
+    );
   });
 }
 
@@ -80,17 +108,24 @@ describe('Agent keymap settings', () => {
     fireEvent.change(details, { target: { value: 'ctrl+e' } });
 
     expect(screen.getByTestId('agent-setting-row-details')).toHaveTextContent('^E');
-    expect(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').agentKeymaps.claude.actions.details.keys)
-      .toBe('ctrl+e');
+    expect(
+      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').agentKeymaps.claude.actions
+        .details.keys,
+    ).toBe('ctrl+e');
     sessionStorage.clear();
     expect(loadSettings().agentKeymaps.claude.actions?.details?.keys).toBe('ctrl+e');
 
     fireEvent.change(details, { target: { value: 'ctrl+unknown' } });
     expect(details).toHaveAttribute('aria-invalid', 'true');
-    expect(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').agentKeymaps.claude.actions.details.keys)
-      .toBe('ctrl+e');
-    expect(screen.getAllByRole('alert').some((alert) => /does not support|不支持按键/i.test(alert.textContent || '')))
-      .toBe(true);
+    expect(
+      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').agentKeymaps.claude.actions
+        .details.keys,
+    ).toBe('ctrl+e');
+    expect(
+      screen
+        .getAllByRole('alert')
+        .some((alert) => /does not support|不支持按键/i.test(alert.textContent || '')),
+    ).toBe(true);
 
     fireEvent.blur(details);
     expect(details).toHaveValue('ctrl+e');
@@ -104,7 +139,9 @@ describe('Agent keymap settings', () => {
       </TerminalProvider>,
     );
     fireEvent.click(screen.getByRole('button', { name: /智能体按键/i }));
-    fireEvent.change(screen.getByRole('combobox', { name: /智能体方案/i }), { target: { value: 'claude' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /智能体方案/i }), {
+      target: { value: 'claude' },
+    });
     fireEvent.change(screen.getByRole('textbox', { name: /快捷键 详情/i }), {
       target: { value: 'ctrl+unknown' },
     });
@@ -122,15 +159,21 @@ describe('Agent keymap settings', () => {
     fireEvent.change(screen.getByRole('combobox', { name: /Agent profile|智能体方案/i }), {
       target: { value: 'claude' },
     });
-    fireEvent.change(screen.getByLabelText(/Function name|功能名称/i), { target: { value: 'Run tests' } });
-    fireEvent.change(screen.getByLabelText(/Key combo|按键组合/i), { target: { value: 'alt+enter' } });
+    fireEvent.change(screen.getByLabelText(/Function name|功能名称/i), {
+      target: { value: 'Run tests' },
+    });
+    fireEvent.change(screen.getByLabelText(/Key combo|按键组合/i), {
+      target: { value: 'alt+enter' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /Add custom key|添加自定义按键/i }));
 
     // Listed in the editor and offered, already on, in the key bar picker.
     expect(await screen.findAllByText('Run tests')).toHaveLength(2);
     expect(screen.getByTestId('agent-bar-choices')).toHaveTextContent('Alt+⏎Run tests');
     expect(screen.getAllByText('Alt+⏎').length).toBeGreaterThanOrEqual(2);
-    fireEvent.click(screen.getByRole('button', { name: /Restore this agent defaults|恢复此智能体默认设置/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Restore this agent defaults|恢复此智能体默认设置/i }),
+    );
     await waitFor(() => expect(loadSettings().agentKeymaps.claude).toBeUndefined());
   });
 
@@ -139,24 +182,42 @@ describe('Agent keymap settings', () => {
     let context: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <SettingsAndToolbar onContext={(value) => { context = value; }} />
+        <SettingsAndToolbar
+          onContext={(value) => {
+            context = value;
+          }}
+        />
       </TerminalProvider>,
     );
     await waitFor(() => expect(webSocketInstances).toHaveLength(1));
     act(() => {
       webSocketInstances[0].simulateOpen();
-      webSocketInstances[0].simulateMessage(JSON.stringify({
-        type: 'ready', role: 'controller', controllerId: 'me', hostId: 'host-1', clientId: 'me',
-      }));
-      webSocketInstances[0].simulateMessage(JSON.stringify({
-        type: 'agent_status', focusedPaneId: 'w1:p1', focusedAgent: 'claude',
-        counts: {}, total: 0, agents: [],
-      }));
+      webSocketInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'ready',
+          role: 'controller',
+          controllerId: 'me',
+          hostId: 'host-1',
+          clientId: 'me',
+        }),
+      );
+      webSocketInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'agent_status',
+          focusedPaneId: 'w1:p1',
+          focusedAgent: 'claude',
+          counts: {},
+          total: 0,
+          agents: [],
+        }),
+      );
     });
     const sendInput = vi.spyOn(context!.adapter!, 'sendInput');
 
     fireEvent.click(screen.getByRole('button', { name: /Agent Keys/i }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Agent profile' }), { target: { value: 'claude' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Agent profile' }), {
+      target: { value: 'claude' },
+    });
     const details = screen.getByRole('textbox', { name: 'Shortcut Details' });
     fireEvent.change(details, { target: { value: 'ctrl+e' } });
     fireEvent.change(details, { target: { value: 'ctrl+' } });
@@ -188,7 +249,9 @@ describe('Agent keymap settings', () => {
     const background = screen.getByTestId('agent-bar-toggle-background');
     expect(background).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('agent-bar-toggle-mode')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/Claude Code shortcuts appear on the key bar \(5 shown\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Claude Code shortcuts appear on the key bar \(5 shown\)/),
+    ).toBeInTheDocument();
     // Claude binds ^R itself, so the shell's ^R gets no second switch.
     expect(screen.queryByTestId('agent-bar-toggle-genericCtrlR')).not.toBeInTheDocument();
 
@@ -198,10 +261,13 @@ describe('Agent keymap settings', () => {
     expect(screen.getByTestId('agent-key-background')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-key-mode')).not.toBeInTheDocument();
     expect(loadSettings().agentKeymaps.claude.actions).toMatchObject({
-      background: { hidden: false }, mode: { hidden: true },
+      background: { hidden: false },
+      mode: { hidden: true },
     });
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Shortcut Details' }), { target: { value: 'ctrl+e' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Shortcut Details' }), {
+      target: { value: 'ctrl+e' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Restore default keys' }));
     expect(screen.getByTestId('agent-key-mode')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-key-background')).not.toBeInTheDocument();
@@ -212,7 +278,9 @@ describe('Agent keymap settings', () => {
     saveSettings({
       language: 'en',
       toolbarVisible: true,
-      agentKeymaps: { claude: { custom: [{ id: 'custom-1', label: 'Run tests', keys: 'alt+enter' }] } },
+      agentKeymaps: {
+        claude: { custom: [{ id: 'custom-1', label: 'Run tests', keys: 'alt+enter' }] },
+      },
     });
     render(
       <TerminalProvider>
@@ -238,17 +306,26 @@ describe('Agent keymap settings', () => {
 
     fireEvent.click(screen.getByTestId('agent-key-customize'));
     expect(screen.getByRole('combobox', { name: 'Agent profile' })).toHaveValue('codex');
-    expect(screen.getByTestId('agent-bar-toggle-editPrevious')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('agent-bar-toggle-editPrevious')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('keeps the Edit cap on the bar after every shortcut is hidden', async () => {
     saveSettings({
       language: 'en',
       toolbarVisible: true,
-      agentKeymaps: { shell: { actions: {
-        genericCtrlC: { hidden: true }, genericCtrlD: { hidden: true },
-        genericCtrlL: { hidden: true }, genericCtrlR: { hidden: true },
-      } } },
+      agentKeymaps: {
+        shell: {
+          actions: {
+            genericCtrlC: { hidden: true },
+            genericCtrlD: { hidden: true },
+            genericCtrlL: { hidden: true },
+            genericCtrlR: { hidden: true },
+          },
+        },
+      },
     });
     render(
       <TerminalProvider>

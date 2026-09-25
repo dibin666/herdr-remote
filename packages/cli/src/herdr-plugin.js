@@ -56,7 +56,10 @@ function parsePluginList(output) {
       name,
       enabled: state === 'enabled',
       source,
-      warnings: rawSource && rawSource.includes(';') ? rawSource.slice(rawSource.indexOf(';') + 1).trim() : null,
+      warnings:
+        rawSource && rawSource.includes(';')
+          ? rawSource.slice(rawSource.indexOf(';') + 1).trim()
+          : null,
       localPath: source && source.startsWith('local:') ? source.slice('local:'.length) : null,
     });
   }
@@ -75,15 +78,22 @@ function registrationStatus() {
   try {
     result = runHerdr(['plugin', 'list']);
   } catch (error) {
-    if (error.code === 'HERDR_NOT_FOUND') return { available: false, registered: false, reason: 'herdr not found' };
+    if (error.code === 'HERDR_NOT_FOUND')
+      return { available: false, registered: false, reason: 'herdr not found' };
     throw error;
   }
   if (result.status !== 0) {
-    return { available: true, registered: false, reason: String(result.stderr || '').trim(), ...installed };
+    return {
+      available: true,
+      registered: false,
+      reason: String(result.stderr || '').trim(),
+      ...installed,
+    };
   }
   const plugins = parsePluginList(result.stdout);
   const entry = plugins.find((plugin) => plugin.id === PLUGIN_ID);
-  if (!entry) return { available: true, registered: false, packageRoot: PACKAGE_ROOT, ...installed };
+  if (!entry)
+    return { available: true, registered: false, packageRoot: PACKAGE_ROOT, ...installed };
   return {
     available: true,
     registered: true,
@@ -106,7 +116,9 @@ function register() {
   }
   const result = runHerdr(['plugin', 'link', PACKAGE_ROOT]);
   if (result.status !== 0) {
-    throw new Error(String(result.stderr || result.stdout || '').trim() || 'herdr plugin link failed');
+    throw new Error(
+      String(result.stderr || result.stdout || '').trim() || 'herdr plugin link failed',
+    );
   }
   return { ok: true, path: PACKAGE_ROOT, output: String(result.stdout || '').trim() };
 }
@@ -114,7 +126,9 @@ function register() {
 function unregister() {
   const result = runHerdr(['plugin', 'unlink', PLUGIN_ID]);
   if (result.status !== 0) {
-    throw new Error(String(result.stderr || result.stdout || '').trim() || 'herdr plugin unlink failed');
+    throw new Error(
+      String(result.stderr || result.stdout || '').trim() || 'herdr plugin unlink failed',
+    );
   }
   return { ok: true, output: String(result.stdout || '').trim() };
 }

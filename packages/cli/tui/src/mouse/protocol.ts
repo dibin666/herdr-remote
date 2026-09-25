@@ -38,16 +38,24 @@ function decodeButton(code: number, isRelease: boolean): MouseButton {
   if (code & 64) return (code & 3) === 1 ? 'wheel-down' : 'wheel-up';
   if (isRelease) return 'none';
   switch (code & 3) {
-    case 0: return 'left';
-    case 1: return 'middle';
-    case 2: return 'right';
-    default: return 'none';
+    case 0:
+      return 'left';
+    case 1:
+      return 'middle';
+    case 2:
+      return 'right';
+    default:
+      return 'none';
   }
 }
 
 function couldBeMousePrefix(value: string): boolean {
   // Partial forms of "\x1b[<…" that may complete on the next chunk.
-  return `${ESC}[<`.startsWith(value.slice(0, 3)) && value.length <= MAX_PENDING && /^\x1b(\[(<[\d;]*)?)?$/.test(value);
+  return (
+    `${ESC}[<`.startsWith(value.slice(0, 3)) &&
+    value.length <= MAX_PENDING &&
+    /^\x1b(\[(<[\d;]*)?)?$/.test(value)
+  );
 }
 
 export type SplitResult = {

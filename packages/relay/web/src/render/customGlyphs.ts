@@ -50,16 +50,34 @@ export const blockElementDefinitions: { [index: string]: IBlockVector[] | undefi
   '▕': [{ x: 7, y: 0, w: 1, h: 8 }], // RIGHT ONE EIGHTH BLOCK
 
   // Terminal graphic characters (0x2596-0x259F)
-  '▖': [{ x: 0, y: 4, w: 4, h: 4 }],                             // QUADRANT LOWER LEFT
-  '▗': [{ x: 4, y: 4, w: 4, h: 4 }],                             // QUADRANT LOWER RIGHT
-  '▘': [{ x: 0, y: 0, w: 4, h: 4 }],                             // QUADRANT UPPER LEFT
-  '▙': [{ x: 0, y: 0, w: 4, h: 8 }, { x: 0, y: 4, w: 8, h: 4 }], // QUADRANT UPPER LEFT AND LOWER LEFT AND LOWER RIGHT
-  '▚': [{ x: 0, y: 0, w: 4, h: 4 }, { x: 4, y: 4, w: 4, h: 4 }], // QUADRANT UPPER LEFT AND LOWER RIGHT
-  '▛': [{ x: 0, y: 0, w: 4, h: 8 }, { x: 4, y: 0, w: 4, h: 4 }], // QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER LEFT
-  '▜': [{ x: 0, y: 0, w: 8, h: 4 }, { x: 4, y: 0, w: 4, h: 8 }], // QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER RIGHT
-  '▝': [{ x: 4, y: 0, w: 4, h: 4 }],                             // QUADRANT UPPER RIGHT
-  '▞': [{ x: 4, y: 0, w: 4, h: 4 }, { x: 0, y: 4, w: 4, h: 4 }], // QUADRANT UPPER RIGHT AND LOWER LEFT
-  '▟': [{ x: 4, y: 0, w: 4, h: 8 }, { x: 0, y: 4, w: 8, h: 4 }], // QUADRANT UPPER RIGHT AND LOWER LEFT AND LOWER RIGHT
+  '▖': [{ x: 0, y: 4, w: 4, h: 4 }], // QUADRANT LOWER LEFT
+  '▗': [{ x: 4, y: 4, w: 4, h: 4 }], // QUADRANT LOWER RIGHT
+  '▘': [{ x: 0, y: 0, w: 4, h: 4 }], // QUADRANT UPPER LEFT
+  '▙': [
+    { x: 0, y: 0, w: 4, h: 8 },
+    { x: 0, y: 4, w: 8, h: 4 },
+  ], // QUADRANT UPPER LEFT AND LOWER LEFT AND LOWER RIGHT
+  '▚': [
+    { x: 0, y: 0, w: 4, h: 4 },
+    { x: 4, y: 4, w: 4, h: 4 },
+  ], // QUADRANT UPPER LEFT AND LOWER RIGHT
+  '▛': [
+    { x: 0, y: 0, w: 4, h: 8 },
+    { x: 4, y: 0, w: 4, h: 4 },
+  ], // QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER LEFT
+  '▜': [
+    { x: 0, y: 0, w: 8, h: 4 },
+    { x: 4, y: 0, w: 4, h: 8 },
+  ], // QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER RIGHT
+  '▝': [{ x: 4, y: 0, w: 4, h: 4 }], // QUADRANT UPPER RIGHT
+  '▞': [
+    { x: 4, y: 0, w: 4, h: 4 },
+    { x: 0, y: 4, w: 4, h: 4 },
+  ], // QUADRANT UPPER RIGHT AND LOWER LEFT
+  '▟': [
+    { x: 4, y: 0, w: 4, h: 8 },
+    { x: 0, y: 4, w: 8, h: 4 },
+  ], // QUADRANT UPPER RIGHT AND LOWER LEFT AND LOWER RIGHT
 
   // VERTICAL ONE EIGHTH BLOCK-2 through VERTICAL ONE EIGHTH BLOCK-7
   '\u{1FB70}': [{ x: 1, y: 0, w: 1, h: 8 }],
@@ -78,17 +96,37 @@ export const blockElementDefinitions: { [index: string]: IBlockVector[] | undefi
   '\u{1FB7B}': [{ x: 0, y: 6, w: 8, h: 1 }],
 
   // LEFT AND LOWER ONE EIGHTH BLOCK
-  '\u{1FB7C}': [{ x: 0, y: 0, w: 1, h: 8 }, { x: 0, y: 7, w: 8, h: 1 }],
+  '\u{1FB7C}': [
+    { x: 0, y: 0, w: 1, h: 8 },
+    { x: 0, y: 7, w: 8, h: 1 },
+  ],
   // LEFT AND UPPER ONE EIGHTH BLOCK
-  '\u{1FB7D}': [{ x: 0, y: 0, w: 1, h: 8 }, { x: 0, y: 0, w: 8, h: 1 }],
+  '\u{1FB7D}': [
+    { x: 0, y: 0, w: 1, h: 8 },
+    { x: 0, y: 0, w: 8, h: 1 },
+  ],
   // RIGHT AND UPPER ONE EIGHTH BLOCK
-  '\u{1FB7E}': [{ x: 7, y: 0, w: 1, h: 8 }, { x: 0, y: 0, w: 8, h: 1 }],
+  '\u{1FB7E}': [
+    { x: 7, y: 0, w: 1, h: 8 },
+    { x: 0, y: 0, w: 8, h: 1 },
+  ],
   // RIGHT AND LOWER ONE EIGHTH BLOCK
-  '\u{1FB7F}': [{ x: 7, y: 0, w: 1, h: 8 }, { x: 0, y: 7, w: 8, h: 1 }],
+  '\u{1FB7F}': [
+    { x: 7, y: 0, w: 1, h: 8 },
+    { x: 0, y: 7, w: 8, h: 1 },
+  ],
   // UPPER AND LOWER ONE EIGHTH BLOCK
-  '\u{1FB80}': [{ x: 0, y: 0, w: 8, h: 1 }, { x: 0, y: 7, w: 8, h: 1 }],
+  '\u{1FB80}': [
+    { x: 0, y: 0, w: 8, h: 1 },
+    { x: 0, y: 7, w: 8, h: 1 },
+  ],
   // HORIZONTAL ONE EIGHTH BLOCK-1358
-  '\u{1FB81}': [{ x: 0, y: 0, w: 8, h: 1 }, { x: 0, y: 2, w: 8, h: 1 }, { x: 0, y: 4, w: 8, h: 1 }, { x: 0, y: 7, w: 8, h: 1 }],
+  '\u{1FB81}': [
+    { x: 0, y: 0, w: 8, h: 1 },
+    { x: 0, y: 2, w: 8, h: 1 },
+    { x: 0, y: 4, w: 8, h: 1 },
+    { x: 0, y: 7, w: 8, h: 1 },
+  ],
 
   // UPPER ONE QUARTER BLOCK
   '\u{1FB82}': [{ x: 0, y: 0, w: 8, h: 2 }],
@@ -114,20 +152,31 @@ export const blockElementDefinitions: { [index: string]: IBlockVector[] | undefi
 
   // CHECKER BOARD FILL
   '\u{1FB95}': [
-    { x: 0, y: 0, w: 2, h: 2 }, { x: 4, y: 0, w: 2, h: 2 },
-    { x: 2, y: 2, w: 2, h: 2 }, { x: 6, y: 2, w: 2, h: 2 },
-    { x: 0, y: 4, w: 2, h: 2 }, { x: 4, y: 4, w: 2, h: 2 },
-    { x: 2, y: 6, w: 2, h: 2 }, { x: 6, y: 6, w: 2, h: 2 }
+    { x: 0, y: 0, w: 2, h: 2 },
+    { x: 4, y: 0, w: 2, h: 2 },
+    { x: 2, y: 2, w: 2, h: 2 },
+    { x: 6, y: 2, w: 2, h: 2 },
+    { x: 0, y: 4, w: 2, h: 2 },
+    { x: 4, y: 4, w: 2, h: 2 },
+    { x: 2, y: 6, w: 2, h: 2 },
+    { x: 6, y: 6, w: 2, h: 2 },
   ],
   // INVERSE CHECKER BOARD FILL
   '\u{1FB96}': [
-    { x: 2, y: 0, w: 2, h: 2 }, { x: 6, y: 0, w: 2, h: 2 },
-    { x: 0, y: 2, w: 2, h: 2 }, { x: 4, y: 2, w: 2, h: 2 },
-    { x: 2, y: 4, w: 2, h: 2 }, { x: 6, y: 4, w: 2, h: 2 },
-    { x: 0, y: 6, w: 2, h: 2 }, { x: 4, y: 6, w: 2, h: 2 }
+    { x: 2, y: 0, w: 2, h: 2 },
+    { x: 6, y: 0, w: 2, h: 2 },
+    { x: 0, y: 2, w: 2, h: 2 },
+    { x: 4, y: 2, w: 2, h: 2 },
+    { x: 2, y: 4, w: 2, h: 2 },
+    { x: 6, y: 4, w: 2, h: 2 },
+    { x: 0, y: 6, w: 2, h: 2 },
+    { x: 4, y: 6, w: 2, h: 2 },
   ],
   // HEAVY HORIZONTAL FILL (upper middle and lower one quarter block)
-  '\u{1FB97}': [{ x: 0, y: 2, w: 8, h: 2 }, { x: 0, y: 6, w: 8, h: 2 }]
+  '\u{1FB97}': [
+    { x: 0, y: 2, w: 8, h: 2 },
+    { x: 0, y: 6, w: 8, h: 2 },
+  ],
 };
 
 type PatternDefinition = number[][];
@@ -138,24 +187,27 @@ type PatternDefinition = number[][];
  */
 const patternCharacterDefinitions: { [key: string]: PatternDefinition | undefined } = {
   // Shade characters (0x2591-0x2593)
-  '░': [ // LIGHT SHADE (25%)
+  '░': [
+    // LIGHT SHADE (25%)
     [1, 0, 0, 0],
     [0, 0, 0, 0],
     [0, 0, 1, 0],
-    [0, 0, 0, 0]
+    [0, 0, 0, 0],
   ],
-  '▒': [ // MEDIUM SHADE (50%)
+  '▒': [
+    // MEDIUM SHADE (50%)
     [1, 0],
     [0, 0],
     [0, 1],
-    [0, 0]
+    [0, 0],
   ],
-  '▓': [ // DARK SHADE (75%)
+  '▓': [
+    // DARK SHADE (75%)
     [0, 1],
     [1, 1],
     [1, 0],
-    [1, 1]
-  ]
+    [1, 1],
+  ],
 };
 
 const enum Shapes {
@@ -189,7 +241,7 @@ const enum Shapes {
 
 const enum Style {
   NORMAL = 1,
-  BOLD = 3
+  BOLD = 3,
 }
 
 /**
@@ -202,69 +254,156 @@ type DrawFunctionDefinition = (xp: number, yp: number) => string;
  * This contains the definitions of all box drawing characters in the format of SVG paths (ie. the
  * svg d attribute).
  */
-export const boxDrawingDefinitions: { [character: string]: { [fontWeight: number]: string | DrawFunctionDefinition } | undefined } = {
+export const boxDrawingDefinitions: {
+  [character: string]: { [fontWeight: number]: string | DrawFunctionDefinition } | undefined;
+} = {
   // Uniform normal and bold
   '─': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT },
-  '━': { [Style.BOLD]:   Shapes.LEFT_TO_RIGHT },
+  '━': { [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
   '│': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM },
-  '┃': { [Style.BOLD]:   Shapes.TOP_TO_BOTTOM },
+  '┃': { [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
   '┌': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM },
-  '┏': { [Style.BOLD]:   Shapes.RIGHT_TO_BOTTOM },
+  '┏': { [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
   '┐': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM },
-  '┓': { [Style.BOLD]:   Shapes.LEFT_TO_BOTTOM },
+  '┓': { [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
   '└': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT },
-  '┗': { [Style.BOLD]:   Shapes.TOP_TO_RIGHT },
+  '┗': { [Style.BOLD]: Shapes.TOP_TO_RIGHT },
   '┘': { [Style.NORMAL]: Shapes.TOP_TO_LEFT },
-  '┛': { [Style.BOLD]:   Shapes.TOP_TO_LEFT },
+  '┛': { [Style.BOLD]: Shapes.TOP_TO_LEFT },
   '├': { [Style.NORMAL]: Shapes.T_RIGHT },
-  '┣': { [Style.BOLD]:   Shapes.T_RIGHT },
+  '┣': { [Style.BOLD]: Shapes.T_RIGHT },
   '┤': { [Style.NORMAL]: Shapes.T_LEFT },
-  '┫': { [Style.BOLD]:   Shapes.T_LEFT },
+  '┫': { [Style.BOLD]: Shapes.T_LEFT },
   '┬': { [Style.NORMAL]: Shapes.T_BOTTOM },
-  '┳': { [Style.BOLD]:   Shapes.T_BOTTOM },
+  '┳': { [Style.BOLD]: Shapes.T_BOTTOM },
   '┴': { [Style.NORMAL]: Shapes.T_TOP },
-  '┻': { [Style.BOLD]:   Shapes.T_TOP },
+  '┻': { [Style.BOLD]: Shapes.T_TOP },
   '┼': { [Style.NORMAL]: Shapes.CROSS },
-  '╋': { [Style.BOLD]:   Shapes.CROSS },
+  '╋': { [Style.BOLD]: Shapes.CROSS },
   '╴': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT },
-  '╸': { [Style.BOLD]:   Shapes.MIDDLE_TO_LEFT },
+  '╸': { [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
   '╵': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP },
-  '╹': { [Style.BOLD]:   Shapes.MIDDLE_TO_TOP },
+  '╹': { [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
   '╶': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT },
-  '╺': { [Style.BOLD]:   Shapes.MIDDLE_TO_RIGHT },
+  '╺': { [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
   '╷': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM },
-  '╻': { [Style.BOLD]:   Shapes.MIDDLE_TO_BOTTOM },
+  '╻': { [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
 
   // Double border
-  '═': { [Style.NORMAL]: (_xp, yp) => `M0,${.5 - yp} L1,${.5 - yp} M0,${.5 + yp} L1,${.5 + yp}` },
-  '║': { [Style.NORMAL]: (xp, _yp) => `M${.5 - xp},0 L${.5 - xp},1 M${.5 + xp},0 L${.5 + xp},1` },
-  '╒': { [Style.NORMAL]: (_xp, yp) => `M.5,1 L.5,${.5 - yp} L1,${.5 - yp} M.5,${.5 + yp} L1,${.5 + yp}` },
-  '╓': { [Style.NORMAL]: (xp, _yp) => `M${.5 - xp},1 L${.5 - xp},.5 L1,.5 M${.5 + xp},.5 L${.5 + xp},1` },
-  '╔': { [Style.NORMAL]: (xp, yp) => `M1,${.5 - yp} L${.5 - xp},${.5 - yp} L${.5 - xp},1 M1,${.5 + yp} L${.5 + xp},${.5 + yp} L${.5 + xp},1` },
-  '╕': { [Style.NORMAL]: (_xp, yp) => `M0,${.5 - yp} L.5,${.5 - yp} L.5,1 M0,${.5 + yp} L.5,${.5 + yp}` },
-  '╖': { [Style.NORMAL]: (xp, _yp) => `M${.5 + xp},1 L${.5 + xp},.5 L0,.5 M${.5 - xp},.5 L${.5 - xp},1` },
-  '╗': { [Style.NORMAL]: (xp, yp) => `M0,${.5 + yp} L${.5 - xp},${.5 + yp} L${.5 - xp},1 M0,${.5 - yp} L${.5 + xp},${.5 - yp} L${.5 + xp},1` },
-  '╘': { [Style.NORMAL]: (_xp, yp) => `M.5,0 L.5,${.5 + yp} L1,${.5 + yp} M.5,${.5 - yp} L1,${.5 - yp}` },
-  '╙': { [Style.NORMAL]: (xp, _yp) => `M1,.5 L${.5 - xp},.5 L${.5 - xp},0 M${.5 + xp},.5 L${.5 + xp},0` },
-  '╚': { [Style.NORMAL]: (xp, yp) => `M1,${.5 - yp} L${.5 + xp},${.5 - yp} L${.5 + xp},0 M1,${.5 + yp} L${.5 - xp},${.5 + yp} L${.5 - xp},0` },
-  '╛': { [Style.NORMAL]: (_xp, yp) => `M0,${.5 + yp} L.5,${.5 + yp} L.5,0 M0,${.5 - yp} L.5,${.5 - yp}` },
-  '╜': { [Style.NORMAL]: (xp, _yp) => `M0,.5 L${.5 + xp},.5 L${.5 + xp},0 M${.5 - xp},.5 L${.5 - xp},0` },
-  '╝': { [Style.NORMAL]: (xp, yp) => `M0,${.5 - yp} L${.5 - xp},${.5 - yp} L${.5 - xp},0 M0,${.5 + yp} L${.5 + xp},${.5 + yp} L${.5 + xp},0` },
-  '╞': { [Style.NORMAL]: (_xp, yp) => `${Shapes.TOP_TO_BOTTOM} M.5,${.5 - yp} L1,${.5 - yp} M.5,${.5 + yp} L1,${.5 + yp}` },
-  '╟': { [Style.NORMAL]: (xp, _yp) => `M${.5 - xp},0 L${.5 - xp},1 M${.5 + xp},0 L${.5 + xp},1 M${.5 + xp},.5 L1,.5` },
-  '╠': { [Style.NORMAL]: (xp, yp) => `M${.5 - xp},0 L${.5 - xp},1 M1,${.5 + yp} L${.5 + xp},${.5 + yp} L${.5 + xp},1 M1,${.5 - yp} L${.5 + xp},${.5 - yp} L${.5 + xp},0` },
-  '╡': { [Style.NORMAL]: (_xp, yp) => `${Shapes.TOP_TO_BOTTOM} M0,${.5 - yp} L.5,${.5 - yp} M0,${.5 + yp} L.5,${.5 + yp}` },
-  '╢': { [Style.NORMAL]: (xp, _yp) => `M0,.5 L${.5 - xp},.5 M${.5 - xp},0 L${.5 - xp},1 M${.5 + xp},0 L${.5 + xp},1` },
-  '╣': { [Style.NORMAL]: (xp, yp) => `M${.5 + xp},0 L${.5 + xp},1 M0,${.5 + yp} L${.5 - xp},${.5 + yp} L${.5 - xp},1 M0,${.5 - yp} L${.5 - xp},${.5 - yp} L${.5 - xp},0` },
-  '╤': { [Style.NORMAL]: (_xp, yp) => `M0,${.5 - yp} L1,${.5 - yp} M0,${.5 + yp} L1,${.5 + yp} M.5,${.5 + yp} L.5,1` },
-  '╥': { [Style.NORMAL]: (xp, _yp) => `${Shapes.LEFT_TO_RIGHT} M${.5 - xp},.5 L${.5 - xp},1 M${.5 + xp},.5 L${.5 + xp},1` },
-  '╦': { [Style.NORMAL]: (xp, yp) => `M0,${.5 - yp} L1,${.5 - yp} M0,${.5 + yp} L${.5 - xp},${.5 + yp} L${.5 - xp},1 M1,${.5 + yp} L${.5 + xp},${.5 + yp} L${.5 + xp},1` },
-  '╧': { [Style.NORMAL]: (_xp, yp) => `M.5,0 L.5,${.5 - yp} M0,${.5 - yp} L1,${.5 - yp} M0,${.5 + yp} L1,${.5 + yp}` },
-  '╨': { [Style.NORMAL]: (xp, _yp) => `${Shapes.LEFT_TO_RIGHT} M${.5 - xp},.5 L${.5 - xp},0 M${.5 + xp},.5 L${.5 + xp},0` },
-  '╩': { [Style.NORMAL]: (xp, yp) => `M0,${.5 + yp} L1,${.5 + yp} M0,${.5 - yp} L${.5 - xp},${.5 - yp} L${.5 - xp},0 M1,${.5 - yp} L${.5 + xp},${.5 - yp} L${.5 + xp},0` },
-  '╪': { [Style.NORMAL]: (_xp, yp) => `${Shapes.TOP_TO_BOTTOM} M0,${.5 - yp} L1,${.5 - yp} M0,${.5 + yp} L1,${.5 + yp}` },
-  '╫': { [Style.NORMAL]: (xp, _yp) => `${Shapes.LEFT_TO_RIGHT} M${.5 - xp},0 L${.5 - xp},1 M${.5 + xp},0 L${.5 + xp},1` },
-  '╬': { [Style.NORMAL]: (xp, yp) => `M0,${.5 + yp} L${.5 - xp},${.5 + yp} L${.5 - xp},1 M1,${.5 + yp} L${.5 + xp},${.5 + yp} L${.5 + xp},1 M0,${.5 - yp} L${.5 - xp},${.5 - yp} L${.5 - xp},0 M1,${.5 - yp} L${.5 + xp},${.5 - yp} L${.5 + xp},0` },
+  '═': {
+    [Style.NORMAL]: (_xp, yp) => `M0,${0.5 - yp} L1,${0.5 - yp} M0,${0.5 + yp} L1,${0.5 + yp}`,
+  },
+  '║': {
+    [Style.NORMAL]: (xp, _yp) => `M${0.5 - xp},0 L${0.5 - xp},1 M${0.5 + xp},0 L${0.5 + xp},1`,
+  },
+  '╒': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,1 L.5,${0.5 - yp} L1,${0.5 - yp} M.5,${0.5 + yp} L1,${0.5 + yp}`,
+  },
+  '╓': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `M${0.5 - xp},1 L${0.5 - xp},.5 L1,.5 M${0.5 + xp},.5 L${0.5 + xp},1`,
+  },
+  '╔': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M1,${0.5 - yp} L${0.5 - xp},${0.5 - yp} L${0.5 - xp},1 M1,${0.5 + yp} L${0.5 + xp},${0.5 + yp} L${0.5 + xp},1`,
+  },
+  '╕': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M0,${0.5 - yp} L.5,${0.5 - yp} L.5,1 M0,${0.5 + yp} L.5,${0.5 + yp}`,
+  },
+  '╖': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `M${0.5 + xp},1 L${0.5 + xp},.5 L0,.5 M${0.5 - xp},.5 L${0.5 - xp},1`,
+  },
+  '╗': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M0,${0.5 + yp} L${0.5 - xp},${0.5 + yp} L${0.5 - xp},1 M0,${0.5 - yp} L${0.5 + xp},${0.5 - yp} L${0.5 + xp},1`,
+  },
+  '╘': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,0 L.5,${0.5 + yp} L1,${0.5 + yp} M.5,${0.5 - yp} L1,${0.5 - yp}`,
+  },
+  '╙': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `M1,.5 L${0.5 - xp},.5 L${0.5 - xp},0 M${0.5 + xp},.5 L${0.5 + xp},0`,
+  },
+  '╚': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M1,${0.5 - yp} L${0.5 + xp},${0.5 - yp} L${0.5 + xp},0 M1,${0.5 + yp} L${0.5 - xp},${0.5 + yp} L${0.5 - xp},0`,
+  },
+  '╛': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M0,${0.5 + yp} L.5,${0.5 + yp} L.5,0 M0,${0.5 - yp} L.5,${0.5 - yp}`,
+  },
+  '╜': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `M0,.5 L${0.5 + xp},.5 L${0.5 + xp},0 M${0.5 - xp},.5 L${0.5 - xp},0`,
+  },
+  '╝': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M0,${0.5 - yp} L${0.5 - xp},${0.5 - yp} L${0.5 - xp},0 M0,${0.5 + yp} L${0.5 + xp},${0.5 + yp} L${0.5 + xp},0`,
+  },
+  '╞': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `${Shapes.TOP_TO_BOTTOM} M.5,${0.5 - yp} L1,${0.5 - yp} M.5,${0.5 + yp} L1,${0.5 + yp}`,
+  },
+  '╟': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `M${0.5 - xp},0 L${0.5 - xp},1 M${0.5 + xp},0 L${0.5 + xp},1 M${0.5 + xp},.5 L1,.5`,
+  },
+  '╠': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M${0.5 - xp},0 L${0.5 - xp},1 M1,${0.5 + yp} L${0.5 + xp},${0.5 + yp} L${0.5 + xp},1 M1,${0.5 - yp} L${0.5 + xp},${0.5 - yp} L${0.5 + xp},0`,
+  },
+  '╡': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `${Shapes.TOP_TO_BOTTOM} M0,${0.5 - yp} L.5,${0.5 - yp} M0,${0.5 + yp} L.5,${0.5 + yp}`,
+  },
+  '╢': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `M0,.5 L${0.5 - xp},.5 M${0.5 - xp},0 L${0.5 - xp},1 M${0.5 + xp},0 L${0.5 + xp},1`,
+  },
+  '╣': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M${0.5 + xp},0 L${0.5 + xp},1 M0,${0.5 + yp} L${0.5 - xp},${0.5 + yp} L${0.5 - xp},1 M0,${0.5 - yp} L${0.5 - xp},${0.5 - yp} L${0.5 - xp},0`,
+  },
+  '╤': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M0,${0.5 - yp} L1,${0.5 - yp} M0,${0.5 + yp} L1,${0.5 + yp} M.5,${0.5 + yp} L.5,1`,
+  },
+  '╥': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `${Shapes.LEFT_TO_RIGHT} M${0.5 - xp},.5 L${0.5 - xp},1 M${0.5 + xp},.5 L${0.5 + xp},1`,
+  },
+  '╦': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M0,${0.5 - yp} L1,${0.5 - yp} M0,${0.5 + yp} L${0.5 - xp},${0.5 + yp} L${0.5 - xp},1 M1,${0.5 + yp} L${0.5 + xp},${0.5 + yp} L${0.5 + xp},1`,
+  },
+  '╧': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,0 L.5,${0.5 - yp} M0,${0.5 - yp} L1,${0.5 - yp} M0,${0.5 + yp} L1,${0.5 + yp}`,
+  },
+  '╨': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `${Shapes.LEFT_TO_RIGHT} M${0.5 - xp},.5 L${0.5 - xp},0 M${0.5 + xp},.5 L${0.5 + xp},0`,
+  },
+  '╩': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M0,${0.5 + yp} L1,${0.5 + yp} M0,${0.5 - yp} L${0.5 - xp},${0.5 - yp} L${0.5 - xp},0 M1,${0.5 - yp} L${0.5 + xp},${0.5 - yp} L${0.5 + xp},0`,
+  },
+  '╪': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `${Shapes.TOP_TO_BOTTOM} M0,${0.5 - yp} L1,${0.5 - yp} M0,${0.5 + yp} L1,${0.5 + yp}`,
+  },
+  '╫': {
+    [Style.NORMAL]: (xp, _yp) =>
+      `${Shapes.LEFT_TO_RIGHT} M${0.5 - xp},0 L${0.5 - xp},1 M${0.5 + xp},0 L${0.5 + xp},1`,
+  },
+  '╬': {
+    [Style.NORMAL]: (xp, yp) =>
+      `M0,${0.5 + yp} L${0.5 - xp},${0.5 + yp} L${0.5 - xp},1 M1,${0.5 + yp} L${0.5 + xp},${0.5 + yp} L${0.5 + xp},1 M0,${0.5 - yp} L${0.5 - xp},${0.5 - yp} L${0.5 - xp},0 M1,${0.5 - yp} L${0.5 + xp},${0.5 - yp} L${0.5 + xp},0`,
+  },
 
   // Diagonal
   '╱': { [Style.NORMAL]: 'M1,0 L0,1' },
@@ -272,76 +411,112 @@ export const boxDrawingDefinitions: { [character: string]: { [fontWeight: number
   '╳': { [Style.NORMAL]: 'M1,0 L0,1 M0,0 L1,1' },
 
   // Mixed weight
-  '╼': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '╽': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '╾': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '╿': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '┍': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '┎': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '┑': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '┒': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '┕': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '┖': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '┙': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '┚': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '┝': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM,                                 [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '┞': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM,                               [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '┟': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT,                                  [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '┠': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
-  '┡': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: Shapes.TOP_TO_RIGHT },
-  '┢': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
-  '┥': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM,                                 [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '┦': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM,                                [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '┧': { [Style.NORMAL]: Shapes.TOP_TO_LEFT,                                   [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '┨': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
-  '┩': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: Shapes.TOP_TO_LEFT },
-  '┪': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
-  '┭': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM,                               [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '┮': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM,                                [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '┯': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
-  '┰': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT,                                 [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '┱': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
-  '┲': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
-  '┵': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT,                                  [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '┶': { [Style.NORMAL]: Shapes.TOP_TO_LEFT,                                   [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '┷': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
-  '┸': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT,                                 [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '┹': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: Shapes.TOP_TO_LEFT },
-  '┺': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: Shapes.TOP_TO_RIGHT },
-  '┽': { [Style.NORMAL]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_RIGHT}`,  [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
-  '┾': { [Style.NORMAL]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_LEFT}`,   [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
-  '┿': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM,                                 [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
-  '╀': { [Style.NORMAL]: `${Shapes.LEFT_TO_RIGHT} ${Shapes.MIDDLE_TO_BOTTOM}`, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
-  '╁': { [Style.NORMAL]: `${Shapes.MIDDLE_TO_TOP} ${Shapes.LEFT_TO_RIGHT}`,    [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
-  '╂': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT,                                 [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
-  '╃': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM,                               [Style.BOLD]: Shapes.TOP_TO_LEFT },
-  '╄': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM,                                [Style.BOLD]: Shapes.TOP_TO_RIGHT },
-  '╅': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT,                                  [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
-  '╆': { [Style.NORMAL]: Shapes.TOP_TO_LEFT,                                   [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
-  '╇': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,                              [Style.BOLD]: `${Shapes.MIDDLE_TO_TOP} ${Shapes.LEFT_TO_RIGHT}` },
-  '╈': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,                                 [Style.BOLD]: `${Shapes.LEFT_TO_RIGHT} ${Shapes.MIDDLE_TO_BOTTOM}` },
-  '╉': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,                               [Style.BOLD]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_LEFT}` },
-  '╊': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,                                [Style.BOLD]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_RIGHT}` },
+  '╼': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT, [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
+  '╽': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP, [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
+  '╾': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
+  '╿': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
+  '┍': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
+  '┎': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
+  '┑': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
+  '┒': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT, [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
+  '┕': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP, [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
+  '┖': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
+  '┙': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP, [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
+  '┚': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
+  '┝': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
+  '┞': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
+  '┟': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
+  '┠': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT, [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
+  '┡': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM, [Style.BOLD]: Shapes.TOP_TO_RIGHT },
+  '┢': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP, [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
+  '┥': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
+  '┦': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
+  '┧': { [Style.NORMAL]: Shapes.TOP_TO_LEFT, [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
+  '┨': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT, [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
+  '┩': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM, [Style.BOLD]: Shapes.TOP_TO_LEFT },
+  '┪': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP, [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
+  '┭': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
+  '┮': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM, [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
+  '┯': { [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM, [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
+  '┰': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM },
+  '┱': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT, [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
+  '┲': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT, [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
+  '┵': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_LEFT },
+  '┶': { [Style.NORMAL]: Shapes.TOP_TO_LEFT, [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT },
+  '┷': { [Style.NORMAL]: Shapes.MIDDLE_TO_TOP, [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
+  '┸': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT, [Style.BOLD]: Shapes.MIDDLE_TO_TOP },
+  '┹': { [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT, [Style.BOLD]: Shapes.TOP_TO_LEFT },
+  '┺': { [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT, [Style.BOLD]: Shapes.TOP_TO_RIGHT },
+  '┽': {
+    [Style.NORMAL]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_RIGHT}`,
+    [Style.BOLD]: Shapes.MIDDLE_TO_LEFT,
+  },
+  '┾': {
+    [Style.NORMAL]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_LEFT}`,
+    [Style.BOLD]: Shapes.MIDDLE_TO_RIGHT,
+  },
+  '┿': { [Style.NORMAL]: Shapes.TOP_TO_BOTTOM, [Style.BOLD]: Shapes.LEFT_TO_RIGHT },
+  '╀': {
+    [Style.NORMAL]: `${Shapes.LEFT_TO_RIGHT} ${Shapes.MIDDLE_TO_BOTTOM}`,
+    [Style.BOLD]: Shapes.MIDDLE_TO_TOP,
+  },
+  '╁': {
+    [Style.NORMAL]: `${Shapes.MIDDLE_TO_TOP} ${Shapes.LEFT_TO_RIGHT}`,
+    [Style.BOLD]: Shapes.MIDDLE_TO_BOTTOM,
+  },
+  '╂': { [Style.NORMAL]: Shapes.LEFT_TO_RIGHT, [Style.BOLD]: Shapes.TOP_TO_BOTTOM },
+  '╃': { [Style.NORMAL]: Shapes.RIGHT_TO_BOTTOM, [Style.BOLD]: Shapes.TOP_TO_LEFT },
+  '╄': { [Style.NORMAL]: Shapes.LEFT_TO_BOTTOM, [Style.BOLD]: Shapes.TOP_TO_RIGHT },
+  '╅': { [Style.NORMAL]: Shapes.TOP_TO_RIGHT, [Style.BOLD]: Shapes.LEFT_TO_BOTTOM },
+  '╆': { [Style.NORMAL]: Shapes.TOP_TO_LEFT, [Style.BOLD]: Shapes.RIGHT_TO_BOTTOM },
+  '╇': {
+    [Style.NORMAL]: Shapes.MIDDLE_TO_BOTTOM,
+    [Style.BOLD]: `${Shapes.MIDDLE_TO_TOP} ${Shapes.LEFT_TO_RIGHT}`,
+  },
+  '╈': {
+    [Style.NORMAL]: Shapes.MIDDLE_TO_TOP,
+    [Style.BOLD]: `${Shapes.LEFT_TO_RIGHT} ${Shapes.MIDDLE_TO_BOTTOM}`,
+  },
+  '╉': {
+    [Style.NORMAL]: Shapes.MIDDLE_TO_RIGHT,
+    [Style.BOLD]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_LEFT}`,
+  },
+  '╊': {
+    [Style.NORMAL]: Shapes.MIDDLE_TO_LEFT,
+    [Style.BOLD]: `${Shapes.TOP_TO_BOTTOM} ${Shapes.MIDDLE_TO_RIGHT}`,
+  },
 
   // Dashed
   '╌': { [Style.NORMAL]: Shapes.TWO_DASHES_HORIZONTAL },
-  '╍': { [Style.BOLD]:   Shapes.TWO_DASHES_HORIZONTAL },
+  '╍': { [Style.BOLD]: Shapes.TWO_DASHES_HORIZONTAL },
   '┄': { [Style.NORMAL]: Shapes.THREE_DASHES_HORIZONTAL },
-  '┅': { [Style.BOLD]:   Shapes.THREE_DASHES_HORIZONTAL },
+  '┅': { [Style.BOLD]: Shapes.THREE_DASHES_HORIZONTAL },
   '┈': { [Style.NORMAL]: Shapes.FOUR_DASHES_HORIZONTAL },
-  '┉': { [Style.BOLD]:   Shapes.FOUR_DASHES_HORIZONTAL },
+  '┉': { [Style.BOLD]: Shapes.FOUR_DASHES_HORIZONTAL },
   '╎': { [Style.NORMAL]: Shapes.TWO_DASHES_VERTICAL },
-  '╏': { [Style.BOLD]:   Shapes.TWO_DASHES_VERTICAL },
-  '┆': { [Style.NORMAL]: Shapes.THREE_DASHES_VERTICAL  },
-  '┇': { [Style.BOLD]:   Shapes.THREE_DASHES_VERTICAL },
+  '╏': { [Style.BOLD]: Shapes.TWO_DASHES_VERTICAL },
+  '┆': { [Style.NORMAL]: Shapes.THREE_DASHES_VERTICAL },
+  '┇': { [Style.BOLD]: Shapes.THREE_DASHES_VERTICAL },
   '┊': { [Style.NORMAL]: Shapes.FOUR_DASHES_VERTICAL },
-  '┋': { [Style.BOLD]:   Shapes.FOUR_DASHES_VERTICAL },
+  '┋': { [Style.BOLD]: Shapes.FOUR_DASHES_VERTICAL },
 
   // Curved
-  '╭': { [Style.NORMAL]: (_xp, yp) => `M.5,1 L.5,${.5 + (yp / .15 * .5)} C.5,${.5 + (yp / .15 * .5)},.5,.5,1,.5` },
-  '╮': { [Style.NORMAL]: (_xp, yp) => `M.5,1 L.5,${.5 + (yp / .15 * .5)} C.5,${.5 + (yp / .15 * .5)},.5,.5,0,.5` },
-  '╯': { [Style.NORMAL]: (_xp, yp) => `M.5,0 L.5,${.5 - (yp / .15 * .5)} C.5,${.5 - (yp / .15 * .5)},.5,.5,0,.5` },
-  '╰': { [Style.NORMAL]: (_xp, yp) => `M.5,0 L.5,${.5 - (yp / .15 * .5)} C.5,${.5 - (yp / .15 * .5)},.5,.5,1,.5` }
+  '╭': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,1 L.5,${0.5 + (yp / 0.15) * 0.5} C.5,${0.5 + (yp / 0.15) * 0.5},.5,.5,1,.5`,
+  },
+  '╮': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,1 L.5,${0.5 + (yp / 0.15) * 0.5} C.5,${0.5 + (yp / 0.15) * 0.5},.5,.5,0,.5`,
+  },
+  '╯': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,0 L.5,${0.5 - (yp / 0.15) * 0.5} C.5,${0.5 - (yp / 0.15) * 0.5},.5,.5,0,.5`,
+  },
+  '╰': {
+    [Style.NORMAL]: (_xp, yp) =>
+      `M.5,0 L.5,${0.5 - (yp / 0.15) * 0.5} C.5,${0.5 - (yp / 0.15) * 0.5},.5,.5,1,.5`,
+  },
 };
 
 interface IVectorShape {
@@ -353,7 +528,7 @@ interface IVectorShape {
 
 const enum VectorType {
   FILL,
-  STROKE
+  STROKE,
 }
 
 /**
@@ -371,19 +546,45 @@ export const powerlineDefinitions: { [index: string]: IVectorShape } = {
   // Right triangle solid
   '\u{E0B0}': { d: 'M0,0 L1,.5 L0,1', type: VectorType.FILL, rightPadding: 2 },
   // Right triangle line
-  '\u{E0B1}': { d: 'M-1,-.5 L1,.5 L-1,1.5', type: VectorType.STROKE, leftPadding: 1, rightPadding: 1 },
+  '\u{E0B1}': {
+    d: 'M-1,-.5 L1,.5 L-1,1.5',
+    type: VectorType.STROKE,
+    leftPadding: 1,
+    rightPadding: 1,
+  },
   // Left triangle solid
   '\u{E0B2}': { d: 'M1,0 L0,.5 L1,1', type: VectorType.FILL, leftPadding: 2 },
   // Left triangle line
-  '\u{E0B3}': { d: 'M2,-.5 L0,.5 L2,1.5', type: VectorType.STROKE, leftPadding: 1, rightPadding: 1 },
+  '\u{E0B3}': {
+    d: 'M2,-.5 L0,.5 L2,1.5',
+    type: VectorType.STROKE,
+    leftPadding: 1,
+    rightPadding: 1,
+  },
   // Right semi-circle solid
-  '\u{E0B4}': { d: 'M0,0 L0,1 C0.552,1,1,0.776,1,.5 C1,0.224,0.552,0,0,0', type: VectorType.FILL, rightPadding: 1 },
+  '\u{E0B4}': {
+    d: 'M0,0 L0,1 C0.552,1,1,0.776,1,.5 C1,0.224,0.552,0,0,0',
+    type: VectorType.FILL,
+    rightPadding: 1,
+  },
   // Right semi-circle line
-  '\u{E0B5}': { d: 'M.2,1 C.422,1,.8,.826,.78,.5 C.8,.174,0.422,0,.2,0', type: VectorType.STROKE, rightPadding: 1 },
+  '\u{E0B5}': {
+    d: 'M.2,1 C.422,1,.8,.826,.78,.5 C.8,.174,0.422,0,.2,0',
+    type: VectorType.STROKE,
+    rightPadding: 1,
+  },
   // Left semi-circle solid
-  '\u{E0B6}': { d: 'M1,0 L1,1 C0.448,1,0,0.776,0,.5 C0,0.224,0.448,0,1,0', type: VectorType.FILL, leftPadding: 1 },
+  '\u{E0B6}': {
+    d: 'M1,0 L1,1 C0.448,1,0,0.776,0,.5 C0,0.224,0.448,0,1,0',
+    type: VectorType.FILL,
+    leftPadding: 1,
+  },
   // Left semi-circle line
-  '\u{E0B7}': { d: 'M.8,1 C0.578,1,0.2,.826,.22,.5 C0.2,0.174,0.578,0,0.8,0', type: VectorType.STROKE, leftPadding: 1 },
+  '\u{E0B7}': {
+    d: 'M.8,1 C0.578,1,0.2,.826,.22,.5 C0.2,0.174,0.578,0,0.8,0',
+    type: VectorType.STROKE,
+    leftPadding: 1,
+  },
   // Lower left triangle
   '\u{E0B8}': { d: 'M-.5,-.5 L1.5,1.5 L-.5,1.5', type: VectorType.FILL },
   // Backslash separator
@@ -395,7 +596,7 @@ export const powerlineDefinitions: { [index: string]: IVectorShape } = {
   // Forward slash separator
   '\u{E0BD}': { d: 'M1.5,-.5 L-.5,1.5', type: VectorType.STROKE, leftPadding: 1, rightPadding: 1 },
   // Upper right triangle
-  '\u{E0BE}': { d: 'M-.5,-.5 L1.5,1.5 L1.5,-.5', type: VectorType.FILL }
+  '\u{E0BE}': { d: 'M-.5,-.5 L1.5,1.5 L1.5,-.5', type: VectorType.FILL },
 };
 // Forward slash separator redundant
 powerlineDefinitions['\u{E0BB}'] = powerlineDefinitions['\u{E0BD}'];
@@ -414,11 +615,18 @@ export function tryDrawCustomChar(
   deviceCellWidth: number,
   deviceCellHeight: number,
   fontSize: number,
-  devicePixelRatio: number
+  devicePixelRatio: number,
 ): boolean {
   const blockElementDefinition = blockElementDefinitions[c];
   if (blockElementDefinition) {
-    drawBlockElementChar(ctx, blockElementDefinition, xOffset, yOffset, deviceCellWidth, deviceCellHeight);
+    drawBlockElementChar(
+      ctx,
+      blockElementDefinition,
+      xOffset,
+      yOffset,
+      deviceCellWidth,
+      deviceCellHeight,
+    );
     return true;
   }
 
@@ -430,13 +638,30 @@ export function tryDrawCustomChar(
 
   const boxDrawingDefinition = boxDrawingDefinitions[c];
   if (boxDrawingDefinition) {
-    drawBoxDrawingChar(ctx, boxDrawingDefinition, xOffset, yOffset, deviceCellWidth, deviceCellHeight, devicePixelRatio);
+    drawBoxDrawingChar(
+      ctx,
+      boxDrawingDefinition,
+      xOffset,
+      yOffset,
+      deviceCellWidth,
+      deviceCellHeight,
+      devicePixelRatio,
+    );
     return true;
   }
 
   const powerlineDefinition = powerlineDefinitions[c];
   if (powerlineDefinition) {
-    drawPowerlineChar(ctx, powerlineDefinition, xOffset, yOffset, deviceCellWidth, deviceCellHeight, fontSize, devicePixelRatio);
+    drawPowerlineChar(
+      ctx,
+      powerlineDefinition,
+      xOffset,
+      yOffset,
+      deviceCellWidth,
+      deviceCellHeight,
+      fontSize,
+      devicePixelRatio,
+    );
     return true;
   }
 
@@ -449,7 +674,7 @@ function drawBlockElementChar(
   xOffset: number,
   yOffset: number,
   deviceCellWidth: number,
-  deviceCellHeight: number
+  deviceCellHeight: number,
 ): void {
   for (let i = 0; i < charDefinition.length; i++) {
     const box = charDefinition[i];
@@ -459,12 +684,15 @@ function drawBlockElementChar(
       xOffset + box.x * xEighth,
       yOffset + box.y * yEighth,
       box.w * xEighth,
-      box.h * yEighth
+      box.h * yEighth,
     );
   }
 }
 
-const cachedPatterns: Map<PatternDefinition, Map</* fillStyle */string, CanvasPattern>> = new Map();
+const cachedPatterns: Map<
+  PatternDefinition,
+  Map</* fillStyle */ string, CanvasPattern>
+> = new Map();
 
 function drawPatternChar(
   ctx: CanvasRenderingContext2D,
@@ -472,7 +700,7 @@ function drawPatternChar(
   xOffset: number,
   yOffset: number,
   deviceCellWidth: number,
-  deviceCellHeight: number
+  deviceCellHeight: number,
 ): void {
   let patternSet = cachedPatterns.get(charDefinition);
   if (!patternSet) {
@@ -502,16 +730,21 @@ function drawPatternChar(
       r = parseInt(fillStyle.slice(1, 3), 16);
       g = parseInt(fillStyle.slice(3, 5), 16);
       b = parseInt(fillStyle.slice(5, 7), 16);
-      a = fillStyle.length > 7 && parseInt(fillStyle.slice(7, 9), 16) || 1;
+      a = (fillStyle.length > 7 && parseInt(fillStyle.slice(7, 9), 16)) || 1;
     } else if (fillStyle.startsWith('rgba')) {
-      ([r, g, b, a] = fillStyle.substring(5, fillStyle.length - 1).split(',').map(e => parseFloat(e)));
+      [r, g, b, a] = fillStyle
+        .substring(5, fillStyle.length - 1)
+        .split(',')
+        .map((e) => parseFloat(e));
     } else {
-      throw new Error(`Unexpected fillStyle color format "${fillStyle}" when drawing pattern glyph`);
+      throw new Error(
+        `Unexpected fillStyle color format "${fillStyle}" when drawing pattern glyph`,
+      );
     }
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        imageData.data[(y * width + x) * 4    ] = r;
+        imageData.data[(y * width + x) * 4] = r;
         imageData.data[(y * width + x) * 4 + 1] = g;
         imageData.data[(y * width + x) * 4 + 2] = b;
         imageData.data[(y * width + x) * 4 + 3] = charDefinition[y][x] * (a * 255);
@@ -572,7 +805,7 @@ function drawBoxDrawingChar(
   yOffset: number,
   deviceCellWidth: number,
   deviceCellHeight: number,
-  devicePixelRatio: number
+  devicePixelRatio: number,
 ): void {
   ctx.strokeStyle = ctx.fillStyle;
   for (const [fontWeight, instructions] of Object.entries(charDefinition)) {
@@ -580,8 +813,8 @@ function drawBoxDrawingChar(
     ctx.lineWidth = devicePixelRatio * Number.parseInt(fontWeight);
     let actualInstructions: string;
     if (typeof instructions === 'function') {
-      const xp = .15;
-      const yp = .15 / deviceCellHeight * deviceCellWidth;
+      const xp = 0.15;
+      const yp = (0.15 / deviceCellHeight) * deviceCellWidth;
       actualInstructions = instructions(xp, yp);
     } else {
       actualInstructions = instructions;
@@ -597,7 +830,18 @@ function drawBoxDrawingChar(
       if (!args[0] || !args[1]) {
         continue;
       }
-      f(ctx, translateArgs(args, deviceCellWidth, deviceCellHeight, xOffset, yOffset, true, devicePixelRatio));
+      f(
+        ctx,
+        translateArgs(
+          args,
+          deviceCellWidth,
+          deviceCellHeight,
+          xOffset,
+          yOffset,
+          true,
+          devicePixelRatio,
+        ),
+      );
     }
     ctx.stroke();
     ctx.closePath();
@@ -612,7 +856,7 @@ function drawPowerlineChar(
   deviceCellWidth: number,
   deviceCellHeight: number,
   fontSize: number,
-  devicePixelRatio: number
+  devicePixelRatio: number,
 ): void {
   // Clip the cell to make sure drawing doesn't occur beyond bounds
   const clipRegion = new Path2D();
@@ -634,17 +878,20 @@ function drawPowerlineChar(
     if (!args[0] || !args[1]) {
       continue;
     }
-    f(ctx, translateArgs(
-      args,
-      deviceCellWidth,
-      deviceCellHeight,
-      xOffset,
-      yOffset,
-      false,
-      devicePixelRatio,
-      (charDefinition.leftPadding ?? 0) * (cssLineWidth / 2),
-      (charDefinition.rightPadding ?? 0) * (cssLineWidth / 2)
-    ));
+    f(
+      ctx,
+      translateArgs(
+        args,
+        deviceCellWidth,
+        deviceCellHeight,
+        xOffset,
+        yOffset,
+        false,
+        devicePixelRatio,
+        (charDefinition.leftPadding ?? 0) * (cssLineWidth / 2),
+        (charDefinition.rightPadding ?? 0) * (cssLineWidth / 2),
+      ),
+    );
   }
   if (charDefinition.type === VectorType.STROKE) {
     ctx.strokeStyle = ctx.fillStyle;
@@ -660,13 +907,24 @@ function clamp(value: number, max: number, min: number = 0): number {
 }
 
 const svgToCanvasInstructionMap: { [index: string]: any } = {
-  'C': (ctx: CanvasRenderingContext2D, args: number[]) => ctx.bezierCurveTo(args[0], args[1], args[2], args[3], args[4], args[5]),
-  'L': (ctx: CanvasRenderingContext2D, args: number[]) => ctx.lineTo(args[0], args[1]),
-  'M': (ctx: CanvasRenderingContext2D, args: number[]) => ctx.moveTo(args[0], args[1])
+  C: (ctx: CanvasRenderingContext2D, args: number[]) =>
+    ctx.bezierCurveTo(args[0], args[1], args[2], args[3], args[4], args[5]),
+  L: (ctx: CanvasRenderingContext2D, args: number[]) => ctx.lineTo(args[0], args[1]),
+  M: (ctx: CanvasRenderingContext2D, args: number[]) => ctx.moveTo(args[0], args[1]),
 };
 
-function translateArgs(args: string[], cellWidth: number, cellHeight: number, xOffset: number, yOffset: number, doClamp: boolean, devicePixelRatio: number, leftPadding: number = 0, rightPadding: number = 0): number[] {
-  const result = args.map(e => parseFloat(e) || parseInt(e));
+function translateArgs(
+  args: string[],
+  cellWidth: number,
+  cellHeight: number,
+  xOffset: number,
+  yOffset: number,
+  doClamp: boolean,
+  devicePixelRatio: number,
+  leftPadding: number = 0,
+  rightPadding: number = 0,
+): number[] {
+  const result = args.map((e) => parseFloat(e) || parseInt(e));
 
   if (result.length < 2) {
     throw new Error('Too few arguments for instruction');
@@ -674,14 +932,14 @@ function translateArgs(args: string[], cellWidth: number, cellHeight: number, xO
 
   for (let x = 0; x < result.length; x += 2) {
     // Translate from 0-1 to 0-cellWidth
-    result[x] *= cellWidth - (leftPadding * devicePixelRatio) - (rightPadding * devicePixelRatio);
+    result[x] *= cellWidth - leftPadding * devicePixelRatio - rightPadding * devicePixelRatio;
     // Ensure coordinate doesn't escape cell bounds and round to the nearest 0.5 to ensure a crisp
     // line at 100% devicePixelRatio
     if (doClamp && result[x] !== 0) {
       result[x] = clamp(Math.round(result[x] + 0.5) - 0.5, cellWidth, 0);
     }
     // Apply the cell's offset (ie. x*cellWidth)
-    result[x] += xOffset + (leftPadding * devicePixelRatio);
+    result[x] += xOffset + leftPadding * devicePixelRatio;
   }
 
   for (let y = 1; y < result.length; y += 2) {

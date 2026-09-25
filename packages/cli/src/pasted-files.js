@@ -28,19 +28,11 @@ const MIME_CONFIG = {
   'image/png': {
     ext: '.png',
     check: (buf) =>
-      buf.length >= 8 &&
-      buf[0] === 0x89 &&
-      buf[1] === 0x50 &&
-      buf[2] === 0x4e &&
-      buf[3] === 0x47,
+      buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47,
   },
   'image/jpeg': {
     ext: '.jpg',
-    check: (buf) =>
-      buf.length >= 3 &&
-      buf[0] === 0xff &&
-      buf[1] === 0xd8 &&
-      buf[2] === 0xff,
+    check: (buf) => buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff,
   },
   'image/webp': {
     ext: '.webp',
@@ -58,11 +50,7 @@ const MIME_CONFIG = {
   'image/gif': {
     ext: '.gif',
     check: (buf) =>
-      buf.length >= 6 &&
-      buf[0] === 0x47 &&
-      buf[1] === 0x49 &&
-      buf[2] === 0x46 &&
-      buf[3] === 0x38, // 'GIF8'
+      buf.length >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38, // 'GIF8'
   },
 };
 
@@ -100,7 +88,9 @@ function cleanPastedDir({
     try {
       const stat = fs.statSync(fullPath);
       if (now - stat.mtimeMs > maxAgeMs) {
-        try { fs.unlinkSync(fullPath); } catch {}
+        try {
+          fs.unlinkSync(fullPath);
+        } catch {}
         continue;
       }
       fileInfos.push({ path: fullPath, size: stat.size, mtimeMs: stat.mtimeMs });

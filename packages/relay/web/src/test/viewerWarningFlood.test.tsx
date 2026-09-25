@@ -36,7 +36,7 @@ describe('The read-only warning does not flood the screen', () => {
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
   };
 
@@ -51,7 +51,7 @@ describe('The read-only warning does not flood the screen', () => {
           controllerId: 'client-other',
           hostId: 'host-1',
           clientId: 'client-me',
-        })
+        }),
       );
     });
 
@@ -112,7 +112,7 @@ describe('The read-only warning does not flood the screen', () => {
     await waitFor(() => expect(terminalCtx?.isController).toBe(true));
     act(() => {
       webSocketInstances[0].simulateMessage(
-        JSON.stringify({ type: 'control_revoked', reason: 'taken over' })
+        JSON.stringify({ type: 'control_revoked', reason: 'taken over' }),
       );
     });
     await waitFor(() => expect(terminalCtx?.isController).toBe(false));

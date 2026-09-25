@@ -31,7 +31,11 @@ export interface XtermRenderer extends Disposable {
   handleCharSizeChanged(): void;
   handleBlur(): void;
   handleFocus(): void;
-  handleSelectionChanged(start: [number, number] | undefined, end: [number, number] | undefined, columnSelectMode: boolean): void;
+  handleSelectionChanged(
+    start: [number, number] | undefined,
+    end: [number, number] | undefined,
+    columnSelectMode: boolean,
+  ): void;
   handleCursorMove(): void;
   clear(): void;
   renderRows(start: number, end: number): void;

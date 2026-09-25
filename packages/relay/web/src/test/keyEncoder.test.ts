@@ -34,8 +34,8 @@ describe('keyEncoder', () => {
     const bytes = encodeStringToBytes('hello\r\n');
     expect(bytes.length).toBe(7);
     expect(bytes[0]).toBe(104); // 'h'
-    expect(bytes[5]).toBe(13);  // '\r'
-    expect(bytes[6]).toBe(10);  // '\n'
+    expect(bytes[5]).toBe(13); // '\r'
+    expect(bytes[6]).toBe(10); // '\n'
   });
 
   it('provides valid ANSI sequences for navigation and function keys', () => {
@@ -86,7 +86,18 @@ describe('encodeKeyWithModifiers on special keys', () => {
 
 describe('isSingleKey', () => {
   it('accepts one character or one special-key sequence', () => {
-    for (const key of ['a', '你', '\r', '\x7f', '\x1b', ANSI_KEYS.LEFT, '\x1bOA', ANSI_KEYS.F1, ANSI_KEYS.F5, ANSI_KEYS.SHIFT_TAB]) {
+    for (const key of [
+      'a',
+      '你',
+      '\r',
+      '\x7f',
+      '\x1b',
+      ANSI_KEYS.LEFT,
+      '\x1bOA',
+      ANSI_KEYS.F1,
+      ANSI_KEYS.F5,
+      ANSI_KEYS.SHIFT_TAB,
+    ]) {
       expect(isSingleKey(key)).toBe(true);
     }
   });

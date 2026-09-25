@@ -1,9 +1,9 @@
 /**
  * WebUI Shortcut Management & Conflict Prevention
- * 
+ *
  * Ensures WebUI shortcuts NEVER intercept Herdr host / pane / tab shortcuts,
  * browser zoom (Ctrl +/-/0), or raw terminal keystrokes.
- * 
+ *
  * STRICT RULES:
  * 1. Never call preventDefault() or stopPropagation() on Ctrl, Alt, or Meta combinations.
  * 2. If the event originates in or is focused inside the terminal, ignore completely.
@@ -70,7 +70,7 @@ export interface WebUIShortcutHandlers {
  */
 export function attachWebUIShortcuts(
   handlers: WebUIShortcutHandlers,
-  options: { isModalOpen?: boolean; isSheetOpen?: boolean } = {}
+  options: { isModalOpen?: boolean; isSheetOpen?: boolean } = {},
 ): () => void {
   if (typeof window === 'undefined') return () => {};
 

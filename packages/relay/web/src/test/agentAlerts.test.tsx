@@ -10,7 +10,9 @@ import { saveSettings } from '../utils/storage';
  * to one per window, and never raise a toast: a notification per state change
  * is the flood the status chip was built to replace.
  */
-const Harness: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({ onReady }) => {
+const Harness: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
+  onReady,
+}) => {
   onReady(useTerminal());
   useAgentAlerts();
   return null;
@@ -20,19 +22,40 @@ function mount() {
   let ctx: ReturnType<typeof useTerminal> | undefined;
   render(
     <TerminalProvider>
-      <Harness onReady={(value) => { ctx = value; }} />
+      <Harness
+        onReady={(value) => {
+          ctx = value;
+        }}
+      />
     </TerminalProvider>,
   );
   const push = (statuses: Record<string, string>) => {
     const agents = Object.entries(statuses).map(([paneId, status]) => ({
-      paneId, workspaceId: 'w', agent: 'claude', title: null, status, focused: false,
+      paneId,
+      workspaceId: 'w',
+      agent: 'claude',
+      title: null,
+      status,
+      focused: false,
     }));
     const counts: Record<string, number> = {};
     for (const status of Object.values(statuses)) counts[status] = (counts[status] ?? 0) + 1;
-    // @ts-expect-error test mock
-    act(() => { ctx?.adapter?.emit('agentStatus', { type: 'agent_status', counts, total: agents.length, agents }); });
+    act(() => {
+      // @ts-expect-error test mock
+      ctx?.adapter?.emit('agentStatus', {
+        type: 'agent_status',
+        counts,
+        total: agents.length,
+        agents,
+      });
+    });
   };
-  return { push, get toasts() { return ctx?.toasts ?? []; } };
+  return {
+    push,
+    get toasts() {
+      return ctx?.toasts ?? [];
+    },
+  };
 }
 
 describe('Agent alerts', () => {

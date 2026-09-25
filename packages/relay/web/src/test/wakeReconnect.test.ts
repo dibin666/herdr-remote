@@ -66,7 +66,13 @@ function connected(overrides: Partial<ConnectionConfig> = {}) {
   const adapter = new HerdrClientAdapter({ ...config, ...overrides });
   adapter.connect();
   latest().open();
-  latest().serverJson({ type: 'ready', role: 'controller', controllerId: 'client-1', hostId: 'h', clientId: 'client-1' });
+  latest().serverJson({
+    type: 'ready',
+    role: 'controller',
+    controllerId: 'client-1',
+    hostId: 'h',
+    clientId: 'client-1',
+  });
   return adapter;
 }
 
@@ -199,7 +205,13 @@ describe('installWakeListeners', () => {
     window.dispatchEvent(new Event('pageshow'));
     window.dispatchEvent(new Event('focus'));
     document.dispatchEvent(new Event('resume'));
-    expect(wake.mock.calls.map(([reason]) => reason)).toEqual(['visible', 'online', 'pageshow', 'focus', 'resume']);
+    expect(wake.mock.calls.map(([reason]) => reason)).toEqual([
+      'visible',
+      'online',
+      'pageshow',
+      'focus',
+      'resume',
+    ]);
 
     remove();
     window.dispatchEvent(new Event('online'));

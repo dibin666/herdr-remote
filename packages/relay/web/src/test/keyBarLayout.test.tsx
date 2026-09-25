@@ -4,7 +4,11 @@ import { KeyToolbar } from '../components/KeyToolbar';
 import { Header } from '../components/Header';
 import { TerminalProvider } from '../context/TerminalContext';
 import { saveSettings } from '../utils/storage';
-import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, sanitizeVirtualKeys } from '../utils/virtualKeys';
+import {
+  ALL_AVAILABLE_KEYS,
+  DEFAULT_TOOLBAR_KEYS,
+  sanitizeVirtualKeys,
+} from '../utils/virtualKeys';
 
 /**
  * Where the touch keys sit, and what language the chrome speaks.
@@ -25,15 +29,24 @@ describe('Touch key bar layout', () => {
     return render(
       <TerminalProvider>
         <KeyToolbar />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
   };
 
   it('ends the default bar with Enter, where a keyboard puts it', () => {
     expect(DEFAULT_TOOLBAR_KEYS[DEFAULT_TOOLBAR_KEYS.length - 1].id).toBe('enter');
     expect(DEFAULT_TOOLBAR_KEYS.map((key) => key.id)).toEqual([
-      'esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
-      'drawer_symbols', 'drawer_fn', 'enter',
+      'esc',
+      'tab',
+      'ctrl',
+      'alt',
+      'left',
+      'up',
+      'down',
+      'right',
+      'drawer_symbols',
+      'drawer_fn',
+      'enter',
     ]);
   });
 
@@ -64,16 +77,41 @@ describe('Touch key bar layout', () => {
     // The previous shipped default had a dedicated Shift+Tab and Ctrl drawer.
     const byId = new Map(ALL_AVAILABLE_KEYS.map((key) => [key.id, key]));
     const legacy = [
-      'esc', 'tab', 'shift_tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right',
-      'drawer_chords', 'drawer_symbols', 'drawer_fn', 'enter',
+      'esc',
+      'tab',
+      'shift_tab',
+      'ctrl',
+      'alt',
+      'left',
+      'up',
+      'down',
+      'right',
+      'drawer_chords',
+      'drawer_symbols',
+      'drawer_fn',
+      'enter',
     ].map((id) => byId.get(id)!);
 
     const upgraded = sanitizeVirtualKeys(legacy);
     expect(upgraded.map((key) => key.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
 
-    const oldestLegacy = ['esc', 'tab', 'ctrl', 'alt', 'left', 'up', 'down', 'right', 'enter', 'drawer_chords', 'drawer_symbols', 'drawer_fn']
-      .map((id) => byId.get(id)!);
-    expect(sanitizeVirtualKeys(oldestLegacy).map((key) => key.id)).toEqual(DEFAULT_TOOLBAR_KEYS.map((key) => key.id));
+    const oldestLegacy = [
+      'esc',
+      'tab',
+      'ctrl',
+      'alt',
+      'left',
+      'up',
+      'down',
+      'right',
+      'enter',
+      'drawer_chords',
+      'drawer_symbols',
+      'drawer_fn',
+    ].map((id) => byId.get(id)!);
+    expect(sanitizeVirtualKeys(oldestLegacy).map((key) => key.id)).toEqual(
+      DEFAULT_TOOLBAR_KEYS.map((key) => key.id),
+    );
 
     // A layout the user actually arranged is left exactly as they left it.
     const custom = [legacy[0], legacy[1]];
@@ -90,7 +128,7 @@ describe('Touch key bar layout', () => {
     render(
       <TerminalProvider>
         <KeyToolbar compact={compact} onCustomize={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
     fireEvent.click(screen.getByRole('button', { name: /function keys/i }));
 
@@ -99,8 +137,10 @@ describe('Touch key bar layout', () => {
     expect(screen.getByRole('button', { name: 'F7' })).toBeInTheDocument();
     for (const button of buttons) {
       const heights = button.className.split(/\s+/).filter((token) => /^h-\d+$/.test(token));
-      expect({ label: button.getAttribute('aria-label') ?? button.textContent, heights })
-        .toEqual({ label: button.getAttribute('aria-label') ?? button.textContent, heights: [height] });
+      expect({ label: button.getAttribute('aria-label') ?? button.textContent, heights }).toEqual({
+        label: button.getAttribute('aria-label') ?? button.textContent,
+        heights: [height],
+      });
     }
   });
 
@@ -113,7 +153,9 @@ describe('Touch key bar layout', () => {
     // Everything else, the image button included, still scrolls.
     expect(within(strip).getByTestId('image-upload-btn')).toBeInTheDocument();
 
-    const enter = within(screen.getByTestId('key-toolbar-row')).getByRole('button', { name: /enter/i });
+    const enter = within(screen.getByTestId('key-toolbar-row')).getByRole('button', {
+      name: /enter/i,
+    });
     expect(enter.className).toContain('shrink-0');
   });
 
@@ -122,7 +164,7 @@ describe('Touch key bar layout', () => {
     render(
       <TerminalProvider>
         <KeyToolbar />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const handle = screen.getByTestId('key-toolbar-collapsed');
@@ -148,7 +190,7 @@ describe('Header commands', () => {
           onToggleVirtualKeyboard={() => {}}
           isVirtualKeyboardOpen={false}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
   it('says what it does in Chinese when the interface is Chinese', () => {

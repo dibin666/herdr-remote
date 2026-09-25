@@ -62,7 +62,10 @@ describe('HerdrClientAdapter Input Coalescing', () => {
     global.WebSocket = originalWebSocket;
   });
 
-  async function createConnectedAdapter(): Promise<{ adapter: HerdrClientAdapter; ws: MockWebSocket }> {
+  async function createConnectedAdapter(): Promise<{
+    adapter: HerdrClientAdapter;
+    ws: MockWebSocket;
+  }> {
     const adapter = new HerdrClientAdapter(baseConfig);
     adapter.connect();
     // Allow constructor microtask to open the socket

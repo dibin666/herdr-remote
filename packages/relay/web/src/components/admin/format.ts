@@ -25,11 +25,12 @@ export function formatUptime(seconds: number, t: Translate, compact = false): st
   const mins = Math.floor((total % 3600) / 60);
   const secs = total % 60;
   const unit = (value: number, key: string) => `${value}${t(`admin.unit${key}`)}`;
-  const parts = days > 0
-    ? [unit(days, 'Day'), unit(hours, 'Hour'), unit(mins, 'Minute')]
-    : hours > 0
-      ? [unit(hours, 'Hour'), unit(mins, 'Minute'), unit(secs, 'Second')]
-      : [unit(mins, 'Minute'), unit(secs, 'Second')];
+  const parts =
+    days > 0
+      ? [unit(days, 'Day'), unit(hours, 'Hour'), unit(mins, 'Minute')]
+      : hours > 0
+        ? [unit(hours, 'Hour'), unit(mins, 'Minute'), unit(secs, 'Second')]
+        : [unit(mins, 'Minute'), unit(secs, 'Second')];
   return (compact ? parts.slice(0, 2) : parts).join(' ');
 }
 

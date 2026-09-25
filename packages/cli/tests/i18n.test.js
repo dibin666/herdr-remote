@@ -11,8 +11,16 @@ test('both catalogues define exactly the same keys', () => {
   const missingInChinese = english.filter((key) => !(key in CATALOGUES.zh));
   const missingInEnglish = chinese.filter((key) => !(key in CATALOGUES.en));
 
-  assert.deepEqual(missingInChinese, [], `missing Chinese translations: ${missingInChinese.join(', ')}`);
-  assert.deepEqual(missingInEnglish, [], `missing English translations: ${missingInEnglish.join(', ')}`);
+  assert.deepEqual(
+    missingInChinese,
+    [],
+    `missing Chinese translations: ${missingInChinese.join(', ')}`,
+  );
+  assert.deepEqual(
+    missingInEnglish,
+    [],
+    `missing English translations: ${missingInEnglish.join(', ')}`,
+  );
 });
 
 test('every catalogue entry is a non-empty string', () => {
@@ -41,9 +49,15 @@ test('locale detection follows the preference, then the environment', () => {
 
   assert.equal(detectLocale({ preference: 'auto', env: { LANG: 'zh_CN.UTF-8' } }), 'zh');
   assert.equal(detectLocale({ preference: 'auto', env: { LANG: 'en_GB.UTF-8' } }), 'en');
-  assert.equal(detectLocale({ preference: 'auto', env: { LC_ALL: 'zh_TW.UTF-8', LANG: 'en_US.UTF-8' } }), 'zh');
+  assert.equal(
+    detectLocale({ preference: 'auto', env: { LC_ALL: 'zh_TW.UTF-8', LANG: 'en_US.UTF-8' } }),
+    'zh',
+  );
   assert.equal(detectLocale({ preference: 'auto', env: {} }), 'en');
-  assert.equal(detectLocale({ preference: 'auto', env: { HERDR_REMOTE_LANG: 'zh', LANG: 'en_US.UTF-8' } }), 'zh');
+  assert.equal(
+    detectLocale({ preference: 'auto', env: { HERDR_REMOTE_LANG: 'zh', LANG: 'en_US.UTF-8' } }),
+    'zh',
+  );
 });
 
 test('an unknown key falls back to English and then to the key itself', () => {

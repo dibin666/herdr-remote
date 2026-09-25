@@ -18,10 +18,9 @@ function emitAdapterEvent(
   event: string,
   ...args: unknown[]
 ): void {
-  (context?.adapter as unknown as { emit: (name: string, ...values: unknown[]) => void } | null)?.emit(
-    event,
-    ...args
-  );
+  (
+    context?.adapter as unknown as { emit: (name: string, ...values: unknown[]) => void } | null
+  )?.emit(event, ...args);
 }
 
 describe('KeyToolbar Image Upload & Progress Integration', () => {
@@ -50,7 +49,10 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  const setupTestSession = (role: 'controller' | 'viewer' = 'controller', language: 'zh' | 'en' = 'zh') => {
+  const setupTestSession = (
+    role: 'controller' | 'viewer' = 'controller',
+    language: 'zh' | 'en' = 'zh',
+  ) => {
     saveSettings({ toolbarVisible: true, language });
     let capturedCtx: ReturnType<typeof useTerminal> | null = null;
     const ContextCollector = () => {
@@ -64,7 +66,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
         <TerminalView isActive={true} />
         <KeyToolbar compact={false} />
         <ToastContainer />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const lastWs = webSocketInstances[webSocketInstances.length - 1];
@@ -93,7 +95,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const { unmount } = render(
       <TerminalProvider>
         <KeyToolbar compact={false} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const desktopBtn = screen.getByTestId('image-upload-btn');
@@ -113,7 +115,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     render(
       <TerminalProvider>
         <KeyToolbar compact={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const compactBtn = screen.getByTestId('image-upload-btn');
@@ -130,7 +132,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     render(
       <TerminalProvider>
         <KeyToolbar compact={false} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const btn = screen.getByTestId('image-upload-btn');
@@ -237,7 +239,9 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const compressPromise = new Promise((resolve) => {
       resolveCompress = resolve;
     });
-    vi.spyOn(imagePasteModule, 'compressAndPrepareImage').mockImplementation(() => compressPromise as any);
+    vi.spyOn(imagePasteModule, 'compressAndPrepareImage').mockImplementation(
+      () => compressPromise as any,
+    );
 
     setupTestSession('controller');
 
@@ -400,7 +404,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
       <TerminalProvider>
         <ContextCollector />
         <KeyToolbar compact={false} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -428,7 +432,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const { unmount } = render(
       <TerminalProvider>
         <KeyToolbar compact={false} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     let row = screen.getByTestId('key-toolbar-row');
@@ -458,7 +462,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     render(
       <TerminalProvider>
         <KeyToolbar compact={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     row = screen.getByTestId('key-toolbar-row');

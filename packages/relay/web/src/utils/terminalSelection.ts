@@ -56,7 +56,7 @@ export function pointToCell(
   point: SelectionPoint,
   term: Terminal,
   screenEl?: HTMLElement | null,
-  scale: number = 1.0
+  scale: number = 1.0,
 ): TerminalCellCoords | null {
   if (!term || !term.buffer?.active || term.cols <= 0 || term.rows <= 0) {
     return null;
@@ -126,7 +126,7 @@ function isSeparatorChars(chars: string, separators: string): boolean {
 export function wordRangeAt(
   term: Terminal,
   col: number,
-  bufferRow: number
+  bufferRow: number,
 ): TerminalColumnRange | null {
   if (!term || !term.buffer?.active || col < 0 || col >= term.cols) {
     return null;
@@ -375,7 +375,7 @@ export const LOCAL_PANE_DIVIDER_THRESHOLD = 0.8;
 
 function isHorizontalRuleRow(
   line: { length: number; getCell(x: number): { getChars(): string } | undefined } | undefined,
-  cols: number
+  cols: number,
 ): boolean {
   if (!line) return false;
   let count = 0;
@@ -417,11 +417,7 @@ function isHorizontalRuleRow(
  *   `{ startCol: col, endCol: col }` to prevent dragging or selecting across into either pane.
  * - If no dividers exist anywhere, the band covers the entire line width `[0, cols - 1]`.
  */
-export function paneColumnBand(
-  term: Terminal,
-  col: number,
-  bufferRow?: number
-): PaneColumnBand {
+export function paneColumnBand(term: Terminal, col: number, bufferRow?: number): PaneColumnBand {
   if (!term || !term.buffer?.active || term.cols <= 0) {
     return { startCol: 0, endCol: 0 };
   }
@@ -606,7 +602,7 @@ export function paneColumnBand(
  */
 export function clampRectToBand(
   rect: TerminalSelectionRect,
-  band: PaneColumnBand
+  band: PaneColumnBand,
 ): TerminalSelectionRect {
   const minCol = Math.min(rect.startCol, rect.endCol);
   const maxCol = Math.max(rect.startCol, rect.endCol);

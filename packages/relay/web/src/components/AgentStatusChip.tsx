@@ -19,7 +19,10 @@ import type { ServerAgentStatusMessage } from '../types/protocol';
  */
 
 /** Only what a person would act on. Idle and unknown are the resting state. */
-const REPORTED: ReadonlyArray<{ status: 'blocked' | 'done' | 'working'; level: 'warn' | 'ok' | 'accent' }> = [
+const REPORTED: ReadonlyArray<{
+  status: 'blocked' | 'done' | 'working';
+  level: 'warn' | 'ok' | 'accent';
+}> = [
   { status: 'blocked', level: 'warn' },
   { status: 'done', level: 'ok' },
   { status: 'working', level: 'accent' },
@@ -32,7 +35,9 @@ const REPORTED: ReadonlyArray<{ status: 'blocked' | 'done' | 'working'; level: '
  */
 export function agentStatusHasContent(agentStatus: ServerAgentStatusMessage | null): boolean {
   if (!agentStatus) return false;
-  return agentStatus.total > 0 || REPORTED.some(({ status }) => (agentStatus.counts?.[status] ?? 0) > 0);
+  return (
+    agentStatus.total > 0 || REPORTED.some(({ status }) => (agentStatus.counts?.[status] ?? 0) > 0)
+  );
 }
 
 export interface AgentStatusChipProps {
@@ -52,9 +57,11 @@ export const AgentStatusChip: React.FC<AgentStatusChipProps> = ({ className, com
   // is running" — so the chip is absent rather than reporting a zero.
   if (!agentStatus) return null;
 
-  const present = REPORTED
-    .map(({ status, level }) => ({ status, level, count: agentStatus.counts?.[status] ?? 0 }))
-    .filter((part) => part.count > 0);
+  const present = REPORTED.map(({ status, level }) => ({
+    status,
+    level,
+    count: agentStatus.counts?.[status] ?? 0,
+  })).filter((part) => part.count > 0);
   // REPORTED is ordered by urgency, so the first survivor is the one to keep.
   const parts = compact ? present.slice(0, 1) : present;
 

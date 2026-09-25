@@ -102,7 +102,8 @@ function sanitizeTerminalFont(value) {
   const font = { family };
   const size = Number(value.sizePx);
   if (Number.isFinite(size) && size >= 4 && size <= 96) font.sizePx = Math.round(size * 10) / 10;
-  if (typeof value.source === 'string' && /^[a-z0-9-]{1,32}$/.test(value.source)) font.source = value.source;
+  if (typeof value.source === 'string' && /^[a-z0-9-]{1,32}$/.test(value.source))
+    font.source = value.source;
 
   const faces = [];
   const seen = new Set();
@@ -110,7 +111,8 @@ function sanitizeTerminalFont(value) {
     if (!face || typeof face !== 'object') continue;
     if (!TERMINAL_FONT_STYLES.includes(face.style) || seen.has(face.style)) continue;
     if (!TERMINAL_FONT_FORMATS.includes(face.format)) continue;
-    if (!Number.isInteger(face.bytes) || face.bytes <= 0 || face.bytes > MAX_TERMINAL_FONT_BYTES) continue;
+    if (!Number.isInteger(face.bytes) || face.bytes <= 0 || face.bytes > MAX_TERMINAL_FONT_BYTES)
+      continue;
     if (typeof face.sha256 !== 'string' || !SHA256_HEX.test(face.sha256)) continue;
     seen.add(face.style);
     faces.push({ style: face.style, format: face.format, bytes: face.bytes, sha256: face.sha256 });

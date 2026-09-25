@@ -87,19 +87,13 @@ describe('a link that wraps across rows', () => {
   });
 
   it('does not run past a row that starts its own line', () => {
-    const term = fakeTerminal([
-      { text: 'https://herdr.dev' },
-      { text: '/not-a-continuation' },
-    ]);
+    const term = fakeTerminal([{ text: 'https://herdr.dev' }, { text: '/not-a-continuation' }]);
 
     expect(linkAtCell(term, 0, 0)).toBe('https://herdr.dev');
   });
 
   it('reports the offset of the tapped cell within the logical line', () => {
-    const term = fakeTerminal([
-      { text: 'abcde' },
-      { text: 'fghij', wrapped: true },
-    ]);
+    const term = fakeTerminal([{ text: 'abcde' }, { text: 'fghij', wrapped: true }]);
 
     expect(logicalLineAt(term, 2, 1)).toEqual({ text: 'abcdefghij', index: 7 });
     expect(logicalLineAt(term, 0, 9)).toBeNull();

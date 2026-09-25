@@ -35,7 +35,11 @@ export function isCoarsePointerDevice(): boolean {
  */
 export function getViewportWidth(): number {
   if (typeof window === 'undefined') return 1024;
-  if (window.visualViewport && typeof window.visualViewport.width === 'number' && window.visualViewport.width > 0) {
+  if (
+    window.visualViewport &&
+    typeof window.visualViewport.width === 'number' &&
+    window.visualViewport.width > 0
+  ) {
     return window.visualViewport.width;
   }
   return window.innerWidth || 1024;
@@ -77,7 +81,7 @@ export function clampFontSize(fontSize: unknown, fallback = DEFAULT_DESKTOP_FONT
  */
 export function getEffectiveTerminalFontSize(
   userFontSize: number,
-  viewportWidth: number = getViewportWidth()
+  viewportWidth: number = getViewportWidth(),
 ): number {
   const isMobile = viewportWidth < MOBILE_BREAKPOINT_PX;
   if (isMobile) {

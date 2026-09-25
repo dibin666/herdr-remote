@@ -86,7 +86,7 @@ export function computeContainerGridFit(input: GridFitInput): GridFit {
   const safeCellWidth = positiveOr(cellWidth, DEFAULT_BASE_FONT_SIZE * FALLBACK_CELL_WIDTH_RATIO);
   const safeCellHeight = positiveOr(
     cellHeight,
-    DEFAULT_BASE_FONT_SIZE * FALLBACK_CELL_HEIGHT_RATIO
+    DEFAULT_BASE_FONT_SIZE * FALLBACK_CELL_HEIGHT_RATIO,
   );
 
   return {
@@ -112,21 +112,23 @@ export interface CellMetrics {
  */
 export function measureCellDimensions(
   term: Terminal | null,
-  fallbackFontSize = DEFAULT_BASE_FONT_SIZE
+  fallbackFontSize = DEFAULT_BASE_FONT_SIZE,
 ): CellMetrics {
   if (term) {
     try {
-      const core = (term as unknown as {
-        _core?: {
-          _renderService?: {
-            dimensions?: {
-              css?: {
-                cell?: { width?: number; height?: number };
+      const core = (
+        term as unknown as {
+          _core?: {
+            _renderService?: {
+              dimensions?: {
+                css?: {
+                  cell?: { width?: number; height?: number };
+                };
               };
             };
           };
-        };
-      })._core;
+        }
+      )._core;
 
       const cssCell = core?._renderService?.dimensions?.css?.cell;
       if (cssCell && cssCell.width && cssCell.width > 0 && cssCell.height && cssCell.height > 0) {
@@ -160,7 +162,7 @@ export function measureScrollbarWidth(root: HTMLElement | null): number {
 export function measureElementBox(
   element: HTMLElement | null,
   fallbackWidth: number,
-  fallbackHeight: number
+  fallbackHeight: number,
 ): { width: number; height: number } {
   if (!element) return { width: fallbackWidth, height: fallbackHeight };
 
@@ -189,7 +191,7 @@ export function screenToLogicalCoords(
   screenX: number,
   screenY: number,
   surfaceRect: { left: number; top: number },
-  scale: number
+  scale: number,
 ): { clientX: number; clientY: number } {
   const safeScale = Number.isFinite(scale) && scale > 0.01 ? scale : 1.0;
   return {
@@ -203,7 +205,7 @@ export function logicalToScreenCoords(
   logicalX: number,
   logicalY: number,
   surfaceRect: { left: number; top: number },
-  scale: number
+  scale: number,
 ): { screenX: number; screenY: number } {
   const safeScale = Number.isFinite(scale) && scale > 0.01 ? scale : 1.0;
   return {

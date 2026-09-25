@@ -25,7 +25,11 @@ const originalHeight = window.innerHeight;
 
 function setViewport({ width, height }: { width: number; height: number }): void {
   Object.defineProperty(window, 'innerWidth', { value: width, writable: true, configurable: true });
-  Object.defineProperty(window, 'innerHeight', { value: height, writable: true, configurable: true });
+  Object.defineProperty(window, 'innerHeight', {
+    value: height,
+    writable: true,
+    configurable: true,
+  });
 }
 
 /** Drives `isCoarsePointerDevice()`, which selects the renderer and input path. */
@@ -42,7 +46,10 @@ function setPointerKind(kind: 'coarse' | 'fine'): void {
   })) as unknown as typeof window.matchMedia;
 }
 
-const settle = (ms = 60) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+const settle = (ms = 60) =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, ms));
+  });
 
 let terminalCtx: ReturnType<typeof useTerminal> | undefined;
 
@@ -57,7 +64,7 @@ const renderTerminal = () => {
     <TerminalProvider>
       <CaptureContext />
       <TerminalView isActive={true} />
-    </TerminalProvider>
+    </TerminalProvider>,
   );
 };
 
@@ -152,7 +159,9 @@ describe('Mobile terminal geometry', () => {
 
     // ...and the grid covers the box: under one cell of remainder in each axis.
     expect(PHONE.width - term.cols * renderedCell.cellWidth).toBeLessThan(renderedCell.cellWidth);
-    expect(PHONE.height - term.rows * renderedCell.cellHeight).toBeLessThan(renderedCell.cellHeight);
+    expect(PHONE.height - term.rows * renderedCell.cellHeight).toBeLessThan(
+      renderedCell.cellHeight,
+    );
   });
 
   it('lets the touch controller own vertical panning on phones', async () => {
@@ -359,12 +368,13 @@ describe('Terminal input reaches the PTY', () => {
     const term = xtermInstances[0];
     term.modes.mouseTrackingMode = 'none';
     const { container } = elements();
-    const point = (y: number) => ({
-      clientX: 120,
-      clientY: y,
-      pageX: 120,
-      pageY: y,
-    }) as Touch;
+    const point = (y: number) =>
+      ({
+        clientX: 120,
+        clientY: y,
+        pageX: 120,
+        pageY: y,
+      }) as Touch;
     const touchEvent = (type: 'touchstart' | 'touchmove' | 'touchend', y: number) =>
       new TouchEvent(type, {
         bubbles: true,
@@ -411,12 +421,13 @@ describe('Terminal input reaches the PTY', () => {
     const { container } = elements();
     term.buffer.active.cursorY = 16;
     grantControl();
-    const point = (y: number) => ({
-      clientX: 120,
-      clientY: y,
-      pageX: 120,
-      pageY: y,
-    }) as Touch;
+    const point = (y: number) =>
+      ({
+        clientX: 120,
+        clientY: y,
+        pageX: 120,
+        pageY: y,
+      }) as Touch;
     const touchEvent = (type: 'touchstart' | 'touchend', y: number) =>
       new TouchEvent(type, {
         bubbles: true,
@@ -449,7 +460,9 @@ describe('Terminal input reaches the PTY', () => {
     // for application drag interactions; vertical gestures belong to scrollback.
     term.modes.mouseTrackingMode = 'any-event';
     const triggerMouseEvent = vi.fn(() => true);
-    (term._core as { coreMouseService?: { triggerMouseEvent: typeof triggerMouseEvent } }).coreMouseService = {
+    (
+      term._core as { coreMouseService?: { triggerMouseEvent: typeof triggerMouseEvent } }
+    ).coreMouseService = {
       triggerMouseEvent,
     };
     grantControl();
@@ -521,7 +534,9 @@ describe('Renderer selection', () => {
   it('falls back to DOM rows when canvas cannot be constructed', async () => {
     setPointerKind('fine');
     setViewport(DESKTOP);
-    (HerdrRenderer as unknown as { failNext: Error | null }).failNext = new Error('canvas unavailable');
+    (HerdrRenderer as unknown as { failNext: Error | null }).failNext = new Error(
+      'canvas unavailable',
+    );
 
     renderTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));

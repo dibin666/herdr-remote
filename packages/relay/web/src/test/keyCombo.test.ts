@@ -57,12 +57,19 @@ describe('agent key combo encoding', () => {
 
   it('rejects malformed combos with a field-ready error', () => {
     const captureError = (combo: string) => {
-      try { parseKeyCombo(combo); } catch (error) { return error; }
+      try {
+        parseKeyCombo(combo);
+      } catch (error) {
+        return error;
+      }
       throw new Error('expected combo to be rejected');
     };
     expect(captureError('')).toBeInstanceOf(KeyComboError);
     expect(captureError('')).toMatchObject({ code: 'empty' });
     expect(captureError('ctrl++')).toMatchObject({ code: 'invalidStepSyntax' });
-    expect(captureError('ctrl+unknown')).toMatchObject({ code: 'unsupportedKey', params: { step: 1, key: 'unknown' } });
+    expect(captureError('ctrl+unknown')).toMatchObject({
+      code: 'unsupportedKey',
+      params: { step: 1, key: 'unknown' },
+    });
   });
 });

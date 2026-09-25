@@ -54,13 +54,35 @@ function parseArgs(argv) {
   const flags = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--json') { flags.json = true; continue; }
-    if (arg === '--daemon') { flags.daemon = true; continue; }
-    if (arg === '--help' || arg === '-h') { flags.help = true; continue; }
-    if (arg === '--version' || arg === '-v') { flags.version = true; continue; }
-    if (arg === '--lang') { flags.lang = argv[index + 1]; index += 1; continue; }
-    if (arg.startsWith('--lang=')) { flags.lang = arg.slice('--lang='.length); continue; }
-    if (arg.startsWith('-')) { flags.unknown = arg; continue; }
+    if (arg === '--json') {
+      flags.json = true;
+      continue;
+    }
+    if (arg === '--daemon') {
+      flags.daemon = true;
+      continue;
+    }
+    if (arg === '--help' || arg === '-h') {
+      flags.help = true;
+      continue;
+    }
+    if (arg === '--version' || arg === '-v') {
+      flags.version = true;
+      continue;
+    }
+    if (arg === '--lang') {
+      flags.lang = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--lang=')) {
+      flags.lang = arg.slice('--lang='.length);
+      continue;
+    }
+    if (arg.startsWith('-')) {
+      flags.unknown = arg;
+      continue;
+    }
     positional.push(arg);
   }
   return { positional, flags };
@@ -74,19 +96,31 @@ function describeStatus(status, t) {
   const lines = [];
   lines.push(`${t('overview.mode')}: ${t(`mode.${status.mode}`)}`);
   if (status.relay.local) {
-    lines.push(`${t('overview.relay')}: ${status.relay.alive ? t('common.running') : t('common.stopped')} (${status.relay.bind}:${status.relay.port})`);
+    lines.push(
+      `${t('overview.relay')}: ${status.relay.alive ? t('common.running') : t('common.stopped')} (${status.relay.bind}:${status.relay.port})`,
+    );
   } else {
     lines.push(`${t('overview.relay')}: ${status.relay.remoteUrl}`);
   }
-  lines.push(`${t('overview.host')}: ${status.host.alive ? t('common.running') : t('common.stopped')}`);
-  lines.push(`${t('overview.socket')}: ${status.host.socketPath}${status.host.socketExists ? '' : ` (${t('overview.socketMissing')})`}`);
+  lines.push(
+    `${t('overview.host')}: ${status.host.alive ? t('common.running') : t('common.stopped')}`,
+  );
+  lines.push(
+    `${t('overview.socket')}: ${status.host.socketPath}${status.host.socketExists ? '' : ` (${t('overview.socketMissing')})`}`,
+  );
   lines.push(`${t('overview.webUrl')}: ${status.publicUrl}`);
   if (status.keepalive) {
-    const state = status.keepalive.active ? t('common.running') : status.keepalive.installed ? t('common.installed') : t('common.notInstalled');
+    const state = status.keepalive.active
+      ? t('common.running')
+      : status.keepalive.installed
+        ? t('common.installed')
+        : t('common.notInstalled');
     lines.push(`${t('overview.keepalive')}: ${status.keepalive.manager} — ${state}`);
   }
   if (status.relay.health && status.relay.health.ok === false) {
-    lines.push(`${t('overview.relay')}: ${t('overview.unreachable', { message: status.relay.health.message })}`);
+    lines.push(
+      `${t('overview.relay')}: ${t('overview.unreachable', { message: status.relay.health.message })}`,
+    );
   }
   return lines.join('\n');
 }
@@ -97,8 +131,7 @@ async function runTui(options) {
   const bundle = path.join(__dirname, '..', 'dist', 'tui.mjs');
   if (!fs.existsSync(bundle)) {
     process.stderr.write(
-      'herdr-remote: TUI bundle missing. Build first:\n'
-      + '  npm run build -w herdr-remote\n',
+      'herdr-remote: TUI bundle missing. Build first:\n' + '  npm run build -w herdr-remote\n',
     );
     process.exitCode = 1;
     return;
@@ -127,8 +160,14 @@ async function main(argv = process.argv.slice(2)) {
   const preference = flags.lang && LANGUAGES.includes(flags.lang) ? flags.lang : config.ui.language;
   const t = createTranslator(detectLocale({ preference }));
 
-  if (flags.help) { process.stdout.write(USAGE); return; }
-  if (flags.version) { process.stdout.write(`${VERSION}\n`); return; }
+  if (flags.help) {
+    process.stdout.write(USAGE);
+    return;
+  }
+  if (flags.version) {
+    process.stdout.write(`${VERSION}\n`);
+    return;
+  }
 
   // Lazily required so that `--help` and the TUI do not pay for loading the
   // service layer (which pulls in the relay package and node-pty).
@@ -149,7 +188,10 @@ async function main(argv = process.argv.slice(2)) {
     case 'start': {
       const result = lifecycle.startAll(config);
       if (flags.json) printJson(result);
-      else process.stdout.write(`${t('services.started')}\n${describeStatus(await lifecycle.fullStatus(config), t)}\n`);
+      else
+        process.stdout.write(
+          `${t('services.started')}\n${describeStatus(await lifecycle.fullStatus(config), t)}\n`,
+        );
       return;
     }
     case 'stop': {
@@ -172,11 +214,18 @@ async function main(argv = process.argv.slice(2)) {
     }
     case 'pair': {
       const pairing = await service.pair();
-      if (flags.json) { printJson(pairing); return; }
+      if (flags.json) {
+        printJson(pairing);
+        return;
+      }
       const code = service.extractPairingCode(pairing);
-      const url = pairing.pairUrl || `${resolvePublicUrl(config, preferredLanAddress())}/?pairCode=${encodeURIComponent(code)}`;
+      const url =
+        pairing.pairUrl ||
+        `${resolvePublicUrl(config, preferredLanAddress())}/?pairCode=${encodeURIComponent(code)}`;
       const minutes = `${Math.round((config.auth.pairingTtlMs || 600000) / 60000)}m`;
-      process.stdout.write(`${t('pair.code')}: ${code}\n${t('pair.url')}: ${url}\n${t('pair.expires', { minutes, time: new Date(pairing.expiresAt).toLocaleTimeString() })}\n`);
+      process.stdout.write(
+        `${t('pair.code')}: ${code}\n${t('pair.url')}: ${url}\n${t('pair.expires', { minutes, time: new Date(pairing.expiresAt).toLocaleTimeString() })}\n`,
+      );
       return;
     }
     case 'url': {

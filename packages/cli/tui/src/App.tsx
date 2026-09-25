@@ -65,7 +65,15 @@ const TABS: { id: TabId; labelKey: string }[] = [
   { id: 'about', labelKey: 'nav.about' },
 ];
 
-function Tab({ label, active, onSelect }: { label: string; active: boolean; onSelect: () => void }) {
+function Tab({
+  label,
+  active,
+  onSelect,
+}: {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
   const ref = useRef<DOMElement>(null);
   const hovered = useMouseTarget(ref, { onClick: onSelect });
   return (
@@ -121,9 +129,13 @@ export function App({
     if (!updateChecker) return undefined;
     let cancelled = false;
     updateChecker()
-      .then((result) => { if (!cancelled && result?.ok) setUpdateCheck(result); })
+      .then((result) => {
+        if (!cancelled && result?.ok) setUpdateCheck(result);
+      })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [updateChecker]);
 
   const locale: Locale = useMemo(
@@ -133,7 +145,10 @@ export function App({
   const t: Translate = useMemo(() => createTranslator(locale), [locale]);
 
   const dirty = useMemo(() => JSON.stringify(config) !== JSON.stringify(draft), [config, draft]);
-  const restartPending = useMemo(() => dirty && requiresRestart(config, draft), [config, draft, dirty]);
+  const restartPending = useMemo(
+    () => dirty && requiresRestart(config, draft),
+    [config, draft, dirty],
+  );
 
   const notify = useCallback((text: string, level: MessageLevel = 'info') => {
     setMessage({ text, level });
@@ -156,16 +171,19 @@ export function App({
    * Run an action with a busy flag and a single place to surface failures, so
    * no screen can leave the interface spinning or swallow an error.
    */
-  const run = useCallback((task: () => unknown | Promise<unknown>) => {
-    setBusy(true);
-    Promise.resolve()
-      .then(task)
-      .catch((error: Error) => notify(error.message, 'error'))
-      .finally(() => {
-        setBusy(false);
-        refresh();
-      });
-  }, [notify, refresh]);
+  const run = useCallback(
+    (task: () => unknown | Promise<unknown>) => {
+      setBusy(true);
+      Promise.resolve()
+        .then(task)
+        .catch((error: Error) => notify(error.message, 'error'))
+        .finally(() => {
+          setBusy(false);
+          refresh();
+        });
+    },
+    [notify, refresh],
+  );
 
   useEffect(() => {
     if (!wizardDone) return undefined;
@@ -208,22 +226,45 @@ export function App({
     setUpdateCheck,
   };
 
-  useInput((input, key) => {
-    if (key.ctrl && input === 'c') { exit(); return; }
-    if (input === 'q') { exit(); return; }
-    if (input === 'r') { setMessage(null); refresh(); return; }
-    if (input === 'm') {
-      if (!mouse.supported) { notify(t('hint.mouseUnsupported'), 'info'); return; }
-      mouseChoice.current = !mouse.enabled;
-      if (mouse.enabled) mouse.disable(); else mouse.enable();
-      return;
-    }
-    const index = TABS.findIndex((entry) => entry.id === tab);
-    if (key.rightArrow || (key.tab && !key.shift)) { setTab(TABS[(index + 1) % TABS.length].id); return; }
-    if (key.leftArrow || (key.tab && key.shift)) { setTab(TABS[(index - 1 + TABS.length) % TABS.length].id); return; }
-    const digit = Number.parseInt(input, 10);
-    if (Number.isInteger(digit) && digit >= 1 && digit <= TABS.length) setTab(TABS[digit - 1].id);
-  }, { isActive: wizardDone && editingId === null });
+  useInput(
+    (input, key) => {
+      if (key.ctrl && input === 'c') {
+        exit();
+        return;
+      }
+      if (input === 'q') {
+        exit();
+        return;
+      }
+      if (input === 'r') {
+        setMessage(null);
+        refresh();
+        return;
+      }
+      if (input === 'm') {
+        if (!mouse.supported) {
+          notify(t('hint.mouseUnsupported'), 'info');
+          return;
+        }
+        mouseChoice.current = !mouse.enabled;
+        if (mouse.enabled) mouse.disable();
+        else mouse.enable();
+        return;
+      }
+      const index = TABS.findIndex((entry) => entry.id === tab);
+      if (key.rightArrow || (key.tab && !key.shift)) {
+        setTab(TABS[(index + 1) % TABS.length].id);
+        return;
+      }
+      if (key.leftArrow || (key.tab && key.shift)) {
+        setTab(TABS[(index - 1 + TABS.length) % TABS.length].id);
+        return;
+      }
+      const digit = Number.parseInt(input, 10);
+      if (Number.isInteger(digit) && digit >= 1 && digit <= TABS.length) setTab(TABS[digit - 1].id);
+    },
+    { isActive: wizardDone && editingId === null },
+  );
 
   if (!wizardDone) {
     return (
@@ -243,7 +284,11 @@ export function App({
     t('hint.select'),
     t('hint.tabs'),
     dirty ? t('hint.save') : null,
-    mouse.supported ? (mouse.enabled ? t('hint.mouseOn') : t('hint.mouseOff')) : t('hint.mouseUnsupported'),
+    mouse.supported
+      ? mouse.enabled
+        ? t('hint.mouseOn')
+        : t('hint.mouseOff')
+      : t('hint.mouseUnsupported'),
     t('hint.quit'),
   ].filter(Boolean) as string[];
 

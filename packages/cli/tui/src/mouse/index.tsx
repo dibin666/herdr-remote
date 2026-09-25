@@ -49,8 +49,9 @@ export function measureElement(node: DOMElement | null): Rect | null {
  * single click and the selection lands on the wrong one.
  */
 export function rectContains(rect: Rect, x: number, y: number): boolean {
-  return x >= rect.left && x < rect.left + rect.width
-    && y >= rect.top && y < rect.top + rect.height;
+  return (
+    x >= rect.left && x < rect.left + rect.width && y >= rect.top && y < rect.top + rect.height
+  );
 }
 
 type Target = {
@@ -68,10 +69,18 @@ type MouseState = {
 
 // Two contexts on purpose: the registry must stay referentially stable, or
 // every hover would re-run the registration effect of every target on screen.
-const MouseRegistryContext = createContext<{ register: (target: Target) => () => void } | null>(null);
+const MouseRegistryContext = createContext<{ register: (target: Target) => () => void } | null>(
+  null,
+);
 const MouseStateContext = createContext<MouseState | null>(null);
 
-export function MouseProvider({ source, children }: { source: MouseSource | null; children: React.ReactNode }) {
+export function MouseProvider({
+  source,
+  children,
+}: {
+  source: MouseSource | null;
+  children: React.ReactNode;
+}) {
   const targets = useRef(new Set<Target>());
   const pressed = useRef<Target | null>(null);
   const [hovered, setHovered] = useState<Target | null>(null);
@@ -147,12 +156,15 @@ export function MouseProvider({ source, children }: { source: MouseSource | null
   }, [source]);
 
   const registry = useMemo(() => ({ register }), [register]);
-  const state = useMemo<MouseState>(() => ({
-    supported: Boolean(source?.supported),
-    enabled,
-    enable,
-    disable,
-  }), [source, enabled, enable, disable]);
+  const state = useMemo<MouseState>(
+    () => ({
+      supported: Boolean(source?.supported),
+      enabled,
+      enable,
+      disable,
+    }),
+    [source, enabled, enable, disable],
+  );
 
   return (
     <MouseRegistryContext.Provider value={registry}>
@@ -189,11 +201,14 @@ export function useMouseTarget(
   const handler = useRef(onClick);
   handler.current = onClick;
 
-  const target = useMemo<Target>(() => ({
-    ref,
-    onClick: () => handler.current?.(),
-    onHover: setHovered,
-  }), [ref]);
+  const target = useMemo<Target>(
+    () => ({
+      ref,
+      onClick: () => handler.current?.(),
+      onHover: setHovered,
+    }),
+    [ref],
+  );
 
   useEffect(() => {
     if (!context || disabled) return undefined;

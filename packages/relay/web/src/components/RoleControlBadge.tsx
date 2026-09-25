@@ -40,7 +40,7 @@ export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = fa
     <div
       className={cn(
         'inline-flex min-w-0 select-none items-center gap-1.5 text-tui uppercase',
-        canType ? 'text-tui-ok' : 'text-tui-warn'
+        canType ? 'text-tui-ok' : 'text-tui-warn',
       )}
       role="status"
       aria-label={canType ? t('role.controllerMode') : t('role.viewerMode')}

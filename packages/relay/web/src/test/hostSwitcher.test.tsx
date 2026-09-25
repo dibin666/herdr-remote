@@ -46,13 +46,22 @@ describe('HostSwitcher', () => {
     expect(screen.getByRole('menu')).toHaveTextContent('Home');
 
     fireEvent.click(screen.getByRole('menuitem', { name: /Home/ }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Switch Herdr instance' })).toHaveTextContent('Home'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Switch Herdr instance' })).toHaveTextContent(
+        'Home',
+      ),
+    );
     expect(add).not.toHaveBeenCalled();
   });
 
   it('opens the add-profile action without exposing tokens', () => {
     const first = profile('profile-a', 'Office', 'host-a');
-    saveSettings({ profiles: [first], activeProfileId: first.id, wsUrl: first.wsUrl, token: first.token });
+    saveSettings({
+      profiles: [first],
+      activeProfileId: first.id,
+      wsUrl: first.wsUrl,
+      token: first.token,
+    });
     const add = vi.fn();
     render(
       <TerminalProvider>

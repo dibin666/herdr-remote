@@ -27,8 +27,17 @@ function inspectSocket(socketPath, options = {}) {
     if (process.platform !== 'win32' && !stat.isSocket()) {
       return { ok: false, reason: 'path is not a Unix socket', path: socketPath };
     }
-    if (options.requireOwner !== false && typeof process.getuid === 'function' && stat.uid !== process.getuid()) {
-      return { ok: false, reason: 'socket is not owned by the current user', path: socketPath, uid: stat.uid };
+    if (
+      options.requireOwner !== false &&
+      typeof process.getuid === 'function' &&
+      stat.uid !== process.getuid()
+    ) {
+      return {
+        ok: false,
+        reason: 'socket is not owned by the current user',
+        path: socketPath,
+        uid: stat.uid,
+      };
     }
     return { ok: true, path: socketPath, uid: stat.uid, mode: stat.mode };
   } catch (error) {

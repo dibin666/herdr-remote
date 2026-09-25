@@ -29,7 +29,7 @@ describe('Frontend Security & URL Redaction', () => {
     render(
       <TerminalProvider>
         <PairingModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const copyBtn = screen.getByRole('button', { name: /Copy direct pairing link/i });
@@ -47,7 +47,9 @@ describe('Frontend Security & URL Redaction', () => {
     // Simulate arriving at /admin?token=secret-token-xyz&pairCode=CODE12
     const originalLocation = window.location;
     delete (window as unknown as { location: unknown }).location;
-    window.location = new URL('http://localhost:5173/admin?token=secret-token-xyz&pairCode=CODE12') as unknown as Location;
+    window.location = new URL(
+      'http://localhost:5173/admin?token=secret-token-xyz&pairCode=CODE12',
+    ) as unknown as Location;
 
     // Mock fetch for admin status
     global.fetch = vi.fn().mockResolvedValue({
@@ -60,11 +62,25 @@ describe('Frontend Security & URL Redaction', () => {
           clients: [],
           hosts: [],
           ptys: [],
-          throughput: { bytesIn: 0, bytesOut: 0, bytesInPerSec: 0, bytesOutPerSec: 0, framesIn: 0, framesOut: 0, framesInPerSec: 0, framesOutPerSec: 0 },
+          throughput: {
+            bytesIn: 0,
+            bytesOut: 0,
+            bytesInPerSec: 0,
+            bytesOutPerSec: 0,
+            framesIn: 0,
+            framesOut: 0,
+            framesInPerSec: 0,
+            framesOutPerSec: 0,
+          },
           cpu: { load1m: 0, load5m: 0, load15m: 0, cpuPercent: 0, cores: 1 },
           memory: { rssBytes: 0, heapUsedBytes: 0, heapTotalBytes: 0 },
           eventLoopDelay: { p50Ms: 0, p99Ms: 0, maxMs: 0 },
-          cleanup: { staleClientsPurged: 0, closedPtysCleaned: 0, deadConnectionsClosed: 0, idleHostsTerminated: 0 },
+          cleanup: {
+            staleClientsPurged: 0,
+            closedPtysCleaned: 0,
+            deadConnectionsClosed: 0,
+            idleHostsTerminated: 0,
+          },
           protocolVersion: 1,
         }),
     });

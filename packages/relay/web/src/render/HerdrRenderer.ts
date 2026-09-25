@@ -11,7 +11,15 @@ import {
   underlineStyleOf,
   type CellStyle,
 } from './cell';
-import { colorWordCss, isBold, isDim, isInvisible, isItalic, resolveCellColors, type ThemeColors } from './colors';
+import {
+  colorWordCss,
+  isBold,
+  isDim,
+  isInvisible,
+  isItalic,
+  resolveCellColors,
+  type ThemeColors,
+} from './colors';
 import { DIM_OPACITY, GlyphAtlas, isCustomGlyph } from './glyphAtlas';
 import {
   xtermCore,
@@ -138,7 +146,13 @@ export class HerdrRenderer implements XtermRenderer {
   private readonly redraw = new Emitter<{ start: number; end: number }>();
   readonly onRequestRedraw = this.redraw.event;
 
-  readonly stats: RenderStats = { frames: 0, heldFrames: 0, lastPaintMs: 0, lastCells: 0, lastInputToPaintMs: null };
+  readonly stats: RenderStats = {
+    frames: 0,
+    heldFrames: 0,
+    lastPaintMs: 0,
+    lastCells: 0,
+    lastInputToPaintMs: null,
+  };
 
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -178,7 +192,11 @@ export class HerdrRenderer implements XtermRenderer {
   private held: { start: number; end: number } | null = null;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private selection: { start: [number, number]; end: [number, number]; columnSelectMode: boolean } | null = null;
+  private selection: {
+    start: [number, number];
+    end: [number, number];
+    columnSelectMode: boolean;
+  } | null = null;
   private link: LinkEvent | null = null;
 
   private inputAt: number | null = null;
@@ -334,7 +352,11 @@ export class HerdrRenderer implements XtermRenderer {
     this.redrawDecor();
   }
 
-  handleSelectionChanged(start: [number, number] | undefined, end: [number, number] | undefined, columnSelectMode: boolean): void {
+  handleSelectionChanged(
+    start: [number, number] | undefined,
+    end: [number, number] | undefined,
+    columnSelectMode: boolean,
+  ): void {
     this.selection =
       start && end && !(start[0] === end[0] && start[1] === end[1])
         ? { start: [start[0], start[1]], end: [end[0], end[1]], columnSelectMode }
@@ -408,7 +430,10 @@ export class HerdrRenderer implements XtermRenderer {
     const create = this.core._createRenderer;
     if (typeof create === 'function') {
       this.core._renderService.setRenderer(create.call(this.core));
-      this.core._renderService.handleResize(this.core._bufferService.cols, this.core._bufferService.rows);
+      this.core._renderService.handleResize(
+        this.core._bufferService.cols,
+        this.core._bufferService.rows,
+      );
     }
     this.dispose();
   }
@@ -433,9 +458,13 @@ export class HerdrRenderer implements XtermRenderer {
       for (let x = 0; x < cols; x++) {
         const i = y * this.cols + x;
         const word = painted.content[i];
-        if (word === INVALID || painted.meta[i] === Meta.COVERED || isInvisible(painted.fg[i])) continue;
+        if (word === INVALID || painted.meta[i] === Meta.COVERED || isInvisible(painted.fg[i]))
+          continue;
         const code = word & Content.CODEPOINT_MASK;
-        if (word & Content.IS_COMBINED_MASK ? painted.combined[i] !== '' : code !== 0 && code !== 32) return true;
+        if (
+          word & Content.IS_COMBINED_MASK ? painted.combined[i] !== '' : code !== 0 && code !== 32
+        )
+          return true;
       }
     }
     return false;
@@ -516,7 +545,11 @@ export class HerdrRenderer implements XtermRenderer {
       // Writing over either half of a wide character erases the whole of it.
       if (x > 0 && content[x] >>> Content.WIDTH_SHIFT === 0) this.blankAt(x - 1);
       const end = x + cell.width;
-      if (end < this.cols && content[end] >>> Content.WIDTH_SHIFT === 0 && content[end - 1] >>> Content.WIDTH_SHIFT === 2) {
+      if (
+        end < this.cols &&
+        content[end] >>> Content.WIDTH_SHIFT === 0 &&
+        content[end - 1] >>> Content.WIDTH_SHIFT === 2
+      ) {
         this.blankAt(end);
       }
       const packed = contentFor(cell.chars, cell.width);
@@ -565,7 +598,10 @@ export class HerdrRenderer implements XtermRenderer {
       if (x + cells > cols) cells = cols - x;
       if (cells === 1 && x + 1 < cols && this.overflowsInto(x)) cells = 2;
 
-      const cursorShape = cursor && cursor.y === y && cursor.x >= x && cursor.x < x + cells ? cursor.shape : CursorShape.NONE;
+      const cursorShape =
+        cursor && cursor.y === y && cursor.x >= x && cursor.x < x + cells
+          ? cursor.shape
+          : CursorShape.NONE;
       const meta = cells | (cursorShape << Meta.CURSOR_SHIFT);
 
       let dirty = this.differs(base + x, x, meta);
@@ -631,12 +667,24 @@ export class HerdrRenderer implements XtermRenderer {
     if (word >>> Content.WIDTH_SHIFT !== 1 || isInvisible(fg[x])) return false;
     const next = content[x + 1];
     const nextCode = next & Content.CODEPOINT_MASK;
-    if (next >>> Content.WIDTH_SHIFT !== 1 || next & Content.IS_COMBINED_MASK || (nextCode !== 0 && nextCode !== 32)) return false;
-    if (bg[x] !== bg[x + 1] || ext[x + 1] !== 0 || (fg[x] & FgFlags.INVERSE) !== (fg[x + 1] & FgFlags.INVERSE)) return false;
-    if ((fg[x] & FgFlags.INVERSE) && fg[x] !== fg[x + 1]) return false;
-    if (fg[x + 1] & (FgFlags.UNDERLINE | FgFlags.STRIKETHROUGH) || bg[x + 1] & BgFlags.OVERLINE) return false;
+    if (
+      next >>> Content.WIDTH_SHIFT !== 1 ||
+      next & Content.IS_COMBINED_MASK ||
+      (nextCode !== 0 && nextCode !== 32)
+    )
+      return false;
+    if (
+      bg[x] !== bg[x + 1] ||
+      ext[x + 1] !== 0 ||
+      (fg[x] & FgFlags.INVERSE) !== (fg[x + 1] & FgFlags.INVERSE)
+    )
+      return false;
+    if (fg[x] & FgFlags.INVERSE && fg[x] !== fg[x + 1]) return false;
+    if (fg[x + 1] & (FgFlags.UNDERLINE | FgFlags.STRIKETHROUGH) || bg[x + 1] & BgFlags.OVERLINE)
+      return false;
     const chars = this.charsAt(x);
-    if (this.core.optionsService.rawOptions.customGlyphs !== false && isCustomGlyph(chars)) return false;
+    if (this.core.optionsService.rawOptions.customGlyphs !== false && isCustomGlyph(chars))
+      return false;
     return this.atlas.overflow(chars, isBold(fg[x]), isItalic(bg[x])) > 0;
   }
 
@@ -656,7 +704,8 @@ export class HerdrRenderer implements XtermRenderer {
     const blank = !(word & Content.IS_COMBINED_MASK) && (code === 0 || code === 32);
     const invisible = isInvisible(fg[x]);
     if (!blank && !invisible) return null;
-    const decorated = fg[x] & (FgFlags.UNDERLINE | FgFlags.STRIKETHROUGH) || bg[x] & BgFlags.OVERLINE;
+    const decorated =
+      fg[x] & (FgFlags.UNDERLINE | FgFlags.STRIKETHROUGH) || bg[x] & BgFlags.OVERLINE;
     if (decorated && !invisible) return null;
     return resolveCellColors(fg[x], bg[x], this.colors(), this.boldBright()).bg;
   }
@@ -719,7 +768,15 @@ export class HerdrRenderer implements XtermRenderer {
     }
   }
 
-  private paintDecorations(px: number, py: number, cells: number, fgWord: number, bgWord: number, ext: number, fgCss: string): void {
+  private paintDecorations(
+    px: number,
+    py: number,
+    cells: number,
+    fgWord: number,
+    bgWord: number,
+    ext: number,
+    fgCss: string,
+  ): void {
     const underline = (fgWord & FgFlags.UNDERLINE) !== 0;
     const strike = (fgWord & FgFlags.STRIKETHROUGH) !== 0;
     const overline = (bgWord & BgFlags.OVERLINE) !== 0;
@@ -742,7 +799,13 @@ export class HerdrRenderer implements XtermRenderer {
       let stroke = fgCss;
       if (colorWord) {
         let word = colorWord;
-        if (this.boldBright() && isBold(fgWord) && (word & 0x3000000) !== 0x3000000 && (word & 0xff) < 8) word += 8;
+        if (
+          this.boldBright() &&
+          isBold(fgWord) &&
+          (word & 0x3000000) !== 0x3000000 &&
+          (word & 0xff) < 8
+        )
+          word += 8;
         stroke = colorWordCss(word, this.colors(), fgCss);
       }
       ctx.strokeStyle = stroke;
@@ -800,7 +863,8 @@ export class HerdrRenderer implements XtermRenderer {
     }
     if (strike) {
       const strikeWidth = Math.max(1, Math.floor((options.fontSize * dpr) / 10));
-      const mid = py + dims.char.top + Math.floor(dims.char.height / 2) - (strikeWidth % 2 === 1 ? 0.5 : 0);
+      const mid =
+        py + dims.char.top + Math.floor(dims.char.height / 2) - (strikeWidth % 2 === 1 ? 0.5 : 0);
       ctx.strokeStyle = fgCss;
       ctx.lineWidth = strikeWidth;
       ctx.beginPath();
@@ -821,10 +885,20 @@ export class HerdrRenderer implements XtermRenderer {
     ctx.strokeStyle = colors.cursor.css;
     switch (shape) {
       case CursorShape.BAR:
-        ctx.fillRect(px, py, Math.max(1, Math.round(this.core.optionsService.rawOptions.cursorWidth * dpr)), dims.cell.height);
+        ctx.fillRect(
+          px,
+          py,
+          Math.max(1, Math.round(this.core.optionsService.rawOptions.cursorWidth * dpr)),
+          dims.cell.height,
+        );
         break;
       case CursorShape.UNDERLINE:
-        ctx.fillRect(px, py + dims.cell.height - Math.max(1, Math.round(dpr)) - 1, width, Math.max(1, Math.round(dpr)));
+        ctx.fillRect(
+          px,
+          py + dims.cell.height - Math.max(1, Math.round(dpr)) - 1,
+          width,
+          Math.max(1, Math.round(dpr)),
+        );
         break;
       case CursorShape.OUTLINE: {
         const line = Math.max(1, Math.round(dpr));
@@ -839,7 +913,12 @@ export class HerdrRenderer implements XtermRenderer {
   private fillCells(x: number, y: number, cells: number, css: string): void {
     const dims = this.dimensions.device;
     this.ctx.fillStyle = css;
-    this.ctx.fillRect(x * dims.cell.width, y * dims.cell.height, cells * dims.cell.width, dims.cell.height);
+    this.ctx.fillRect(
+      x * dims.cell.width,
+      y * dims.cell.height,
+      cells * dims.cell.width,
+      dims.cell.height,
+    );
   }
 
   private fillBackground(): void {
@@ -884,7 +963,11 @@ export class HerdrRenderer implements XtermRenderer {
   private restartBlink(): void {
     this.stopBlink();
     this.blinkVisible = true;
-    if (this.disposed || !this.core.optionsService.rawOptions.cursorBlink || !this.core._coreBrowserService.isFocused) {
+    if (
+      this.disposed ||
+      !this.core.optionsService.rawOptions.cursorBlink ||
+      !this.core._coreBrowserService.isFocused
+    ) {
       this.requestCursorRow();
       return;
     }
@@ -921,7 +1004,12 @@ export class HerdrRenderer implements XtermRenderer {
     const colors = this.colors();
     const ydisp = this.buffer().ydisp;
     const fill = (x: number, y: number, w: number, h: number) =>
-      ctx.fillRect(x * dims.cell.width, y * dims.cell.height, w * dims.cell.width, h * dims.cell.height);
+      ctx.fillRect(
+        x * dims.cell.width,
+        y * dims.cell.height,
+        w * dims.cell.width,
+        h * dims.cell.height,
+      );
 
     const selection = this.selection;
     if (selection) {
@@ -930,12 +1018,18 @@ export class HerdrRenderer implements XtermRenderer {
       const cappedStart = Math.max(startRow, 0);
       const cappedEnd = Math.min(endRow, this.rows - 1);
       if (cappedStart < this.rows && cappedEnd >= 0) {
-        ctx.fillStyle = (this.core._coreBrowserService.isFocused
-          ? colors.selectionBackgroundTransparent
-          : colors.selectionInactiveBackgroundTransparent
+        ctx.fillStyle = (
+          this.core._coreBrowserService.isFocused
+            ? colors.selectionBackgroundTransparent
+            : colors.selectionInactiveBackgroundTransparent
         ).css;
         if (selection.columnSelectMode) {
-          fill(selection.start[0], cappedStart, selection.end[0] - selection.start[0], cappedEnd - cappedStart + 1);
+          fill(
+            selection.start[0],
+            cappedStart,
+            selection.end[0] - selection.start[0],
+            cappedEnd - cappedStart + 1,
+          );
         } else {
           const startCol = startRow === cappedStart ? selection.start[0] : 0;
           const firstEnd = cappedStart === endRow ? selection.end[0] : this.cols;
@@ -958,7 +1052,12 @@ export class HerdrRenderer implements XtermRenderer {
             ? (colors.ansi[link.fg]?.css ?? colors.foreground.css)
             : colors.foreground.css;
       const underline = (x: number, y: number, w: number) =>
-        ctx.fillRect(x * dims.cell.width, (y + 1) * dims.cell.height - dpr - 1, w * dims.cell.width, dpr);
+        ctx.fillRect(
+          x * dims.cell.width,
+          (y + 1) * dims.cell.height - dpr - 1,
+          w * dims.cell.width,
+          dpr,
+        );
       if (link.y1 === link.y2) {
         underline(link.x1, link.y1, link.x2 - link.x1);
       } else {
@@ -985,7 +1084,10 @@ export class HerdrRenderer implements XtermRenderer {
     dims.device.char.width = Math.floor(charSize.width * dpr);
     dims.device.char.height = Math.ceil(charSize.height * dpr);
     dims.device.cell.height = Math.floor(dims.device.char.height * options.lineHeight);
-    dims.device.char.top = options.lineHeight === 1 ? 0 : Math.round((dims.device.cell.height - dims.device.char.height) / 2);
+    dims.device.char.top =
+      options.lineHeight === 1
+        ? 0
+        : Math.round((dims.device.cell.height - dims.device.char.height) / 2);
     dims.device.cell.width = dims.device.char.width + Math.round(options.letterSpacing);
     dims.device.char.left = Math.floor(options.letterSpacing / 2);
     dims.device.canvas.height = rows * dims.device.cell.height;

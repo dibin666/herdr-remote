@@ -19,7 +19,12 @@ async function loadMouse() {
     modulePromise = (async () => {
       const { build } = await import('esbuild');
       const { cjsBanner } = await import('../scripts/cjs-banner.mjs');
-      const directory = path.join(PACKAGE_ROOT, 'node_modules', '.cache', 'herdr-remote-mouse-test');
+      const directory = path.join(
+        PACKAGE_ROOT,
+        'node_modules',
+        '.cache',
+        'herdr-remote-mouse-test',
+      );
       fs.mkdirSync(directory, { recursive: true });
       const outfile = path.join(directory, 'mouse.mjs');
       await build({
@@ -46,7 +51,12 @@ test('SGR press, release and motion reports are decoded', async () => {
   const press = splitMouseInput(`${ESC}[<0;12;5M`);
   assert.equal(press.events.length, 1);
   assert.deepEqual(
-    { type: press.events[0].type, button: press.events[0].button, x: press.events[0].x, y: press.events[0].y },
+    {
+      type: press.events[0].type,
+      button: press.events[0].button,
+      x: press.events[0].x,
+      y: press.events[0].y,
+    },
     { type: 'press', button: 'left', x: 12, y: 5 },
   );
 
@@ -62,7 +72,10 @@ test('SGR press, release and motion reports are decoded', async () => {
   const wheel = splitMouseInput(`${ESC}[<64;1;1M`);
   assert.equal(wheel.events[0].type, 'wheel');
   assert.equal(wheel.events[0].button, 'wheel-up');
-  assert.equal((await loadMouse()).splitMouseInput(`${ESC}[<65;1;1M`).events[0].button, 'wheel-down');
+  assert.equal(
+    (await loadMouse()).splitMouseInput(`${ESC}[<65;1;1M`).events[0].button,
+    'wheel-down',
+  );
 });
 
 test('modifier bits are reported', async () => {

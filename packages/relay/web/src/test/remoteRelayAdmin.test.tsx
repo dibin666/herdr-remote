@@ -38,13 +38,35 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
       ],
       hosts: [],
       ptys: [
-        { id: 'pty-1', pid: 1234, command: 'bash', cols: 80, rows: 24, createdAt: new Date().toISOString(), activeClients: 1 },
+        {
+          id: 'pty-1',
+          pid: 1234,
+          command: 'bash',
+          cols: 80,
+          rows: 24,
+          createdAt: new Date().toISOString(),
+          activeClients: 1,
+        },
       ],
-      throughput: { bytesIn: 100, bytesOut: 200, bytesInPerSec: 10, bytesOutPerSec: 20, framesIn: 1, framesOut: 2, framesInPerSec: 1, framesOutPerSec: 1 },
+      throughput: {
+        bytesIn: 100,
+        bytesOut: 200,
+        bytesInPerSec: 10,
+        bytesOutPerSec: 20,
+        framesIn: 1,
+        framesOut: 2,
+        framesInPerSec: 1,
+        framesOutPerSec: 1,
+      },
       cpu: { load1m: 0.1, load5m: 0.2, load15m: 0.3, cpuPercent: 5.0, cores: 4 },
       memory: { rssBytes: 10485760, heapUsedBytes: 5242880, heapTotalBytes: 10485760 },
       eventLoopDelay: { p50Ms: 0.5, p99Ms: 1.2, maxMs: 2.0 },
-      cleanup: { staleClientsPurged: 0, closedPtysCleaned: 0, deadConnectionsClosed: 0, idleHostsTerminated: 0 },
+      cleanup: {
+        staleClientsPurged: 0,
+        closedPtysCleaned: 0,
+        deadConnectionsClosed: 0,
+        idleHostsTerminated: 0,
+      },
       protocolVersion: 1,
     };
 
@@ -74,7 +96,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => {
@@ -131,11 +153,13 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Remote Relay Administration|远程 Relay 服务管理/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Remote Relay Administration|远程 Relay 服务管理/i),
+      ).toBeInTheDocument();
     });
 
     // 1. Assert: /api/status was NEVER requested!
@@ -152,11 +176,17 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     // 3. Assert: Remote guidance view is rendered
     expect(screen.getByText('wss://relay.example.com/ws/client')).toBeInTheDocument();
 
-    const openRemoteBtn = screen.getByRole('button', { name: /Open Remote Admin|前往远程管理后台/i });
+    const openRemoteBtn = screen.getByRole('button', {
+      name: /Open Remote Admin|前往远程管理后台/i,
+    });
     expect(openRemoteBtn).toBeInTheDocument();
 
     fireEvent.click(openRemoteBtn);
-    expect(windowOpenSpy).toHaveBeenCalledWith('https://relay.example.com/admin', '_blank', 'noopener,noreferrer');
+    expect(windowOpenSpy).toHaveBeenCalledWith(
+      'https://relay.example.com/admin',
+      '_blank',
+      'noopener,noreferrer',
+    );
   });
 
   it('allows entering X-Relay-Admin-Token to access /api/admin/status on remote relay without Bearer token', async () => {
@@ -197,15 +227,33 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
               startTime: new Date().toISOString(),
               serverTime: new Date().toISOString(),
               clients: [
-                { id: 'client-remote-op', role: 'controller', connectedAt: new Date().toISOString() },
+                {
+                  id: 'client-remote-op',
+                  role: 'controller',
+                  connectedAt: new Date().toISOString(),
+                },
               ],
               hosts: [],
               ptys: [],
-              throughput: { bytesIn: 0, bytesOut: 0, bytesInPerSec: 0, bytesOutPerSec: 0, framesIn: 0, framesOut: 0, framesInPerSec: 0, framesOutPerSec: 0 },
+              throughput: {
+                bytesIn: 0,
+                bytesOut: 0,
+                bytesInPerSec: 0,
+                bytesOutPerSec: 0,
+                framesIn: 0,
+                framesOut: 0,
+                framesInPerSec: 0,
+                framesOutPerSec: 0,
+              },
               cpu: { load1m: 0.5, load5m: 0.3, load15m: 0.2, cpuPercent: 12, cores: 8 },
               memory: { rssBytes: 1000, heapUsedBytes: 500, heapTotalBytes: 1000 },
               eventLoopDelay: { p50Ms: 1, p99Ms: 2, maxMs: 3 },
-              cleanup: { staleClientsPurged: 0, closedPtysCleaned: 0, deadConnectionsClosed: 0, idleHostsTerminated: 0 },
+              cleanup: {
+                staleClientsPurged: 0,
+                closedPtysCleaned: 0,
+                deadConnectionsClosed: 0,
+                idleHostsTerminated: 0,
+              },
               protocolVersion: 1,
             }),
         });
@@ -221,22 +269,30 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Remote Relay Administration|远程 Relay 服务管理/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Remote Relay Administration|远程 Relay 服务管理/i),
+      ).toBeInTheDocument();
     });
 
     // Click operator login button
-    const loginBtn = screen.getByRole('button', { name: /Verify & View Metrics|验证并查看服务端指标/i });
+    const loginBtn = screen.getByRole('button', {
+      name: /Verify & View Metrics|验证并查看服务端指标/i,
+    });
     fireEvent.click(loginBtn);
 
     // Enter token
-    const tokenInput = screen.getByPlaceholderText(/Enter RELAY_ADMIN_TOKEN|请输入 RELAY_ADMIN_TOKEN/i);
+    const tokenInput = screen.getByPlaceholderText(
+      /Enter RELAY_ADMIN_TOKEN|请输入 RELAY_ADMIN_TOKEN/i,
+    );
     fireEvent.change(tokenInput, { target: { value: 'secret-admin-pass' } });
 
-    const submitBtn = screen.getAllByRole('button', { name: /Verify & View Metrics|验证并查看服务端指标/i })[0];
+    const submitBtn = screen.getAllByRole('button', {
+      name: /Verify & View Metrics|验证并查看服务端指标/i,
+    })[0];
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
@@ -264,7 +320,16 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
       clients: [],
       hosts: [],
       ptys: [],
-      throughput: { bytesIn: 0, bytesOut: 0, bytesInPerSec: 0, bytesOutPerSec: 0, framesIn: 0, framesOut: 0, framesInPerSec: 0, framesOutPerSec: 0 },
+      throughput: {
+        bytesIn: 0,
+        bytesOut: 0,
+        bytesInPerSec: 0,
+        bytesOutPerSec: 0,
+        framesIn: 0,
+        framesOut: 0,
+        framesInPerSec: 0,
+        framesOutPerSec: 0,
+      },
       protocolVersion: 1,
     };
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
@@ -273,12 +338,25 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ ok: true, version: '0.3.11', protocol: 2, relayMode: 'remote', adminConfigured: true, adminPath: '/admin', adminStatusPath: '/api/admin/status' }),
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              version: '0.3.11',
+              protocol: 2,
+              relayMode: 'remote',
+              adminConfigured: true,
+              adminPath: '/admin',
+              adminStatusPath: '/api/admin/status',
+            }),
         });
       }
       const token = (init?.headers as Record<string, string>)?.['X-Relay-Admin-Token'];
       if (url === '/api/admin/status' && token === 'right') {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(statusPayload) });
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(statusPayload),
+        });
       }
       return Promise.resolve({ ok: false, status: 401, statusText: 'Unauthorized' });
     }) as unknown as typeof fetch;
@@ -286,7 +364,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
     render(
       <TerminalProvider>
         <AdminDashboard onBackToTerminal={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // No detour page whose only link points back at this page.
@@ -323,7 +401,7 @@ describe('Settings is where the dashboard is entered', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} onOpenAdmin={onOpenAdmin} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('Relay 管理面板')).toBeInTheDocument();

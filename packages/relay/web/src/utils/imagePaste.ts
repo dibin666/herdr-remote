@@ -80,7 +80,7 @@ export const IDLE_IMAGE_UPLOAD_PROGRESS: ImageUploadProgress = {
 export function calculateScaledDimensions(
   width: number,
   height: number,
-  maxLongEdge = MAX_LONG_EDGE
+  maxLongEdge = MAX_LONG_EDGE,
 ): { width: number; height: number } {
   if (width <= 0 || height <= 0) {
     return { width: Math.max(1, width), height: Math.max(1, height) };
@@ -205,7 +205,7 @@ async function decodeImageSource(blob: Blob): Promise<DecodedSource> {
 export async function compressAndPrepareImage(
   blob: Blob,
   maxLongEdge = MAX_LONG_EDGE,
-  maxBytes = MAX_PASTE_BYTES
+  maxBytes = MAX_PASTE_BYTES,
 ): Promise<PreparedImagePaste | null> {
   if (!blob || blob.size === 0) {
     return null;
@@ -226,7 +226,7 @@ export async function compressAndPrepareImage(
     const { width: targetWidth, height: targetHeight } = calculateScaledDimensions(
       decoded.width,
       decoded.height,
-      maxLongEdge
+      maxLongEdge,
     );
 
     const canvas = document.createElement('canvas');

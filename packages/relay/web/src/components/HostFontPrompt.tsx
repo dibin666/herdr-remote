@@ -22,7 +22,12 @@ export const TERMINAL_SOURCE_NAMES: Record<string, string> = {
   urxvt: 'urxvt',
 };
 
-const KNOWN_REASONS = ['host_font_unavailable', 'host_font_timeout', 'disconnected', 'font_api_unavailable'];
+const KNOWN_REASONS = [
+  'host_font_unavailable',
+  'host_font_timeout',
+  'disconnected',
+  'font_api_unavailable',
+];
 
 /**
  * The workstation's terminal font is not on this device: fetch it?
@@ -54,7 +59,8 @@ export const HostFontPrompt: React.FC = () => {
   // chunks it took.
   const wasBusy = useRef(false);
   useEffect(() => {
-    if (wasBusy.current && !busy && !failed && hostFont.interactive) addToast('success', t('hostFont.loaded'));
+    if (wasBusy.current && !busy && !failed && hostFont.interactive)
+      addToast('success', t('hostFont.loaded'));
     wasBusy.current = busy && hostFont.interactive;
   }, [busy, failed, hostFont.interactive, addToast, t]);
 
@@ -65,16 +71,23 @@ export const HostFontPrompt: React.FC = () => {
   const visible = font && settings.fontFamily === 'host' && !herdrLaunch && (asking || working);
   if (!visible) return null;
 
-  const primaryAsked = status === 'available' || (hostFont.interactive && (status === 'loading' || status === 'failed'));
-  const glyphsAsked = glyphs.source
-    && (glyphs.status === 'available' || (hostFont.interactive && (glyphs.status === 'loading' || glyphs.status === 'failed')));
+  const primaryAsked =
+    status === 'available' ||
+    (hostFont.interactive && (status === 'loading' || status === 'failed'));
+  const glyphsAsked =
+    glyphs.source &&
+    (glyphs.status === 'available' ||
+      (hostFont.interactive && (glyphs.status === 'loading' || glyphs.status === 'failed')));
 
   const host = hostname || activeProfile?.displayName || t('herdrLaunch.thisHost');
   const details = [
     font.sizePx ? `${Math.round(font.sizePx)}px` : null,
     font.source ? TERMINAL_SOURCE_NAMES[font.source] || font.source : null,
-  ].filter(Boolean).join(t('hostFont.detailSeparator'));
-  const reason = hostFont.error && KNOWN_REASONS.includes(hostFont.error) ? hostFont.error : 'other';
+  ]
+    .filter(Boolean)
+    .join(t('hostFont.detailSeparator'));
+  const reason =
+    hostFont.error && KNOWN_REASONS.includes(hostFont.error) ? hostFont.error : 'other';
   const ratio = hostFont.totalBytes ? hostFont.receivedBytes / hostFont.totalBytes : 0;
 
   return (
@@ -92,10 +105,10 @@ export const HostFontPrompt: React.FC = () => {
         <p className="leading-snug text-tui-text">
           {primaryAsked || !glyphs.source
             ? t('hostFont.body', {
-              host,
-              family: font.family,
-              detail: details ? t('hostFont.detail', { detail: details }) : '',
-            })
+                host,
+                family: font.family,
+                detail: details ? t('hostFont.detail', { detail: details }) : '',
+              })
             : t('hostFont.bodyGlyphsOnly', { host, family: glyphs.source.family })}
         </p>
 

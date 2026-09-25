@@ -54,16 +54,22 @@ export function About({ ctx }: { ctx: AppContext }) {
   const updatable = canSelfUpdate();
   const updateLabel = (() => {
     switch (update.phase) {
-      case 'checking': return t('update.checking');
-      case 'current': return t('update.upToDate', { version: update.latest });
-      case 'available': return t('update.available', { version: update.latest });
+      case 'checking':
+        return t('update.checking');
+      case 'current':
+        return t('update.upToDate', { version: update.latest });
+      case 'available':
+        return t('update.available', { version: update.latest });
       case 'updating':
         return update.attempt > 1
           ? t('update.updatingRetry', { version: update.latest, attempt: update.attempt })
           : t('update.updating', { version: update.latest });
-      case 'done': return t('update.done', { version: update.latest });
-      case 'error': return t(update.messageKey, update.params);
-      default: return t('update.check');
+      case 'done':
+        return t('update.done', { version: update.latest });
+      case 'error':
+        return t(update.messageKey, update.params);
+      default:
+        return t('update.check');
     }
   })();
 
@@ -75,15 +81,21 @@ export function About({ ctx }: { ctx: AppContext }) {
     // A mirror that has not synced the release yet used to be the whole
     // answer. It is still asked, and said to be behind.
     const behind = result.behind ?? [];
-    setSourceNote(result.updateAvailable && behind.length > 0 && result.registry
-      ? t('update.mirrorBehind', {
-        registries: behind.map((entry) => `${registryHost(entry.registry)} ${entry.version ?? ''}`.trim()).join(', '),
-        source: registryHost(result.registry),
-      })
-      : null);
-    setUpdate(result.updateAvailable
-      ? { phase: 'available', latest: result.latest as string }
-      : { phase: 'current', latest: result.latest as string });
+    setSourceNote(
+      result.updateAvailable && behind.length > 0 && result.registry
+        ? t('update.mirrorBehind', {
+            registries: behind
+              .map((entry) => `${registryHost(entry.registry)} ${entry.version ?? ''}`.trim())
+              .join(', '),
+            source: registryHost(result.registry),
+          })
+        : null,
+    );
+    setUpdate(
+      result.updateAvailable
+        ? { phase: 'available', latest: result.latest as string }
+        : { phase: 'current', latest: result.latest as string },
+    );
   };
 
   // The TUI already asked when it opened; start from that answer.
@@ -102,7 +114,8 @@ export function About({ ctx }: { ctx: AppContext }) {
       // Which registries were tried, and what each of them said. Without this
       // the row reads "could not reach npm registry" on a machine where
       // `npm install` works perfectly, and there is nothing to act on.
-      if (result.message) ctx.notify(t('update.errorNetworkDetail', { message: result.message }), 'error');
+      if (result.message)
+        ctx.notify(t('update.errorNetworkDetail', { message: result.message }), 'error');
       return;
     }
     ctx.setUpdateCheck(result);
@@ -115,15 +128,19 @@ export function About({ ctx }: { ctx: AppContext }) {
       registry: checkRef.current.registry,
       sources: checkRef.current.sources,
       version: latest,
-      onAttempt: ({ attempt }: { attempt: number }) => setUpdate({ phase: 'updating', latest, attempt }),
+      onAttempt: ({ attempt }: { attempt: number }) =>
+        setUpdate({ phase: 'updating', latest, attempt }),
     });
     if (!result.ok) {
       const params = { version: latest, installed: result.installed ?? '' };
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed', params });
       // npm's own words: "update failed" alone is what left this unfixable.
-      ctx.notify(result.summary
-        ? t('update.errorFailedDetail', { message: result.summary })
-        : t(result.errorKey ?? 'update.errorFailed', params), 'error');
+      ctx.notify(
+        result.summary
+          ? t('update.errorFailedDetail', { message: result.summary })
+          : t(result.errorKey ?? 'update.errorFailed', params),
+        'error',
+      );
       return;
     }
     setUpdate({ phase: 'done', latest });
@@ -153,7 +170,10 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const choose = (language: string) => {
     const result = setField(draft, 'language', language);
-    if (result.errorKey) { ctx.notify(t(result.errorKey), 'error'); return; }
+    if (result.errorKey) {
+      ctx.notify(t(result.errorKey), 'error');
+      return;
+    }
     ctx.updateDraft(result.draft);
     try {
       saveDraft(result.draft);
@@ -165,16 +185,22 @@ export function About({ ctx }: { ctx: AppContext }) {
   };
 
   const activate = (id: string) => {
-    if (id === 'update') { activateUpdate(); return; }
+    if (id === 'update') {
+      activateUpdate();
+      return;
+    }
     choose(id);
   };
 
-  useInput((_input, key) => {
-    const index = options.findIndex((option) => option.id === selected);
-    if (key.upArrow) setSelected(options[(index - 1 + options.length) % options.length].id);
-    else if (key.downArrow) setSelected(options[(index + 1) % options.length].id);
-    else if (key.return) activate(selected);
-  }, { isActive: ctx.editingId === null });
+  useInput(
+    (_input, key) => {
+      const index = options.findIndex((option) => option.id === selected);
+      if (key.upArrow) setSelected(options[(index - 1 + options.length) % options.length].id);
+      else if (key.downArrow) setSelected(options[(index + 1) % options.length].id);
+      else if (key.return) activate(selected);
+    },
+    { isActive: ctx.editingId === null },
+  );
 
   return (
     <Panel title={t('about.title')}>
@@ -184,7 +210,10 @@ export function About({ ctx }: { ctx: AppContext }) {
           <Selectable
             key={option.id}
             selected={selected === option.id}
-            onSelect={() => { setSelected(option.id); choose(option.id); }}
+            onSelect={() => {
+              setSelected(option.id);
+              choose(option.id);
+            }}
             onHover={() => setSelected(option.id)}
           >
             {`${option.label}${draft.ui.language === option.id ? '  ✓' : ''}`}
@@ -196,7 +225,10 @@ export function About({ ctx }: { ctx: AppContext }) {
       <Box flexDirection="column" marginTop={1} marginBottom={1}>
         <Selectable
           selected={selected === 'update'}
-          onSelect={() => { setSelected('update'); activateUpdate(); }}
+          onSelect={() => {
+            setSelected('update');
+            activateUpdate();
+          }}
           onHover={() => setSelected('update')}
         >
           {updateLabel}

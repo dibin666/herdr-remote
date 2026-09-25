@@ -19,12 +19,17 @@ function nowIso(now = Date.now()) {
 }
 
 function validHostId(value) {
-  return typeof value === 'string'
-    && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
 }
 
 class AuthStore {
-  constructor({ stateFile, pairingTtlMs = 10 * 60 * 1000, deviceTtlMs = 30 * 24 * 60 * 60 * 1000, maxDevices = 32, password = null } = {}) {
+  constructor({
+    stateFile,
+    pairingTtlMs = 10 * 60 * 1000,
+    deviceTtlMs = 30 * 24 * 60 * 60 * 1000,
+    maxDevices = 32,
+    password = null,
+  } = {}) {
     if (!stateFile) throw new TypeError('stateFile is required');
     this.stateFile = stateFile;
     this.pairingTtlMs = pairingTtlMs;
@@ -38,8 +43,10 @@ class AuthStore {
     this.lastDeviceSaveAt = new Map();
     this.state = readJson(stateFile, { version: 1, hosts: {}, devices: {} });
     this.state.version = 1;
-    this.state.hosts = this.state.hosts && typeof this.state.hosts === 'object' ? this.state.hosts : {};
-    this.state.devices = this.state.devices && typeof this.state.devices === 'object' ? this.state.devices : {};
+    this.state.hosts =
+      this.state.hosts && typeof this.state.hosts === 'object' ? this.state.hosts : {};
+    this.state.devices =
+      this.state.devices && typeof this.state.devices === 'object' ? this.state.devices : {};
     ensureDir(require('node:path').dirname(stateFile));
   }
 
@@ -62,11 +69,24 @@ class AuthStore {
    * relay nobody else can impersonate an enrolled host or pair a device to it.
    */
   registerHost(hostId, token, password = null, now = Date.now()) {
-    if (!validHostId(hostId) || typeof token !== 'string' || token.length < 16 || token.length > 4096) {
-      return { ok: false, code: 'invalid_host_credentials', message: 'hostId and token are required' };
+    if (
+      !validHostId(hostId) ||
+      typeof token !== 'string' ||
+      token.length < 16 ||
+      token.length > 4096
+    ) {
+      return {
+        ok: false,
+        code: 'invalid_host_credentials',
+        message: 'hostId and token are required',
+      };
     }
     if (!this.checkPassword(password)) {
-      return { ok: false, code: 'relay_password_required', message: 'the relay password is missing or wrong' };
+      return {
+        ok: false,
+        code: 'relay_password_required',
+        message: 'the relay password is missing or wrong',
+      };
     }
     const existing = this.state.hosts[hostId];
     if (existing) {
@@ -89,7 +109,13 @@ class AuthStore {
 
   /** Verify a host token without enrolling anything. */
   authenticateHost(hostId, token) {
-    if (!validHostId(hostId) || typeof token !== 'string' || token.length < 16 || token.length > 4096) return false;
+    if (
+      !validHostId(hostId) ||
+      typeof token !== 'string' ||
+      token.length < 16 ||
+      token.length > 4096
+    )
+      return false;
     const existing = this.state.hosts[hostId];
     return Boolean(existing) && equalHash(existing.tokenHash, hash(token));
   }
@@ -108,7 +134,9 @@ class AuthStore {
     let code;
     do {
       code = randomToken(4).toUpperCase().replace(/[-_]/g, '').slice(0, 6);
-    } while ([...this.pairings.values()].some((pairing) => equalHash(pairing.codeHash, hash(code))));
+    } while (
+      [...this.pairings.values()].some((pairing) => equalHash(pairing.codeHash, hash(code)))
+    );
     const expiresAt = now + this.pairingTtlMs;
     this.pairings.set(code, {
       codeHash: hash(code),
@@ -124,7 +152,8 @@ class AuthStore {
     this.cleanup(now);
     const normalized = code.trim().toUpperCase();
     const pairing = this.pairings.get(normalized);
-    if (!pairing || pairing.expiresAt <= now || !equalHash(pairing.codeHash, hash(normalized))) return null;
+    if (!pairing || pairing.expiresAt <= now || !equalHash(pairing.codeHash, hash(normalized)))
+      return null;
     this.pairings.delete(normalized);
 
     const devices = Object.values(this.state.devices);
@@ -144,7 +173,14 @@ class AuthStore {
       expiresAt,
     };
     this.save();
-    return { deviceId, hostId: pairing.hostId, token, expiresAt, expiresAtIso: nowIso(expiresAt), publicUrl: pairing.publicUrl };
+    return {
+      deviceId,
+      hostId: pairing.hostId,
+      token,
+      expiresAt,
+      expiresAtIso: nowIso(expiresAt),
+      publicUrl: pairing.publicUrl,
+    };
   }
 
   /**

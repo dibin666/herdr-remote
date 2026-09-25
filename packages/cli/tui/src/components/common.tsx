@@ -36,7 +36,9 @@ export function Row({
   return (
     <Box>
       <Box width={labelWidth} flexShrink={0}>
-        <Text color={theme.muted} wrap="truncate-end">{label}</Text>
+        <Text color={theme.muted} wrap="truncate-end">
+          {label}
+        </Text>
       </Box>
       <Box flexGrow={1}>{children}</Box>
     </Box>
@@ -61,7 +63,13 @@ export type SelectableProps = {
  * The row stretches to the full width of its container so the whole line is a
  * click target, not just the few columns the label happens to occupy.
  */
-export function Selectable({ selected, disabled = false, onSelect, onHover, children }: SelectableProps) {
+export function Selectable({
+  selected,
+  disabled = false,
+  onSelect,
+  onHover,
+  children,
+}: SelectableProps) {
   const ref = useRef<DOMElement>(null);
   const hovered = useMouseTarget(ref, { disabled, onClick: onSelect });
   useFollowPointer(hovered, onHover);
@@ -72,8 +80,7 @@ export function Selectable({ selected, disabled = false, onSelect, onHover, chil
   return (
     <Box ref={ref}>
       <Text color={active ? theme.accent : undefined}>
-        {active ? SELECTED_MARKER : UNSELECTED_MARKER}
-        {' '}
+        {active ? SELECTED_MARKER : UNSELECTED_MARKER}{' '}
       </Text>
       <Text color={color} bold={active} dimColor={disabled}>
         {children}
@@ -161,8 +168,7 @@ export function FieldRow({
     <Box ref={ref}>
       <Box width={labelWidth} flexShrink={0}>
         <Text color={active ? theme.accent : undefined}>
-          {active ? SELECTED_MARKER : UNSELECTED_MARKER}
-          {' '}
+          {active ? SELECTED_MARKER : UNSELECTED_MARKER}{' '}
         </Text>
         <Text color={active ? theme.accent : theme.muted} bold={active} wrap="truncate-end">
           {label}
@@ -176,7 +182,13 @@ export function FieldRow({
 /** A framed panel used for every screen body, so the layout stays predictable. */
 export function Panel({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={theme.border} paddingX={1} flexGrow={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={theme.border}
+      paddingX={1}
+      flexGrow={1}
+    >
       {title ? (
         <Box marginBottom={1}>
           <Text bold>{title}</Text>
@@ -188,7 +200,13 @@ export function Panel({ title, children }: { title?: string; children: React.Rea
 }
 
 /** Feedback from the last action. Colour is the only signal, no icons. */
-export function Message({ text, level }: { text: string | null; level: 'info' | 'success' | 'error' }) {
+export function Message({
+  text,
+  level,
+}: {
+  text: string | null;
+  level: 'info' | 'success' | 'error';
+}) {
   if (!text) return null;
   const color = level === 'error' ? theme.bad : level === 'success' ? theme.ok : theme.muted;
   return (

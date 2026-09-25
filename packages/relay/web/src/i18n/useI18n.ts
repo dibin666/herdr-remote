@@ -10,14 +10,14 @@ export function useI18n() {
     (path: string, params?: Record<string, string | number>) => {
       return translate(language, path, params);
     },
-    [language]
+    [language],
   );
 
   const setLanguage = useCallback(
     (nextLang: Language) => {
       updateSettings({ language: nextLang });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   return { t, language, setLanguage };

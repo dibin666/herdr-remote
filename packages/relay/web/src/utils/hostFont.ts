@@ -1,4 +1,9 @@
-import type { HostFontFace, HostFontStyle, HostFontSubsetSource, HostTerminalFont } from '../types/protocol';
+import type {
+  HostFontFace,
+  HostFontStyle,
+  HostFontSubsetSource,
+  HostTerminalFont,
+} from '../types/protocol';
 
 /**
  * Bringing the workstation's terminal font to this browser.
@@ -102,8 +107,10 @@ function openDatabase(): Promise<IDBDatabase | null> {
     try {
       const request = indexedDB.open(DB_NAME, 2);
       request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE);
-        if (!request.result.objectStoreNames.contains(SUBSET_STORE)) request.result.createObjectStore(SUBSET_STORE);
+        if (!request.result.objectStoreNames.contains(STORE))
+          request.result.createObjectStore(STORE);
+        if (!request.result.objectStoreNames.contains(SUBSET_STORE))
+          request.result.createObjectStore(SUBSET_STORE);
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
@@ -168,10 +175,17 @@ export async function readCachedSubsets(sourceSha: string): Promise<CachedSubset
   return new Promise((resolve) => {
     try {
       const range = IDBKeyRange.bound(`${sourceSha}:`, `${sourceSha}:\uffff`);
-      const request = db.transaction(SUBSET_STORE, 'readonly').objectStore(SUBSET_STORE).getAll(range);
+      const request = db
+        .transaction(SUBSET_STORE, 'readonly')
+        .objectStore(SUBSET_STORE)
+        .getAll(range);
       request.onsuccess = () => {
         const rows = Array.isArray(request.result) ? request.result : [];
-        resolve(rows.filter((row) => row && row.data instanceof ArrayBuffer && Array.isArray(row.codepoints)));
+        resolve(
+          rows.filter(
+            (row) => row && row.data instanceof ArrayBuffer && Array.isArray(row.codepoints),
+          ),
+        );
       };
       request.onerror = () => resolve([]);
     } catch {
@@ -210,15 +224,17 @@ export function hostGlyphAlias(source: HostFontSubsetSource | null | undefined):
 
 /** Hanzi, kana, Hangul, bopomofo, CJK punctuation and full-width forms. */
 export function isCjkCodepoint(codepoint: number): boolean {
-  return (codepoint >= 0x2e80 && codepoint <= 0x2fdf)
-    || (codepoint >= 0x3000 && codepoint <= 0x33ff)
-    || (codepoint >= 0x3400 && codepoint <= 0x4dbf)
-    || (codepoint >= 0x4e00 && codepoint <= 0x9fff)
-    || (codepoint >= 0xac00 && codepoint <= 0xd7af)
-    || (codepoint >= 0xf900 && codepoint <= 0xfaff)
-    || (codepoint >= 0xfe30 && codepoint <= 0xfe4f)
-    || (codepoint >= 0xff00 && codepoint <= 0xffef)
-    || (codepoint >= 0x20000 && codepoint <= 0x3134f);
+  return (
+    (codepoint >= 0x2e80 && codepoint <= 0x2fdf) ||
+    (codepoint >= 0x3000 && codepoint <= 0x33ff) ||
+    (codepoint >= 0x3400 && codepoint <= 0x4dbf) ||
+    (codepoint >= 0x4e00 && codepoint <= 0x9fff) ||
+    (codepoint >= 0xac00 && codepoint <= 0xd7af) ||
+    (codepoint >= 0xf900 && codepoint <= 0xfaff) ||
+    (codepoint >= 0xfe30 && codepoint <= 0xfe4f) ||
+    (codepoint >= 0xff00 && codepoint <= 0xffef) ||
+    (codepoint >= 0x20000 && codepoint <= 0x3134f)
+  );
 }
 
 /**
@@ -285,9 +301,9 @@ export async function registerHostFontFaces(
   if (typeof FontFace === 'undefined' || typeof document === 'undefined' || !document.fonts) {
     throw new Error('font_api_unavailable');
   }
-  const loaded = await Promise.all(faces.map(({ face, data }) => (
-    new FontFace(alias, data, FACE_DESCRIPTORS[face.style]).load()
-  )));
+  const loaded = await Promise.all(
+    faces.map(({ face, data }) => new FontFace(alias, data, FACE_DESCRIPTORS[face.style]).load()),
+  );
   for (const face of loaded) document.fonts.add(face);
   registeredAliases.add(alias);
 }
@@ -347,12 +363,19 @@ function readDecisions(): Record<string, { fingerprint: string; decision: HostFo
  * The user's answer for this workstation and this exact font. A new font on
  * the workstation is a new question.
  */
-export function loadHostFontDecision(hostKey: string, fingerprint: string): HostFontDecision | null {
+export function loadHostFontDecision(
+  hostKey: string,
+  fingerprint: string,
+): HostFontDecision | null {
   const entry = readDecisions()[hostKey];
   return entry && entry.fingerprint === fingerprint ? entry.decision : null;
 }
 
-export function saveHostFontDecision(hostKey: string, fingerprint: string, decision: HostFontDecision): void {
+export function saveHostFontDecision(
+  hostKey: string,
+  fingerprint: string,
+  decision: HostFontDecision,
+): void {
   try {
     const decisions = readDecisions();
     decisions[hostKey] = { fingerprint, decision };

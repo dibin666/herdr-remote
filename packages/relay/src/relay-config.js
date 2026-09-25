@@ -96,7 +96,10 @@ function parseInteger(value, fallback, min, max) {
 function parseOriginList(value) {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
   if (typeof value !== 'string') return null;
-  return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function mergeSection(target, source) {
@@ -117,9 +120,18 @@ function parseArgv(argv = []) {
   let version = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--help' || arg === '-h') { help = true; continue; }
-    if (arg === '--version' || arg === '-v') { version = true; continue; }
-    if (!arg.startsWith('--')) { errors.push(`unexpected argument: ${arg}`); continue; }
+    if (arg === '--help' || arg === '-h') {
+      help = true;
+      continue;
+    }
+    if (arg === '--version' || arg === '-v') {
+      version = true;
+      continue;
+    }
+    if (!arg.startsWith('--')) {
+      errors.push(`unexpected argument: ${arg}`);
+      continue;
+    }
     const equals = arg.indexOf('=');
     const name = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
     let value = equals === -1 ? undefined : arg.slice(equals + 1);
@@ -153,11 +165,15 @@ function applyEnvironment(config, env) {
   if (env.RELAY_PORT) config.relay.port = env.RELAY_PORT;
   if (env.RELAY_PUBLIC_URL) config.relay.publicUrl = env.RELAY_PUBLIC_URL;
   if (env.RELAY_MAX_PAYLOAD_BYTES) config.relay.maxPayloadBytes = env.RELAY_MAX_PAYLOAD_BYTES;
-  if (env.RELAY_MAX_CLIENTS_PER_HOST) config.relay.maxClientsPerHost = env.RELAY_MAX_CLIENTS_PER_HOST;
+  if (env.RELAY_MAX_CLIENTS_PER_HOST)
+    config.relay.maxClientsPerHost = env.RELAY_MAX_CLIENTS_PER_HOST;
   if (env.RELAY_MAX_HOSTS) config.relay.maxHosts = env.RELAY_MAX_HOSTS;
-  if (env.RELAY_MAX_PENDING_HANDSHAKES) config.relay.maxPendingHandshakes = env.RELAY_MAX_PENDING_HANDSHAKES;
-  if (env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT) config.relay.maxBufferedBytesPerClient = env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT;
-  if (env.RELAY_HOST_RECONNECT_GRACE_MS) config.relay.hostReconnectGraceMs = env.RELAY_HOST_RECONNECT_GRACE_MS;
+  if (env.RELAY_MAX_PENDING_HANDSHAKES)
+    config.relay.maxPendingHandshakes = env.RELAY_MAX_PENDING_HANDSHAKES;
+  if (env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT)
+    config.relay.maxBufferedBytesPerClient = env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT;
+  if (env.RELAY_HOST_RECONNECT_GRACE_MS)
+    config.relay.hostReconnectGraceMs = env.RELAY_HOST_RECONNECT_GRACE_MS;
   if (env.RELAY_ALLOWED_ORIGINS !== undefined) {
     const origins = parseOriginList(env.RELAY_ALLOWED_ORIGINS);
     if (origins) config.relay.allowedOrigins = origins;
@@ -192,13 +208,17 @@ function applyOptions(config, options) {
   if (options['state-file']) config.auth.stateFile = options['state-file'];
   if (options['max-clients']) config.relay.maxClientsPerHost = options['max-clients'];
   if (options['max-hosts']) config.relay.maxHosts = options['max-hosts'];
-  if (options['max-pending-handshakes']) config.relay.maxPendingHandshakes = options['max-pending-handshakes'];
-  if (options['max-buffered-bytes']) config.relay.maxBufferedBytesPerClient = options['max-buffered-bytes'];
-  if (options['host-reconnect-grace-ms']) config.relay.hostReconnectGraceMs = options['host-reconnect-grace-ms'];
+  if (options['max-pending-handshakes'])
+    config.relay.maxPendingHandshakes = options['max-pending-handshakes'];
+  if (options['max-buffered-bytes'])
+    config.relay.maxBufferedBytesPerClient = options['max-buffered-bytes'];
+  if (options['host-reconnect-grace-ms'])
+    config.relay.hostReconnectGraceMs = options['host-reconnect-grace-ms'];
 }
 
 function validate(config) {
-  if (config.relay.mode !== 'local' && config.relay.mode !== 'remote') config.relay.mode = DEFAULTS.relay.mode;
+  if (config.relay.mode !== 'local' && config.relay.mode !== 'remote')
+    config.relay.mode = DEFAULTS.relay.mode;
   config.relay.port = parseInteger(config.relay.port, DEFAULTS.relay.port, 0, 65535);
   config.relay.maxPayloadBytes = parseInteger(
     config.relay.maxPayloadBytes,
@@ -206,7 +226,12 @@ function validate(config) {
     4096,
     16 * 1024 * 1024,
   );
-  config.relay.maxClientsPerHost = parseInteger(config.relay.maxClientsPerHost, DEFAULTS.relay.maxClientsPerHost, 1, 256);
+  config.relay.maxClientsPerHost = parseInteger(
+    config.relay.maxClientsPerHost,
+    DEFAULTS.relay.maxClientsPerHost,
+    1,
+    256,
+  );
   config.relay.maxHosts = parseInteger(config.relay.maxHosts, DEFAULTS.relay.maxHosts, 1, 100000);
   config.relay.maxPendingHandshakes = parseInteger(
     config.relay.maxPendingHandshakes,
@@ -226,10 +251,25 @@ function validate(config) {
     1000,
     24 * 60 * 60 * 1000,
   );
-  config.auth.pairingTtlMs = parseInteger(config.auth.pairingTtlMs, DEFAULTS.auth.pairingTtlMs, 30 * 1000, 24 * 60 * 60 * 1000);
-  config.auth.deviceTtlMs = parseInteger(config.auth.deviceTtlMs, DEFAULTS.auth.deviceTtlMs, 60 * 1000, 365 * 24 * 60 * 60 * 1000);
+  config.auth.pairingTtlMs = parseInteger(
+    config.auth.pairingTtlMs,
+    DEFAULTS.auth.pairingTtlMs,
+    30 * 1000,
+    24 * 60 * 60 * 1000,
+  );
+  config.auth.deviceTtlMs = parseInteger(
+    config.auth.deviceTtlMs,
+    DEFAULTS.auth.deviceTtlMs,
+    60 * 1000,
+    365 * 24 * 60 * 60 * 1000,
+  );
   config.auth.maxDevices = parseInteger(config.auth.maxDevices, DEFAULTS.auth.maxDevices, 1, 10000);
-  config.cleanup.intervalMs = parseInteger(config.cleanup.intervalMs, DEFAULTS.cleanup.intervalMs, 1000, 24 * 60 * 60 * 1000);
+  config.cleanup.intervalMs = parseInteger(
+    config.cleanup.intervalMs,
+    DEFAULTS.cleanup.intervalMs,
+    1000,
+    24 * 60 * 60 * 1000,
+  );
   config.cleanup.heartbeatIntervalMs = parseInteger(
     config.cleanup.heartbeatIntervalMs,
     DEFAULTS.cleanup.heartbeatIntervalMs,
@@ -273,13 +313,24 @@ function configWarnings(config) {
     warnings.push(`publicUrl is not a valid URL: ${config.relay.publicUrl}`);
   }
   if (!config.auth.password) {
-    warnings.push('no password set (RELAY_PASSWORD): this is a public relay, anyone may connect a workstation to it');
+    warnings.push(
+      'no password set (RELAY_PASSWORD): this is a public relay, anyone may connect a workstation to it',
+    );
   }
   if (config.relay.mode === 'remote' && !config.auth.adminToken) {
-    warnings.push('no admin token set (RELAY_ADMIN_TOKEN): the relay operator dashboard is unavailable');
+    warnings.push(
+      'no admin token set (RELAY_ADMIN_TOKEN): the relay operator dashboard is unavailable',
+    );
   }
-  if (!isLoopbackBind && publicUrl && publicUrl.protocol === 'http:' && !['127.0.0.1', 'localhost'].includes(publicUrl.hostname)) {
-    warnings.push(`publicUrl uses plain http on a non-loopback address (${config.relay.publicUrl}); terminate TLS in front of the relay`);
+  if (
+    !isLoopbackBind &&
+    publicUrl &&
+    publicUrl.protocol === 'http:' &&
+    !['127.0.0.1', 'localhost'].includes(publicUrl.hostname)
+  ) {
+    warnings.push(
+      `publicUrl uses plain http on a non-loopback address (${config.relay.publicUrl}); terminate TLS in front of the relay`,
+    );
   }
   return warnings;
 }

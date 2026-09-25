@@ -40,7 +40,10 @@ test('a socket file nothing listens on is a stopped Herdr, not a running one', a
   // at it starts its own server, which is exactly what must not happen here.
   const socketPath = path.join(tempDir(t, 'herdr-probe-stale-'), 'herdr.sock');
   // A listener killed outright never gets to unlink its socket.
-  const child = spawn(process.execPath, ['-e', `require('net').createServer().listen(${JSON.stringify(socketPath)}, () => console.log('up'))`]);
+  const child = spawn(process.execPath, [
+    '-e',
+    `require('net').createServer().listen(${JSON.stringify(socketPath)}, () => console.log('up'))`,
+  ]);
   await new Promise((resolve) => child.stdout.once('data', resolve));
   child.kill('SIGKILL');
   await new Promise((resolve) => child.once('exit', resolve));
@@ -59,24 +62,43 @@ test('a path that is not a socket is unavailable, never stopped', async (t) => {
 });
 
 test('only a process running as a systemd service wraps Herdr in a scope of its own', () => {
-  const service = () => '0::/user.slice/user-1000.slice/user@1000.service/app.slice/herdr-remote.service\n';
-  const terminal = () => '0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.gnome.Terminal.slice/vte-spawn-1.scope\n';
+  const service = () =>
+    '0::/user.slice/user-1000.slice/user@1000.service/app.slice/herdr-remote.service\n';
+  const terminal = () =>
+    '0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.gnome.Terminal.slice/vte-spawn-1.scope\n';
   assert.equal(runningInSystemdService({ platform: 'linux', readCgroup: service }), true);
   assert.equal(runningInSystemdService({ platform: 'linux', readCgroup: terminal }), false);
   assert.equal(runningInSystemdService({ platform: 'darwin', readCgroup: service }), false);
-  assert.equal(runningInSystemdService({ platform: 'linux', readCgroup: () => { throw new Error('no /proc'); } }), false);
+  assert.equal(
+    runningInSystemdService({
+      platform: 'linux',
+      readCgroup: () => {
+        throw new Error('no /proc');
+      },
+    }),
+    false,
+  );
 
   assert.deepEqual(
     serverCommand({ command: '/usr/bin/herdr', args: ['--session', 'work'], inService: false }),
     { file: '/usr/bin/herdr', args: ['--session', 'work', 'server'] },
   );
-  const scoped = serverCommand({ command: '/usr/bin/herdr', args: ['--session', 'work'], inService: true });
+  const scoped = serverCommand({
+    command: '/usr/bin/herdr',
+    args: ['--session', 'work'],
+    inService: true,
+  });
   assert.equal(scoped.file, 'systemd-run');
   assert.deepEqual(scoped.args.slice(0, 2), ['--user', '--scope']);
-  assert.deepEqual(scoped.args.slice(scoped.args.indexOf('--') + 1), ['/usr/bin/herdr', '--session', 'work', 'server']);
+  assert.deepEqual(scoped.args.slice(scoped.args.indexOf('--') + 1), [
+    '/usr/bin/herdr',
+    '--session',
+    'work',
+    'server',
+  ]);
 });
 
-test('the server gets the configured socket and none of the caller\'s Herdr variables', () => {
+test("the server gets the configured socket and none of the caller's Herdr variables", () => {
   const env = serverEnv('/home/me/.config/herdr/herdr.sock', {
     PATH: '/usr/bin',
     HERDR_PANE_ID: 'pane-1',
@@ -94,7 +116,10 @@ test('a running Herdr is left alone', async () => {
     socketPath: '/tmp/herdr.sock',
     logPath: '/tmp/unused.log',
     probe: async () => ({ state: 'running' }),
-    launch: () => { launched = true; return new EventEmitter(); },
+    launch: () => {
+      launched = true;
+      return new EventEmitter();
+    },
   });
   assert.deepEqual(result, { started: false });
   assert.equal(launched, false);
@@ -107,15 +132,21 @@ test('a socket that is not ours is refused before anything starts', async () => 
       command: 'herdr',
       socketPath: '/tmp/herdr.sock',
       logPath: '/tmp/unused.log',
-      probe: async () => ({ state: 'unavailable', reason: 'socket is not owned by the current user' }),
-      launch: () => { launched = true; return new EventEmitter(); },
+      probe: async () => ({
+        state: 'unavailable',
+        reason: 'socket is not owned by the current user',
+      }),
+      launch: () => {
+        launched = true;
+        return new EventEmitter();
+      },
     }),
     /not owned by the current user/,
   );
   assert.equal(launched, false);
 });
 
-test('a stopped Herdr is started with this workstation\'s own command, arguments and socket', async (t) => {
+test("a stopped Herdr is started with this workstation's own command, arguments and socket", async (t) => {
   const logPath = path.join(tempDir(t, 'herdr-start-'), 'herdr-server.log');
   const states = ['stopped', 'stopped', 'running'];
   let launchedWith = null;
@@ -127,7 +158,10 @@ test('a stopped Herdr is started with this workstation\'s own command, arguments
     logPath,
     interval: 1,
     probe: async () => ({ state: states.shift() || 'running' }),
-    launch: (options) => { launchedWith = options; return new EventEmitter(); },
+    launch: (options) => {
+      launchedWith = options;
+      return new EventEmitter();
+    },
   });
   assert.deepEqual(result, { started: true });
   assert.deepEqual(launchedWith, {
@@ -155,7 +189,8 @@ test('a server that exits early is reported with what it printed', async (t) => 
         return child;
       },
     }),
-    (error) => /exited \(code 1\)/.test(error.message) && /address already in use/.test(error.message),
+    (error) =>
+      /exited \(code 1\)/.test(error.message) && /address already in use/.test(error.message),
   );
 });
 

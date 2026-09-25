@@ -32,23 +32,50 @@ export class KeyComboError extends Error {
 }
 
 const KEY_ALIASES: Record<string, string> = {
-  escape: 'esc', return: 'enter', pgup: 'pageup', pgdn: 'pagedown',
-  backslash: '\\', plus: '+',
+  escape: 'esc',
+  return: 'enter',
+  pgup: 'pageup',
+  pgdn: 'pagedown',
+  backslash: '\\',
+  plus: '+',
 };
 
 const NAMED_KEYS: Record<string, string> = {
-  esc: ANSI_KEYS.ESC, tab: ANSI_KEYS.TAB, enter: ANSI_KEYS.ENTER,
-  backspace: ANSI_KEYS.BACKSPACE, delete: ANSI_KEYS.DELETE,
-  left: ANSI_KEYS.LEFT, right: ANSI_KEYS.RIGHT, up: ANSI_KEYS.UP, down: ANSI_KEYS.DOWN,
-  home: ANSI_KEYS.HOME, end: ANSI_KEYS.END, pageup: ANSI_KEYS.PAGE_UP,
-  pagedown: ANSI_KEYS.PAGE_DOWN, insert: ANSI_KEYS.INSERT,
-  space: ' ', '+': '+',
+  esc: ANSI_KEYS.ESC,
+  tab: ANSI_KEYS.TAB,
+  enter: ANSI_KEYS.ENTER,
+  backspace: ANSI_KEYS.BACKSPACE,
+  delete: ANSI_KEYS.DELETE,
+  left: ANSI_KEYS.LEFT,
+  right: ANSI_KEYS.RIGHT,
+  up: ANSI_KEYS.UP,
+  down: ANSI_KEYS.DOWN,
+  home: ANSI_KEYS.HOME,
+  end: ANSI_KEYS.END,
+  pageup: ANSI_KEYS.PAGE_UP,
+  pagedown: ANSI_KEYS.PAGE_DOWN,
+  insert: ANSI_KEYS.INSERT,
+  space: ' ',
+  '+': '+',
 };
 
 const KEY_CAPTIONS: Record<string, string> = {
-  esc: 'ESC', tab: 'TAB', enter: '⏎', backspace: '⌫', delete: 'DEL',
-  left: '←', right: '→', up: '↑', down: '↓', home: 'HOME', end: 'END',
-  pageup: 'PGUP', pagedown: 'PGDN', insert: 'INS', space: 'SPACE', '+': '+',
+  esc: 'ESC',
+  tab: 'TAB',
+  enter: '⏎',
+  backspace: '⌫',
+  delete: 'DEL',
+  left: '←',
+  right: '→',
+  up: '↑',
+  down: '↓',
+  home: 'HOME',
+  end: 'END',
+  pageup: 'PGUP',
+  pagedown: 'PGDN',
+  insert: 'INS',
+  space: 'SPACE',
+  '+': '+',
 };
 
 const SUPER_DIGITS: Record<number, string> = {
@@ -64,19 +91,23 @@ const SUPER_DIGITS: Record<number, string> = {
 
 function parseStep(token: string, index: number): ParsedKeyStep {
   const parts = token.toLowerCase().split('+');
-  if (parts.some((part) => !part)) throw new KeyComboError('invalidStepSyntax', { step: index + 1 });
+  if (parts.some((part) => !part))
+    throw new KeyComboError('invalidStepSyntax', { step: index + 1 });
 
   const modifiers: KeyModifiers = {};
   let keyToken: string | undefined;
   for (const part of parts) {
     if (part === 'ctrl' || part === 'control') {
-      if (modifiers.ctrl) throw new KeyComboError('duplicateModifier', { step: index + 1, modifier: 'Ctrl' });
+      if (modifiers.ctrl)
+        throw new KeyComboError('duplicateModifier', { step: index + 1, modifier: 'Ctrl' });
       modifiers.ctrl = true;
     } else if (part === 'alt' || part === 'option') {
-      if (modifiers.alt) throw new KeyComboError('duplicateModifier', { step: index + 1, modifier: 'Alt' });
+      if (modifiers.alt)
+        throw new KeyComboError('duplicateModifier', { step: index + 1, modifier: 'Alt' });
       modifiers.alt = true;
     } else if (part === 'shift') {
-      if (modifiers.shift) throw new KeyComboError('duplicateModifier', { step: index + 1, modifier: 'Shift' });
+      if (modifiers.shift)
+        throw new KeyComboError('duplicateModifier', { step: index + 1, modifier: 'Shift' });
       modifiers.shift = true;
     } else if (keyToken === undefined) {
       keyToken = part;
@@ -145,20 +176,27 @@ export function parseKeyCombo(combo: string): string[] {
 /** Render a short keycap caption without losing the order of a multi-step combo. */
 export function formatComboCaption(combo: string): string {
   const tokens = combo.trim().split(/\s+/);
-  if (tokens.length > 1 && tokens.every((token) => ['esc', 'escape'].includes(token.toLowerCase()))) {
+  if (
+    tokens.length > 1 &&
+    tokens.every((token) => ['esc', 'escape'].includes(token.toLowerCase()))
+  ) {
     return `ESC${SUPER_DIGITS[tokens.length] || ` ×${tokens.length}`}`;
   }
 
-  return tokens.map((token, index) => {
-    const { keyName, modifiers } = parseStep(token, index);
-    const keyCaption = KEY_CAPTIONS[keyName] || (/^f\d+$/.test(keyName) ? keyName.toUpperCase() : keyName.toUpperCase());
-    if (modifiers.ctrl && modifiers.alt && modifiers.shift) return `Ctrl+Alt+⇧${keyCaption}`;
-    if (modifiers.ctrl && modifiers.alt) return `Ctrl+Alt+${keyCaption}`;
-    if (modifiers.ctrl && modifiers.shift) return `^⇧${keyCaption}`;
-    if (modifiers.ctrl) return `^${keyCaption}`;
-    if (modifiers.alt && modifiers.shift) return `Alt+⇧${keyCaption}`;
-    if (modifiers.alt) return `Alt+${keyCaption}`;
-    if (modifiers.shift) return `⇧${keyCaption}`;
-    return keyCaption;
-  }).join(' ');
+  return tokens
+    .map((token, index) => {
+      const { keyName, modifiers } = parseStep(token, index);
+      const keyCaption =
+        KEY_CAPTIONS[keyName] ||
+        (/^f\d+$/.test(keyName) ? keyName.toUpperCase() : keyName.toUpperCase());
+      if (modifiers.ctrl && modifiers.alt && modifiers.shift) return `Ctrl+Alt+⇧${keyCaption}`;
+      if (modifiers.ctrl && modifiers.alt) return `Ctrl+Alt+${keyCaption}`;
+      if (modifiers.ctrl && modifiers.shift) return `^⇧${keyCaption}`;
+      if (modifiers.ctrl) return `^${keyCaption}`;
+      if (modifiers.alt && modifiers.shift) return `Alt+⇧${keyCaption}`;
+      if (modifiers.alt) return `Alt+${keyCaption}`;
+      if (modifiers.shift) return `⇧${keyCaption}`;
+      return keyCaption;
+    })
+    .join(' ');
 }

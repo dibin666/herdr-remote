@@ -41,7 +41,7 @@ export function readViewportMetrics(): ViewportMetrics {
 
 export function applyViewportMetrics(
   target: HTMLElement,
-  metrics: ViewportMetrics = readViewportMetrics()
+  metrics: ViewportMetrics = readViewportMetrics(),
 ): ViewportMetrics {
   target.style.setProperty(APP_HEIGHT_VAR, `${metrics.height}px`);
   target.style.setProperty(KEYBOARD_INSET_VAR, `${metrics.keyboardInset}px`);
@@ -54,7 +54,7 @@ export function applyViewportMetrics(
  * `resize` and `scroll` in a burst for the whole keyboard animation.
  */
 export function observeViewportMetrics(
-  target: HTMLElement | null = typeof document !== 'undefined' ? document.documentElement : null
+  target: HTMLElement | null = typeof document !== 'undefined' ? document.documentElement : null,
 ): () => void {
   if (!target || typeof window === 'undefined') return () => {};
 

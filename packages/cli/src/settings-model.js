@@ -37,7 +37,12 @@ const FIELDS = [
   { id: 'herdrArgs', kind: 'text', labelKey: 'field.herdrArgs' },
   { id: 'herdrAutoStart', kind: 'toggle', labelKey: 'field.herdrAutoStart' },
   { id: 'language', kind: 'choice', choices: LANGUAGES, labelKey: 'field.language' },
-  { id: 'keepaliveManager', kind: 'choice', choices: KEEPALIVE_MANAGERS, labelKey: 'field.keepalive' },
+  {
+    id: 'keepaliveManager',
+    kind: 'choice',
+    choices: KEEPALIVE_MANAGERS,
+    labelKey: 'field.keepalive',
+  },
 ];
 
 const EMPTY = '';
@@ -57,7 +62,8 @@ const SELECTABLE_MODES = ['local', 'lan', 'official', 'remote'];
 
 /** Which of `SELECTABLE_MODES` this draft represents. */
 function selectedMode(draft) {
-  if (draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL) return 'official';
+  if (draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL)
+    return 'official';
   return draft.relay.mode;
 }
 
@@ -166,8 +172,10 @@ function setField(draft, id, rawValue) {
         next.relay.remoteUrl = EMPTY;
       }
       next.relay.mode = value;
-      if (value === 'lan'
-        && (isLoopbackHost(next.relay.lanHost) || isUnspecifiedAddress(next.relay.lanHost))) {
+      if (
+        value === 'lan' &&
+        (isLoopbackHost(next.relay.lanHost) || isUnspecifiedAddress(next.relay.lanHost))
+      ) {
         next.relay.lanHost = EMPTY;
       }
       // A public URL pinned for one mode is wrong for the next one; clearing it
@@ -177,7 +185,8 @@ function setField(draft, id, rawValue) {
     }
     case 'port': {
       const port = Number.parseInt(value, 10);
-      if (!Number.isInteger(port) || port < 1 || port > 65535) return { draft, errorKey: 'error.invalidPort' };
+      if (!Number.isInteger(port) || port < 1 || port > 65535)
+        return { draft, errorKey: 'error.invalidPort' };
       next.relay.port = port;
       break;
     }
@@ -240,7 +249,8 @@ function setField(draft, id, rawValue) {
 /** Problems that should block saving, as translatable keys. */
 function validateDraft(draft) {
   const problems = [];
-  if (draft.relay.mode === 'remote' && !draft.relay.remoteUrl) problems.push('error.remoteUrlRequired');
+  if (draft.relay.mode === 'remote' && !draft.relay.remoteUrl)
+    problems.push('error.remoteUrlRequired');
   return problems;
 }
 
@@ -263,10 +273,11 @@ function saveDraft(draft) {
     ...(current.relay || {}),
     mode: draft.relay.mode,
     port: draft.relay.port,
-    lanHost: draft.relay.mode === 'lan'
-      && (isLoopbackHost(draft.relay.lanHost) || isUnspecifiedAddress(draft.relay.lanHost))
-      ? EMPTY
-      : draft.relay.lanHost,
+    lanHost:
+      draft.relay.mode === 'lan' &&
+      (isLoopbackHost(draft.relay.lanHost) || isUnspecifiedAddress(draft.relay.lanHost))
+        ? EMPTY
+        : draft.relay.lanHost,
     publicUrl: draft.relay.publicUrl,
     remoteUrl: draft.relay.remoteUrl,
   };
@@ -298,13 +309,15 @@ function saveDraft(draft) {
  * "restart required" hint rather than silently doing nothing.
  */
 function requiresRestart(before, after) {
-  return before.relay.mode !== after.relay.mode
-    || before.relay.port !== after.relay.port
-    || before.relay.lanHost !== after.relay.lanHost
-    || before.relay.remoteUrl !== after.relay.remoteUrl
-    || before.relay.publicUrl !== after.relay.publicUrl
-    || before.herdr.socketPath !== after.herdr.socketPath
-    || before.herdr.args.join(' ') !== after.herdr.args.join(' ');
+  return (
+    before.relay.mode !== after.relay.mode ||
+    before.relay.port !== after.relay.port ||
+    before.relay.lanHost !== after.relay.lanHost ||
+    before.relay.remoteUrl !== after.relay.remoteUrl ||
+    before.relay.publicUrl !== after.relay.publicUrl ||
+    before.herdr.socketPath !== after.herdr.socketPath ||
+    before.herdr.args.join(' ') !== after.herdr.args.join(' ')
+  );
 }
 
 module.exports = {

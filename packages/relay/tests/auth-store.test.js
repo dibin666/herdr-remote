@@ -47,8 +47,14 @@ test('expired device tokens and pairings are removed', () => {
 test('a password gates who may join the relay', () => {
   const { store } = makeStore({ password: 'hunter2' });
 
-  assert.equal(store.registerHost('host-1', 'host-secret-123456789', 'wrong').code, 'relay_password_required');
-  assert.equal(store.registerHost('host-1', 'host-secret-123456789', null).code, 'relay_password_required');
+  assert.equal(
+    store.registerHost('host-1', 'host-secret-123456789', 'wrong').code,
+    'relay_password_required',
+  );
+  assert.equal(
+    store.registerHost('host-1', 'host-secret-123456789', null).code,
+    'relay_password_required',
+  );
   assert.equal(store.registerHost('host-1', 'host-secret-123456789', 'hunter2').ok, true);
   assert.equal(store.hostCount(), 1);
 });
@@ -65,9 +71,18 @@ test('without a password the relay is public and accepts many workstations', () 
 
 test('host ids reject object keys and oversized credentials', () => {
   const { store } = makeStore();
-  assert.equal(store.registerHost('__proto__', 'host-secret-123456789', null).code, 'invalid_host_credentials');
-  assert.equal(store.registerHost('host/unsafe', 'host-secret-123456789', null).code, 'invalid_host_credentials');
-  assert.equal(store.registerHost('host-1', 'x'.repeat(4097), null).code, 'invalid_host_credentials');
+  assert.equal(
+    store.registerHost('__proto__', 'host-secret-123456789', null).code,
+    'invalid_host_credentials',
+  );
+  assert.equal(
+    store.registerHost('host/unsafe', 'host-secret-123456789', null).code,
+    'invalid_host_credentials',
+  );
+  assert.equal(
+    store.registerHost('host-1', 'x'.repeat(4097), null).code,
+    'invalid_host_credentials',
+  );
 });
 
 test('a host token cannot be reused to impersonate another workstation', () => {
@@ -76,7 +91,10 @@ test('a host token cannot be reused to impersonate another workstation', () => {
   store.registerHost('host-bob', 'bob-secret-1234567890', null);
 
   // Reconnecting with the wrong token is refused even on a public relay.
-  assert.equal(store.registerHost('host-alice', 'bob-secret-1234567890', null).code, 'host_auth_failed');
+  assert.equal(
+    store.registerHost('host-alice', 'bob-secret-1234567890', null).code,
+    'host_auth_failed',
+  );
 
   assert.equal(store.authenticateHost('host-alice', 'alice-secret-123456789'), true);
   assert.equal(store.authenticateHost('host-alice', 'bob-secret-1234567890'), false);
@@ -88,5 +106,8 @@ test('re-authenticating an enrolled host still needs the relay password', () => 
   const { store } = makeStore({ password: 'hunter2' });
   store.registerHost('host-1', 'host-secret-123456789', 'hunter2');
   assert.equal(store.registerHost('host-1', 'host-secret-123456789', 'hunter2').firstSeen, false);
-  assert.equal(store.registerHost('host-1', 'host-secret-123456789', 'nope').code, 'relay_password_required');
+  assert.equal(
+    store.registerHost('host-1', 'host-secret-123456789', 'nope').code,
+    'relay_password_required',
+  );
 });

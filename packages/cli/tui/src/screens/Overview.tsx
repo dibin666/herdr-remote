@@ -25,11 +25,16 @@ export function Overview({ ctx }: { ctx: AppContext }) {
   const relayReachable = health.ok !== false;
   const relayLevel: StatusLevel = status.relay.local
     ? level(status.relay.alive)
-    : relayReachable ? 'ok' : 'bad';
+    : relayReachable
+      ? 'ok'
+      : 'bad';
   const keepaliveLevel: StatusLevel = status.keepalive.active
     ? 'ok'
-    : status.keepalive.installed ? 'warn' : 'idle';
-  const nothingRunning = !status.host.alive && (status.relay.local ? !status.relay.alive : !relayReachable);
+    : status.keepalive.installed
+      ? 'warn'
+      : 'idle';
+  const nothingRunning =
+    !status.host.alive && (status.relay.local ? !status.relay.alive : !relayReachable);
 
   return (
     <Panel title={t('overview.title')}>
@@ -56,7 +61,9 @@ export function Overview({ ctx }: { ctx: AppContext }) {
         <Box>
           <StatusDot level={level(status.host.alive)} />
           <Text>{` ${status.host.alive ? t('common.running') : t('common.stopped')}`}</Text>
-          {status.host.pid ? <Text color={theme.muted}>{`  ${t('common.pid', { pid: status.host.pid })}`}</Text> : null}
+          {status.host.pid ? (
+            <Text color={theme.muted}>{`  ${t('common.pid', { pid: status.host.pid })}`}</Text>
+          ) : null}
         </Box>
       </Row>
 
@@ -64,7 +71,9 @@ export function Overview({ ctx }: { ctx: AppContext }) {
         <Box>
           <StatusDot level={status.host.socketExists ? 'ok' : 'warn'} />
           <Text color={theme.muted}>{` ${status.host.socketPath}`}</Text>
-          {status.host.socketExists ? null : <Text color={theme.warn}>{`  ${t('overview.socketMissing')}`}</Text>}
+          {status.host.socketExists ? null : (
+            <Text color={theme.warn}>{`  ${t('overview.socketMissing')}`}</Text>
+          )}
         </Box>
       </Row>
 
@@ -79,7 +88,9 @@ export function Overview({ ctx }: { ctx: AppContext }) {
             {` ${status.keepalive.manager} — `}
             {status.keepalive.active
               ? t('common.running')
-              : status.keepalive.installed ? t('common.installed') : t('common.notInstalled')}
+              : status.keepalive.installed
+                ? t('common.installed')
+                : t('common.notInstalled')}
           </Text>
         </Box>
       </Row>
@@ -98,7 +109,9 @@ export function Overview({ ctx }: { ctx: AppContext }) {
             </Row>
           </>
         ) : (
-          <Text color={theme.warn}>{t('overview.unreachable', { message: health.message ?? '' })}</Text>
+          <Text color={theme.warn}>
+            {t('overview.unreachable', { message: health.message ?? '' })}
+          </Text>
         )}
       </Box>
 

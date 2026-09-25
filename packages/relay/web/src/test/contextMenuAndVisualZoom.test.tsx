@@ -19,14 +19,25 @@ const originalDpr = window.devicePixelRatio;
 
 function setViewport({ width, height }: { width: number; height: number }): void {
   Object.defineProperty(window, 'innerWidth', { value: width, writable: true, configurable: true });
-  Object.defineProperty(window, 'innerHeight', { value: height, writable: true, configurable: true });
+  Object.defineProperty(window, 'innerHeight', {
+    value: height,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function setDpr(dpr: number): void {
-  Object.defineProperty(window, 'devicePixelRatio', { value: dpr, writable: true, configurable: true });
+  Object.defineProperty(window, 'devicePixelRatio', {
+    value: dpr,
+    writable: true,
+    configurable: true,
+  });
 }
 
-const settle = (ms = 60) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+const settle = (ms = 60) =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, ms));
+  });
 
 let terminalCtx: ReturnType<typeof useTerminal> | undefined;
 
@@ -41,7 +52,7 @@ const renderTerminal = () => {
     <TerminalProvider>
       <CaptureContext />
       <TerminalView isActive={true} />
-    </TerminalProvider>
+    </TerminalProvider>,
   );
 };
 
@@ -194,7 +205,11 @@ describe('Visual-only font zoom vs PTY geometry isolation & Context Menu', () =>
 
     // Simulate pinch-to-zoom (visualViewport scale changes to 1.5)
     if (window.visualViewport) {
-      Object.defineProperty(window.visualViewport, 'scale', { value: 1.5, writable: true, configurable: true });
+      Object.defineProperty(window.visualViewport, 'scale', {
+        value: 1.5,
+        writable: true,
+        configurable: true,
+      });
       act(() => {
         window.visualViewport?.dispatchEvent(new Event('resize'));
       });

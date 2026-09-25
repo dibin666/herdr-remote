@@ -165,12 +165,7 @@ export function isUniformColor(data: Uint8ClampedArray | number[]): boolean {
   const a0 = data[3];
 
   for (let i = 4; i < data.length; i += 4) {
-    if (
-      data[i] !== r0 ||
-      data[i + 1] !== g0 ||
-      data[i + 2] !== b0 ||
-      data[i + 3] !== a0
-    ) {
+    if (data[i] !== r0 || data[i + 1] !== g0 || data[i + 2] !== b0 || data[i + 3] !== a0) {
       return false; // Found differing pixel -> canvas has drawn content
     }
   }
@@ -188,7 +183,9 @@ export type CanvasProbeResult = 'healthy' | 'blank' | 'inconclusive';
  *  - 'blank': all sampled pixels are completely identical (blank/black screen).
  *  - 'inconclusive': text layer not found, context unavailable, 0 dimensions, or exception.
  */
-export function checkCanvasContent(canvas: HTMLCanvasElement | null | undefined): CanvasProbeResult {
+export function checkCanvasContent(
+  canvas: HTMLCanvasElement | null | undefined,
+): CanvasProbeResult {
   if (!canvas || canvas.width <= 0 || canvas.height <= 0) {
     console.debug('Canvas probe inconclusive: text layer canvas missing or zero dimensions');
     return 'inconclusive';
@@ -253,7 +250,7 @@ const DOM_RENDERER: AttachedRenderer = {
 
 export function attachTerminalRenderer(
   term: Terminal,
-  options: AttachRendererOptions = {}
+  options: AttachRendererOptions = {},
 ): AttachedRenderer {
   if (isCanvasProbeFailed()) {
     return DOM_RENDERER;
@@ -300,18 +297,27 @@ export function attachTerminalRenderer(
         // painted what was asked for finds a blank canvas that is not broken.
         const paintedBefore = current.stats.frames;
         await waitForFrames(2);
-        for (let wait = 0; wait < MAX_PAINT_WAIT_FRAMES && current && current.stats.frames === paintedBefore; wait++) {
+        for (
+          let wait = 0;
+          wait < MAX_PAINT_WAIT_FRAMES && current && current.stats.frames === paintedBefore;
+          wait++
+        ) {
           await waitForFrames(1);
         }
         if (!current) return;
 
         const probeResult = checkCanvasContent(current.textCanvas);
-        if (probeResult === 'blank' && current.hasPaintedInk(PROBE_SAMPLE_WIDTH, PROBE_SAMPLE_HEIGHT)) {
+        if (
+          probeResult === 'blank' &&
+          current.hasPaintedInk(PROBE_SAMPLE_WIDTH, PROBE_SAMPLE_HEIGHT)
+        ) {
           fallbackToDom();
         } else if (probeResult === 'blank') {
           console.debug('Canvas probe inconclusive: uniform, but no character was painted there');
         } else if (probeResult === 'inconclusive') {
-          console.debug('Canvas probe inconclusive; retaining canvas renderer without blacklisting');
+          console.debug(
+            'Canvas probe inconclusive; retaining canvas renderer without blacklisting',
+          );
         }
       } catch (err) {
         console.debug('Canvas probe inconclusive: unexpected error during verify():', err);

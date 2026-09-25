@@ -20,7 +20,10 @@ export type MouseSource = {
  * subscribers, and republishes the remaining keystrokes on a stream that looks
  * enough like a TTY for Ink to drive.
  */
-export function createMouseSource(input: NodeJS.ReadStream = process.stdin, output: NodeJS.WriteStream = process.stdout): MouseSource {
+export function createMouseSource(
+  input: NodeJS.ReadStream = process.stdin,
+  output: NodeJS.WriteStream = process.stdout,
+): MouseSource {
   const supported = Boolean(input.isTTY && output.isTTY);
   const listeners = new Set<(event: MouseEvent) => void>();
   const split = createMouseSplitter();
@@ -45,8 +48,14 @@ export function createMouseSource(input: NodeJS.ReadStream = process.stdin, outp
     input.setRawMode?.(mode);
     return stdin;
   }) as NodeJS.ReadStream['setRawMode'];
-  stdin.ref = (() => { input.ref?.(); return stdin; }) as NodeJS.ReadStream['ref'];
-  stdin.unref = (() => { input.unref?.(); return stdin; }) as NodeJS.ReadStream['unref'];
+  stdin.ref = (() => {
+    input.ref?.();
+    return stdin;
+  }) as NodeJS.ReadStream['ref'];
+  stdin.unref = (() => {
+    input.unref?.();
+    return stdin;
+  }) as NodeJS.ReadStream['unref'];
 
   let enabled = false;
   const enable = () => {

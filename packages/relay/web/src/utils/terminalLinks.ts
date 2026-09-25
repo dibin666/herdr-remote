@@ -51,7 +51,11 @@ function withScheme(candidate: string): string {
 function trimUrlTail(candidate: string): string {
   const count = (text: string, character: string) => text.split(character).length - 1;
   let url = candidate.replace(TRAILING_PUNCTUATION, '');
-  const pairs: ReadonlyArray<readonly [string, string]> = [['(', ')'], ['[', ']'], ['{', '}']];
+  const pairs: ReadonlyArray<readonly [string, string]> = [
+    ['(', ')'],
+    ['[', ']'],
+    ['{', '}'],
+  ];
   for (const [open, close] of pairs) {
     while (url.endsWith(close) && count(url, close) > count(url, open)) {
       url = url.slice(0, -1);

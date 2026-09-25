@@ -29,7 +29,8 @@ export const DevicesTable: React.FC<DevicesTableProps> = ({ devices, clients, on
   const [busyId, setBusyId] = useState<string | null>(null);
   const windows = windowsByDevice(clients);
   const sorted = [...devices].sort((a, b) => {
-    const online = Number(Boolean(windows.get(b.deviceId))) - Number(Boolean(windows.get(a.deviceId)));
+    const online =
+      Number(Boolean(windows.get(b.deviceId))) - Number(Boolean(windows.get(a.deviceId)));
     if (online) return online;
     return (Date.parse(b.lastSeenAt) || 0) - (Date.parse(a.lastSeenAt) || 0);
   });
@@ -56,7 +57,12 @@ export const DevicesTable: React.FC<DevicesTableProps> = ({ devices, clients, on
       render: (device) => {
         const open = windows.get(device.deviceId) || 0;
         return (
-          <span className={cn('flex items-center gap-1.5 whitespace-nowrap', open ? 'text-tui-ok' : 'text-tui-faint')}>
+          <span
+            className={cn(
+              'flex items-center gap-1.5 whitespace-nowrap',
+              open ? 'text-tui-ok' : 'text-tui-faint',
+            )}
+          >
             <StatusDot level={open ? 'ok' : 'idle'} />
             {open ? t('admin.hostStatusOnline') : t('admin.hostStatusOffline')}
           </span>
@@ -98,7 +104,9 @@ export const DevicesTable: React.FC<DevicesTableProps> = ({ devices, clients, on
             className={cn('whitespace-nowrap', open ? 'text-tui-ok' : 'text-tui-muted')}
             title={formatTimestamp(device.lastSeenAt)}
           >
-            {open ? t('admin.deviceWindows', { count: open }) : formatRelative(device.lastSeenAt, t)}
+            {open
+              ? t('admin.deviceWindows', { count: open })
+              : formatRelative(device.lastSeenAt, t)}
           </span>
         );
       },
@@ -115,19 +123,11 @@ export const DevicesTable: React.FC<DevicesTableProps> = ({ devices, clients, on
             variant="danger"
             disabled={isBusy}
             onClick={() => void handleRevoke(device.deviceId)}
-            onBlur={() =>
-              setPendingId((current) => (current === device.deviceId ? null : current))
-            }
+            onBlur={() => setPendingId((current) => (current === device.deviceId ? null : current))}
             aria-label={t('admin.revokeDevice')}
             className={cn('h-6 py-0 text-tui-sm', isPending && 'bg-tui-bad text-tui-crust')}
           >
-            {isBusy ? (
-              <Spinner />
-            ) : isPending ? (
-              t('admin.revokeConfirm')
-            ) : (
-              t('admin.revokeDevice')
-            )}
+            {isBusy ? <Spinner /> : isPending ? t('admin.revokeConfirm') : t('admin.revokeDevice')}
           </Button>
         );
       },

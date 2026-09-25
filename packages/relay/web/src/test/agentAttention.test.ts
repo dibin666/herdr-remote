@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { attentionCounts, attentionLevel, formatAttentionPrefix, newAttention } from '../utils/agentAttention';
+import {
+  attentionCounts,
+  attentionLevel,
+  formatAttentionPrefix,
+  newAttention,
+} from '../utils/agentAttention';
 import { applyFaviconBadge, withFaviconBadge } from '../utils/faviconBadge';
 import type { ServerAgentStatusMessage } from '../types/protocol';
 
@@ -10,7 +15,14 @@ const report = (
   type: 'agent_status',
   counts,
   total: agents.length,
-  agents: agents.map(([paneId, status]) => ({ paneId, workspaceId: 'w', agent: 'claude', title: null, status, focused: false })),
+  agents: agents.map(([paneId, status]) => ({
+    paneId,
+    workspaceId: 'w',
+    agent: 'claude',
+    title: null,
+    status,
+    focused: false,
+  })),
 });
 
 describe('agent attention', () => {
@@ -31,9 +43,37 @@ describe('agent attention', () => {
   });
 
   it('reports an agent that has just stopped to ask, ahead of one that finished', () => {
-    const before = report([['p1', 'working'], ['p2', 'working']], { working: 2 });
-    expect(newAttention(before, report([['p1', 'done'], ['p2', 'working']], { done: 1, working: 1 }))).toBe('done');
-    expect(newAttention(before, report([['p1', 'done'], ['p2', 'blocked']], { done: 1, blocked: 1 }))).toBe('blocked');
+    const before = report(
+      [
+        ['p1', 'working'],
+        ['p2', 'working'],
+      ],
+      { working: 2 },
+    );
+    expect(
+      newAttention(
+        before,
+        report(
+          [
+            ['p1', 'done'],
+            ['p2', 'working'],
+          ],
+          { done: 1, working: 1 },
+        ),
+      ),
+    ).toBe('done');
+    expect(
+      newAttention(
+        before,
+        report(
+          [
+            ['p1', 'done'],
+            ['p2', 'blocked'],
+          ],
+          { done: 1, blocked: 1 },
+        ),
+      ),
+    ).toBe('blocked');
   });
 
   it('stays quiet while nothing changes, and when agents go back to work', () => {

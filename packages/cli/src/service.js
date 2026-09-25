@@ -27,7 +27,12 @@ const {
 const { resolveHostFont } = require('./terminal-font');
 const { resolveSocketPath } = require('./socket-discovery');
 const { preferredLanAddress } = require('./net-interfaces');
-const { MIN_HERDR_VERSION, findHerdrCommand, herdrVersion, resolveHerdrCommand } = require('./herdr-command');
+const {
+  MIN_HERDR_VERSION,
+  findHerdrCommand,
+  herdrVersion,
+  resolveHerdrCommand,
+} = require('./herdr-command');
 
 const RUNTIME_VERSION = 2;
 
@@ -200,7 +205,7 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
       RELAY_URL: resolveHostRelayUrl(config),
       RELAY_HOST_ID: state.hostId,
       RELAY_HOST_TOKEN: state.hostToken,
-      RELAY_PASSWORD: runsLocalRelay(config) ? state.hostToken : (state.relayPassword || ''),
+      RELAY_PASSWORD: runsLocalRelay(config) ? state.hostToken : state.relayPassword || '',
       HERDR_SOCKET_PATH: resolveSocketPath(config.herdr.socketPath),
       HERDR_ARGS_JSON: JSON.stringify(config.herdr.args),
       HERDR_CWD: config.herdr.cwd,
@@ -260,7 +265,11 @@ function managedPids(state = readRuntime()) {
   // Supervisor first and never overwritten: `stopServices` relies on the order
   // to signal it before its children, and one pid can appear under several
   // fields.
-  for (const [name, pid] of [['supervisor', state.supervisorPid], ['host', state.hostPid], ['relay', state.relayPid]]) {
+  for (const [name, pid] of [
+    ['supervisor', state.supervisorPid],
+    ['host', state.hostPid],
+    ['relay', state.relayPid],
+  ]) {
     if (pidAlive(pid) && !pids.has(pid)) pids.set(pid, name);
   }
   for (const entry of state.managedPids || []) {
@@ -284,7 +293,9 @@ function startServices() {
   // A relay that is no longer part of the plan (switched to remote mode) must
   // not be left running on the old port.
   if (!specs.some((spec) => spec.name === 'relay') && pidAlive(next.relayPid)) {
-    try { process.kill(next.relayPid, 'SIGTERM'); } catch {}
+    try {
+      process.kill(next.relayPid, 'SIGTERM');
+    } catch {}
     next.relayPid = null;
   }
 
@@ -317,9 +328,9 @@ function stopServices() {
 
   // Supervisor first: it would otherwise see its children die and restart them
   // faster than we can kill them.
-  const targets = managedPids(state).sort((a, b) => (
-    (a.name === 'supervisor' ? 0 : 1) - (b.name === 'supervisor' ? 0 : 1)
-  ));
+  const targets = managedPids(state).sort(
+    (a, b) => (a.name === 'supervisor' ? 0 : 1) - (b.name === 'supervisor' ? 0 : 1),
+  );
 
   for (const { pid, name } of targets) {
     try {
@@ -352,27 +363,39 @@ function restartServices() {
 function requestJson(urlString, options = {}) {
   return new Promise((resolve, reject) => {
     let url;
-    try { url = new URL(urlString); } catch (error) { return reject(error); }
+    try {
+      url = new URL(urlString);
+    } catch (error) {
+      return reject(error);
+    }
     const transport = url.protocol === 'https:' ? https : http;
-    const request = transport.request(url, {
-      method: options.method || 'GET',
-      headers: options.headers || {},
-      timeout: options.timeout || 1500,
-    }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8');
-        let body;
-        try { body = JSON.parse(text); } catch { body = { raw: text }; }
-        if (response.statusCode >= 400) {
-          const error = new Error(body.message || `HTTP ${response.statusCode}`);
-          error.statusCode = response.statusCode;
-          error.body = body;
-          reject(error);
-        } else resolve(body);
-      });
-    });
+    const request = transport.request(
+      url,
+      {
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        timeout: options.timeout || 1500,
+      },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          let body;
+          try {
+            body = JSON.parse(text);
+          } catch {
+            body = { raw: text };
+          }
+          if (response.statusCode >= 400) {
+            const error = new Error(body.message || `HTTP ${response.statusCode}`);
+            error.statusCode = response.statusCode;
+            error.body = body;
+            reject(error);
+          } else resolve(body);
+        });
+      },
+    );
     request.on('timeout', () => request.destroy(new Error('request timed out')));
     request.on('error', reject);
     if (options.body) request.write(options.body);
@@ -387,7 +410,11 @@ function healthUrl(config) {
 async function waitForRelay(config, { attempts = 20, delayMs = 100 } = {}) {
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try { return await requestJson(healthUrl(config), { timeout: 800 }); } catch (error) { lastError = error; }
+    try {
+      return await requestJson(healthUrl(config), { timeout: 800 });
+    } catch (error) {
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   throw lastError || new Error('relay did not become ready');
@@ -412,7 +439,9 @@ async function waitForHost(config, { attempts = 30, delayMs = 100 } = {}) {
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
-  const error = new Error(lastStatus?.message || 'the Herdr host connector did not register with the relay');
+  const error = new Error(
+    lastStatus?.message || 'the Herdr host connector did not register with the relay',
+  );
   error.health = lastStatus;
   throw error;
 }
@@ -433,7 +462,9 @@ async function statusServices() {
   const herdr = findHerdrCommand();
   // Only worth spawning when there is something to spawn; an unresolved command
   // has already answered the question the version would.
-  const installed = herdr.found ? herdrVersion({ command: herdr.command }) : { version: null, supported: true };
+  const installed = herdr.found
+    ? herdrVersion({ command: herdr.command })
+    : { version: null, supported: true };
   return {
     ok: true,
     mode: config.relay.mode,

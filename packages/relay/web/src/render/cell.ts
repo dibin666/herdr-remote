@@ -56,7 +56,9 @@ export interface RawCell {
   fg: number;
   bg: number;
   combinedData: string;
-  extended: { ext: number; underlineStyle: number; underlineColor: number; urlId?: number } | undefined;
+  extended:
+    | { ext: number; underlineStyle: number; underlineColor: number; urlId?: number }
+    | undefined;
 }
 
 export function createRawCell(): RawCell {
@@ -104,7 +106,10 @@ export function contentFor(chars: string, width: 1 | 2): { content: number; comb
   const code = chars.codePointAt(0) ?? 0;
   const isSingle = chars.length > 0 && String.fromCodePoint(code).length === chars.length;
   if (isSingle) return { content: code | (width << Content.WIDTH_SHIFT), combinedData: '' };
-  return { content: Content.IS_COMBINED_MASK | (width << Content.WIDTH_SHIFT), combinedData: chars };
+  return {
+    content: Content.IS_COMBINED_MASK | (width << Content.WIDTH_SHIFT),
+    combinedData: chars,
+  };
 }
 
 /** Reads the raw words of a public-API cell, which in xterm 5.5 is the internal cell object. */

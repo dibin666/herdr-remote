@@ -3,16 +3,7 @@ import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { describeConnection } from '../utils/connectionStatus';
 import { copyText } from '../utils/clipboard';
-import {
-  Button,
-  Checkbox,
-  FieldLabel,
-  GLYPH,
-  Input,
-  Modal,
-  StatusDot,
-  StatusLevel,
-} from './tui';
+import { Button, Checkbox, FieldLabel, GLYPH, Input, Modal, StatusDot, StatusLevel } from './tui';
 
 interface PairingModalProps {
   isOpen: boolean;
@@ -36,7 +27,11 @@ const STATE_TONE: Record<string, StatusLevel> = {
  * bracketed checkbox for the boolean, and the actions on the status line at the
  * bottom where a terminal program keeps them.
  */
-export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose, isAddMode = false }) => {
+export const PairingModal: React.FC<PairingModalProps> = ({
+  isOpen,
+  onClose,
+  isAddMode = false,
+}) => {
   const {
     settings,
     updateSettings,
@@ -179,7 +174,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose, isA
                   ? 'text-tui-bad'
                   : tone === 'warn'
                     ? 'text-tui-warn'
-                    : 'text-tui-faint'
+                    : 'text-tui-faint',
             )}
           >
             {describeConnection(connectionState, t).label}

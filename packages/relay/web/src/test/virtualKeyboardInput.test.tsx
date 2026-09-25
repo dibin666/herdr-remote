@@ -8,7 +8,7 @@ describe('Virtual keyboard helper input policy', () => {
     render(
       <TerminalProvider>
         <VirtualKeyboardHelper isOpen={true} onClose={vi.fn()} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const input = screen.getByRole('textbox');

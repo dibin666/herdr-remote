@@ -33,7 +33,10 @@ const MAX_TITLE_LENGTH = 48;
 function cleanText(value, limit = MAX_TITLE_LENGTH) {
   if (typeof value !== 'string') return null;
   // eslint-disable-next-line no-control-regex
-  const collapsed = value.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ').replace(/\s+/g, ' ').trim();
+  const collapsed = value
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!collapsed) return null;
   return collapsed.length > limit ? collapsed.slice(0, limit) : collapsed;
 }
@@ -57,25 +60,30 @@ function emptyCounts() {
 function summarizeAgents(snapshot) {
   const entries = Array.isArray(snapshot?.agents) ? snapshot.agents : [];
   const panes = Array.isArray(snapshot?.panes) ? snapshot.panes : [];
-  const reportedFocusId = typeof snapshot?.focused_pane_id === 'string' && snapshot.focused_pane_id
-    ? snapshot.focused_pane_id
-    : null;
+  const reportedFocusId =
+    typeof snapshot?.focused_pane_id === 'string' && snapshot.focused_pane_id
+      ? snapshot.focused_pane_id
+      : null;
   // `focused_pane_id` is the primary signal in Herdr snapshots. The focused
   // flags are a fallback for snapshots where that top-level field is absent.
-  const focusedPane = (reportedFocusId
-    ? panes.find((pane) => pane?.pane_id === reportedFocusId)
-    : panes.find((pane) => pane?.focused === true)) || null;
-  const focusedAgentEntry = (reportedFocusId
-    ? entries.find((entry) => entry?.pane_id === reportedFocusId)
-    : entries.find((entry) => entry?.focused === true)) || null;
-  const focusedPaneId = reportedFocusId
-    || (typeof focusedPane?.pane_id === 'string' ? focusedPane.pane_id : null)
-    || (typeof focusedAgentEntry?.pane_id === 'string' ? focusedAgentEntry.pane_id : null);
-  const focusedAgent = typeof focusedPane?.agent === 'string'
-    ? focusedPane.agent
-    : typeof focusedAgentEntry?.agent === 'string'
-      ? focusedAgentEntry.agent
-      : null;
+  const focusedPane =
+    (reportedFocusId
+      ? panes.find((pane) => pane?.pane_id === reportedFocusId)
+      : panes.find((pane) => pane?.focused === true)) || null;
+  const focusedAgentEntry =
+    (reportedFocusId
+      ? entries.find((entry) => entry?.pane_id === reportedFocusId)
+      : entries.find((entry) => entry?.focused === true)) || null;
+  const focusedPaneId =
+    reportedFocusId ||
+    (typeof focusedPane?.pane_id === 'string' ? focusedPane.pane_id : null) ||
+    (typeof focusedAgentEntry?.pane_id === 'string' ? focusedAgentEntry.pane_id : null);
+  const focusedAgent =
+    typeof focusedPane?.agent === 'string'
+      ? focusedPane.agent
+      : typeof focusedAgentEntry?.agent === 'string'
+        ? focusedAgentEntry.agent
+        : null;
   const counts = emptyCounts();
   const ranked = [];
 
@@ -93,7 +101,9 @@ function summarizeAgents(snapshot) {
     });
   }
 
-  ranked.sort((left, right) => AGENT_STATUSES.indexOf(left.status) - AGENT_STATUSES.indexOf(right.status));
+  ranked.sort(
+    (left, right) => AGENT_STATUSES.indexOf(left.status) - AGENT_STATUSES.indexOf(right.status),
+  );
 
   return {
     focusedPaneId,
@@ -109,7 +119,8 @@ function summarizeAgents(snapshot) {
 /** Whether two summaries say the same thing, so an unchanged one is not sent. */
 function sameSummary(left, right) {
   if (!left || !right) return left === right;
-  if (left.focusedPaneId !== right.focusedPaneId || left.focusedAgent !== right.focusedAgent) return false;
+  if (left.focusedPaneId !== right.focusedPaneId || left.focusedAgent !== right.focusedAgent)
+    return false;
   if (left.total !== right.total) return false;
   for (const status of AGENT_STATUSES) {
     if ((left.counts?.[status] || 0) !== (right.counts?.[status] || 0)) return false;
@@ -117,11 +128,13 @@ function sameSummary(left, right) {
   if (left.agents.length !== right.agents.length) return false;
   return left.agents.every((agent, index) => {
     const other = right.agents[index];
-    return other
-      && agent.paneId === other.paneId
-      && agent.status === other.status
-      && agent.agent === other.agent
-      && agent.title === other.title;
+    return (
+      other &&
+      agent.paneId === other.paneId &&
+      agent.status === other.status &&
+      agent.agent === other.agent &&
+      agent.title === other.title
+    );
   });
 }
 

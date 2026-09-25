@@ -24,7 +24,10 @@ function recordingContext(): CanvasRenderingContext2D & Recorder {
     get(target, prop) {
       if (prop in target) return target[prop];
       if (prop === 'measureText') {
-        return (text: string) => ({ width: 8 * [...text].length, actualBoundingBoxRight: 7 * [...text].length });
+        return (text: string) => ({
+          width: 8 * [...text].length,
+          actualBoundingBoxRight: 7 * [...text].length,
+        });
       }
       return (...args: unknown[]) => {
         (target.calls as Recorder['calls']).push([String(prop), ...args]);
@@ -39,7 +42,9 @@ function recordingContext(): CanvasRenderingContext2D & Recorder {
 
 function palette(): ThemeColors {
   const color = (css: string) => ({ css, rgba: (parseInt(css.slice(1), 16) << 8) | 0xff });
-  const ansi = Array.from({ length: 256 }, (_, i) => color(`#${(i * 0x010101).toString(16).padStart(6, '0')}`));
+  const ansi = Array.from({ length: 256 }, (_, i) =>
+    color(`#${(i * 0x010101).toString(16).padStart(6, '0')}`),
+  );
   return {
     foreground: color('#d0d0d0'),
     background: color('#101010'),
@@ -79,7 +84,12 @@ class ManualResizeObserver {
   }
   disconnect() {}
   report(width: number, height: number) {
-    this.callback([{ target: this.target, devicePixelContentBoxSize: [{ inlineSize: width, blockSize: height }] }]);
+    this.callback([
+      {
+        target: this.target,
+        devicePixelContentBoxSize: [{ inlineSize: width, blockSize: height }],
+      },
+    ]);
   }
 }
 
@@ -153,7 +163,10 @@ describe('HerdrRenderer', () => {
   it('installs a text and a decoration canvas, sized in whole device pixels per cell', () => {
     const t = setup(20, 6);
     const canvases = t.screenElement.querySelectorAll('canvas');
-    expect([...canvases].map((canvas) => canvas.className)).toEqual(['xterm-text-layer', 'xterm-decor-layer']);
+    expect([...canvases].map((canvas) => canvas.className)).toEqual([
+      'xterm-text-layer',
+      'xterm-decor-layer',
+    ]);
     expect(t.renderer.dimensions.device.cell).toEqual({ width: 8, height: 16 });
     expect(t.renderer.dimensions.css.canvas).toEqual({ width: 160, height: 96 });
     expect(t.renderer.textCanvas.width).toBe(160);
@@ -253,7 +266,9 @@ describe('HerdrRenderer', () => {
     const t = setup(20, 6);
     await t.write('ab');
     t.frame();
-    let overlay: PaintOverlay | null = { cells: [{ row: 3, col: 1, chars: 'z', width: 1, style: { fg: 0, bg: 0, ext: 0 } }] };
+    let overlay: PaintOverlay | null = {
+      cells: [{ row: 3, col: 1, chars: 'z', width: 1, style: { fg: 0, bg: 0, ext: 0 } }],
+    };
     t.renderer.setOverlayProvider(() => overlay);
     expect(t.redraws.at(-1)).toEqual({ start: 0, end: 3 });
     t.frame();
@@ -299,14 +314,24 @@ describe('HerdrRenderer', () => {
     ManualResizeObserver.last!.report(css.width, css.height);
     expect({ width: canvas.width, height: canvas.height }).toEqual(exact);
 
-    ManualResizeObserver.last!.report(Math.round(css.width * 1.25) + 1, Math.round(css.height * 1.25));
+    ManualResizeObserver.last!.report(
+      Math.round(css.width * 1.25) + 1,
+      Math.round(css.height * 1.25),
+    );
     expect(canvas.width).toBe(Math.round(css.width * 1.25) + 1);
   });
 
   it('hands drawing back to the DOM renderer when uninstalled', () => {
     const t = setup(20, 6);
     const created = { handleResize: vi.fn() };
-    const core = (t.renderer as unknown as { core: { _createRenderer?: () => unknown; _renderService: { setRenderer: (r: unknown) => void } } }).core;
+    const core = (
+      t.renderer as unknown as {
+        core: {
+          _createRenderer?: () => unknown;
+          _renderService: { setRenderer: (r: unknown) => void };
+        };
+      }
+    ).core;
     const setRenderer = vi.fn();
     core._createRenderer = () => created;
     core._renderService.setRenderer = setRenderer;
@@ -350,7 +375,11 @@ describe('resolveCellColors', () => {
   const INVERSE = 0x4000000;
 
   it('uses the theme defaults', () => {
-    expect(resolveCellColors(0, 0, colors, true)).toEqual({ fg: '#d0d0d0', bg: '#101010', bgIsDefault: true });
+    expect(resolveCellColors(0, 0, colors, true)).toEqual({
+      fg: '#d0d0d0',
+      bg: '#101010',
+      bgIsDefault: true,
+    });
   });
 
   it('moves bold text in the first eight colours to the bright eight, whichever way the colour was set', () => {
@@ -361,11 +390,23 @@ describe('resolveCellColors', () => {
   });
 
   it('draws truecolor as it is', () => {
-    expect(resolveCellColors(RGB | 0x123456, RGB | 0xabcdef, colors, true)).toEqual({ fg: '#123456', bg: '#abcdef', bgIsDefault: false });
+    expect(resolveCellColors(RGB | 0x123456, RGB | 0xabcdef, colors, true)).toEqual({
+      fg: '#123456',
+      bg: '#abcdef',
+      bgIsDefault: false,
+    });
   });
 
   it('swaps under inverse, a default colour becoming the other default', () => {
-    expect(resolveCellColors(INVERSE, 0, colors, true)).toEqual({ fg: '#101010', bg: '#d0d0d0', bgIsDefault: false });
-    expect(resolveCellColors(INVERSE | P16 | 2, RGB | 0x0000ff, colors, true)).toEqual({ fg: '#0000ff', bg: colors.ansi[2].css, bgIsDefault: false });
+    expect(resolveCellColors(INVERSE, 0, colors, true)).toEqual({
+      fg: '#101010',
+      bg: '#d0d0d0',
+      bgIsDefault: false,
+    });
+    expect(resolveCellColors(INVERSE | P16 | 2, RGB | 0x0000ff, colors, true)).toEqual({
+      fg: '#0000ff',
+      bg: colors.ansi[2].css,
+      bgIsDefault: false,
+    });
   });
 });

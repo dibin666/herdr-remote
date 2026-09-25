@@ -36,9 +36,19 @@ export type AdapterEventMap = {
    * language and keep the original only as a fallback.
    */
   stateChange: (state: ConnectionState, detail?: string, code?: string) => void;
-  roleChange: (role: ClientRole, controllerId?: string, hostId?: string, assignedClientId?: string) => void;
+  roleChange: (
+    role: ClientRole,
+    controllerId?: string,
+    hostId?: string,
+    assignedClientId?: string,
+  ) => void;
   ready: (payload: ServerReadyMessage) => void;
-  paired: (payload: { token: string; deviceId?: string; hostId?: string; expiresAt?: number | string }) => void;
+  paired: (payload: {
+    token: string;
+    deviceId?: string;
+    hostId?: string;
+    expiresAt?: number | string;
+  }) => void;
   controlState: (role: ClientRole, controllerId?: string) => void;
   controlRevoked: (reason?: string) => void;
   sessionReady: (payload: ServerSessionReadyMessage) => void;
@@ -51,7 +61,12 @@ export type AdapterEventMap = {
   /** The authenticated host socket is temporarily reconnecting. */
   hostReconnecting: (code?: string) => void;
   /** A new PTY was created after a host handoff or profile switch. */
-  sessionRestarted: (cols?: number, rows?: number, palette?: ServerSessionRestartedMessage['terminalPalette'], hostname?: string) => void;
+  sessionRestarted: (
+    cols?: number,
+    rows?: number,
+    palette?: ServerSessionRestartedMessage['terminalPalette'],
+    hostname?: string,
+  ) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
@@ -168,10 +183,7 @@ export class HerdrClientAdapter {
     return this.assignedClientId;
   }
 
-  public on<K extends keyof AdapterEventMap>(
-    event: K,
-    listener: AdapterEventMap[K]
-  ): () => void {
+  public on<K extends keyof AdapterEventMap>(event: K, listener: AdapterEventMap[K]): () => void {
     this.listeners[event].add(listener);
     return () => {
       this.listeners[event].delete(listener);
@@ -206,7 +218,10 @@ export class HerdrClientAdapter {
       this.terminalRows = dimensions.rows;
     }
 
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -254,7 +269,7 @@ export class HerdrClientAdapter {
       this.setState(
         'error',
         err instanceof Error ? err.message : 'Connection failed',
-        'connection_failed'
+        'connection_failed',
       );
       this.scheduleReconnect();
     }
@@ -332,7 +347,12 @@ export class HerdrClientAdapter {
    * for the new socket, and this window loses the workspace and tab it had.
    */
   public wake(_reason: string): void {
-    if (this.isManuallyClosed || !this.config.autoReconnect || this.authFailureDetail || this.rejectedByRelay) {
+    if (
+      this.isManuallyClosed ||
+      !this.config.autoReconnect ||
+      this.authFailureDetail ||
+      this.rejectedByRelay
+    ) {
       return;
     }
     const now = Date.now();
@@ -347,11 +367,15 @@ export class HerdrClientAdapter {
     }
 
     if (socket.readyState === WebSocket.CONNECTING) {
-      if (now - this.connectStartedAt > CONNECT_STALL_MS) this.dropStaleSocket('connection_stalled');
+      if (now - this.connectStartedAt > CONNECT_STALL_MS)
+        this.dropStaleSocket('connection_stalled');
       return;
     }
 
-    if (socket.readyState === WebSocket.OPEN && now - this.lastInboundAt > this.pingIntervalMs() + 2000) {
+    if (
+      socket.readyState === WebSocket.OPEN &&
+      now - this.lastInboundAt > this.pingIntervalMs() + 2000
+    ) {
       this.probeLiveness();
     }
   }
@@ -449,7 +473,11 @@ export class HerdrClientAdapter {
 
       case 'host_reconnecting': {
         this.temporaryFailureCode = 'host_reconnecting';
-        this.setState('reconnecting', 'Herdr host is reconnecting', msg.code || 'host_reconnecting');
+        this.setState(
+          'reconnecting',
+          'Herdr host is reconnecting',
+          msg.code || 'host_reconnecting',
+        );
         this.emit('hostReconnecting', msg.code);
         break;
       }
@@ -483,7 +511,13 @@ export class HerdrClientAdapter {
         this.currentRole = 'controller';
         this.controllerId = this.assignedClientId || this.config.clientId;
         this.emit('controlGranted');
-        this.emit('roleChange', 'controller', this.controllerId, this.hostId, this.assignedClientId);
+        this.emit(
+          'roleChange',
+          'controller',
+          this.controllerId,
+          this.hostId,
+          this.assignedClientId,
+        );
         break;
       }
 
@@ -498,10 +532,11 @@ export class HerdrClientAdapter {
       }
 
       case 'error': {
-        const temporary = msg.code === 'host_offline'
-          || msg.code === 'host_reconnecting'
-          || msg.code === 'host_reconnect_timeout'
-          || msg.code === 'rate_limited';
+        const temporary =
+          msg.code === 'host_offline' ||
+          msg.code === 'host_reconnecting' ||
+          msg.code === 'host_reconnect_timeout' ||
+          msg.code === 'rate_limited';
         if (temporary) {
           this.temporaryFailureCode = String(msg.code);
           this.setState('reconnecting', msg.message, String(msg.code));
@@ -580,18 +615,30 @@ export class HerdrClientAdapter {
       return;
     }
     if (event.code === 1008 && this.temporaryFailureCode) {
-      this.setState('reconnecting', event.reason || 'The relay is temporarily unavailable', this.temporaryFailureCode);
+      this.setState(
+        'reconnecting',
+        event.reason || 'The relay is temporarily unavailable',
+        this.temporaryFailureCode,
+      );
       this.scheduleReconnect();
       return;
     }
     if (event.code === 1008) {
       this.rejectedByRelay = true;
-      this.setState('error', event.reason || 'The relay rejected the connection', String(event.code));
+      this.setState(
+        'error',
+        event.reason || 'The relay rejected the connection',
+        String(event.code),
+      );
       return;
     }
 
     if (!this.isManuallyClosed && this.config.autoReconnect) {
-      this.setState('reconnecting', `Connection closed (${event.code}). Retrying...`, 'connection_closed');
+      this.setState(
+        'reconnecting',
+        `Connection closed (${event.code}). Retrying...`,
+        'connection_closed',
+      );
       this.scheduleReconnect();
     } else {
       this.setState('disconnected', `Closed: ${event.reason || event.code}`, 'connection_closed');
@@ -615,7 +662,7 @@ export class HerdrClientAdapter {
     const maxBackoff = 30000;
     const delay = Math.min(
       maxBackoff,
-      Math.floor(base * Math.pow(1.5, this.reconnectAttempts - 1) + Math.random() * 500)
+      Math.floor(base * Math.pow(1.5, this.reconnectAttempts - 1) + Math.random() * 500),
     );
 
     this.reconnectTimer = setTimeout(() => {
@@ -633,7 +680,11 @@ export class HerdrClientAdapter {
       // A ping that met a whole interval of silence earns a probe, not a
       // drop: a background tab's timers fire late, and the answer may be in
       // flight.
-      if (this.pingSentAt !== null && this.lastInboundAt < this.pingSentAt && Date.now() - this.pingSentAt >= interval) {
+      if (
+        this.pingSentAt !== null &&
+        this.lastInboundAt < this.pingSentAt &&
+        Date.now() - this.pingSentAt >= interval
+      ) {
         this.probeLiveness();
         return;
       }

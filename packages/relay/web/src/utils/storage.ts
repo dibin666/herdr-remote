@@ -1,4 +1,8 @@
-import { clampFontSize, DEFAULT_DESKTOP_FONT_SIZE, DEFAULT_MOBILE_FONT_SIZE } from './terminalLayout';
+import {
+  clampFontSize,
+  DEFAULT_DESKTOP_FONT_SIZE,
+  DEFAULT_MOBILE_FONT_SIZE,
+} from './terminalLayout';
 import { Language } from '../i18n/types';
 import { ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
 import type { AgentKeymapsSettings } from './agentKeymaps';
@@ -14,8 +18,7 @@ export const PREVIOUS_DEFAULT_FONT =
 export const OLD_SYSTEM_DEFAULT_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
-export const LEGACY_DEFAULT_FONT =
-  'JetBrains Mono, Menlo, Monaco, Consolas, monospace';
+export const LEGACY_DEFAULT_FONT = 'JetBrains Mono, Menlo, Monaco, Consolas, monospace';
 
 /**
  * What an older build's font value becomes. A default follows the host now;
@@ -165,25 +168,40 @@ function cleanProfile(value: unknown, index: number): ConnectionProfile | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value as Partial<ConnectionProfile>;
   const wsUrl = typeof source.wsUrl === 'string' ? source.wsUrl.trim().slice(0, 2048) : '';
-  const token = typeof source.token === 'string' ? source.token.slice(0, MAX_PROFILE_TOKEN_LENGTH) : '';
-  const pairCode = typeof source.pairCode === 'string' ? source.pairCode.trim().toUpperCase().slice(0, 32) : '';
-  if (!wsUrl || (!wsUrl.startsWith('/') && !/^(?:wss?|https?):\/\//i.test(wsUrl)) || (!token && !pairCode)) return null;
+  const token =
+    typeof source.token === 'string' ? source.token.slice(0, MAX_PROFILE_TOKEN_LENGTH) : '';
+  const pairCode =
+    typeof source.pairCode === 'string' ? source.pairCode.trim().toUpperCase().slice(0, 32) : '';
+  if (
+    !wsUrl ||
+    (!wsUrl.startsWith('/') && !/^(?:wss?|https?):\/\//i.test(wsUrl)) ||
+    (!token && !pairCode)
+  )
+    return null;
   const now = Date.now();
-  const id = typeof source.id === 'string' && source.id.length > 0
-    ? source.id.slice(0, 128)
-    : generateProfileId();
-  const fallback = typeof source.hostname === 'string' && source.hostname.trim()
-    ? source.hostname.trim().slice(0, MAX_PROFILE_NAME_LENGTH)
-    : `Herdr ${index + 1}`;
+  const id =
+    typeof source.id === 'string' && source.id.length > 0
+      ? source.id.slice(0, 128)
+      : generateProfileId();
+  const fallback =
+    typeof source.hostname === 'string' && source.hostname.trim()
+      ? source.hostname.trim().slice(0, MAX_PROFILE_NAME_LENGTH)
+      : `Herdr ${index + 1}`;
   return {
     id,
     displayName: cleanProfileName(source.displayName, fallback),
     wsUrl,
     token,
     ...(pairCode ? { pairCode } : {}),
-    ...(typeof source.hostId === 'string' && source.hostId.trim() ? { hostId: source.hostId.trim().slice(0, 128) } : {}),
-    ...(typeof source.hostname === 'string' && source.hostname.trim() ? { hostname: source.hostname.trim().slice(0, 128) } : {}),
-    ...(typeof source.deviceId === 'string' && source.deviceId.trim() ? { deviceId: source.deviceId.trim().slice(0, 128) } : {}),
+    ...(typeof source.hostId === 'string' && source.hostId.trim()
+      ? { hostId: source.hostId.trim().slice(0, 128) }
+      : {}),
+    ...(typeof source.hostname === 'string' && source.hostname.trim()
+      ? { hostname: source.hostname.trim().slice(0, 128) }
+      : {}),
+    ...(typeof source.deviceId === 'string' && source.deviceId.trim()
+      ? { deviceId: source.deviceId.trim().slice(0, 128) }
+      : {}),
     autoReconnect: source.autoReconnect !== false,
     createdAt: Number.isFinite(source.createdAt) ? Number(source.createdAt) : now,
     lastUsedAt: Number.isFinite(source.lastUsedAt) ? Number(source.lastUsedAt) : now,
@@ -195,12 +213,16 @@ export function createConnectionProfile(
   index = 0,
 ): ConnectionProfile {
   const normalized = cleanProfile({ ...partial, id: partial.id || generateProfileId() }, index);
-  if (!normalized) throw new Error('a connection profile requires a relay URL and token or pairing code');
+  if (!normalized)
+    throw new Error('a connection profile requires a relay URL and token or pairing code');
   return normalized;
 }
 
 export function profileKey(profile: Pick<ConnectionProfile, 'wsUrl' | 'hostId'>): string {
-  let relay = profile.wsUrl.replace(/\/ws\/client\/?$/, '').replace(/\/+$/, '').toLowerCase();
+  let relay = profile.wsUrl
+    .replace(/\/ws\/client\/?$/, '')
+    .replace(/\/+$/, '')
+    .toLowerCase();
   if (typeof window !== 'undefined') {
     try {
       const url = new URL(profile.wsUrl, window.location.origin);
@@ -298,7 +320,7 @@ const SESSION_KEYS: Array<keyof StoredSettings> = [
  * the tab they were typed into, and they have no business being written to disk.
  */
 const PERSISTED_VIEW_KEYS: Array<keyof StoredSettings> = SESSION_KEYS.filter(
-  (key) => key !== 'adminToken' && key !== 'adminTokens'
+  (key) => key !== 'adminToken' && key !== 'adminTokens',
 );
 
 /**
@@ -331,23 +353,42 @@ function sanitizeAdminTokens(value: unknown): Record<string, string> {
 export function sanitizeAgentKeymaps(value: unknown): AgentKeymapsSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const result: AgentKeymapsSettings = Object.create(null);
-  for (const [profileId, rawProfile] of Object.entries(value as Record<string, unknown>).slice(0, 32)) {
-    if (!/^[a-z][a-z0-9_-]{0,31}$/i.test(profileId)
-      || ['__proto__', 'constructor', 'prototype'].includes(profileId)) continue;
+  for (const [profileId, rawProfile] of Object.entries(value as Record<string, unknown>).slice(
+    0,
+    32,
+  )) {
+    if (
+      !/^[a-z][a-z0-9_-]{0,31}$/i.test(profileId) ||
+      ['__proto__', 'constructor', 'prototype'].includes(profileId)
+    )
+      continue;
     if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) continue;
     const source = rawProfile as Record<string, unknown>;
     const profile: AgentKeymapsSettings[string] = {};
 
     if (Array.isArray(source.order)) {
-      profile.order = [...new Set(source.order
-        .filter((id): id is string => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(id)))]
-        .slice(0, 256);
+      profile.order = [
+        ...new Set(
+          source.order.filter(
+            (id): id is string => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(id),
+          ),
+        ),
+      ].slice(0, 256);
     }
 
     if (source.actions && typeof source.actions === 'object' && !Array.isArray(source.actions)) {
       const actions: NonNullable<AgentKeymapsSettings[string]['actions']> = Object.create(null);
-      for (const [id, rawAction] of Object.entries(source.actions as Record<string, unknown>).slice(0, 256)) {
-        if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id) || !rawAction || typeof rawAction !== 'object' || Array.isArray(rawAction)) continue;
+      for (const [id, rawAction] of Object.entries(source.actions as Record<string, unknown>).slice(
+        0,
+        256,
+      )) {
+        if (
+          !/^[a-zA-Z0-9_-]{1,64}$/.test(id) ||
+          !rawAction ||
+          typeof rawAction !== 'object' ||
+          Array.isArray(rawAction)
+        )
+          continue;
         const action = rawAction as Record<string, unknown>;
         const cleaned: NonNullable<AgentKeymapsSettings[string]['actions']>[string] = {};
         if (typeof action.keys === 'string' && action.keys.trim()) {
@@ -370,13 +411,26 @@ export function sanitizeAgentKeymaps(value: unknown): AgentKeymapsSettings {
       profile.custom = source.custom.slice(0, 64).flatMap((rawAction) => {
         if (!rawAction || typeof rawAction !== 'object' || Array.isArray(rawAction)) return [];
         const custom = rawAction as Record<string, unknown>;
-        if (typeof custom.id !== 'string'
-          || !/^[a-zA-Z0-9_-]{1,64}$/.test(custom.id)
-          || ['__proto__', 'constructor', 'prototype'].includes(custom.id)
-          || seen.has(custom.id)) return [];
-        if (typeof custom.label !== 'string' || !custom.label.trim() || typeof custom.keys !== 'string' || !custom.keys.trim()) return [];
+        if (
+          typeof custom.id !== 'string' ||
+          !/^[a-zA-Z0-9_-]{1,64}$/.test(custom.id) ||
+          ['__proto__', 'constructor', 'prototype'].includes(custom.id) ||
+          seen.has(custom.id)
+        )
+          return [];
+        if (
+          typeof custom.label !== 'string' ||
+          !custom.label.trim() ||
+          typeof custom.keys !== 'string' ||
+          !custom.keys.trim()
+        )
+          return [];
         const keys = custom.keys.trim().slice(0, 80);
-        try { parseKeyCombo(keys); } catch { return []; }
+        try {
+          parseKeyCombo(keys);
+        } catch {
+          return [];
+        }
         seen.add(custom.id);
         return [{ id: custom.id, label: custom.label.trim().slice(0, 64), keys }];
       });
@@ -400,17 +454,25 @@ function normalizeProfiles(localData: Partial<StoredSettings>): {
   // Migrate the v1 singleton connection without making an empty onboarding
   // page look like it contains a profile. A pending legacy pairCode is kept so
   // an interrupted pairing can still be resumed once.
-  if (profiles.length === 0
-    && (typeof localData.token === 'string' && localData.token
-      || typeof localData.pairCode === 'string' && localData.pairCode)) {
-    const migrated = cleanProfile({
-      id: 'profile-migrated',
-      displayName: 'Herdr 1',
-      wsUrl: typeof localData.wsUrl === 'string' && localData.wsUrl.trim() ? localData.wsUrl : '/ws/client',
-      token: localData.token || '',
-      pairCode: localData.pairCode || '',
-      autoReconnect: localData.autoReconnect !== false,
-    }, 0);
+  if (
+    profiles.length === 0 &&
+    ((typeof localData.token === 'string' && localData.token) ||
+      (typeof localData.pairCode === 'string' && localData.pairCode))
+  ) {
+    const migrated = cleanProfile(
+      {
+        id: 'profile-migrated',
+        displayName: 'Herdr 1',
+        wsUrl:
+          typeof localData.wsUrl === 'string' && localData.wsUrl.trim()
+            ? localData.wsUrl
+            : '/ws/client',
+        token: localData.token || '',
+        pairCode: localData.pairCode || '',
+        autoReconnect: localData.autoReconnect !== false,
+      },
+      0,
+    );
     if (migrated) profiles.push(migrated);
   }
 
@@ -474,9 +536,12 @@ export function loadSettings(): StoredSettings {
   }
 
   // Stacks stored by older builds become the preset that replaced them.
-  const fontFamily = migrateFontFamily(sessionData.fontFamily ?? localData.fontFamily ?? defaults.fontFamily);
+  const fontFamily = migrateFontFamily(
+    sessionData.fontFamily ?? localData.fontFamily ?? defaults.fontFamily,
+  );
 
-  const fallbackSize = window.innerWidth < 640 ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE;
+  const fallbackSize =
+    window.innerWidth < 640 ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE;
   // Strict priority: sessionData (per-window) > localData (seed) > defaults
   const rawFontSize = sessionData.fontSize ?? localData.fontSize ?? defaults.fontSize;
   const fontSize = clampFontSize(rawFontSize, fallbackSize);
@@ -484,15 +549,19 @@ export function loadSettings(): StoredSettings {
   // moved away from the default was a choice and is kept; a default size
   // follows the host like a fresh install.
   const storedFollows = sessionData.fontSizeFollowsHost ?? localData.fontSizeFollowsHost;
-  const fontSizeFollowsHost = typeof storedFollows === 'boolean'
-    ? storedFollows
-    : rawFontSize === undefined || fontSize === DEFAULT_DESKTOP_FONT_SIZE || fontSize === DEFAULT_MOBILE_FONT_SIZE;
+  const fontSizeFollowsHost =
+    typeof storedFollows === 'boolean'
+      ? storedFollows
+      : rawFontSize === undefined ||
+        fontSize === DEFAULT_DESKTOP_FONT_SIZE ||
+        fontSize === DEFAULT_MOBILE_FONT_SIZE;
 
   const rawVirtualKeys = sessionData.virtualKeys ?? localData.virtualKeys ?? defaults.virtualKeys;
   const virtualKeys = sanitizeVirtualKeys(rawVirtualKeys);
 
   const rawLang = localData.language ?? defaults.language;
-  const language: Language = rawLang === 'zh' || rawLang === 'en' ? rawLang : detectDefaultLanguage();
+  const language: Language =
+    rawLang === 'zh' || rawLang === 'en' ? rawLang : detectDefaultLanguage();
   const normalizedProfiles = normalizeProfiles(localData);
   const activeProfile = normalizedProfiles.profiles.find(
     (profile) => profile.id === normalizedProfiles.activeProfileId,
@@ -504,38 +573,48 @@ export function loadSettings(): StoredSettings {
     safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionData));
   }
 
-  const toolbarVisible = sessionData.toolbarVisible ?? localData.toolbarVisible ?? defaults.toolbarVisible;
-  const toolbarPosition = sessionData.toolbarPosition ?? localData.toolbarPosition ?? defaults.toolbarPosition;
-  const vibrateOnKeyPress = sessionData.vibrateOnKeyPress ?? localData.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress;
-  const booleanSetting = (key: 'agentAlertBadge' | 'agentAlertSound' | 'agentAlertVibrate' | 'agentAlertNotify') => {
+  const toolbarVisible =
+    sessionData.toolbarVisible ?? localData.toolbarVisible ?? defaults.toolbarVisible;
+  const toolbarPosition =
+    sessionData.toolbarPosition ?? localData.toolbarPosition ?? defaults.toolbarPosition;
+  const vibrateOnKeyPress =
+    sessionData.vibrateOnKeyPress ?? localData.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress;
+  const booleanSetting = (
+    key: 'agentAlertBadge' | 'agentAlertSound' | 'agentAlertVibrate' | 'agentAlertNotify',
+  ) => {
     const value = sessionData[key] ?? localData[key];
     return typeof value === 'boolean' ? value : defaults[key];
   };
-  const rawPredictiveEcho = sessionData?.predictiveEcho ?? localData?.predictiveEcho ?? defaults.predictiveEcho;
+  const rawPredictiveEcho =
+    sessionData?.predictiveEcho ?? localData?.predictiveEcho ?? defaults.predictiveEcho;
   const predictiveEcho: 'auto' | 'always' | 'off' =
     rawPredictiveEcho === 'always' || rawPredictiveEcho === 'off' || rawPredictiveEcho === 'auto'
       ? rawPredictiveEcho
       : 'auto';
-  const adminToken = typeof sessionData.adminToken === 'string'
-    ? sessionData.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH)
-    : typeof localData.adminToken === 'string'
-      ? localData.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH)
-      : defaults.adminToken;
+  const adminToken =
+    typeof sessionData.adminToken === 'string'
+      ? sessionData.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH)
+      : typeof localData.adminToken === 'string'
+        ? localData.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH)
+        : defaults.adminToken;
   const adminTokens = sanitizeAdminTokens(sessionData.adminTokens);
 
   const result: StoredSettings = {
     ...defaults,
     ...localData,
     ...sessionData,
-    wsUrl: activeProfile?.wsUrl || (typeof localData.wsUrl === 'string' ? localData.wsUrl : defaults.wsUrl),
+    wsUrl:
+      activeProfile?.wsUrl ||
+      (typeof localData.wsUrl === 'string' ? localData.wsUrl : defaults.wsUrl),
     token: activeProfile?.token || '',
     pairCode: activeProfile?.pairCode || '',
     autoReconnect: activeProfile?.autoReconnect ?? defaults.autoReconnect,
     profiles: normalizedProfiles.profiles,
     activeProfileId: normalizedProfiles.activeProfileId,
-    clientId: typeof localData.clientId === 'string' && localData.clientId.trim()
-      ? localData.clientId.trim().slice(0, 128)
-      : defaults.clientId,
+    clientId:
+      typeof localData.clientId === 'string' && localData.clientId.trim()
+        ? localData.clientId.trim().slice(0, 128)
+        : defaults.clientId,
     fontFamily,
     fontSize,
     fontSizeFollowsHost,
@@ -556,7 +635,10 @@ export function loadSettings(): StoredSettings {
 
   // Write a migrated font back, so the browser-wide copy a new window seeds
   // from no longer names a stack that is not offered any more.
-  if (typeof localData.fontFamily === 'string' && migrateFontFamily(localData.fontFamily) !== localData.fontFamily) {
+  if (
+    typeof localData.fontFamily === 'string' &&
+    migrateFontFamily(localData.fontFamily) !== localData.fontFamily
+  ) {
     localData.fontFamily = migrateFontFamily(localData.fontFamily);
     safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localData));
   }
@@ -574,14 +656,19 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const next: StoredSettings = { ...current, ...updates };
   next.agentKeymaps = sanitizeAgentKeymaps(next.agentKeymaps);
   next.adminTokens = sanitizeAdminTokens(next.adminTokens);
-  if (typeof next.adminToken === 'string') next.adminToken = next.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH);
+  if (typeof next.adminToken === 'string')
+    next.adminToken = next.adminToken.slice(0, MAX_PROFILE_TOKEN_LENGTH);
 
   if (updates.fontSize !== undefined) {
     next.fontSize = clampFontSize(updates.fontSize);
   }
 
   if (updates.predictiveEcho !== undefined) {
-    if (updates.predictiveEcho === 'auto' || updates.predictiveEcho === 'always' || updates.predictiveEcho === 'off') {
+    if (
+      updates.predictiveEcho === 'auto' ||
+      updates.predictiveEcho === 'always' ||
+      updates.predictiveEcho === 'off'
+    ) {
       next.predictiveEcho = updates.predictiveEcho;
     } else {
       next.predictiveEcho = 'auto';
@@ -597,17 +684,18 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const connectionChanged = CONNECTION_KEYS.some((key) => updates[key] !== undefined);
   if (connectionChanged) {
     const activeIndex = profiles.findIndex((profile) => profile.id === activeProfileId);
-    const candidate = activeIndex >= 0
-      ? { ...profiles[activeIndex] }
-      : {
-          id: generateProfileId(),
-          displayName: `Herdr ${profiles.length + 1}`,
-          wsUrl: next.wsUrl,
-          token: '',
-          autoReconnect: true,
-          createdAt: Date.now(),
-          lastUsedAt: Date.now(),
-        };
+    const candidate =
+      activeIndex >= 0
+        ? { ...profiles[activeIndex] }
+        : {
+            id: generateProfileId(),
+            displayName: `Herdr ${profiles.length + 1}`,
+            wsUrl: next.wsUrl,
+            token: '',
+            autoReconnect: true,
+            createdAt: Date.now(),
+            lastUsedAt: Date.now(),
+          };
     candidate.wsUrl = next.wsUrl;
     candidate.token = next.token;
     candidate.pairCode = next.pairCode || undefined;

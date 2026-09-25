@@ -1,5 +1,12 @@
 import type { Terminal } from '@xterm/xterm';
-import { Attributes, BgFlags, DEFAULT_STYLE, FgFlags, readCellStyle, type CellStyle } from '../render/cell';
+import {
+  Attributes,
+  BgFlags,
+  DEFAULT_STYLE,
+  FgFlags,
+  readCellStyle,
+  type CellStyle,
+} from '../render/cell';
 import type { OverlayCell, PaintOverlay } from '../render/HerdrRenderer';
 import type { OverlayItem } from './predictiveEcho';
 
@@ -119,7 +126,13 @@ export class PredictionLayer {
           if (!cursorHidden) {
             cursor = { row: item.row, col: item.col };
           } else if (paintsOwnCaret) {
-            cells.push({ row: item.row, col: item.col, chars: item.char, width: 1, style: serverStyle! });
+            cells.push({
+              row: item.row,
+              col: item.col,
+              chars: item.char,
+              width: 1,
+              style: serverStyle!,
+            });
           }
           break;
       }
@@ -138,12 +151,18 @@ function styleAt(terminal: Terminal, row: number, col: number): CellStyle | null
  * it: reversed, or on a background of its own.
  */
 function looksLikeCaret(style: CellStyle): boolean {
-  return (style.fg & FgFlags.INVERSE) !== 0 || (style.bg & Attributes.CM_MASK) !== Attributes.CM_DEFAULT;
+  return (
+    (style.fg & FgFlags.INVERSE) !== 0 || (style.bg & Attributes.CM_MASK) !== Attributes.CM_DEFAULT
+  );
 }
 
 /** A painted caret's cell as it looks without the caret: plain text. */
 function plainStyle(style: CellStyle): CellStyle {
-  return { fg: style.fg & ~FgFlags.INVERSE, bg: style.bg & ~(Attributes.CM_MASK | Attributes.RGB_MASK), ext: style.ext };
+  return {
+    fg: style.fg & ~FgFlags.INVERSE,
+    bg: style.bg & ~(Attributes.CM_MASK | Attributes.RGB_MASK),
+    ext: style.ext,
+  };
 }
 
 /** A cleared cell keeps its background and nothing else. */

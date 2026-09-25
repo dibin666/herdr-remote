@@ -66,7 +66,7 @@ describe('A viewer scrolls its own stream without holding the control lease', ()
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
   };
 
@@ -82,7 +82,7 @@ describe('A viewer scrolls its own stream without holding the control lease', ()
           controllerId: 'client-other',
           hostId: 'host-1',
           clientId: 'client-me',
-        })
+        }),
       );
     });
 
@@ -135,7 +135,13 @@ describe('A viewer scrolls its own stream without holding the control lease', ()
       const socket = webSocketInstances[0];
       socket.simulateOpen();
       socket.simulateMessage(
-        JSON.stringify({ type: 'ready', role: 'controller', controllerId: 'client-me', hostId: 'host-1', clientId: 'client-me' })
+        JSON.stringify({
+          type: 'ready',
+          role: 'controller',
+          controllerId: 'client-me',
+          hostId: 'host-1',
+          clientId: 'client-me',
+        }),
       );
     });
 

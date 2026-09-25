@@ -143,7 +143,7 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
 
   const scheduleReconnect = () => {
     if (closed || reconnectTimer) return;
-    const delay = Math.min(retryBaseMs * (2 ** retryCount), retryMaxMs);
+    const delay = Math.min(retryBaseMs * 2 ** retryCount, retryMaxMs);
     retryCount += 1;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -174,11 +174,13 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
     current.on('connect', () => {
       requestCounter += 1;
       requestId = `herdr-remote:subscription:${requestCounter}`;
-      current.write(`${JSON.stringify({
-        id: requestId,
-        method: 'events.subscribe',
-        params: { subscriptions },
-      })}\n`);
+      current.write(
+        `${JSON.stringify({
+          id: requestId,
+          method: 'events.subscribe',
+          params: { subscriptions },
+        })}\n`,
+      );
       handshakeTimer = setTimeout(() => current.destroy(), REQUEST_TIMEOUT_MS);
       if (typeof handshakeTimer.unref === 'function') handshakeTimer.unref();
     });
@@ -208,8 +210,15 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
           }
           acknowledged = true;
           retryCount = 0;
-        } else if (acknowledged && typeof message?.event === 'string' && message.data && typeof message.data === 'object') {
-          try { onEvent(message); } catch {}
+        } else if (
+          acknowledged &&
+          typeof message?.event === 'string' &&
+          message.data &&
+          typeof message.data === 'object'
+        ) {
+          try {
+            onEvent(message);
+          } catch {}
         }
       }
     });

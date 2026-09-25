@@ -30,7 +30,11 @@ function readSizedInt(buffer, offset, size) {
  * anything malformed; callers treat that as "no answer".
  */
 function parseBinaryPlist(buffer) {
-  if (!Buffer.isBuffer(buffer) || buffer.length < 40 || buffer.toString('latin1', 0, 8) !== 'bplist00') {
+  if (
+    !Buffer.isBuffer(buffer) ||
+    buffer.length < 40 ||
+    buffer.toString('latin1', 0, 8) !== 'bplist00'
+  ) {
     throw new Error('not a binary plist');
   }
   const trailer = buffer.length - 32;
@@ -43,7 +47,8 @@ function parseBinaryPlist(buffer) {
     throw new Error('corrupt binary plist trailer');
   }
   const offsets = [];
-  for (let i = 0; i < count; i += 1) offsets.push(readSizedInt(buffer, tableOffset + i * offsetSize, offsetSize));
+  for (let i = 0; i < count; i += 1)
+    offsets.push(readSizedInt(buffer, tableOffset + i * offsetSize, offsetSize));
 
   const parsing = new Set();
   const parse = (index) => {
@@ -94,7 +99,9 @@ function parseBinaryPlist(buffer) {
       }
       case 0x6: {
         const { length, start } = lengthAt(offset);
-        return Buffer.from(buffer.subarray(start, start + length * 2)).swap16().toString('utf16le');
+        return Buffer.from(buffer.subarray(start, start + length * 2))
+          .swap16()
+          .toString('utf16le');
       }
       case 0x8:
         return new Uid(readSizedInt(buffer, offset + 1, low + 1));
@@ -102,7 +109,8 @@ function parseBinaryPlist(buffer) {
       case 0xc: {
         const { length, start } = lengthAt(offset);
         const items = [];
-        for (let i = 0; i < length; i += 1) items.push(parse(readSizedInt(buffer, start + i * refSize, refSize)));
+        for (let i = 0; i < length; i += 1)
+          items.push(parse(readSizedInt(buffer, start + i * refSize, refSize)));
         return items;
       }
       case 0xd: {
@@ -110,7 +118,9 @@ function parseBinaryPlist(buffer) {
         const result = {};
         for (let i = 0; i < length; i += 1) {
           const key = parse(readSizedInt(buffer, start + i * refSize, refSize));
-          result[String(key)] = parse(readSizedInt(buffer, start + (length + i) * refSize, refSize));
+          result[String(key)] = parse(
+            readSizedInt(buffer, start + (length + i) * refSize, refSize),
+          );
         }
         return result;
       }
@@ -131,7 +141,8 @@ function unarchiveKeyed(archive, depth = 6) {
   const rootRef = archive?.$top?.root;
   if (!Array.isArray(objects) || !(rootRef instanceof Uid)) throw new Error('not a keyed archive');
   const resolve = (value, level) => {
-    if (value instanceof Uid) return level > depth ? null : resolve(objects[value.value], level + 1);
+    if (value instanceof Uid)
+      return level > depth ? null : resolve(objects[value.value], level + 1);
     if (Array.isArray(value)) return value.map((item) => resolve(item, level));
     if (value && typeof value === 'object' && !Buffer.isBuffer(value) && !(value instanceof Date)) {
       const result = {};

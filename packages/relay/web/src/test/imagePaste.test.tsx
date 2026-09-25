@@ -138,7 +138,9 @@ describe('imagePaste pipeline - unit tests', () => {
 
       // Generate a mock base64 payload larger than 3 MB (~4 MB raw bytes)
       const oversizedBase64 = 'A'.repeat(5 * 1024 * 1024);
-      HTMLCanvasElement.prototype.toDataURL = vi.fn().mockReturnValue(`data:image/webp;base64,${oversizedBase64}`);
+      HTMLCanvasElement.prototype.toDataURL = vi
+        .fn()
+        .mockReturnValue(`data:image/webp;base64,${oversizedBase64}`);
 
       const fakeBlob = new Blob(['dummy'], { type: 'image/png' });
       const result = await compressAndPrepareImage(fakeBlob);
@@ -155,7 +157,9 @@ describe('imagePaste pipeline - unit tests', () => {
       } as unknown as ImageBitmap);
       global.createImageBitmap = createBitmapSpy;
       HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({ drawImage: vi.fn() });
-      HTMLCanvasElement.prototype.toDataURL = vi.fn().mockReturnValue('data:image/webp;base64,AAAA');
+      HTMLCanvasElement.prototype.toDataURL = vi
+        .fn()
+        .mockReturnValue('data:image/webp;base64,AAAA');
 
       const fakeBlob = new Blob(['dummy'], { type: 'image/jpeg' });
       await compressAndPrepareImage(fakeBlob);
@@ -274,7 +278,7 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
           onSend={onSend}
           onSendImage={onSendImage}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const fileInput = screen.getByTestId('paste-fallback-file-input');
@@ -288,7 +292,9 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
     } as unknown as ImageBitmap);
 
     HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({ drawImage: vi.fn() });
-    HTMLCanvasElement.prototype.toDataURL = vi.fn().mockReturnValue('data:image/webp;base64,AQIDBA==');
+    HTMLCanvasElement.prototype.toDataURL = vi
+      .fn()
+      .mockReturnValue('data:image/webp;base64,AQIDBA==');
 
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [fakeFile] } });
@@ -314,7 +320,7 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
       expect.objectContaining({
         mime: 'image/webp',
         dataBase64: 'AQIDBA==',
-      })
+      }),
     );
   });
 
@@ -322,7 +328,7 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
     render(
       <TerminalProvider>
         <PasteFallbackModal isOpen={true} onClose={vi.fn()} onSend={vi.fn()} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const cameraInput = screen.getByTestId('paste-fallback-camera-input');
@@ -347,7 +353,7 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
     render(
       <TerminalProvider>
         <PasteFallbackModal isOpen={true} onClose={vi.fn()} onSend={vi.fn()} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const fileInput = screen.getByTestId('paste-fallback-file-input') as HTMLInputElement;
@@ -377,7 +383,7 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
       <TerminalProvider>
         <PasteFallbackModal isOpen={true} onClose={vi.fn()} onSend={vi.fn()} />
         <ToastContainer />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const fileInput = screen.getByTestId('paste-fallback-file-input');
@@ -405,7 +411,7 @@ describe('PasteFallbackModal - CSP and Image preview (Requirement C2 & C5)', () 
     render(
       <TerminalProvider>
         <PasteFallbackModal isOpen={true} onClose={vi.fn()} onSend={vi.fn()} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const textarea = screen.getByTestId('paste-fallback-input');
@@ -464,7 +470,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
         <CaptureAdapter />
         <TerminalView isActive={true} />
         <ToastContainer />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -476,11 +482,14 @@ describe('TerminalView image paste integration (End-to-End)', () => {
 
     // Host sends paste_file_ready
     await act(async () => {
-      capturedAdapter.emit('pasteFileReady', '/home/user/.local/state/herdr-remote/pasted/generated-uuid.webp');
+      capturedAdapter.emit(
+        'pasteFileReady',
+        '/home/user/.local/state/herdr-remote/pasted/generated-uuid.webp',
+      );
     });
 
     expect(term.paste).toHaveBeenCalledWith(
-      '/home/user/.local/state/herdr-remote/pasted/generated-uuid.webp'
+      '/home/user/.local/state/herdr-remote/pasted/generated-uuid.webp',
     );
     expect(await screen.findByText('已粘贴')).toBeInTheDocument();
   });
@@ -514,7 +523,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
         <CaptureContext />
         <TerminalView isActive={true} />
         <ToastContainer />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -545,7 +554,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -562,7 +571,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
           isPrimary: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
 
@@ -594,7 +603,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // Ensure role is viewer
@@ -606,25 +615,29 @@ describe('TerminalView image paste integration (End-to-End)', () => {
 
     // Trigger long press to pop menu
     const surface = document.querySelector('.terminal-container') || document.body;
-    surface.dispatchEvent(new PointerEvent('pointerdown', {
-      clientX: 100,
-      clientY: 100,
-      pointerId: 1,
-      pointerType: 'touch',
-      isPrimary: true,
-    }));
+    surface.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+        pointerType: 'touch',
+        isPrimary: true,
+      }),
+    );
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, 600));
     });
 
-    surface.dispatchEvent(new PointerEvent('pointerup', {
-      clientX: 100,
-      clientY: 100,
-      pointerId: 1,
-      pointerType: 'touch',
-      isPrimary: true,
-    }));
+    surface.dispatchEvent(
+      new PointerEvent('pointerup', {
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+        pointerType: 'touch',
+        isPrimary: true,
+      }),
+    );
 
     // In viewer mode, menu does not show paste action (it is filtered out)
     expect(screen.queryByText('粘贴')).toBeNull();
@@ -652,7 +665,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -675,7 +688,9 @@ describe('TerminalView image paste integration (End-to-End)', () => {
       close: vi.fn(),
     } as unknown as ImageBitmap);
     HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({ drawImage: vi.fn() });
-    HTMLCanvasElement.prototype.toDataURL = vi.fn().mockReturnValue('data:image/webp;base64,AQIDBA==');
+    HTMLCanvasElement.prototype.toDataURL = vi
+      .fn()
+      .mockReturnValue('data:image/webp;base64,AQIDBA==');
 
     const container = document.querySelector('#terminal-container') as HTMLElement;
     const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
@@ -715,7 +730,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
       <TerminalProvider>
         <CaptureContext />
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -746,5 +761,5 @@ describe('TerminalView image paste integration (End-to-End)', () => {
       .map((s) => (typeof s === 'string' ? JSON.parse(s) : null))
       .filter((msg) => msg?.type === 'paste_file');
     expect(pasteFileMessages.length).toBe(0);
-});
+  });
 });

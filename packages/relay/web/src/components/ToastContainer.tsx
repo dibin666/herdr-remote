@@ -43,7 +43,7 @@ export const ToastContainer: React.FC = () => {
             key={toast.id}
             className={cn(
               'pointer-events-auto flex items-start gap-2 border border-tui-border border-l-2 bg-tui-base px-2 py-1 text-tui',
-              TONE[tone].edgeL
+              TONE[tone].edgeL,
             )}
             role="alert"
           >

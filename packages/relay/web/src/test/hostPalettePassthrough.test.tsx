@@ -46,7 +46,7 @@ const renderTerminal = () => {
     <TerminalProvider>
       <CaptureContext />
       <TerminalView isActive={true} />
-    </TerminalProvider>
+    </TerminalProvider>,
   );
 };
 
@@ -95,7 +95,9 @@ describe('Host terminal palette pass-through', () => {
     });
 
     await waitFor(() => {
-      expect((term.options.theme as Record<string, string> | undefined)?.background).toBe('#222226');
+      expect((term.options.theme as Record<string, string> | undefined)?.background).toBe(
+        '#222226',
+      );
     });
 
     const theme = term.options.theme as Record<string, string>;

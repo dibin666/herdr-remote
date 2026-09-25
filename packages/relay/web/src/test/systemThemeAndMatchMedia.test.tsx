@@ -3,7 +3,12 @@ import { render, screen } from '@testing-library/react';
 import { TerminalProvider } from '../context/TerminalContext';
 import { SettingsModal } from '../components/SettingsModal';
 import { applyDocumentTheme, HERDR_DARK_BACKGROUND } from '../utils/theme';
-import { loadSettings, saveSettings, LOCAL_STORAGE_KEY, SESSION_STORAGE_KEY } from '../utils/storage';
+import {
+  loadSettings,
+  saveSettings,
+  LOCAL_STORAGE_KEY,
+  SESSION_STORAGE_KEY,
+} from '../utils/storage';
 
 describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
   beforeEach(() => {
@@ -44,7 +49,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
   it('drops legacy theme / colorMode values from storage instead of honoring them', () => {
     sessionStorage.setItem(
       SESSION_STORAGE_KEY,
-      JSON.stringify({ theme: 'claude', colorMode: 'light', fontSize: 17 })
+      JSON.stringify({ theme: 'claude', colorMode: 'light', fontSize: 17 }),
     );
 
     const settings = loadSettings();
@@ -61,7 +66,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
   it('drops legacy theme / colorMode from localStorage and never writes them back', () => {
     localStorage.setItem(
       LOCAL_STORAGE_KEY,
-      JSON.stringify({ token: 'legacy-token', theme: 'matrix', colorMode: 'light' })
+      JSON.stringify({ token: 'legacy-token', theme: 'matrix', colorMode: 'light' }),
     );
 
     const settings = loadSettings();
@@ -84,7 +89,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.queryByText(/^Light$/i)).not.toBeInTheDocument();

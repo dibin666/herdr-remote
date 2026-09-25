@@ -145,7 +145,10 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
               onClose();
             }}
           >
-            <span aria-hidden="true" className="shrink-0 text-tui-faint group-hover:text-tui-accent">
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-tui-faint group-hover:text-tui-accent"
+            >
               {GLYPH.cursor}
             </span>
             <span className="truncate">{t('clipboard.openLink')}</span>
@@ -165,7 +168,10 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
               onClose();
             }}
           >
-            <span aria-hidden="true" className="shrink-0 text-tui-faint group-hover:text-tui-accent">
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-tui-faint group-hover:text-tui-accent"
+            >
               {GLYPH.cursor}
             </span>
             <span className="truncate">{t('clipboard.copySelection')}</span>
@@ -212,7 +218,10 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
               onClose();
             }}
           >
-            <span aria-hidden="true" className="shrink-0 text-tui-faint group-hover:text-tui-accent">
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-tui-faint group-hover:text-tui-accent"
+            >
               {GLYPH.cursor}
             </span>
             <span className="truncate">{t('clipboard.paste')}</span>

@@ -115,7 +115,10 @@ export const StatusDot: React.FC<{ level: StatusLevel; className?: string }> = (
   level,
   className,
 }) => (
-  <span aria-hidden="true" className={cn('select-none leading-none', STATUS_TEXT[level], className)}>
+  <span
+    aria-hidden="true"
+    className={cn('select-none leading-none', STATUS_TEXT[level], className)}
+  >
     {level === 'idle' ? GLYPH.off : GLYPH.on}
   </span>
 );
@@ -163,7 +166,7 @@ export const Panel: React.FC<PanelProps> = ({
     className={cn(
       'tui-panel tui-block relative min-w-0 border border-tui-border bg-tui-base',
       title ? 'px-3 pb-3 pt-1' : 'p-3',
-      className
+      className,
     )}
     {...rest}
   >
@@ -240,8 +243,7 @@ const BUTTON_TONE: Record<ButtonVariant, string> = {
     'border-tui-border text-tui-text hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection',
   primary:
     'border-tui-accent text-tui-accent hover:bg-tui-accent hover:text-tui-crust active:bg-tui-accent-dim',
-  danger:
-    'border-tui-bad text-tui-bad hover:bg-tui-bad hover:text-tui-crust active:bg-tui-bad',
+  danger: 'border-tui-bad text-tui-bad hover:bg-tui-bad hover:text-tui-crust active:bg-tui-bad',
   warn: 'border-tui-warn text-tui-warn hover:bg-tui-warn hover:text-tui-crust active:bg-tui-warn',
   ghost:
     'border-transparent text-tui-muted hover:text-tui-accent hover:border-tui-border active:bg-tui-selection disabled:border-transparent',
@@ -273,7 +275,7 @@ export const Button: React.FC<ButtonProps> = ({
       'disabled:cursor-not-allowed disabled:border-tui-border-dim disabled:text-tui-faint disabled:hover:bg-transparent',
       BUTTON_TONE[variant],
       block && 'w-full',
-      className
+      className,
     )}
     {...rest}
   >
@@ -312,7 +314,7 @@ export const Badge: React.FC<{
     className={cn(
       'inline-flex select-none items-center gap-1 whitespace-nowrap text-tui font-bold uppercase',
       STATUS_TEXT[tone],
-      className
+      className,
     )}
   >
     {dot ? <StatusDot level={tone} /> : null}
@@ -356,35 +358,38 @@ export const Tabs: React.FC<{
       const active = tab.id === activeId;
       return (
         <React.Fragment key={tab.id}>
-        {/* ratatui separates tabs with `│`, which is what stops a row of
+          {/* ratatui separates tabs with `│`, which is what stops a row of
             numbered words from reading as one sentence. */}
-        {index > 0 ? (
-          <span aria-hidden="true" className="select-none text-tui-border">
-            {GLYPH.tabDivider}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => onSelect(tab.id)}
-          aria-current={active ? 'page' : undefined}
-          aria-label={tab.ariaLabel ?? tab.label}
-          title={tab.title}
-          className={cn(
-            'tui-focusable select-none whitespace-nowrap border-b px-0.5 pb-0.5 text-tui transition-colors',
-            active
-              ? 'border-tui-accent font-bold text-tui-accent'
-              : 'border-transparent text-tui-muted hover:border-tui-border-bright hover:text-tui-text'
-          )}
-        >
-          {tab.index !== undefined ? (
-            <span aria-hidden="true" className={cn('text-tui-faint', active && 'text-tui-accent')}>
-              {tab.index}
+          {index > 0 ? (
+            <span aria-hidden="true" className="select-none text-tui-border">
+              {GLYPH.tabDivider}
             </span>
           ) : null}
-          <span aria-hidden="true" className={cn('ml-1', labelClassName)}>
-            {tab.label}
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={() => onSelect(tab.id)}
+            aria-current={active ? 'page' : undefined}
+            aria-label={tab.ariaLabel ?? tab.label}
+            title={tab.title}
+            className={cn(
+              'tui-focusable select-none whitespace-nowrap border-b px-0.5 pb-0.5 text-tui transition-colors',
+              active
+                ? 'border-tui-accent font-bold text-tui-accent'
+                : 'border-transparent text-tui-muted hover:border-tui-border-bright hover:text-tui-text',
+            )}
+          >
+            {tab.index !== undefined ? (
+              <span
+                aria-hidden="true"
+                className={cn('text-tui-faint', active && 'text-tui-accent')}
+              >
+                {tab.index}
+              </span>
+            ) : null}
+            <span aria-hidden="true" className={cn('ml-1', labelClassName)}>
+              {tab.label}
+            </span>
+          </button>
         </React.Fragment>
       );
     })}
@@ -408,7 +413,7 @@ export const KeyHints: React.FC<{ hints: KeyHint[]; className?: string }> = ({
   <div
     className={cn(
       'flex flex-wrap items-center gap-x-3 gap-y-0.5 text-tui-sm text-tui-faint',
-      className
+      className,
     )}
   >
     {hints.map((hint, index) => (
@@ -430,20 +435,18 @@ export const FieldLabel: React.FC<{
   className?: string;
   children: React.ReactNode;
 }> = ({ htmlFor, hint, className, children }) => (
-  <label
-    htmlFor={htmlFor}
-    className={cn('block text-tui-sm font-bold text-tui-muted', className)}
-  >
+  <label htmlFor={htmlFor} className={cn('block text-tui-sm font-bold text-tui-muted', className)}>
     {children}
     {hint ? <span className="ml-2 font-normal text-tui-faint">{hint}</span> : null}
   </label>
 );
 
-export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...rest }, ref) => (
-    <input ref={ref} className={cn('tui-input w-full px-2 py-1 text-tui', className)} {...rest} />
-  )
-);
+export const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className, ...rest }, ref) => (
+  <input ref={ref} className={cn('tui-input w-full px-2 py-1 text-tui', className)} {...rest} />
+));
 Input.displayName = 'Input';
 
 export const Select = React.forwardRef<
@@ -476,7 +479,7 @@ export const Checkbox: React.FC<{
     className={cn(
       'group flex cursor-pointer select-none items-start gap-2 py-0.5 text-tui',
       disabled && 'cursor-not-allowed opacity-60',
-      className
+      className,
     )}
   >
     <input
@@ -492,7 +495,7 @@ export const Checkbox: React.FC<{
       className={cn(
         'mt-px shrink-0 font-bold leading-tight',
         checked ? 'text-tui-ok' : 'text-tui-faint',
-        !disabled && 'group-hover:text-tui-accent'
+        !disabled && 'group-hover:text-tui-accent',
       )}
     >
       {checked ? '[x]' : '[ ]'}
@@ -520,7 +523,7 @@ export const Radio: React.FC<{
     className={cn(
       'group flex cursor-pointer select-none items-start gap-2 py-0.5 text-tui',
       disabled && 'cursor-not-allowed opacity-60',
-      className
+      className,
     )}
   >
     <input
@@ -536,7 +539,7 @@ export const Radio: React.FC<{
       className={cn(
         'mt-px shrink-0 font-bold leading-tight',
         checked ? 'text-tui-accent' : 'text-tui-faint',
-        !disabled && 'group-hover:text-tui-accent'
+        !disabled && 'group-hover:text-tui-accent',
       )}
     >
       {checked ? '(•)' : '( )'}
@@ -599,12 +602,7 @@ export const SettingRow: React.FC<{
   control: React.ReactNode;
   className?: string;
 }> = ({ label, hint, htmlFor, control, className }) => (
-  <div
-    className={cn(
-      'flex flex-col gap-1 py-1.5 sm:flex-row sm:items-center sm:gap-4',
-      className
-    )}
-  >
+  <div className={cn('flex flex-col gap-1 py-1.5 sm:flex-row sm:items-center sm:gap-4', className)}>
     <div className="min-w-0 flex-1">
       {htmlFor ? (
         <label htmlFor={htmlFor} className="block text-tui text-tui-text">
@@ -669,7 +667,7 @@ export function Segmented<T extends string>({
             className={cn(
               SEGMENT_CELL,
               index > 0 && 'border-l border-tui-border',
-              checked ? cn(TONE_BG[tone], 'font-bold text-tui-crust') : SEGMENT_IDLE
+              checked ? cn(TONE_BG[tone], 'font-bold text-tui-crust') : SEGMENT_IDLE,
             )}
           >
             <input
@@ -717,7 +715,7 @@ export const Toggle: React.FC<{
         'grid w-full grid-cols-2 border border-tui-border bg-tui-mantle has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-tui-accent',
         CONTROL_H,
         disabled && 'cursor-not-allowed opacity-60',
-        className
+        className,
       )}
     >
       <input
@@ -731,7 +729,10 @@ export const Toggle: React.FC<{
       <span
         aria-hidden="true"
         onClick={choose(false)}
-        className={cn(SEGMENT_CELL, !checked ? 'bg-tui-selection font-bold text-tui-text' : SEGMENT_IDLE)}
+        className={cn(
+          SEGMENT_CELL,
+          !checked ? 'bg-tui-selection font-bold text-tui-text' : SEGMENT_IDLE,
+        )}
       >
         {offLabel}
       </span>
@@ -741,7 +742,7 @@ export const Toggle: React.FC<{
         className={cn(
           SEGMENT_CELL,
           'border-l border-tui-border',
-          checked ? 'bg-tui-ok font-bold text-tui-crust' : SEGMENT_IDLE
+          checked ? 'bg-tui-ok font-bold text-tui-crust' : SEGMENT_IDLE,
         )}
       >
         {onLabel}
@@ -767,7 +768,7 @@ export const IconButton: React.FC<
       variant === 'danger'
         ? 'text-tui-bad hover:border-tui-bad'
         : 'text-tui-muted hover:border-tui-border hover:text-tui-accent',
-      className
+      className,
     )}
     {...rest}
   >
@@ -803,7 +804,7 @@ export const Selectable: React.FC<{
         : selected
           ? 'bg-tui-selection font-bold text-tui-accent'
           : 'text-tui-muted hover:bg-tui-selection hover:text-tui-text',
-      className
+      className,
     )}
     {...rest}
   >
@@ -811,7 +812,7 @@ export const Selectable: React.FC<{
       aria-hidden="true"
       className={cn(
         'shrink-0',
-        selected ? 'text-tui-accent' : 'text-transparent group-hover:text-tui-accent'
+        selected ? 'text-tui-accent' : 'text-transparent group-hover:text-tui-accent',
       )}
     >
       {GLYPH.cursor}
@@ -843,7 +844,9 @@ export const Meter: React.FC<{
       role="presentation"
     >
       <span className={STATUS_TEXT[tone]}>{GLYPH.meterFull.repeat(filled)}</span>
-      <span className="text-tui-border">{GLYPH.meterEmpty.repeat(Math.max(0, width - filled))}</span>
+      <span className="text-tui-border">
+        {GLYPH.meterEmpty.repeat(Math.max(0, width - filled))}
+      </span>
     </span>
   );
 };
@@ -879,7 +882,10 @@ export const Gauge: React.FC<{
   const value = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0;
   return (
     <div
-      className={cn('relative h-[var(--tui-row)] w-full overflow-hidden border border-tui-border bg-tui-mantle', className)}
+      className={cn(
+        'relative h-[var(--tui-row)] w-full overflow-hidden border border-tui-border bg-tui-mantle',
+        className,
+      )}
       role="progressbar"
       aria-valuenow={Math.round(value * 100)}
       aria-valuemin={0}
@@ -1001,7 +1007,9 @@ export const StatTile: React.FC<{
     title={title}
   >
     <div className="truncate text-tui-sm text-tui-muted">{label}</div>
-    <div className={cn('truncate text-tui-lg font-bold', tone ? STATUS_TEXT[tone] : 'text-tui-text')}>
+    <div
+      className={cn('truncate text-tui-lg font-bold', tone ? STATUS_TEXT[tone] : 'text-tui-text')}
+    >
       {value}
     </div>
     <div className="truncate text-tui-sm text-tui-faint">{sub || '\u00a0'}</div>
@@ -1058,7 +1066,7 @@ export function Table<T>({
                 className={cn(
                   'whitespace-nowrap px-2 py-1 text-tui-sm font-bold text-tui-muted',
                   column.align === 'right' ? 'text-right' : 'text-left',
-                  column.className
+                  column.className,
                 )}
               >
                 {column.header}
@@ -1078,7 +1086,7 @@ export function Table<T>({
                   className={cn(
                     'px-2 py-1 align-top text-tui-text',
                     column.align === 'right' ? 'text-right' : 'text-left',
-                    column.className
+                    column.className,
                   )}
                 >
                   {column.render(item, index)}
@@ -1158,14 +1166,11 @@ export const Modal: React.FC<{
           'relative flex max-h-full w-full flex-col border border-tui-border bg-tui-base',
           width,
           fixedHeight && 'h-[46rem]',
-          className
+          className,
         )}
       >
         <header className="flex shrink-0 items-center gap-2 border-b border-tui-border bg-tui-mantle px-3 py-1.5">
-          <h2
-            id={titleId}
-            className="truncate text-tui font-bold text-tui-accent"
-          >
+          <h2 id={titleId} className="truncate text-tui font-bold text-tui-accent">
             {title}
           </h2>
           {subtitle ? (
@@ -1219,7 +1224,7 @@ export const Notice: React.FC<{
       className={cn(
         'flex items-start gap-2 border border-tui-border-dim border-l-2 bg-tui-mantle px-2 py-1.5 text-tui',
         border,
-        className
+        className,
       )}
     >
       <span aria-hidden="true" className={cn('shrink-0 font-bold', STATUS_TEXT[tone])}>
@@ -1245,7 +1250,7 @@ export const KeyCap: React.FC<{
       active
         ? 'border-tui-accent bg-tui-accent text-tui-crust'
         : 'border-tui-border bg-tui-surface text-tui-muted',
-      className
+      className,
     )}
   >
     {children}
@@ -1297,7 +1302,7 @@ export const StatusLine: React.FC<{
   <footer
     className={cn(
       'relative flex h-[var(--tui-row)] w-full shrink-0 items-center justify-between gap-3 overflow-visible border-t border-tui-border bg-tui-mantle px-2 text-tui-sm',
-      className
+      className,
     )}
   >
     <div className="flex min-w-0 items-center gap-1.5 text-tui-muted">{left}</div>
@@ -1415,10 +1420,7 @@ export const AppFrame: React.FC<{
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /** Braille spinner, the one every terminal program uses. */
-export const Spinner: React.FC<{ className?: string; label?: string }> = ({
-  className,
-  label,
-}) => {
+export const Spinner: React.FC<{ className?: string; label?: string }> = ({ className, label }) => {
   const [frame, setFrame] = React.useState(0);
   React.useEffect(() => {
     const timer = setInterval(() => setFrame((value) => (value + 1) % SPINNER_FRAMES.length), 90);

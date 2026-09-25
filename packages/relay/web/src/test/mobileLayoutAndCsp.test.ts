@@ -22,13 +22,23 @@ const originalMatchMedia = window.matchMedia;
 
 function setInnerSize(width: number, height: number): void {
   Object.defineProperty(window, 'innerWidth', { value: width, writable: true, configurable: true });
-  Object.defineProperty(window, 'innerHeight', { value: height, writable: true, configurable: true });
+  Object.defineProperty(window, 'innerHeight', {
+    value: height,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function setVisualViewport(value: { height: number; offsetTop?: number } | null): void {
   Object.defineProperty(window, 'visualViewport', {
     value: value
-      ? { height: value.height, width: window.innerWidth, offsetTop: value.offsetTop ?? 0, addEventListener() {}, removeEventListener() {} }
+      ? {
+          height: value.height,
+          width: window.innerWidth,
+          offsetTop: value.offsetTop ?? 0,
+          addEventListener() {},
+          removeEventListener() {},
+        }
       : undefined,
     writable: true,
     configurable: true,

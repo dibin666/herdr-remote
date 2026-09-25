@@ -24,7 +24,12 @@ function startAll(config = loadConfig()) {
     // there dropped every browser attached to the workstation — including the
     // one that had just asked for that Herdr to be started.
     if (!managed.active) keepalive.restart(config);
-    return { ok: true, managed: true, manager: managed.manager, alreadyRunning: Boolean(managed.active) };
+    return {
+      ok: true,
+      managed: true,
+      manager: managed.manager,
+      alreadyRunning: Boolean(managed.active),
+    };
   }
   return { ...startServices(), managed: false };
 }

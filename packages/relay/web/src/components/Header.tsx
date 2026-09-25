@@ -54,12 +54,17 @@ export const Header: React.FC<HeaderProps> = ({
       'info',
       translate(nextLang, 'toasts.switchedLanguage', {
         lang: nextLang === 'zh' ? '简体中文' : 'English',
-      })
+      }),
     );
   };
 
   const tabs = [
-    { id: 'terminal', label: t('header.terminalTab'), index: 1, ariaLabel: t('header.terminalTab') },
+    {
+      id: 'terminal',
+      label: t('header.terminalTab'),
+      index: 1,
+      ariaLabel: t('header.terminalTab'),
+    },
     // The dashboard is entered from Settings. Its tab appears only while it is
     // open, to say where you are; `1` beside it is the way back.
     ...(currentView === 'admin'

@@ -29,12 +29,20 @@ function runProbe(url, stateDir) {
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
     child.once('error', reject);
     child.once('close', (code) => {
       if (code !== 0) return reject(new Error(stderr || `probe child exited with ${code}`));
-      try { resolve(JSON.parse(stdout)); } catch (error) { reject(error); }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (error) {
+        reject(error);
+      }
     });
   });
 }
@@ -43,7 +51,11 @@ test('probeRelay reports public liveness when scoped host status is unavailable'
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-probe-'));
   const requests = [];
   const server = http.createServer((request, response) => {
-    requests.push({ path: request.url, authorization: request.headers.authorization, hostId: request.headers['x-herdr-host-id'] });
+    requests.push({
+      path: request.url,
+      authorization: request.headers.authorization,
+      hostId: request.headers['x-herdr-host-id'],
+    });
     response.setHeader('Content-Type', 'application/json');
     if (request.url === '/healthz') {
       response.writeHead(200);
@@ -51,7 +63,9 @@ test('probeRelay reports public liveness when scoped host status is unavailable'
       return;
     }
     response.writeHead(401);
-    response.end(JSON.stringify({ ok: false, code: 'auth_required', message: 'host is not enrolled' }));
+    response.end(
+      JSON.stringify({ ok: false, code: 'auth_required', message: 'host is not enrolled' }),
+    );
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -63,7 +77,10 @@ test('probeRelay reports public liveness when scoped host status is unavailable'
 
   const result = await runProbe(url, stateDir);
   assert.deepEqual(result, { ok: true, version: 'test-relay' });
-  assert.deepEqual(requests.map((request) => request.path), ['/healthz', '/api/status']);
+  assert.deepEqual(
+    requests.map((request) => request.path),
+    ['/healthz', '/api/status'],
+  );
   assert.equal(requests[0].hostId, undefined, 'liveness must be public');
   assert.match(requests[1].hostId, /^host-/);
 });

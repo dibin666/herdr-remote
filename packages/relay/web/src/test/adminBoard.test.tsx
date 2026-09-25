@@ -86,7 +86,8 @@ const STATUS_FIXTURE = {
       lastSeenAt: NOW,
       expiresAt: Date.now() + 86400000,
       expiresAtIso: NOW,
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
       lastIp: '10.0.0.6',
     },
     {
@@ -96,7 +97,8 @@ const STATUS_FIXTURE = {
       lastSeenAt: NOW,
       expiresAt: Date.now() + 86400000,
       expiresAtIso: NOW,
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36',
       lastIp: '10.0.0.7',
     },
     // Paired to a workstation that is not connected right now. The relay's
@@ -108,7 +110,8 @@ const STATUS_FIXTURE = {
       lastSeenAt: NOW,
       expiresAt: Date.now() + 86400000,
       expiresAtIso: NOW,
-      userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
       lastIp: '10.0.0.8',
     },
   ],
@@ -161,7 +164,7 @@ function renderDashboard(language: 'en' | 'zh') {
   return render(
     <TerminalProvider>
       <AdminDashboard />
-    </TerminalProvider>
+    </TerminalProvider>,
   );
 }
 
@@ -175,7 +178,10 @@ describe('ratatui widgets', () => {
 
   it('clamps a Gauge rather than overflowing its track', () => {
     render(<Gauge ratio={4} aria-label="over" />);
-    expect(screen.getByRole('progressbar', { name: 'over' })).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.getByRole('progressbar', { name: 'over' })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+    );
   });
 
   it('draws a LineGauge as a label, a rule and a figure', () => {
@@ -207,11 +213,8 @@ describe('HostsTable', () => {
   it('lists every paired device under the host it belongs to', () => {
     render(
       <TerminalProvider>
-        <HostsTable
-          hosts={STATUS_FIXTURE.hosts}
-          devices={STATUS_FIXTURE.devices}
-        />
-      </TerminalProvider>
+        <HostsTable hosts={STATUS_FIXTURE.hosts} devices={STATUS_FIXTURE.devices} />
+      </TerminalProvider>,
     );
 
     // Three hosts: two connected, plus the one only the roster remembers.
@@ -230,7 +233,7 @@ describe('HostsTable', () => {
     render(
       <TerminalProvider>
         <HostsTable hosts={STATUS_FIXTURE.hosts} devices={STATUS_FIXTURE.devices} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // `host-gamma` appears in no `hosts` row; only its paired device knows it.
@@ -246,7 +249,7 @@ describe('HostsTable', () => {
     render(
       <TerminalProvider>
         <HostsTable hosts={STATUS_FIXTURE.hosts} devices={STATUS_FIXTURE.devices} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('2 connected')).toBeInTheDocument();
@@ -259,15 +262,15 @@ describe('HostsTable', () => {
     render(
       <TerminalProvider>
         <HostsTable hosts={STATUS_FIXTURE.hosts} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('Hosts (2)')).toBeInTheDocument();
     expect(screen.getByText('2 paired')).toBeInTheDocument();
     expect(screen.queryByText('device-alpha-1')).not.toBeInTheDocument();
-    expect(
-      screen.getAllByText('Device list is visible to the relay operator only.').length
-    ).toBe(2);
+    expect(screen.getAllByText('Device list is visible to the relay operator only.').length).toBe(
+      2,
+    );
   });
 
   it('lights the devices attached right now and dates the rest', () => {
@@ -278,14 +281,27 @@ describe('HostsTable', () => {
           hosts={STATUS_FIXTURE.hosts}
           devices={[
             { ...STATUS_FIXTURE.devices[0], lastSeenAt: new Date(now).toISOString() },
-            { ...STATUS_FIXTURE.devices[1], lastSeenAt: new Date(now - 3 * 86400000).toISOString() },
+            {
+              ...STATUS_FIXTURE.devices[1],
+              lastSeenAt: new Date(now - 3 * 86400000).toISOString(),
+            },
           ]}
           clients={[
-            { id: 'w1', role: 'controller', deviceId: STATUS_FIXTURE.devices[0].deviceId, connectedAt: NOW },
-            { id: 'w2', role: 'controller', deviceId: STATUS_FIXTURE.devices[0].deviceId, connectedAt: NOW },
+            {
+              id: 'w1',
+              role: 'controller',
+              deviceId: STATUS_FIXTURE.devices[0].deviceId,
+              connectedAt: NOW,
+            },
+            {
+              id: 'w2',
+              role: 'controller',
+              deviceId: STATUS_FIXTURE.devices[0].deviceId,
+              connectedAt: NOW,
+            },
           ]}
         />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // Two windows of one device: one line, lit, saying how many are open.
@@ -298,7 +314,7 @@ describe('HostsTable', () => {
     render(
       <TerminalProvider>
         <HostsTable hosts={[]} devices={[]} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText('No hosts connected or paired')).toBeInTheDocument();

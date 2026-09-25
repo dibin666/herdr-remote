@@ -9,7 +9,7 @@ function finite(value, fallback = 0) {
 
 function bytesPerSecond(current, previous, elapsedMs) {
   if (!elapsedMs || elapsedMs <= 0) return 0;
-  return Math.max(0, (current - previous) * 1000 / elapsedMs);
+  return Math.max(0, ((current - previous) * 1000) / elapsedMs);
 }
 
 /**
@@ -29,7 +29,7 @@ function countActiveUsers(clients = []) {
     identities.add(
       typeof client.deviceId === 'string' && client.deviceId
         ? `device:${client.deviceId}`
-        : `client:${client.id}`
+        : `client:${client.id}`,
     );
   }
   return identities.size;
@@ -108,16 +108,17 @@ class RelayMetrics {
 
   hostThroughput(hostId, now = Date.now()) {
     const counter = this.hostCounter(hostId);
-    if (!counter) return {
-      bytesIn: 0,
-      bytesOut: 0,
-      bytesInPerSec: 0,
-      bytesOutPerSec: 0,
-      framesIn: 0,
-      framesOut: 0,
-      framesInPerSec: 0,
-      framesOutPerSec: 0,
-    };
+    if (!counter)
+      return {
+        bytesIn: 0,
+        bytesOut: 0,
+        bytesInPerSec: 0,
+        bytesOutPerSec: 0,
+        framesIn: 0,
+        framesOut: 0,
+        framesInPerSec: 0,
+        framesOutPerSec: 0,
+      };
     const elapsedMs = now - counter.sampleAt;
     const throughput = {
       bytesIn: counter.bytesIn,
@@ -138,7 +139,10 @@ class RelayMetrics {
   }
 
   recordCleanup(name, amount = 1) {
-    if (Object.prototype.hasOwnProperty.call(this.cleanup, name) && typeof this.cleanup[name] === 'number') {
+    if (
+      Object.prototype.hasOwnProperty.call(this.cleanup, name) &&
+      typeof this.cleanup[name] === 'number'
+    ) {
       this.cleanup[name] += amount;
     }
     this.cleanup.lastCleanupAt = new Date().toISOString();
@@ -172,7 +176,14 @@ class RelayMetrics {
    * still holding the full connection records can count devices correctly.
    * Omitting it falls back to counting whatever the given rows identify.
    */
-  snapshot({ clients = [], hosts = [], ptys = [], sample = true, scopeHostId = null, activeUserCount = null } = {}) {
+  snapshot({
+    clients = [],
+    hosts = [],
+    ptys = [],
+    sample = true,
+    scopeHostId = null,
+    activeUserCount = null,
+  } = {}) {
     const now = Date.now();
     const elapsedMs = now - this.lastSample.at;
     const throughput = {
@@ -186,7 +197,13 @@ class RelayMetrics {
       framesOutPerSec: bytesPerSecond(this.framesOut, this.lastSample.framesOut, elapsedMs),
     };
     if (sample) {
-      this.lastSample = { at: now, bytesIn: this.bytesIn, bytesOut: this.bytesOut, framesIn: this.framesIn, framesOut: this.framesOut };
+      this.lastSample = {
+        at: now,
+        bytesIn: this.bytesIn,
+        bytesOut: this.bytesOut,
+        framesIn: this.framesIn,
+        framesOut: this.framesOut,
+      };
     }
     const memory = process.memoryUsage();
     const load = os.loadavg();
@@ -210,7 +227,9 @@ class RelayMetrics {
       clientCount: clients.length,
       hostCount: hosts.length,
       ptyCount: ptys.length,
-      activeUserCount: Number.isFinite(activeUserCount) ? activeUserCount : countActiveUsers(clients),
+      activeUserCount: Number.isFinite(activeUserCount)
+        ? activeUserCount
+        : countActiveUsers(clients),
       throughput: scopedThroughput,
       cpu: {
         load1m: finite(load[0]),

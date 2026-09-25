@@ -165,5 +165,10 @@ export function encodeKeyWithModifiers(key: string, modifiers: KeyModifiers): st
  */
 export function isSingleKey(data: string): boolean {
   if ([...data].length === 1) return true;
-  return CURSOR_KEY.test(data) || PF_KEY.test(data) || TILDE_KEY.test(data) || data === ANSI_KEYS.SHIFT_TAB;
+  return (
+    CURSOR_KEY.test(data) ||
+    PF_KEY.test(data) ||
+    TILDE_KEY.test(data) ||
+    data === ANSI_KEYS.SHIFT_TAB
+  );
 }

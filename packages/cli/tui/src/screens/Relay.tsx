@@ -21,7 +21,12 @@ import {
   type NetworkAddress,
 } from '../api.js';
 
-type Entry = { id: string; kind: 'field' | 'password' | 'action' | 'readonly'; label: string; fieldKind?: string };
+type Entry = {
+  id: string;
+  kind: 'field' | 'password' | 'action' | 'readonly';
+  label: string;
+  fieldKind?: string;
+};
 
 export function RelayScreen({ ctx }: { ctx: AppContext }) {
   const { t, draft, editingId } = ctx;
@@ -35,9 +40,13 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
   // holding a value that must not change is an invitation to break the setup.
   const official = isOfficialRelay(draft);
 
-  const fields = useMemo(() => fieldsForMode(draft.relay.mode)
-    .filter((field: { id: string }) => ['mode', 'port', 'lanHost', 'remoteUrl', 'publicUrl'].includes(field.id)),
-  [draft.relay.mode]);
+  const fields = useMemo(
+    () =>
+      fieldsForMode(draft.relay.mode).filter((field: { id: string }) =>
+        ['mode', 'port', 'lanHost', 'remoteUrl', 'publicUrl'].includes(field.id),
+      ),
+    [draft.relay.mode],
+  );
 
   const entries: Entry[] = [
     ...fields.map((field: { id: string; kind: string; labelKey: string }) => ({
@@ -65,14 +74,21 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     { id: 'test', kind: 'action' as const, label: t('relay.test') },
     ...(draft.relay.mode === 'remote' && !official
       ? [
-        { id: 'reveal', kind: 'action' as const, label: revealTokens ? t('relay.hidePassword') : t('relay.showPassword') },
-        { id: 'env', kind: 'action' as const, label: t('relay.envSnippet') },
-      ]
+          {
+            id: 'reveal',
+            kind: 'action' as const,
+            label: revealTokens ? t('relay.hidePassword') : t('relay.showPassword'),
+          },
+          { id: 'env', kind: 'action' as const, label: t('relay.envSnippet') },
+        ]
       : []),
     { id: 'regenerate', kind: 'action' as const, label: t('relay.regenerate') },
   ];
 
-  const addresses: NetworkAddress[] = useMemo(() => listReachableAddresses({ includeLoopback: false }), []);
+  const addresses: NetworkAddress[] = useMemo(
+    () => listReachableAddresses({ includeLoopback: false }),
+    [],
+  );
 
   /**
    * Apply several fields as one edit.
@@ -106,7 +122,12 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
       ctx.notify(t('common.saved', { path: result.path }), 'success');
     } catch (error) {
       const problems = (error as Error & { problems?: string[] }).problems;
-      ctx.notify(problems ? problems.map((key) => t(key)).join(' ') : t('error.saveFailed', { message: (error as Error).message }), 'error');
+      ctx.notify(
+        problems
+          ? problems.map((key) => t(key)).join(' ')
+          : t('error.saveFailed', { message: (error as Error).message }),
+        'error',
+      );
     }
   };
 
@@ -121,9 +142,18 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
       ctx.setEditing(id);
       return;
     }
-    if (id === 'save') { save(); return; }
-    if (id === 'reveal') { setRevealTokens((current) => !current); return; }
-    if (id === 'env') { setShowEnv((current) => !current); return; }
+    if (id === 'save') {
+      save();
+      return;
+    }
+    if (id === 'reveal') {
+      setRevealTokens((current) => !current);
+      return;
+    }
+    if (id === 'env') {
+      setShowEnv((current) => !current);
+      return;
+    }
     if (id === 'regenerate') {
       ctx.run(() => {
         regenerateHostIdentity();
@@ -145,13 +175,16 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     }
   };
 
-  useInput((input, key) => {
-    const index = entries.findIndex((entry) => entry.id === selected);
-    if (key.upArrow) setSelected(entries[(index - 1 + entries.length) % entries.length].id);
-    else if (key.downArrow) setSelected(entries[(index + 1) % entries.length].id);
-    else if (key.return) activate(selected);
-    else if (input === 's') save();
-  }, { isActive: editingId === null });
+  useInput(
+    (input, key) => {
+      const index = entries.findIndex((entry) => entry.id === selected);
+      if (key.upArrow) setSelected(entries[(index - 1 + entries.length) % entries.length].id);
+      else if (key.downArrow) setSelected(entries[(index + 1) % entries.length].id);
+      else if (key.return) activate(selected);
+      else if (input === 's') save();
+    },
+    { isActive: editingId === null },
+  );
 
   // Choice editors take over the panel so the option list is unambiguous.
   if (editingId === 'mode') {
@@ -164,7 +197,11 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
               label: t(`mode.${mode}`),
               description: t(`mode.${mode}.description`),
             })),
-            { id: 'official', label: t('mode.official'), description: t('mode.official.description') },
+            {
+              id: 'official',
+              label: t('mode.official'),
+              description: t('mode.official.description'),
+            },
             { id: 'remote', label: t('mode.remote'), description: t('mode.remote.description') },
           ]}
           // Reflects the official relay as its own selection rather than as an
@@ -205,7 +242,10 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
           <ChoiceList
             options={options}
             current={draft.relay.lanHost || options[0].id}
-            onPick={(address) => { applyField('lanHost', address); ctx.setEditing(null); }}
+            onPick={(address) => {
+              applyField('lanHost', address);
+              ctx.setEditing(null);
+            }}
             onCancel={() => ctx.setEditing(null)}
           />
         )}
@@ -224,12 +264,15 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
         </Box>
       ) : null}
 
-      {entries.map((entry) => (
+      {entries.map((entry) =>
         entry.kind === 'action' ? (
           <Selectable
             key={entry.id}
             selected={selected === entry.id}
-            onSelect={() => { setSelected(entry.id); activate(entry.id); }}
+            onSelect={() => {
+              setSelected(entry.id);
+              activate(entry.id);
+            }}
             onHover={() => setSelected(entry.id)}
           >
             {entry.label}
@@ -243,41 +286,43 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
             onHover={() => setSelected(entry.id)}
           >
             {entry.kind === 'password' ? (
-                <TextField
-                  value={password}
-                  placeholder={t('relay.passwordEmpty')}
-                  active={editingId === 'password'}
-                  mask={!revealTokens}
-                  onSubmit={(value) => {
-                    setPassword(value);
-                    setRelayPassword(value);
-                    ctx.setEditing(null);
-                    ctx.notify(t('relay.passwordSaved'), 'success');
-                  }}
-                  onCancel={() => ctx.setEditing(null)}
-                />
-              ) : entry.kind === 'readonly' ? (
-                // Fixed by us, so it is printed rather than offered for editing.
-                <Text color={theme.muted}>
-                  {`${getField(draft, entry.id) || placeholderText(ctx, entry.id)}  (${t('relay.locked')})`}
-                </Text>
-              ) : entry.fieldKind === 'choice' ? (
-                // Choice fields are picked from a list, never typed, so they
-                // show the translated label rather than the stored id — and the
-                // official relay is named as itself, not as "self-hosted".
-                <Text>{t(`mode.${selectedMode(draft)}`)}</Text>
-              ) : (
-                <TextField
-                  value={getField(draft, entry.id)}
-                  placeholder={placeholderText(ctx, entry.id)}
-                  active={editingId === entry.id}
-                  onSubmit={(value) => { if (applyField(entry.id, value)) ctx.setEditing(null); }}
+              <TextField
+                value={password}
+                placeholder={t('relay.passwordEmpty')}
+                active={editingId === 'password'}
+                mask={!revealTokens}
+                onSubmit={(value) => {
+                  setPassword(value);
+                  setRelayPassword(value);
+                  ctx.setEditing(null);
+                  ctx.notify(t('relay.passwordSaved'), 'success');
+                }}
+                onCancel={() => ctx.setEditing(null)}
+              />
+            ) : entry.kind === 'readonly' ? (
+              // Fixed by us, so it is printed rather than offered for editing.
+              <Text color={theme.muted}>
+                {`${getField(draft, entry.id) || placeholderText(ctx, entry.id)}  (${t('relay.locked')})`}
+              </Text>
+            ) : entry.fieldKind === 'choice' ? (
+              // Choice fields are picked from a list, never typed, so they
+              // show the translated label rather than the stored id — and the
+              // official relay is named as itself, not as "self-hosted".
+              <Text>{t(`mode.${selectedMode(draft)}`)}</Text>
+            ) : (
+              <TextField
+                value={getField(draft, entry.id)}
+                placeholder={placeholderText(ctx, entry.id)}
+                active={editingId === entry.id}
+                onSubmit={(value) => {
+                  if (applyField(entry.id, value)) ctx.setEditing(null);
+                }}
                 onCancel={() => ctx.setEditing(null)}
               />
             )}
           </FieldRow>
-        )
-      ))}
+        ),
+      )}
 
       {ctx.dirty ? (
         <Box marginTop={1}>
@@ -287,7 +332,9 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
 
       {draft.relay.mode === 'remote' ? (
         <Box marginTop={1}>
-          <Text color={theme.muted}>{official ? t('relay.officialHint') : t('relay.passwordHint')}</Text>
+          <Text color={theme.muted}>
+            {official ? t('relay.officialHint') : t('relay.passwordHint')}
+          </Text>
         </Box>
       ) : null}
 
@@ -298,7 +345,13 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
       </Box>
 
       {showEnv ? (
-        <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor={theme.border} paddingX={1}>
+        <Box
+          flexDirection="column"
+          marginTop={1}
+          borderStyle="round"
+          borderColor={theme.border}
+          paddingX={1}
+        >
           <Text color={theme.muted}>{t('relay.envHint')}</Text>
           <Text>{relayStartCommand(ctx.config, password)}</Text>
         </Box>
@@ -352,7 +405,10 @@ export function ChoiceList({
   const active = options[Math.min(cursor, options.length - 1)];
 
   useInput((_input, key) => {
-    if (key.escape) { onCancel(); return; }
+    if (key.escape) {
+      onCancel();
+      return;
+    }
     if (key.upArrow) setCursor((value) => (value - 1 + options.length) % options.length);
     else if (key.downArrow) setCursor((value) => (value + 1) % options.length);
     else if (key.return && active) onPick(active.id);

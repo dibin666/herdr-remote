@@ -22,7 +22,10 @@ export function useUpdateNoticeVisible(): boolean {
   return Boolean(updateStatus?.updateAvailable) && ignoredUpdate !== updateStatus?.latest;
 }
 
-export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = ({ compact = false, className }) => {
+export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = ({
+  compact = false,
+  className,
+}) => {
   const { updateStatus, t } = useTerminal();
   const visible = useUpdateNoticeVisible();
   const [open, setOpen] = useState(false);
@@ -45,7 +48,7 @@ export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = (
         title={t('update.title')}
         className={cn(
           'tui-focusable shrink-0 whitespace-nowrap px-1 text-tui-warn hover:underline',
-          className
+          className,
         )}
       >
         {label}
@@ -59,7 +62,9 @@ const Command: React.FC<{ command: string }> = ({ command }) => {
   const { addToast, t } = useTerminal();
   return (
     <div className="flex items-center gap-2 border border-tui-border bg-tui-mantle px-2 py-1">
-      <span aria-hidden="true" className="shrink-0 select-none text-tui-ok">$</span>
+      <span aria-hidden="true" className="shrink-0 select-none text-tui-ok">
+        $
+      </span>
       {/* Wraps rather than truncates: a command cut off at "herdr-remote…" is one nobody can type. */}
       <code className="min-w-0 flex-1 break-all text-tui-text">{command}</code>
       <Button
@@ -67,9 +72,10 @@ const Command: React.FC<{ command: string }> = ({ command }) => {
         className="shrink-0"
         onClick={() => {
           void copyText(command).then((result) => {
-            addToast(result === 'failed' ? 'error' : 'success', result === 'failed'
-              ? t('clipboard.copyFailed')
-              : t('toasts.commandCopied'));
+            addToast(
+              result === 'failed' ? 'error' : 'success',
+              result === 'failed' ? t('clipboard.copyFailed') : t('toasts.commandCopied'),
+            );
           });
         }}
       >
@@ -79,7 +85,10 @@ const Command: React.FC<{ command: string }> = ({ command }) => {
   );
 };
 
-export const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+export const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
+  isOpen,
+  onClose,
+}) => {
   const { updateStatus, ignoreUpdate, hostname, hostId, t } = useTerminal();
   if (!updateStatus) return null;
   const { current, installed, latest, restartPending } = updateStatus;
@@ -110,10 +119,16 @@ export const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
     >
       <div className="space-y-3" data-testid="update-modal">
         <div className="space-y-0.5">
-          <Row label={t('common.host')} labelWidth={10}>{hostname || hostId || '—'}</Row>
-          <Row label={t('update.running')} labelWidth={10}>{current}</Row>
+          <Row label={t('common.host')} labelWidth={10}>
+            {hostname || hostId || '—'}
+          </Row>
+          <Row label={t('update.running')} labelWidth={10}>
+            {current}
+          </Row>
           {installed !== current ? (
-            <Row label={t('update.installed')} labelWidth={10}>{installed}</Row>
+            <Row label={t('update.installed')} labelWidth={10}>
+              {installed}
+            </Row>
           ) : null}
           <Row label={t('update.latest')} labelWidth={10}>
             <span className="text-tui-ok">{latest}</span>
@@ -122,13 +137,17 @@ export const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
 
         {restartPending ? (
           <>
-            <p className="leading-snug text-tui-text">{t('update.restartPending', { version: installed })}</p>
+            <p className="leading-snug text-tui-text">
+              {t('update.restartPending', { version: installed })}
+            </p>
             <Command command="herdr-remote restart" />
           </>
         ) : (
           <>
             <p className="leading-snug text-tui-text">
-              <span aria-hidden="true" className="mr-1 text-tui-accent">{GLYPH.arrowRight}</span>
+              <span aria-hidden="true" className="mr-1 text-tui-accent">
+                {GLYPH.arrowRight}
+              </span>
               {t('update.stepTui')}
             </p>
             <p className="leading-snug text-tui-muted">{t('update.stepCli')}</p>

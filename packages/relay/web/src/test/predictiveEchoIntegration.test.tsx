@@ -27,7 +27,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     return render(
       <TerminalProvider>
         <TerminalView isActive={true} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
   };
 
@@ -42,7 +42,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
           controllerId: 'client-me',
           hostId: 'host-1',
           clientId: 'client-me',
-        })
+        }),
       );
     });
 
@@ -57,7 +57,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
           controllerId: 'client-other',
           hostId: 'host-1',
           clientId: 'client-me',
-        })
+        }),
       );
     });
 
@@ -217,7 +217,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
       render(
         <TerminalProvider>
           <TestHarness />
-        </TerminalProvider>
+        </TerminalProvider>,
       );
 
       await waitFor(() => expect(xtermInstances.length).toBe(1));
@@ -320,7 +320,9 @@ describe('Predictive Echo Integration & Setting Controls', () => {
     };
 
     const lastItems = (syncSpy: ReturnType<typeof vi.spyOn>) => {
-      const calls = syncSpy.mock.calls as Array<[Array<{ row: number; col: number; char: string; kind?: string }>]>;
+      const calls = syncSpy.mock.calls as Array<
+        [Array<{ row: number; col: number; char: string; kind?: string }>]
+      >;
       return calls.length ? calls[calls.length - 1][0] : [];
     };
 
@@ -330,7 +332,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
         <TerminalProvider>
           <Grab />
           <TerminalView isActive={true} />
-        </TerminalProvider>
+        </TerminalProvider>,
       );
       await waitFor(() => expect(xtermInstances.length).toBe(1));
       openAsController();
@@ -351,7 +353,7 @@ describe('Predictive Echo Integration & Setting Controls', () => {
         expect.arrayContaining([
           expect.objectContaining({ row: 34, col: 29, char: 'i', kind: 'char' }),
           expect.objectContaining({ row: 34, col: 30, kind: 'caret' }),
-        ])
+        ]),
       );
     });
 
@@ -377,7 +379,9 @@ describe('Predictive Echo Integration & Setting Controls', () => {
       // The 'i' typed before Esc stays until its echo; nothing after Esc is predicted.
       act(() => context!.sendKey('\x1b'));
       act(() => emitTerminalData(term, 'j'));
-      const chars = lastItems(syncSpy).filter((item) => item.kind === 'char').map((item) => item.char);
+      const chars = lastItems(syncSpy)
+        .filter((item) => item.kind === 'char')
+        .map((item) => item.char);
       expect(chars).toEqual(['i']);
       remoteEcho(term, screen, 'i');
       expect(lastItems(syncSpy)).toEqual([]);
@@ -389,8 +393,11 @@ describe('Predictive Echo Integration & Setting Controls', () => {
       showScreen(term, 'desktop-claude-empty');
       // The overlay refreshes with its once-a-second metrics tick.
       await waitFor(
-        () => expect(screen.getByTestId('terminal-touch-debug').textContent).toMatch(/field: rule row 34 cols 28-\d+ caret 28/),
-        { timeout: 2500 }
+        () =>
+          expect(screen.getByTestId('terminal-touch-debug').textContent).toMatch(
+            /field: rule row 34 cols 28-\d+ caret 28/,
+          ),
+        { timeout: 2500 },
       );
     });
   });

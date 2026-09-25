@@ -27,7 +27,15 @@ describe('classifyInput', () => {
   });
 
   it.each([
-    ['a'], ['你好'], ['\r'], ['\x1b'], ['\x1b[A'], ['\x1bOA'], ['\x1b[Z'], ['\x1b[1;5D'], ['\x1b[15~'],
+    ['a'],
+    ['你好'],
+    ['\r'],
+    ['\x1b'],
+    ['\x1b[A'],
+    ['\x1bOA'],
+    ['\x1b[Z'],
+    ['\x1b[1;5D'],
+    ['\x1b[15~'],
     ['\x1b[1;2R'], // a modified F3 looks like a cursor report but is a key
     ['\x1bb'],
   ])('treats %j as keys', (data) => {

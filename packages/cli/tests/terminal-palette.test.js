@@ -20,10 +20,9 @@ const {
   resolveHostPalette,
 } = require('../src/terminal-palette');
 
-const FULL_ANSI = Object.fromEntries(ANSI_KEYS.map((key, index) => [
-  key,
-  `#${index.toString(16).repeat(6)}`,
-]));
+const FULL_ANSI = Object.fromEntries(
+  ANSI_KEYS.map((key, index) => [key, `#${index.toString(16).repeat(6)}`]),
+);
 
 test('X11 color replies become plain hex, at any channel width', () => {
   assert.equal(parseXColor('rgb:2222/2222/2626'), '#222226');
@@ -62,7 +61,13 @@ test('a palette captured by a parent process is inherited, not re-probed', () =>
   assert.deepEqual(Object.keys(inherited.ansi), ANSI_KEYS);
 
   let probed = false;
-  const resolved = resolveHostPalette({ env, probe: () => { probed = true; return null; } });
+  const resolved = resolveHostPalette({
+    env,
+    probe: () => {
+      probed = true;
+      return null;
+    },
+  });
   assert.equal(resolved.background, '#222226');
   assert.equal(probed, false, 'an inherited palette must not trigger a terminal probe');
 });
@@ -197,7 +202,10 @@ test('the entry point captures once, before the TUI owns the screen', () => {
   const inheritedEnv = { HERDR_TERM_PALETTE_JSON: JSON.stringify(probed) };
   const inherited = captureTerminalPalette({
     env: inheritedEnv,
-    probe: () => { probes += 1; return probed; },
+    probe: () => {
+      probes += 1;
+      return probed;
+    },
   });
   assert.equal(inherited.background, '#222226');
   assert.equal(probes, 0);
@@ -289,7 +297,10 @@ test('a terminal that reports its ANSI ramp but not its default colors still yie
 
 test('a terminal that answers nothing is dropped after four questions', () => {
   let asked = 0;
-  const palette = collectPalette(() => { asked += 1; return null; });
+  const palette = collectPalette(() => {
+    asked += 1;
+    return null;
+  });
   assert.equal(palette, null);
   // Three defaults and the first ANSI slot. Every further query would only add
   // its own timeout to a start that already knows the answer is "nothing".
@@ -298,7 +309,8 @@ test('a terminal that answers nothing is dropped after four questions', () => {
 
 test('several replies in one read are consumed one at a time', () => {
   const state = {
-    pending: '\x1b]4;0;rgb:2e2e/3434/3636\x1b\\\x1b]4;1;rgb:cccc/0000/0000\x07\x1b]11;rgb:2222/2222/2626\x1b\\',
+    pending:
+      '\x1b]4;0;rgb:2e2e/3434/3636\x1b\\\x1b]4;1;rgb:cccc/0000/0000\x07\x1b]11;rgb:2222/2222/2626\x1b\\',
   };
 
   assert.equal(takeOscColorReply(state, '\x1b]4;0'), '#2e3436');

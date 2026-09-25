@@ -34,7 +34,10 @@ function runCli(args, extraEnv = {}) {
 }
 
 test('argument parsing separates commands from flags', () => {
-  assert.deepEqual(parseArgs(['status', '--json']), { positional: ['status'], flags: { json: true } });
+  assert.deepEqual(parseArgs(['status', '--json']), {
+    positional: ['status'],
+    flags: { json: true },
+  });
   assert.deepEqual(parseArgs(['--lang', 'zh']).flags.lang, 'zh');
   assert.deepEqual(parseArgs(['--lang=en']).flags.lang, 'en');
   assert.deepEqual(parseArgs(['keepalive', 'install']).positional, ['keepalive', 'install']);
@@ -80,13 +83,24 @@ test('an unknown command fails loudly', () => {
 
 test('status output renders every service line', () => {
   const t = createTranslator('en');
-  const text = describeStatus({
-    mode: 'lan',
-    relay: { local: true, alive: true, bind: '0.0.0.0', port: 8787, pid: 42, remoteUrl: null, health: { ok: true } },
-    host: { alive: true, pid: 43, socketPath: '/tmp/herdr.sock', socketExists: true },
-    publicUrl: 'http://100.64.0.7:8787',
-    keepalive: { manager: 'systemd', installed: true, active: true },
-  }, t);
+  const text = describeStatus(
+    {
+      mode: 'lan',
+      relay: {
+        local: true,
+        alive: true,
+        bind: '0.0.0.0',
+        port: 8787,
+        pid: 42,
+        remoteUrl: null,
+        health: { ok: true },
+      },
+      host: { alive: true, pid: 43, socketPath: '/tmp/herdr.sock', socketExists: true },
+      publicUrl: 'http://100.64.0.7:8787',
+      keepalive: { manager: 'systemd', installed: true, active: true },
+    },
+    t,
+  );
 
   assert.match(text, /Local network \/ Tailscale/);
   assert.match(text, /0\.0\.0\.0:8787/);
@@ -95,13 +109,15 @@ test('status output renders every service line', () => {
 });
 
 test('herdr plugin list output is parsed, warnings and all', () => {
-  const plugins = parsePluginList([
-    '2 plugins installed:',
-    '- herdr.auto-title (Auto Title) enabled [github:owner/repo@abc123]',
-    '  config: /home/user/.config/herdr/plugins/config/herdr.auto-title',
-    '- herdr.remote.web (Herdr Remote Web) enabled [local:/opt/herdr-remote; 1 warning(s)]',
-    '  warning: manifest unavailable',
-  ].join('\n'));
+  const plugins = parsePluginList(
+    [
+      '2 plugins installed:',
+      '- herdr.auto-title (Auto Title) enabled [github:owner/repo@abc123]',
+      '  config: /home/user/.config/herdr/plugins/config/herdr.auto-title',
+      '- herdr.remote.web (Herdr Remote Web) enabled [local:/opt/herdr-remote; 1 warning(s)]',
+      '  warning: manifest unavailable',
+    ].join('\n'),
+  );
 
   assert.equal(plugins.length, 2);
   const remote = plugins.find((plugin) => plugin.id === 'herdr.remote.web');
@@ -118,7 +134,10 @@ test('the local relay is spawned from the separate relay package', () => {
   const config = JSON.parse(JSON.stringify(DEFAULTS));
   const specs = serviceSpecs(config, state);
 
-  assert.deepEqual(specs.map((spec) => spec.name), ['relay', 'host']);
+  assert.deepEqual(
+    specs.map((spec) => spec.name),
+    ['relay', 'host'],
+  );
   const relay = specs[0];
   assert.equal(relay.args[0], relayBinPath());
   assert.match(relay.args[0], /herdr-remote-relay/);
@@ -139,7 +158,10 @@ test('remote mode plans a host connector only', () => {
   config.relay.remoteUrl = 'wss://relay.example.com';
 
   const specs = serviceSpecs(config, state);
-  assert.deepEqual(specs.map((spec) => spec.name), ['host']);
+  assert.deepEqual(
+    specs.map((spec) => spec.name),
+    ['host'],
+  );
   assert.equal(specs[0].env.RELAY_URL, 'wss://relay.example.com/ws/host');
   // The password joins the relay; the host token identifies this workstation.
   assert.equal(specs[0].env.RELAY_PASSWORD, 'hunter2');
@@ -148,12 +170,9 @@ test('remote mode plans a host connector only', () => {
 
 test('the plugin manifest version matches package.json', () => {
   const packageJson = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
+    fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'),
   );
-  const manifest = fs.readFileSync(
-    path.join(__dirname, '..', 'herdr-plugin.toml'),
-    'utf8'
-  );
+  const manifest = fs.readFileSync(path.join(__dirname, '..', 'herdr-plugin.toml'), 'utf8');
   const match = /^version\s*=\s*"([^"]+)"/m.exec(manifest);
   assert.ok(match, 'herdr-plugin.toml is missing a version field');
   assert.equal(match[1], packageJson.version);

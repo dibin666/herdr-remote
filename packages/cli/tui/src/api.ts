@@ -18,7 +18,10 @@ import {
 } from '../../src/config.js';
 import { MIN_HERDR_VERSION, herdrVersion } from '../../src/herdr-command.js';
 import { createTranslator, detectLocale as detectLocaleRaw } from '../../src/i18n/index.js';
-import { listReachableAddresses as listReachableAddressesRaw, preferredLanAddress } from '../../src/net-interfaces.js';
+import {
+  listReachableAddresses as listReachableAddressesRaw,
+  preferredLanAddress,
+} from '../../src/net-interfaces.js';
 import {
   FIELDS,
   SELECTABLE_MODES,
@@ -98,9 +101,22 @@ export type Status = {
     bind: string | null;
     port: number;
     remoteUrl: string | null;
-    health: { ok?: boolean; message?: string; hosts?: number; clients?: number; version?: string; uptimeSeconds?: number } | null;
+    health: {
+      ok?: boolean;
+      message?: string;
+      hosts?: number;
+      clients?: number;
+      version?: string;
+      uptimeSeconds?: number;
+    } | null;
   };
-  host: { pid: number | null; alive: boolean; hostId: string | null; socketPath: string; socketExists: boolean };
+  host: {
+    pid: number | null;
+    alive: boolean;
+    hostId: string | null;
+    socketPath: string;
+    socketExists: boolean;
+  };
   publicUrl: string;
   startedAt: string | null;
   keepalive: KeepaliveStatus;
@@ -138,11 +154,15 @@ export type LifecycleResult = { ok?: boolean; managed: boolean; manager?: string
  * through; narrowing here keeps that check at the one boundary rather than at
  * every call site.
  */
-export function detectLocale(options: { preference?: string; env?: NodeJS.ProcessEnv } = {}): Locale {
+export function detectLocale(
+  options: { preference?: string; env?: NodeJS.ProcessEnv } = {},
+): Locale {
   return detectLocaleRaw(options) as Locale;
 }
 
-export function listReachableAddresses(options: { includeLoopback?: boolean; includeIpv6?: boolean } = {}): NetworkAddress[] {
+export function listReachableAddresses(
+  options: { includeLoopback?: boolean; includeIpv6?: boolean } = {},
+): NetworkAddress[] {
   return listReachableAddressesRaw(options) as NetworkAddress[];
 }
 
@@ -209,7 +229,9 @@ export function relayStartCommand(config: Config, password: string): string {
  * to report "I am reachable" before this workstation has enrolled, while the
  * host count (when available) comes only from this workstation's scoped view.
  */
-export async function probeRelay(config: Config): Promise<{ ok: boolean; version?: string; hosts?: number; message?: string }> {
+export async function probeRelay(
+  config: Config,
+): Promise<{ ok: boolean; version?: string; hosts?: number; message?: string }> {
   const origin = resolveAdminOrigin(config);
   let health: Record<string, unknown>;
   try {
@@ -227,7 +249,11 @@ export async function probeRelay(config: Config): Promise<{ ok: boolean; version
         'X-Herdr-Host-Token': runtime.hostToken,
       },
     });
-    return { ok: true, version: String(health.version || status.version || ''), hosts: Array.isArray(status.hosts) ? status.hosts.length : 0 };
+    return {
+      ok: true,
+      version: String(health.version || status.version || ''),
+      hosts: Array.isArray(status.hosts) ? status.hosts.length : 0,
+    };
   } catch {
     // The relay is healthy even when this machine is not enrolled or its host
     // connector is offline. Do not turn a tenant-auth failure into a network

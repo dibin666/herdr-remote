@@ -68,7 +68,9 @@ function sendJson(ws, payload) {
 
 function closeSocket(ws, reason = 'host connector stopping') {
   if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) return;
-  try { ws.close(1000, reason); } catch {}
+  try {
+    ws.close(1000, reason);
+  } catch {}
 }
 
 function terminateSocket(ws) {
@@ -106,8 +108,11 @@ class HostConnector {
   constructor(options = {}) {
     const config = options.config || loadConfig();
     this.config = config;
-    this.relayUrl = options.relayUrl
-      || (process.env.RELAY_URL ? hostWebSocketUrl(process.env.RELAY_URL) : resolveHostRelayUrl(config));
+    this.relayUrl =
+      options.relayUrl ||
+      (process.env.RELAY_URL
+        ? hostWebSocketUrl(process.env.RELAY_URL)
+        : resolveHostRelayUrl(config));
     this.hostId = options.hostId || process.env.RELAY_HOST_ID || randomId('host');
     this.hostToken = options.hostToken || process.env.RELAY_HOST_TOKEN || '';
     // Optional; a relay without a password accepts any workstation.
@@ -128,18 +133,16 @@ class HostConnector {
      * Normally captured by the start path that still had a terminal and passed
      * down in the environment; `null` when nobody could ask.
      */
-    this.terminalPalette = options.terminalPalette !== undefined
-      ? options.terminalPalette
-      : resolveHostPalette();
+    this.terminalPalette =
+      options.terminalPalette !== undefined ? options.terminalPalette : resolveHostPalette();
     /**
      * The terminal's font, with the local files behind it. Only the family,
      * size and file hashes leave this process; a browser that lacks the font
      * fetches the files by hash, one chunk at a time. Injectable for tests.
      */
     this.loadTerminalFont = options.loadTerminalFont || loadHostTerminalFont;
-    this.terminalFont = options.terminalFont !== undefined
-      ? options.terminalFont
-      : this.loadTerminalFont();
+    this.terminalFont =
+      options.terminalFont !== undefined ? options.terminalFont : this.loadTerminalFont();
     /** Cuts characters out of large fonts; see font-subset.js. */
     this.fontSubsetter = options.fontSubsetter || new FontSubsetter();
     /** Subsets too large for one message, by hash, until fetched. */
@@ -163,9 +166,12 @@ class HostConnector {
      * version this process runs is fixed at start; the one on disk moves when
      * somebody updates without restarting.
      */
-    this.checkUpdate = options.checkUpdate !== undefined
-      ? options.checkUpdate
-      : (updateChecksEnabled() ? checkForUpdate : null);
+    this.checkUpdate =
+      options.checkUpdate !== undefined
+        ? options.checkUpdate
+        : updateChecksEnabled()
+          ? checkForUpdate
+          : null;
     this.readInstalledVersion = options.readInstalledVersion || installedVersionOnDisk;
     this.runningVersion = options.runningVersion || currentVersion();
     this.updateCheckedAt = 0;
@@ -188,11 +194,14 @@ class HostConnector {
     this.ready = false;
     this.authFailure = false;
     this.stopping = false;
-    this.lockPath = options.lockPath
-      || process.env.HERDR_REMOTE_HOST_LOCK
-      || path.join(stateDir(), 'host-connector.lock');
+    this.lockPath =
+      options.lockPath ||
+      process.env.HERDR_REMOTE_HOST_LOCK ||
+      path.join(stateDir(), 'host-connector.lock');
     this.lockFd = null;
-    try { cleanPastedDir(); } catch {}
+    try {
+      cleanPastedDir();
+    } catch {}
   }
 
   acquireLock() {
@@ -201,19 +210,28 @@ class HostConnector {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         const fd = fs.openSync(this.lockPath, 'wx', 0o600);
-        fs.writeFileSync(fd, `${JSON.stringify({ pid: process.pid, hostId: this.hostId, startedAt: new Date().toISOString() })}\n`);
+        fs.writeFileSync(
+          fd,
+          `${JSON.stringify({ pid: process.pid, hostId: this.hostId, startedAt: new Date().toISOString() })}\n`,
+        );
         this.lockFd = fd;
         return;
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
         let owner = null;
-        try { owner = JSON.parse(fs.readFileSync(this.lockPath, 'utf8')); } catch {}
+        try {
+          owner = JSON.parse(fs.readFileSync(this.lockPath, 'utf8'));
+        } catch {}
         if (owner && pidAlive(owner.pid)) {
-          const duplicate = new Error(`another host connector is already running (pid ${owner.pid})`);
+          const duplicate = new Error(
+            `another host connector is already running (pid ${owner.pid})`,
+          );
           duplicate.code = 'HOST_ALREADY_RUNNING';
           throw duplicate;
         }
-        try { fs.rmSync(this.lockPath, { force: true }); } catch {}
+        try {
+          fs.rmSync(this.lockPath, { force: true });
+        } catch {}
       }
     }
     const stale = new Error('could not acquire host connector lock');
@@ -224,7 +242,9 @@ class HostConnector {
   releaseLock() {
     const owned = this.lockFd !== null;
     if (this.lockFd !== null) {
-      try { fs.closeSync(this.lockFd); } catch {}
+      try {
+        fs.closeSync(this.lockFd);
+      } catch {}
       this.lockFd = null;
     }
     if (!owned) return;
@@ -232,7 +252,9 @@ class HostConnector {
       const owner = JSON.parse(fs.readFileSync(this.lockPath, 'utf8'));
       if (owner.pid !== process.pid) return;
     } catch {}
-    try { fs.rmSync(this.lockPath, { force: true }); } catch {}
+    try {
+      fs.rmSync(this.lockPath, { force: true });
+    } catch {}
   }
 
   start() {
@@ -245,7 +267,9 @@ class HostConnector {
     // Off unless the user switched it on: Herdr is theirs to start.
     if (this.config.herdr?.autoStart) {
       this.startHerdr().catch((error) => {
-        process.stderr.write(`herdr-remote host connector: could not start Herdr: ${error.message}\n`);
+        process.stderr.write(
+          `herdr-remote host connector: could not start Herdr: ${error.message}\n`,
+        );
       });
     }
   }
@@ -269,7 +293,11 @@ class HostConnector {
   }
 
   connect() {
-    if (this.stopping || (this.ws && [WebSocket.OPEN, WebSocket.CONNECTING].includes(this.ws.readyState))) return;
+    if (
+      this.stopping ||
+      (this.ws && [WebSocket.OPEN, WebSocket.CONNECTING].includes(this.ws.readyState))
+    )
+      return;
     this.stopKeepalive();
     let ws;
     try {
@@ -282,7 +310,9 @@ class HostConnector {
     ws.isAlive = true;
     ws.on('open', () => {
       // Disable Nagle's algorithm to prevent small frames from stalling ~40ms when delayed ACK is active.
-      try { ws._socket?.setNoDelay(true); } catch {}
+      try {
+        ws._socket?.setNoDelay(true);
+      } catch {}
       ws.isAlive = true;
       this.ready = false;
       this.authFailure = false;
@@ -302,7 +332,9 @@ class HostConnector {
       // The relay sends host_ready with the current browser count. No business
       // heartbeat is started until that message says somebody is watching.
     });
-    ws.on('pong', () => { ws.isAlive = true; });
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
     ws.on('message', (raw, isBinary) => this.handleMessage(raw, isBinary));
     ws.on('close', (code, rawReason) => {
       // A replacement socket may be live while an older socket is still
@@ -327,13 +359,17 @@ class HostConnector {
       const reason = rawReason ? rawReason.toString() : '';
       if (reason === 'host_replaced') {
         this.stopping = true;
-        process.stderr.write('herdr-remote host connector: another instance took over this workstation; exiting\n');
+        process.stderr.write(
+          'herdr-remote host connector: another instance took over this workstation; exiting\n',
+        );
         this.stop();
         process.exit(EXIT_REPLACED);
       }
       if (this.authFailure) {
         this.stopping = true;
-        process.stderr.write('herdr-remote host connector: authentication failed; update relay credentials and restart the service\n');
+        process.stderr.write(
+          'herdr-remote host connector: authentication failed; update relay credentials and restart the service\n',
+        );
         this.releaseLock();
         process.exit(EXIT_AUTH_FAILED);
       }
@@ -347,7 +383,10 @@ class HostConnector {
   scheduleReconnect(error = null) {
     if (this.stopping || this.reconnectTimer) return;
     if (error) process.stderr.write(`herdr-remote host connector: ${error.message}\n`);
-    const delay = Math.min(30000, 500 * (1.5 ** this.reconnectAttempts) + Math.floor(Math.random() * 250));
+    const delay = Math.min(
+      30000,
+      500 * 1.5 ** this.reconnectAttempts + Math.floor(Math.random() * 250),
+    );
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -361,24 +400,37 @@ class HostConnector {
       try {
         frame = unpackStreamFrame(raw);
       } catch (error) {
-        process.stderr.write(`herdr-remote host connector: invalid relay frame: ${error.message}\n`);
+        process.stderr.write(
+          `herdr-remote host connector: invalid relay frame: ${error.message}\n`,
+        );
         return;
       }
       if (frame.type === 'input') {
-        const streamId = frame.version === 2 ? this.streamIndexToId.get(frame.streamIndex) : frame.streamId;
+        const streamId =
+          frame.version === 2 ? this.streamIndexToId.get(frame.streamIndex) : frame.streamId;
         if (streamId) this.sessions.get(streamId)?.pty.write(frame.payload);
       }
       return;
     }
     let message;
-    try { message = JSON.parse(raw.toString('utf8')); } catch { return; }
+    try {
+      message = JSON.parse(raw.toString('utf8'));
+    } catch {
+      return;
+    }
     // A relay-level error (no clientId) is a rejected handshake — a wrong relay
     // password, or a host token the relay does not recognise. Without this the
     // connection just closed silently and reconnected forever, leaving the user
     // with an empty log and no idea what was wrong.
     if (message.type === 'error' && !message.clientId) {
-      this.authFailure = ['relay_password_required', 'host_auth_failed', 'invalid_host_credentials'].includes(message.code);
-      process.stderr.write(`herdr-remote host connector: relay rejected the connection: ${message.message || message.code}\n`);
+      this.authFailure = [
+        'relay_password_required',
+        'host_auth_failed',
+        'invalid_host_credentials',
+      ].includes(message.code);
+      process.stderr.write(
+        `herdr-remote host connector: relay rejected the connection: ${message.message || message.code}\n`,
+      );
       return;
     }
     if (message.type === 'host_ready') {
@@ -393,7 +445,10 @@ class HostConnector {
         // telemetry behavior so rolling upgrades do not silently lose status.
         this.legacyHeartbeat = true;
         this.sendHeartbeat(true);
-        this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), this.config.cleanup.heartbeatIntervalMs);
+        this.heartbeatTimer = setInterval(
+          () => this.sendHeartbeat(),
+          this.config.cleanup.heartbeatIntervalMs,
+        );
       }
       return;
     }
@@ -433,8 +488,9 @@ class HostConnector {
   /** One slice of a terminal font file, for the window that asked for it. */
   handleFontChunkRequest(message) {
     const streamId = message.clientId || message.streamId;
-    const chunk = this.subsetChunk(message.sha256, message.index)
-      || readFontChunk(this.terminalFont, message.sha256, message.index);
+    const chunk =
+      this.subsetChunk(message.sha256, message.index) ||
+      readFontChunk(this.terminalFont, message.sha256, message.index);
     if (!chunk) {
       sendJson(this.ws, {
         type: 'error',
@@ -471,19 +527,32 @@ class HostConnector {
    */
   handleFontSubsetRequest(message) {
     const streamId = message.clientId || message.streamId;
-    const source = this.terminalFont?.subsets?.find((candidate) => candidate.sha256 === message.sha256);
-    const fail = (code, text) => sendJson(this.ws, { type: 'error', clientId: streamId, code, message: text });
+    const source = this.terminalFont?.subsets?.find(
+      (candidate) => candidate.sha256 === message.sha256,
+    );
+    const fail = (code, text) =>
+      sendJson(this.ws, { type: 'error', clientId: streamId, code, message: text });
     if (!source) {
-      fail('host_font_unavailable', 'The terminal font changed or is no longer on this workstation');
+      fail(
+        'host_font_unavailable',
+        'The terminal font changed or is no longer on this workstation',
+      );
       return;
     }
     let stat;
-    try { stat = fs.statSync(source.path); } catch {}
+    try {
+      stat = fs.statSync(source.path);
+    } catch {}
     if (!stat || stat.size !== source.bytes || stat.mtimeMs !== source.mtimeMs) {
-      fail('host_font_unavailable', 'The terminal font changed or is no longer on this workstation');
+      fail(
+        'host_font_unavailable',
+        'The terminal font changed or is no longer on this workstation',
+      );
       return;
     }
-    const codepoints = [...new Set(Array.from(String(message.text || ''), (char) => char.codePointAt(0)))];
+    const codepoints = [
+      ...new Set(Array.from(String(message.text || ''), (char) => char.codePointAt(0))),
+    ];
     let data;
     try {
       data = this.fontSubsetter.subset(source, codepoints);
@@ -524,9 +593,14 @@ class HostConnector {
       const next = this.loadTerminalFont({ refresh: true });
       if (next) this.terminalFont = next;
     } catch (error) {
-      process.stderr.write(`herdr-remote host connector: could not read the terminal font: ${error.message}\n`);
+      process.stderr.write(
+        `herdr-remote host connector: could not read the terminal font: ${error.message}\n`,
+      );
     }
-    sendJson(this.ws, { type: 'terminal_font', terminalFont: publicTerminalFont(this.terminalFont) });
+    sendJson(this.ws, {
+      type: 'terminal_font',
+      terminalFont: publicTerminalFont(this.terminalFont),
+    });
   }
 
   /**
@@ -570,7 +644,9 @@ class HostConnector {
       return;
     }
     this.herdrVersionWarned = true;
-    process.stderr.write(`herdr-remote host connector: ${herdrOutdatedMessage(installed.version)}\n`);
+    process.stderr.write(
+      `herdr-remote host connector: ${herdrOutdatedMessage(installed.version)}\n`,
+    );
   }
 
   startSession(message) {
@@ -583,12 +659,22 @@ class HostConnector {
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
-      sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_not_found', message: missingHerdr });
+      sendJson(this.ws, {
+        type: 'error',
+        clientId: streamId,
+        code: 'herdr_not_found',
+        message: missingHerdr,
+      });
       return undefined;
     }
     const socketInfo = inspectSocket(this.socketPath);
     if (!socketInfo.ok && !socketInfo.missing) {
-      sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: socketInfo.reason });
+      sendJson(this.ws, {
+        type: 'error',
+        clientId: streamId,
+        code: 'herdr_socket_unavailable',
+        message: socketInfo.reason,
+      });
       return undefined;
     }
     if (!socketInfo.ok) {
@@ -607,7 +693,13 @@ class HostConnector {
       this.probingStarts.delete(streamId);
       if (probe.state === 'running') this.spawnSession(pending.message);
       else if (probe.state === 'stopped') this.waitForHerdr(streamId, pending.message);
-      else sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_socket_unavailable', message: probe.reason });
+      else
+        sendJson(this.ws, {
+          type: 'error',
+          clientId: streamId,
+          code: 'herdr_socket_unavailable',
+          message: probe.reason,
+        });
     });
   }
 
@@ -638,7 +730,9 @@ class HostConnector {
         });
       })
       .catch(() => {})
-      .finally(() => { this.updateCheck = null; });
+      .finally(() => {
+        this.updateCheck = null;
+      });
     return this.updateCheck;
   }
 
@@ -674,7 +768,9 @@ class HostConnector {
             logPath: this.herdrLogPath,
           });
         })
-        .finally(() => { this.herdrLaunch = null; });
+        .finally(() => {
+          this.herdrLaunch = null;
+        });
     }
     return this.herdrLaunch;
   }
@@ -689,11 +785,19 @@ class HostConnector {
     const streamId = typeof message.streamId === 'string' ? message.streamId : message.clientId;
     try {
       const result = await this.startHerdr();
-      if (result.started) process.stderr.write('herdr-remote host connector: started Herdr at a browser\'s request\n');
+      if (result.started)
+        process.stderr.write("herdr-remote host connector: started Herdr at a browser's request\n");
     } catch (error) {
-      process.stderr.write(`herdr-remote host connector: could not start Herdr: ${error.message}\n`);
+      process.stderr.write(
+        `herdr-remote host connector: could not start Herdr: ${error.message}\n`,
+      );
       if (streamId) {
-        sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_start_failed', message: error.message });
+        sendJson(this.ws, {
+          type: 'error',
+          clientId: streamId,
+          code: 'herdr_start_failed',
+          message: error.message,
+        });
       }
       return;
     }
@@ -734,9 +838,10 @@ class HostConnector {
       session.pendingOutput = [];
       if (this.ws?.readyState === WebSocket.OPEN) {
         const payload = Buffer.concat(chunks);
-        const frame = typeof session.streamIndex === 'number'
-          ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
-          : packStreamFrame('output', streamId, payload);
+        const frame =
+          typeof session.streamIndex === 'number'
+            ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
+            : packStreamFrame('output', streamId, payload);
         this.ws.send(frame);
       }
     };
@@ -775,7 +880,12 @@ class HostConnector {
         session.flushImmediate = null;
       }
       session.pendingOutput = [];
-      sendJson(this.ws, { type: 'error', clientId: streamId, code: 'pty_start_failed', message: error.message });
+      sendJson(this.ws, {
+        type: 'error',
+        clientId: streamId,
+        code: 'pty_start_failed',
+        message: error.message,
+      });
       pty.kill();
       return;
     }
@@ -807,8 +917,9 @@ class HostConnector {
       sendJson(this.ws, { type: 'session_exit', clientId: streamId, code: exitCode });
       return;
     }
-    const message = `"${this.herdrCommand}" exited immediately with code ${exitCode} on ${this.fastFailures} attempts in a row. `
-      + 'Check that it runs from a terminal, and see the host connector log for what it printed.';
+    const message =
+      `"${this.herdrCommand}" exited immediately with code ${exitCode} on ${this.fastFailures} attempts in a row. ` +
+      'Check that it runs from a terminal, and see the host connector log for what it printed.';
     process.stderr.write(`herdr-remote host connector: ${message}\n`);
     sendJson(this.ws, { type: 'error', clientId: streamId, code: 'herdr_start_failed', message });
   }
@@ -882,7 +993,10 @@ class HostConnector {
     if (next > 0) {
       if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
       this.sendHeartbeat(true);
-      this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), this.config.cleanup.heartbeatIntervalMs);
+      this.heartbeatTimer = setInterval(
+        () => this.sendHeartbeat(),
+        this.config.cleanup.heartbeatIntervalMs,
+      );
     } else {
       if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -928,7 +1042,8 @@ class HostConnector {
       this.agentStatusDebounceTimer = null;
       this.readAgentStatus();
     }, AGENT_STATUS_EVENT_DEBOUNCE_MS);
-    if (typeof this.agentStatusDebounceTimer.unref === 'function') this.agentStatusDebounceTimer.unref();
+    if (typeof this.agentStatusDebounceTimer.unref === 'function')
+      this.agentStatusDebounceTimer.unref();
   }
 
   stopAgentStatus() {
@@ -984,8 +1099,12 @@ class HostConnector {
     }
     const session = this.sessions.get(id);
     if (!session) return;
-    session.cols = Number.isInteger(message.cols) ? Math.min(500, Math.max(2, message.cols)) : session.cols;
-    session.rows = Number.isInteger(message.rows) ? Math.min(500, Math.max(2, message.rows)) : session.rows;
+    session.cols = Number.isInteger(message.cols)
+      ? Math.min(500, Math.max(2, message.cols))
+      : session.cols;
+    session.rows = Number.isInteger(message.rows)
+      ? Math.min(500, Math.max(2, message.rows))
+      : session.rows;
     session.pty.resize(session.cols, session.rows);
   }
 
@@ -1061,7 +1180,10 @@ if (require.main === module) {
     process.stderr.write(`herdr-remote host connector failed: ${error.message}\n`);
     process.exitCode = error.code === 'HOST_ALREADY_RUNNING' ? EXIT_REPLACED : 1;
   }
-  const stop = () => { connector.stop(); process.exit(0); };
+  const stop = () => {
+    connector.stop();
+    process.exit(0);
+  };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
 }

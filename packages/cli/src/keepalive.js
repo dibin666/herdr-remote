@@ -45,14 +45,17 @@ function fallbackPidPath() {
  */
 function commandExists(command) {
   const searchPath = process.env.PATH || '';
-  return searchPath.split(path.delimiter).filter(Boolean).some((directory) => {
-    try {
-      fs.accessSync(path.join(directory, command), fs.constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  return searchPath
+    .split(path.delimiter)
+    .filter(Boolean)
+    .some((directory) => {
+      try {
+        fs.accessSync(path.join(directory, command), fs.constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 }
 
 /** Which manager to use given the platform, the user's preference and reality. */
@@ -61,7 +64,10 @@ function detectManager(preference = 'auto') {
   if (process.platform === 'linux') {
     // `systemctl --user` needs a user bus; containers and bare TTY logins often
     // have systemd installed but no session bus, where it would fail at runtime.
-    if (commandExists('systemctl') && (process.env.DBUS_SESSION_BUS_ADDRESS || process.env.XDG_RUNTIME_DIR)) {
+    if (
+      commandExists('systemctl') &&
+      (process.env.DBUS_SESSION_BUS_ADDRESS || process.env.XDG_RUNTIME_DIR)
+    ) {
       return 'systemd';
     }
     return 'supervisor';
@@ -123,12 +129,18 @@ function serviceEnvironment({ env = process.env, home = os.homedir(), directorie
  * silently truncated or rewritten.
  */
 function systemdEnvironmentLine(key, value) {
-  const text = String(value).replace(/[\r\n]+/g, ' ').replace(/%/g, '%%');
+  const text = String(value)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/%/g, '%%');
   if (/^[\w@+=:,./-]*$/.test(text)) return `Environment=${key}=${text}`;
   return `Environment="${key}=${text.replace(/([\\"])/g, '\\$1')}"`;
 }
 
-function renderSystemdUnit({ nodePath = process.execPath, entryPoint = cliEntryPoint(), environment = {} } = {}) {
+function renderSystemdUnit({
+  nodePath = process.execPath,
+  entryPoint = cliEntryPoint(),
+  environment = {},
+} = {}) {
   const environmentLines = Object.entries(environment)
     .map(([key, value]) => systemdEnvironmentLine(key, value))
     .join('\n');
@@ -169,7 +181,10 @@ function renderLaunchdPlist({
   environment = {},
 } = {}) {
   const environmentEntries = Object.entries(environment)
-    .map(([key, value]) => `      <key>${escapeXml(key)}</key>\n      <string>${escapeXml(value)}</string>`)
+    .map(
+      ([key, value]) =>
+        `      <key>${escapeXml(key)}</key>\n      <string>${escapeXml(value)}</string>`,
+    )
     .join('\n');
   const environmentBlock = environmentEntries
     ? `    <key>EnvironmentVariables</key>\n    <dict>\n${environmentEntries}\n    </dict>\n`
@@ -217,12 +232,18 @@ function systemdStatus() {
   if (!installed) return { manager: 'systemd', installed: false, active: false, enabled: false };
   const active = systemctl(['is-active', SYSTEMD_UNIT_NAME]);
   const enabled = systemctl(['is-enabled', SYSTEMD_UNIT_NAME]);
-  const lingering = spawnSync('loginctl', ['show-user', os.userInfo().username, '--property=Linger'], { encoding: 'utf8' });
+  const lingering = spawnSync(
+    'loginctl',
+    ['show-user', os.userInfo().username, '--property=Linger'],
+    { encoding: 'utf8' },
+  );
   return {
     manager: 'systemd',
     installed: true,
     active: String(active.stdout || '').trim() === 'active',
-    enabled: String(enabled.stdout || '').trim().startsWith('enabled'),
+    enabled: String(enabled.stdout || '')
+      .trim()
+      .startsWith('enabled'),
     linger: String(lingering.stdout || '').includes('Linger=yes'),
     unitPath: systemdUnitPath(),
     state: String(active.stdout || active.stderr || '').trim(),
@@ -232,7 +253,9 @@ function systemdStatus() {
 function systemdInstall() {
   const unitPath = systemdUnitPath();
   ensureDir(path.dirname(unitPath));
-  fs.writeFileSync(unitPath, renderSystemdUnit({ environment: serviceEnvironment() }), { mode: 0o644 });
+  fs.writeFileSync(unitPath, renderSystemdUnit({ environment: serviceEnvironment() }), {
+    mode: 0o644,
+  });
   const reload = systemctl(['daemon-reload']);
   if (reload.status !== 0) {
     throw new Error(`systemctl --user daemon-reload failed: ${String(reload.stderr || '').trim()}`);
@@ -264,7 +287,9 @@ function launchdStatus() {
   const plistPath = launchdPlistPath();
   const installed = fs.existsSync(plistPath);
   if (!installed) return { manager: 'launchd', installed: false, active: false, enabled: false };
-  const result = spawnSync('launchctl', ['print', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { encoding: 'utf8' });
+  const result = spawnSync('launchctl', ['print', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], {
+    encoding: 'utf8',
+  });
   const output = String(result.stdout || '');
   return {
     manager: 'launchd',
@@ -280,20 +305,30 @@ function launchdInstall() {
   const plistPath = launchdPlistPath();
   ensureDir(path.dirname(plistPath));
   ensureDir(stateDir());
-  fs.writeFileSync(plistPath, renderLaunchdPlist({ environment: serviceEnvironment() }), { mode: 0o644 });
+  fs.writeFileSync(plistPath, renderLaunchdPlist({ environment: serviceEnvironment() }), {
+    mode: 0o644,
+  });
   // bootout first so a re-install picks up the rewritten plist.
-  spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { stdio: 'ignore' });
-  const result = spawnSync('launchctl', ['bootstrap', launchdDomainTarget(), plistPath], { encoding: 'utf8' });
+  spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], {
+    stdio: 'ignore',
+  });
+  const result = spawnSync('launchctl', ['bootstrap', launchdDomainTarget(), plistPath], {
+    encoding: 'utf8',
+  });
   if (result.status !== 0) {
     throw new Error(`launchctl bootstrap failed: ${String(result.stderr || '').trim()}`);
   }
-  spawnSync('launchctl', ['enable', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { stdio: 'ignore' });
+  spawnSync('launchctl', ['enable', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], {
+    stdio: 'ignore',
+  });
   return { ok: true, unitPath: plistPath };
 }
 
 function launchdUninstall() {
   const plistPath = launchdPlistPath();
-  spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { stdio: 'ignore' });
+  spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], {
+    stdio: 'ignore',
+  });
   if (fs.existsSync(plistPath)) fs.rmSync(plistPath, { force: true });
   return { ok: true, unitPath: plistPath };
 }
@@ -322,7 +357,8 @@ function fallbackStatus() {
 }
 
 function fallbackInstall() {
-  if (pidAlive(readFallbackPid())) return { ok: true, alreadyRunning: true, pid: readFallbackPid() };
+  if (pidAlive(readFallbackPid()))
+    return { ok: true, alreadyRunning: true, pid: readFallbackPid() };
   ensureDir(stateDir());
   const logFd = fs.openSync(logPath('supervisor'), 'a');
   try {
@@ -343,9 +379,13 @@ function fallbackInstall() {
 function fallbackUninstall() {
   const pid = readFallbackPid();
   if (pidAlive(pid)) {
-    try { process.kill(pid, 'SIGTERM'); } catch {}
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {}
   }
-  try { fs.rmSync(fallbackPidPath(), { force: true }); } catch {}
+  try {
+    fs.rmSync(fallbackPidPath(), { force: true });
+  } catch {}
   return { ok: true, stoppedPid: pid };
 }
 
@@ -359,7 +399,8 @@ function resolveManager(config = loadConfig()) {
 
 function status(config = loadConfig()) {
   const manager = resolveManager(config);
-  if (manager === 'none') return { manager: 'none', installed: false, active: false, enabled: false };
+  if (manager === 'none')
+    return { manager: 'none', installed: false, active: false, enabled: false };
   if (manager === 'systemd') return systemdStatus();
   if (manager === 'launchd') return launchdStatus();
   return fallbackStatus();
@@ -385,11 +426,14 @@ function restart(config = loadConfig()) {
   const manager = resolveManager(config);
   if (manager === 'systemd') {
     const result = systemctl(['restart', SYSTEMD_UNIT_NAME]);
-    if (result.status !== 0) throw new Error(String(result.stderr || '').trim() || 'systemctl restart failed');
+    if (result.status !== 0)
+      throw new Error(String(result.stderr || '').trim() || 'systemctl restart failed');
     return { manager, ok: true };
   }
   if (manager === 'launchd') {
-    spawnSync('launchctl', ['kickstart', '-k', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { stdio: 'ignore' });
+    spawnSync('launchctl', ['kickstart', '-k', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], {
+      stdio: 'ignore',
+    });
     return { manager, ok: true };
   }
   fallbackUninstall();
@@ -409,7 +453,9 @@ function stopManaged(config = loadConfig()) {
     return { managed: true, manager: 'systemd' };
   }
   if (current.manager === 'launchd') {
-    spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], { stdio: 'ignore' });
+    spawnSync('launchctl', ['bootout', `${launchdDomainTarget()}/${LAUNCHD_LABEL}`], {
+      stdio: 'ignore',
+    });
     return { managed: true, manager: 'launchd' };
   }
   if (current.manager === 'supervisor' && current.active) {

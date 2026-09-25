@@ -62,16 +62,20 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
   };
 
   const label = activeProfile?.displayName || t('profiles.addHost');
-  const statusLevel = connectionState === 'connected'
-    ? 'ok'
-    : connectionState === 'connecting' || connectionState === 'reconnecting'
-      ? 'warn'
-      : connectionState === 'error'
-        ? 'bad'
-        : 'idle';
+  const statusLevel =
+    connectionState === 'connected'
+      ? 'ok'
+      : connectionState === 'connecting' || connectionState === 'reconnecting'
+        ? 'warn'
+        : connectionState === 'error'
+          ? 'bad'
+          : 'idle';
 
   return (
-    <div ref={rootRef} className={cn('relative min-w-0', mobile && 'w-full', statusBar && 'flex-1')}>
+    <div
+      ref={rootRef}
+      className={cn('relative min-w-0', mobile && 'w-full', statusBar && 'flex-1')}
+    >
       <button
         type="button"
         aria-haspopup="menu"
@@ -89,7 +93,9 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
       >
         <StatusDot level={statusLevel} />
         <span className={cn('truncate text-tui-text', statusBar && 'min-w-0 flex-1')}>{label}</span>
-        <span aria-hidden="true" className="shrink-0 text-tui-faint">{open ? GLYPH.chevronDown : GLYPH.chevronRight}</span>
+        <span aria-hidden="true" className="shrink-0 text-tui-faint">
+          {open ? GLYPH.chevronDown : GLYPH.chevronRight}
+        </span>
       </button>
 
       {open && (
@@ -116,7 +122,11 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
               const active = profile.id === activeProfileId;
               const editing = profile.id === editingId;
               return (
-                <div key={profile.id} role="none" className="border-b border-tui-border-dim last:border-b-0">
+                <div
+                  key={profile.id}
+                  role="none"
+                  className="border-b border-tui-border-dim last:border-b-0"
+                >
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -131,14 +141,23 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                         active ? 'text-tui-accent' : 'text-tui-text',
                       )}
                     >
-                      <span aria-hidden="true" className="w-3 shrink-0">{active ? GLYPH.cursor : ''}</span>
+                      <span aria-hidden="true" className="w-3 shrink-0">
+                        {active ? GLYPH.cursor : ''}
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-bold">{profile.displayName}</span>
-                        <span className="block truncate text-tui-sm text-tui-faint" title={profile.hostname || profile.hostId}>
+                        <span
+                          className="block truncate text-tui-sm text-tui-faint"
+                          title={profile.hostname || profile.hostId}
+                        >
                           {profile.hostname || profile.hostId || profile.wsUrl}
                         </span>
                       </span>
-                      {active && <span className="shrink-0 text-tui-sm text-tui-ok">{t('profiles.current')}</span>}
+                      {active && (
+                        <span className="shrink-0 text-tui-sm text-tui-ok">
+                          {t('profiles.current')}
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -166,10 +185,18 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                         aria-label={t('profiles.rename')}
                         className="tui-input min-w-0 flex-1 px-2 py-1 text-tui"
                       />
-                      <Button onClick={() => commitRename(profile.id)} variant="primary" className="min-h-11">
+                      <Button
+                        onClick={() => commitRename(profile.id)}
+                        variant="primary"
+                        className="min-h-11"
+                      >
                         {t('common.save')}
                       </Button>
-                      <Button onClick={() => remove(profile.id)} variant="danger" className="min-h-11">
+                      <Button
+                        onClick={() => remove(profile.id)}
+                        variant="danger"
+                        className="min-h-11"
+                      >
                         {t('profiles.remove')}
                       </Button>
                     </div>

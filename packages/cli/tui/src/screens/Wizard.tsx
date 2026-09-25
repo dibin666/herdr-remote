@@ -74,7 +74,10 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
     let next = draft;
     for (const [id, value] of updates) {
       const result = setField(next, id, value);
-      if (result.errorKey) { ctx.notify(t(result.errorKey), 'error'); return false; }
+      if (result.errorKey) {
+        ctx.notify(t(result.errorKey), 'error');
+        return false;
+      }
       next = result.draft;
     }
     ctx.updateDraft(next);
@@ -137,7 +140,9 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
   const header = (
     <Box flexDirection="column" marginBottom={1}>
       <Text bold>{t('wizard.title')}</Text>
-      <Text color={theme.muted}>{t('wizard.step', { current: stepIndex + 1, total: steps.length })}</Text>
+      <Text color={theme.muted}>
+        {t('wizard.step', { current: stepIndex + 1, total: steps.length })}
+      </Text>
     </Box>
   );
 
@@ -152,7 +157,9 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
             { id: 'en', label: t('about.languageEn') },
           ]}
           current={draft.ui.language}
-          onPick={(language) => { if (apply('language', language)) advance('language'); }}
+          onPick={(language) => {
+            if (apply('language', language)) advance('language');
+          }}
           onCancel={() => {}}
         />
         <Message text={ctx.message?.text ?? null} level={ctx.message?.level ?? 'info'} />
@@ -201,7 +208,10 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
             if (apply('mode', choice)) {
               // Leaving the official relay clears its address, so the URL step
               // that follows starts empty rather than pre-loaded with ours.
-              advance('access', stepsFor(choice as AccessMode, choice === 'remote' ? '' : draft.relay.remoteUrl));
+              advance(
+                'access',
+                stepsFor(choice as AccessMode, choice === 'remote' ? '' : draft.relay.remoteUrl),
+              );
             }
           }}
           onCancel={back}
@@ -222,7 +232,9 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
           <Box flexDirection="column">
             <Text color={theme.warn}>{t('relay.noAddresses')}</Text>
             <Box marginTop={1}>
-              <Selectable selected onSelect={() => advance('address')}>{t('wizard.finish')}</Selectable>
+              <Selectable selected onSelect={() => advance('address')}>
+                {t('wizard.finish')}
+              </Selectable>
             </Box>
             <SkipKey onSkip={() => advance('address')} onBack={back} />
           </Box>
@@ -233,7 +245,9 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
               label: `${address.address}  (${address.name}, ${address.kind})`,
             }))}
             current={draft.relay.lanHost || addresses[0].address}
-            onPick={(address) => { if (apply('lanHost', address)) advance('address'); }}
+            onPick={(address) => {
+              if (apply('lanHost', address)) advance('address');
+            }}
             onCancel={back}
           />
         )}
@@ -252,7 +266,10 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
             placeholder="wss://relay.example.com"
             active
             onSubmit={(value) => {
-              if (!value) { ctx.notify(t('error.remoteUrlRequired'), 'error'); return; }
+              if (!value) {
+                ctx.notify(t('error.remoteUrlRequired'), 'error');
+                return;
+              }
               if (apply('remoteUrl', value)) advance('relayUrl');
             }}
             onCancel={back}
@@ -276,7 +293,10 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
             placeholder={t('relay.passwordEmpty')}
             active
             mask
-            onSubmit={(value) => { setPassword(value); advance('password'); }}
+            onSubmit={(value) => {
+              setPassword(value);
+              advance('password');
+            }}
             onCancel={back}
           />
         </FieldRow>
@@ -290,13 +310,22 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
 
   const finishItems = [
     { id: 'startNow', label: `${t('wizard.startNow')}  [${startNow ? '×' : ' '}]` },
-    { id: 'installKeepalive', label: `${t('wizard.installKeepalive')}  [${installKeepalive ? '×' : ' '}]` },
+    {
+      id: 'installKeepalive',
+      label: `${t('wizard.installKeepalive')}  [${installKeepalive ? '×' : ' '}]`,
+    },
     { id: 'finish', label: t('wizard.finish') },
   ];
 
   const activateFinish = (id: string) => {
-    if (id === 'startNow') { setStartNow((value) => !value); return; }
-    if (id === 'installKeepalive') { setInstallKeepalive((value) => !value); return; }
+    if (id === 'startNow') {
+      setStartNow((value) => !value);
+      return;
+    }
+    if (id === 'installKeepalive') {
+      setInstallKeepalive((value) => !value);
+      return;
+    }
     finish();
   };
 
@@ -314,7 +343,10 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
         <Selectable
           key={item.id}
           selected={finishSelection === item.id}
-          onSelect={() => { setFinishSelection(item.id); activateFinish(item.id); }}
+          onSelect={() => {
+            setFinishSelection(item.id);
+            activateFinish(item.id);
+          }}
           onHover={() => setFinishSelection(item.id)}
         >
           {item.label}

@@ -13,7 +13,9 @@ import { saveSettings } from '../utils/storage';
  * scrolls away.
  */
 
-const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({ onReady }) => {
+const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
+  onReady,
+}) => {
   onReady(useTerminal());
   return null;
 };
@@ -22,16 +24,28 @@ function mountPrompt() {
   let ctx: ReturnType<typeof useTerminal> | undefined;
   render(
     <TerminalProvider>
-      <Probe onReady={(value) => { ctx = value; }} />
+      <Probe
+        onReady={(value) => {
+          ctx = value;
+        }}
+      />
       <HerdrStartPrompt />
     </TerminalProvider>,
   );
   const emit = (event: string, ...args: unknown[]) => {
-    // @ts-expect-error test mock
-    act(() => { ctx?.adapter?.emit(event, ...args); });
+    act(() => {
+      // @ts-expect-error test mock
+      ctx?.adapter?.emit(event, ...args);
+    });
   };
   const sendHerdrStart = vi.spyOn(ctx!.adapter!, 'sendHerdrStart').mockImplementation(() => {});
-  emit('ready', { type: 'ready', role: 'controller', hostId: 'host-a', hostname: 'workbox', clientId: 'client-1' });
+  emit('ready', {
+    type: 'ready',
+    role: 'controller',
+    hostId: 'host-a',
+    hostname: 'workbox',
+    clientId: 'client-1',
+  });
   return {
     emit,
     sendHerdrStart,
@@ -56,7 +70,10 @@ describe('Starting Herdr from the browser', () => {
     expect(screen.queryByTestId('herdr-start-prompt')).not.toBeInTheDocument();
     const toastsBefore = session.toasts.length;
 
-    session.emit('error', { code: 'herdr_not_running', message: 'Herdr is not running on this workstation.' });
+    session.emit('error', {
+      code: 'herdr_not_running',
+      message: 'Herdr is not running on this workstation.',
+    });
 
     const prompt = screen.getByTestId('herdr-start-prompt');
     expect(prompt).toHaveTextContent('Herdr is not running on workbox');
@@ -85,7 +102,10 @@ describe('Starting Herdr from the browser', () => {
     session.emit('error', { code: 'herdr_not_running', message: '' });
     fireEvent.click(screen.getByRole('button', { name: 'Start Herdr' }));
 
-    session.emit('error', { code: 'herdr_start_failed', message: 'Herdr server exited (code 1) before opening its socket.' });
+    session.emit('error', {
+      code: 'herdr_start_failed',
+      message: 'Herdr server exited (code 1) before opening its socket.',
+    });
 
     const prompt = screen.getByTestId('herdr-start-prompt');
     expect(prompt).toHaveTextContent('Herdr did not start');
@@ -100,9 +120,13 @@ describe('Starting Herdr from the browser', () => {
     session.emit('error', { code: 'herdr_not_running', message: '' });
     fireEvent.click(screen.getByRole('button', { name: 'Start Herdr' }));
 
-    act(() => { vi.advanceTimersByTime(30_000); });
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
 
-    expect(screen.getByTestId('herdr-start-prompt')).toHaveTextContent('too old to start Herdr from a browser');
+    expect(screen.getByTestId('herdr-start-prompt')).toHaveTextContent(
+      'too old to start Herdr from a browser',
+    );
   });
 
   it('forgets the question when the connection goes, and asks the next one afresh', () => {

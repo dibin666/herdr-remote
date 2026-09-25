@@ -14,7 +14,9 @@ import { saveSettings } from '../utils/storage';
  * to replace.
  */
 
-const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({ onReady }) => {
+const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
+  onReady,
+}) => {
   onReady(useTerminal());
   return null;
 };
@@ -23,18 +25,26 @@ function mountChip(props: { compact?: boolean } = {}) {
   let ctx: ReturnType<typeof useTerminal> | undefined;
   render(
     <TerminalProvider>
-      <Probe onReady={(value) => { ctx = value; }} />
+      <Probe
+        onReady={(value) => {
+          ctx = value;
+        }}
+      />
       <AgentStatusChip {...props} />
     </TerminalProvider>,
   );
   return {
     push: (message: Record<string, unknown>) => {
-      // @ts-expect-error test mock
-      act(() => { ctx?.adapter?.emit('agentStatus', { type: 'agent_status', ...message }); });
+      act(() => {
+        // @ts-expect-error test mock
+        ctx?.adapter?.emit('agentStatus', { type: 'agent_status', ...message });
+      });
     },
     drop: () => {
-      // @ts-expect-error test mock
-      act(() => { ctx?.adapter?.emit('stateChange', 'reconnecting', undefined, undefined); });
+      act(() => {
+        // @ts-expect-error test mock
+        ctx?.adapter?.emit('stateChange', 'reconnecting', undefined, undefined);
+      });
     },
     get toasts() {
       return ctx?.toasts ?? [];

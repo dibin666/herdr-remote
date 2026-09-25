@@ -113,7 +113,9 @@ function configDir() {
 }
 
 function stateDir() {
-  return process.env.HERDR_REMOTE_STATE_DIR || path.join(os.homedir(), '.local', 'state', 'herdr-remote');
+  return (
+    process.env.HERDR_REMOTE_STATE_DIR || path.join(os.homedir(), '.local', 'state', 'herdr-remote')
+  );
 }
 
 function configPath() {
@@ -135,7 +137,9 @@ function readJson(filePath) {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
     if (error.code !== 'ENOENT') {
-      process.stderr.write(`herdr-remote: ignoring invalid JSON at ${filePath}: ${error.message}\n`);
+      process.stderr.write(
+        `herdr-remote: ignoring invalid JSON at ${filePath}: ${error.message}\n`,
+      );
     }
     return {};
   }
@@ -188,7 +192,13 @@ function normalizeLegacyFields(config, fileConfig) {
       config.relay.mode = 'local';
     }
   }
-  if (config.relay.mode === 'lan' && !config.relay.lanHost && typeof legacy.host === 'string' && !isLoopbackHost(legacy.host) && legacy.host !== '0.0.0.0') {
+  if (
+    config.relay.mode === 'lan' &&
+    !config.relay.lanHost &&
+    typeof legacy.host === 'string' &&
+    !isLoopbackHost(legacy.host) &&
+    legacy.host !== '0.0.0.0'
+  ) {
     config.relay.lanHost = legacy.host;
   }
   // Superseded keys copied in by the merge would otherwise reappear in the
@@ -198,7 +208,10 @@ function normalizeLegacyFields(config, fileConfig) {
   delete config.relay.url;
   // `publicUrl` used to be mandatory and defaulted to the loopback URL; treat
   // that default as "no override" so derivation can take over.
-  if (typeof config.relay.publicUrl === 'string' && /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(config.relay.publicUrl)) {
+  if (
+    typeof config.relay.publicUrl === 'string' &&
+    /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(config.relay.publicUrl)
+  ) {
     config.relay.publicUrl = '';
   }
 }
@@ -235,13 +248,29 @@ function normalizeUrl(value) {
 function validate(config) {
   if (!ACCESS_MODES.includes(config.relay.mode)) config.relay.mode = DEFAULTS.relay.mode;
   if (!LANGUAGES.includes(config.ui.language)) config.ui.language = DEFAULTS.ui.language;
-  if (!KEEPALIVE_MANAGERS.includes(config.keepalive.manager)) config.keepalive.manager = DEFAULTS.keepalive.manager;
+  if (!KEEPALIVE_MANAGERS.includes(config.keepalive.manager))
+    config.keepalive.manager = DEFAULTS.keepalive.manager;
 
   config.relay.port = parseInteger(config.relay.port, DEFAULTS.relay.port, 1, 65535);
-  config.relay.maxPayloadBytes = parseInteger(config.relay.maxPayloadBytes, DEFAULTS.relay.maxPayloadBytes, 4096, 16 * 1024 * 1024);
-  config.relay.maxClientsPerHost = parseInteger(config.relay.maxClientsPerHost, DEFAULTS.relay.maxClientsPerHost, 1, 256);
+  config.relay.maxPayloadBytes = parseInteger(
+    config.relay.maxPayloadBytes,
+    DEFAULTS.relay.maxPayloadBytes,
+    4096,
+    16 * 1024 * 1024,
+  );
+  config.relay.maxClientsPerHost = parseInteger(
+    config.relay.maxClientsPerHost,
+    DEFAULTS.relay.maxClientsPerHost,
+    1,
+    256,
+  );
   config.relay.maxHosts = parseInteger(config.relay.maxHosts, DEFAULTS.relay.maxHosts, 1, 100000);
-  config.relay.maxPendingHandshakes = parseInteger(config.relay.maxPendingHandshakes, DEFAULTS.relay.maxPendingHandshakes, 16, 100000);
+  config.relay.maxPendingHandshakes = parseInteger(
+    config.relay.maxPendingHandshakes,
+    DEFAULTS.relay.maxPendingHandshakes,
+    16,
+    100000,
+  );
   config.relay.maxBufferedBytesPerClient = parseInteger(
     config.relay.maxBufferedBytesPerClient,
     DEFAULTS.relay.maxBufferedBytesPerClient,
@@ -254,21 +283,49 @@ function validate(config) {
     1000,
     24 * 60 * 60 * 1000,
   );
-  config.auth.pairingTtlMs = parseInteger(config.auth.pairingTtlMs, DEFAULTS.auth.pairingTtlMs, 30 * 1000, 24 * 60 * 60 * 1000);
-  config.auth.deviceTtlMs = parseInteger(config.auth.deviceTtlMs, DEFAULTS.auth.deviceTtlMs, 60 * 1000, 365 * 24 * 60 * 60 * 1000);
+  config.auth.pairingTtlMs = parseInteger(
+    config.auth.pairingTtlMs,
+    DEFAULTS.auth.pairingTtlMs,
+    30 * 1000,
+    24 * 60 * 60 * 1000,
+  );
+  config.auth.deviceTtlMs = parseInteger(
+    config.auth.deviceTtlMs,
+    DEFAULTS.auth.deviceTtlMs,
+    60 * 1000,
+    365 * 24 * 60 * 60 * 1000,
+  );
   config.auth.maxDevices = parseInteger(config.auth.maxDevices, DEFAULTS.auth.maxDevices, 1, 10000);
-  config.cleanup.intervalMs = parseInteger(config.cleanup.intervalMs, DEFAULTS.cleanup.intervalMs, 1000, 24 * 60 * 60 * 1000);
-  config.cleanup.heartbeatIntervalMs = parseInteger(config.cleanup.heartbeatIntervalMs, DEFAULTS.cleanup.heartbeatIntervalMs, 1000, 10 * 60 * 1000);
-  config.cleanup.staleAfterMs = parseInteger(config.cleanup.staleAfterMs, DEFAULTS.cleanup.staleAfterMs, config.cleanup.heartbeatIntervalMs * 2, 24 * 60 * 60 * 1000);
+  config.cleanup.intervalMs = parseInteger(
+    config.cleanup.intervalMs,
+    DEFAULTS.cleanup.intervalMs,
+    1000,
+    24 * 60 * 60 * 1000,
+  );
+  config.cleanup.heartbeatIntervalMs = parseInteger(
+    config.cleanup.heartbeatIntervalMs,
+    DEFAULTS.cleanup.heartbeatIntervalMs,
+    1000,
+    10 * 60 * 1000,
+  );
+  config.cleanup.staleAfterMs = parseInteger(
+    config.cleanup.staleAfterMs,
+    DEFAULTS.cleanup.staleAfterMs,
+    config.cleanup.heartbeatIntervalMs * 2,
+    24 * 60 * 60 * 1000,
+  );
 
   config.relay.publicUrl = normalizeUrl(config.relay.publicUrl);
   config.relay.remoteUrl = normalizeUrl(config.relay.remoteUrl);
-  config.relay.lanHost = typeof config.relay.lanHost === 'string' ? config.relay.lanHost.trim() : '';
+  config.relay.lanHost =
+    typeof config.relay.lanHost === 'string' ? config.relay.lanHost.trim() : '';
   // A LAN relay listens on every interface, but a loopback or wildcard value
   // cannot be opened by another device. Clear stale values from older TUI
   // versions so the advertised URL falls back to a real interface address.
-  if (config.relay.mode === 'lan'
-    && (isLoopbackHost(config.relay.lanHost) || isUnspecifiedAddress(config.relay.lanHost))) {
+  if (
+    config.relay.mode === 'lan' &&
+    (isLoopbackHost(config.relay.lanHost) || isUnspecifiedAddress(config.relay.lanHost))
+  ) {
     config.relay.lanHost = '';
   }
   // 0.0.0.0 is a server-side bind wildcard, never a destination a browser can
@@ -276,14 +333,19 @@ function validate(config) {
   if (isUnspecifiedHost(config.relay.publicUrl)) config.relay.publicUrl = '';
   if (!Array.isArray(config.relay.allowedOrigins)) config.relay.allowedOrigins = [];
 
-  if (!Array.isArray(config.herdr.args) || !config.herdr.args.every((arg) => typeof arg === 'string')) {
+  if (
+    !Array.isArray(config.herdr.args) ||
+    !config.herdr.args.every((arg) => typeof arg === 'string')
+  ) {
     config.herdr.args = [];
   }
   // Herdr 0.9.0 removed --no-session; retaining it in saved configs causes
   // session creation to fail. Filter it out if present.
   if (config.herdr.args.includes('--no-session')) {
     config.herdr.args = config.herdr.args.filter((arg) => arg !== '--no-session');
-    process.stderr.write('herdr-remote: ignoring removed --no-session argument (removed in Herdr 0.9.0)\n');
+    process.stderr.write(
+      'herdr-remote: ignoring removed --no-session argument (removed in Herdr 0.9.0)\n',
+    );
   }
   if (typeof config.herdr.socketPath !== 'string' || config.herdr.socketPath.length === 0) {
     config.herdr.socketPath = null;
@@ -303,15 +365,20 @@ function validate(config) {
 
 function applyEnvironment(config) {
   const env = process.env;
-  if (env.HERDR_REMOTE_LANG && LANGUAGES.includes(env.HERDR_REMOTE_LANG)) config.ui.language = env.HERDR_REMOTE_LANG;
-  if (env.HERDR_REMOTE_MODE && ACCESS_MODES.includes(env.HERDR_REMOTE_MODE)) config.relay.mode = env.HERDR_REMOTE_MODE;
+  if (env.HERDR_REMOTE_LANG && LANGUAGES.includes(env.HERDR_REMOTE_LANG))
+    config.ui.language = env.HERDR_REMOTE_LANG;
+  if (env.HERDR_REMOTE_MODE && ACCESS_MODES.includes(env.HERDR_REMOTE_MODE))
+    config.relay.mode = env.HERDR_REMOTE_MODE;
   if (env.RELAY_PORT) config.relay.port = env.RELAY_PORT;
   if (env.RELAY_PUBLIC_URL) config.relay.publicUrl = env.RELAY_PUBLIC_URL;
   if (env.RELAY_REMOTE_URL) config.relay.remoteUrl = env.RELAY_REMOTE_URL;
   if (env.RELAY_MAX_HOSTS) config.relay.maxHosts = env.RELAY_MAX_HOSTS;
-  if (env.RELAY_MAX_PENDING_HANDSHAKES) config.relay.maxPendingHandshakes = env.RELAY_MAX_PENDING_HANDSHAKES;
-  if (env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT) config.relay.maxBufferedBytesPerClient = env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT;
-  if (env.RELAY_HOST_RECONNECT_GRACE_MS) config.relay.hostReconnectGraceMs = env.RELAY_HOST_RECONNECT_GRACE_MS;
+  if (env.RELAY_MAX_PENDING_HANDSHAKES)
+    config.relay.maxPendingHandshakes = env.RELAY_MAX_PENDING_HANDSHAKES;
+  if (env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT)
+    config.relay.maxBufferedBytesPerClient = env.RELAY_MAX_BUFFERED_BYTES_PER_CLIENT;
+  if (env.RELAY_HOST_RECONNECT_GRACE_MS)
+    config.relay.hostReconnectGraceMs = env.RELAY_HOST_RECONNECT_GRACE_MS;
   if (env.HERDR_SOCKET_PATH) config.herdr.socketPath = env.HERDR_SOCKET_PATH;
   if (env.HERDR_CWD) config.herdr.cwd = env.HERDR_CWD;
   if (env.HERDR_ARGS_JSON) {
@@ -359,8 +426,13 @@ function bindAddress(config) {
 function advertisedHost(config, fallbackLanHost = null) {
   if (config.relay.mode === 'lan') {
     const configured = config.relay.lanHost;
-    if (configured && !isLoopbackHost(configured) && !isUnspecifiedAddress(configured)) return configured;
-    if (fallbackLanHost && !isLoopbackHost(fallbackLanHost) && !isUnspecifiedAddress(fallbackLanHost)) {
+    if (configured && !isLoopbackHost(configured) && !isUnspecifiedAddress(configured))
+      return configured;
+    if (
+      fallbackLanHost &&
+      !isLoopbackHost(fallbackLanHost) &&
+      !isUnspecifiedAddress(fallbackLanHost)
+    ) {
       return fallbackLanHost;
     }
     return '127.0.0.1';
@@ -383,9 +455,8 @@ function resolveAdminOrigin(config) {
 
 /** WebSocket URL the host connector dials. */
 function resolveHostRelayUrl(config) {
-  const base = config.relay.mode === 'remote'
-    ? config.relay.remoteUrl
-    : `ws://127.0.0.1:${config.relay.port}`;
+  const base =
+    config.relay.mode === 'remote' ? config.relay.remoteUrl : `ws://127.0.0.1:${config.relay.port}`;
   return hostWebSocketUrl(base);
 }
 

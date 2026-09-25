@@ -49,7 +49,9 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       sessionStorage.clear();
       localStorage.setItem('herdr_remote_settings_v1', JSON.stringify({ fontFamily: stored }));
       expect(loadSettings().fontFamily).toBe(expected);
-      expect(JSON.parse(localStorage.getItem('herdr_remote_settings_v1') || '{}').fontFamily).toBe(expected);
+      expect(JSON.parse(localStorage.getItem('herdr_remote_settings_v1') || '{}').fontFamily).toBe(
+        expected,
+      );
     }
   });
 
@@ -106,7 +108,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText(/Terminal Preferences/i)).toBeInTheDocument();
@@ -118,9 +120,15 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     // Every preset is reachable from the one control
     const optionValues = Array.from(fontSelect.options).map((option) => option.value);
     expect(optionValues).toEqual(FONT_PRESETS.map((preset) => preset.id));
-    expect(optionValues).toEqual(expect.arrayContaining([
-      'jetbrains-mono', 'fira-code', 'cascadia-code', 'source-code-pro', 'ibm-plex-mono',
-    ]));
+    expect(optionValues).toEqual(
+      expect.arrayContaining([
+        'jetbrains-mono',
+        'fira-code',
+        'cascadia-code',
+        'source-code-pro',
+        'ibm-plex-mono',
+      ]),
+    );
 
     fireEvent.change(fontSelect, { target: { value: 'cascadia-code' } });
     expect(loadSettings().fontFamily).toBe('cascadia-code');
@@ -130,9 +138,13 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     let terminalCtx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <TestControlHelper onReady={(ctx) => { terminalCtx = ctx; }} />
+        <TestControlHelper
+          onReady={(ctx) => {
+            terminalCtx = ctx;
+          }}
+        />
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // Every window has its own Herdr view and its own PTY, so the size set
@@ -155,7 +167,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.queryByText(/Terminal Palette/i)).not.toBeInTheDocument();
@@ -174,9 +186,13 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
 
     render(
       <TerminalProvider>
-        <TestControlHelper onReady={(ctx) => { terminalCtx = ctx; }} />
+        <TestControlHelper
+          onReady={(ctx) => {
+            terminalCtx = ctx;
+          }}
+        />
         <RoleControlBadge />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     act(() => {
@@ -204,7 +220,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     const autoRadio = screen.getByRole('radio', { name: /Auto/i }) as HTMLInputElement;
@@ -239,14 +255,30 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
         family: 'JetBrainsMono Nerd Font',
         alias: 'Herdr Host 0ec29a68b539',
       });
-      expect(resolved.startsWith('"Herdr Host 0ec29a68b539", "JetBrainsMono Nerd Font", "Herdr JetBrains Mono", ui-monospace')).toBe(true);
-      expect(resolved.endsWith('"Symbols Nerd Font Mono", "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Noto Sans Mono CJK TC", "Microsoft YaHei Mono", "PingFang SC", monospace')).toBe(true);
+      expect(
+        resolved.startsWith(
+          '"Herdr Host 0ec29a68b539", "JetBrainsMono Nerd Font", "Herdr JetBrains Mono", ui-monospace',
+        ),
+      ).toBe(true);
+      expect(
+        resolved.endsWith(
+          '"Symbols Nerd Font Mono", "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Noto Sans Mono CJK TC", "Microsoft YaHei Mono", "PingFang SC", monospace',
+        ),
+      ).toBe(true);
       // Not loaded, and no bundled equivalent: the name, then the system stack.
-      expect(resolveTerminalFontFamily('host', { family: 'Iosevka Term' }).startsWith('"Iosevka Term", ui-monospace')).toBe(true);
+      expect(
+        resolveTerminalFontFamily('host', { family: 'Iosevka Term' }).startsWith(
+          '"Iosevka Term", ui-monospace',
+        ),
+      ).toBe(true);
     });
 
     it('names an installed copy of a programming font ahead of the bundled one', () => {
-      expect(resolveTerminalFontFamily('fira-code').startsWith('"Fira Code", "Herdr Fira Code", ui-monospace')).toBe(true);
+      expect(
+        resolveTerminalFontFamily('fira-code').startsWith(
+          '"Fira Code", "Herdr Fira Code", ui-monospace',
+        ),
+      ).toBe(true);
       expect(resolveTerminalFontFamily('system')).toBe(SYSTEM_FONT_STACK);
     });
 
@@ -262,7 +294,9 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
 
     it('handles bare monospace or fonts without monospace fallback safely', () => {
       expect(resolveTerminalFontFamily('monospace')).toBe('"Symbols Nerd Font Mono", monospace');
-      expect(resolveTerminalFontFamily('Consolas')).toBe('Consolas, "Symbols Nerd Font Mono", monospace');
+      expect(resolveTerminalFontFamily('Consolas')).toBe(
+        'Consolas, "Symbols Nerd Font Mono", monospace',
+      );
     });
   });
 });

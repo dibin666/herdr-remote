@@ -24,9 +24,9 @@ function detectLocale({ env = process.env, preference = 'auto' } = {}) {
 
 function interpolate(template, values) {
   if (!values) return template;
-  return template.replace(/\{(\w+)\}/g, (match, key) => (
-    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match
-  ));
+  return template.replace(/\{(\w+)\}/g, (match, key) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match,
+  );
 }
 
 /**

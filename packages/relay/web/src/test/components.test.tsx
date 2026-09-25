@@ -17,7 +17,7 @@ describe('UI Components', () => {
     render(
       <TerminalProvider>
         <RoleControlBadge />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByRole('status')).toBeInTheDocument();
@@ -28,7 +28,7 @@ describe('UI Components', () => {
     render(
       <TerminalProvider>
         <OnboardingView />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText(/Pair with Herdr Remote/i)).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe('UI Components', () => {
     render(
       <TerminalProvider>
         <StatusBanner />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByText(/Terminal disconnected/i)).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe('UI Components', () => {
     render(
       <TerminalProvider>
         <KeyToolbar />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     expect(screen.getByRole('toolbar')).toBeInTheDocument();
@@ -72,12 +72,36 @@ describe('UI Components', () => {
       activeHostId: 'host-1',
       clients: [{ id: 'client-1', role: 'controller', connectedAt: new Date().toISOString() }],
       hosts: [],
-      ptys: [{ id: 'pty-1', pid: 100, command: 'bash', cols: 80, rows: 24, createdAt: new Date().toISOString(), activeClients: 1 }],
-      throughput: { bytesIn: 0, bytesOut: 0, bytesInPerSec: 0, bytesOutPerSec: 0, framesIn: 0, framesOut: 0, framesInPerSec: 0, framesOutPerSec: 0 },
+      ptys: [
+        {
+          id: 'pty-1',
+          pid: 100,
+          command: 'bash',
+          cols: 80,
+          rows: 24,
+          createdAt: new Date().toISOString(),
+          activeClients: 1,
+        },
+      ],
+      throughput: {
+        bytesIn: 0,
+        bytesOut: 0,
+        bytesInPerSec: 0,
+        bytesOutPerSec: 0,
+        framesIn: 0,
+        framesOut: 0,
+        framesInPerSec: 0,
+        framesOutPerSec: 0,
+      },
       cpu: { load1m: 0.1, load5m: 0.1, load15m: 0.1, cpuPercent: 5, cores: 2 },
       memory: { rssBytes: 1000, heapUsedBytes: 500, heapTotalBytes: 1000 },
       eventLoopDelay: { p50Ms: 1, p99Ms: 2, maxMs: 3 },
-      cleanup: { staleClientsPurged: 0, closedPtysCleaned: 0, deadConnectionsClosed: 0, idleHostsTerminated: 0 },
+      cleanup: {
+        staleClientsPurged: 0,
+        closedPtysCleaned: 0,
+        deadConnectionsClosed: 0,
+        idleHostsTerminated: 0,
+      },
       protocolVersion: 1,
     };
 
@@ -90,7 +114,7 @@ describe('UI Components', () => {
     render(
       <TerminalProvider>
         <AdminDashboard />
-      </TerminalProvider>
+      </TerminalProvider>,
     );
 
     // The app header names the view; the board opens on its own tabs.

@@ -145,10 +145,12 @@ module.exports = {
   'herdr.title': 'Herdr 集成',
   'herdr.socketPath': '套接字路径',
   'herdr.args': '附加参数',
-  'herdr.autoStartHint': '关：Herdr 只在你手动运行，或在浏览器里确认后才启动。开：herdr-remote 每次启动（包括开机）时一并启动 Herdr。下次 herdr-remote 启动时生效。',
+  'herdr.autoStartHint':
+    '关：Herdr 只在你手动运行，或在浏览器里确认后才启动。开：herdr-remote 每次启动（包括开机）时一并启动 Herdr。下次 herdr-remote 启动时生效。',
   'herdr.cliMissing': '未找到 herdr 命令，可将 HERDR_BIN_PATH 设为其完整路径。',
   'herdr.version': 'Herdr 版本',
-  'herdr.versionOutdated': 'Herdr {version} 低于 {minimum}，请运行 “herdr update”：在该版本之前，浏览器窗口的标题、后台机器激活与大段粘贴都会出问题。',
+  'herdr.versionOutdated':
+    'Herdr {version} 低于 {minimum}，请运行 “herdr update”：在该版本之前，浏览器窗口的标题、后台机器激活与大段粘贴都会出问题。',
 
   'about.title': '语言与关于',
   'about.language': '界面语言',
@@ -170,7 +172,7 @@ module.exports = {
   'wizard.relayTitle': 'Relay 服务器',
   'wizard.relayUrlLabel': 'Relay 地址（wss://…）',
   'wizard.relayHint': 'Relay 需先运行。搭建指南见 docs/self-hosted-relay.zh-CN.md。',
-  'wizard.passwordTitle' : 'Relay 密码',
+  'wizard.passwordTitle': 'Relay 密码',
   'wizard.passwordHint': 'Relay 的 RELAY_PASSWORD。未设留空。',
   'wizard.finishTitle': '完成',
   'wizard.finishHint': '配置将保存至 {path}。',
@@ -218,7 +220,8 @@ module.exports = {
   'hint.save': 's 保存',
   'hint.editing': '↵ 确认 · esc 取消',
   'update.title': '更新',
-  'update.banner': 'herdr-remote {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在更新一行按 Enter 安装。',
+  'update.banner':
+    'herdr-remote {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在更新一行按 Enter 安装。',
   'update.check': '检查更新',
   'update.checking': '查询 npm 中…',
   'update.upToDate': '已是最新（{version}）',
@@ -229,9 +232,11 @@ module.exports = {
   'update.restartHint': '更新已安装，重启 herdr-remote 生效。',
   'update.errorNetwork': '所有 npm registry 均无法连接',
   'update.errorNetworkDetail': '无 registry 应答：{message}',
-  'update.errorFailed': '更新失败，可手动执行：npm install -g herdr-remote@{version} --prefer-online',
+  'update.errorFailed':
+    '更新失败，可手动执行：npm install -g herdr-remote@{version} --prefer-online',
   'update.errorFailedDetail': 'npm：{message}',
-  'update.errorNotYetPublished': 'npm 还没同步到 {version}（刚发布的几分钟内常见），稍后按 Enter 重试。',
+  'update.errorNotYetPublished':
+    'npm 还没同步到 {version}（刚发布的几分钟内常见），稍后按 Enter 重试。',
   'update.errorNotApplied': 'npm 报告成功，但安装的仍是 {installed}',
   'update.mirrorBehind': '{registries} 仍是旧版本，将从 {source} 安装',
   'update.cannot.source': '源码目录运行，请使用 git 更新',

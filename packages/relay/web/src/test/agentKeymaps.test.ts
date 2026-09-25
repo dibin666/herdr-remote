@@ -72,9 +72,15 @@ describe('Herdr agent keymaps', () => {
       expect(groups.agentActions.length + groups.genericActions.length, id).toBeLessThanOrEqual(5);
     }
 
-    expect(getDrawerGroups('claude').genericActions.map((item) => item.id)).toEqual(['genericCtrlC']);
-    expect(getDrawerGroups('shell').genericActions.map((item) => item.id))
-      .toEqual(['genericCtrlC', 'genericCtrlD', 'genericCtrlL', 'genericCtrlR']);
+    expect(getDrawerGroups('claude').genericActions.map((item) => item.id)).toEqual([
+      'genericCtrlC',
+    ]);
+    expect(getDrawerGroups('shell').genericActions.map((item) => item.id)).toEqual([
+      'genericCtrlC',
+      'genericCtrlD',
+      'genericCtrlL',
+      'genericCtrlR',
+    ]);
   });
 
   it('lets a saved choice override the default visibility either way', () => {
@@ -101,14 +107,18 @@ describe('Herdr agent keymaps', () => {
 
     // Hiding the agent's own ^C hides ^C; the shell's ^C does not step in.
     const hidden = getDrawerGroups('hermes', { actions: { interrupt: { hidden: true } } });
-    expect([...hidden.agentActions, ...hidden.genericActions].some((item) => item.combo === 'ctrl+c')).toBe(false);
+    expect(
+      [...hidden.agentActions, ...hidden.genericActions].some((item) => item.combo === 'ctrl+c'),
+    ).toBe(false);
   });
 
   it('restores default visibility without dropping rebinds', () => {
-    expect(clearBarVisibility({
-      order: ['model', 'mode'],
-      actions: { mode: { hidden: true }, details: { keys: 'ctrl+e', hidden: false } },
-    })).toEqual({ order: ['model', 'mode'], actions: { details: { keys: 'ctrl+e' } } });
+    expect(
+      clearBarVisibility({
+        order: ['model', 'mode'],
+        actions: { mode: { hidden: true }, details: { keys: 'ctrl+e', hidden: false } },
+      }),
+    ).toEqual({ order: ['model', 'mode'], actions: { details: { keys: 'ctrl+e' } } });
   });
 
   it('stores sanitized keymaps globally so a new window inherits the rebind', () => {
@@ -122,37 +132,47 @@ describe('Herdr agent keymaps', () => {
     });
     const global = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
     expect(global.agentKeymaps.claude.actions.details.keys).toBe('ctrl+e');
-    expect(JSON.parse(sessionStorage.getItem('herdr_remote_session_view_v1') || '{}').agentKeymaps).toBeUndefined();
+    expect(
+      JSON.parse(sessionStorage.getItem('herdr_remote_session_view_v1') || '{}').agentKeymaps,
+    ).toBeUndefined();
 
     sessionStorage.clear();
     expect(loadSettings().agentKeymaps.claude.custom?.[0]).toEqual({
-      id: 'custom-1', label: 'Run', keys: 'alt+enter',
+      id: 'custom-1',
+      label: 'Run',
+      keys: 'alt+enter',
     });
   });
 
   it('drops malformed keymap values and bounds saved labels and combos', () => {
-    saveSettings({ agentKeymaps: {
-      claude: {
-        actions: {
-          details: { keys: `ctrl+e${'x'.repeat(90)}`, hidden: true },
-          invalid: { keys: '', hidden: 'yes' as unknown as boolean },
+    saveSettings({
+      agentKeymaps: {
+        claude: {
+          actions: {
+            details: { keys: `ctrl+e${'x'.repeat(90)}`, hidden: true },
+            invalid: { keys: '', hidden: 'yes' as unknown as boolean },
+          },
+          custom: [
+            { id: 'too-long', label: 'L'.repeat(100), keys: `alt+enter${'x'.repeat(90)}` },
+            { id: 'too-long', label: 'Duplicate', keys: 'ctrl+x' },
+            { id: '__proto__', label: 'Bad ID', keys: 'ctrl+x' },
+          ],
         },
-        custom: [
-          { id: 'too-long', label: 'L'.repeat(100), keys: `alt+enter${'x'.repeat(90)}` },
-          { id: 'too-long', label: 'Duplicate', keys: 'ctrl+x' },
-          { id: '__proto__', label: 'Bad ID', keys: 'ctrl+x' },
-        ],
+        __proto__: { actions: { details: { keys: 'ctrl+x' } }, custom: [] },
       },
-      '__proto__': { actions: { details: { keys: 'ctrl+x' } }, custom: [] },
-    } });
+    });
 
     const settings = loadSettings();
     expect(settings.agentKeymaps.claude.actions?.details?.keys).toBeUndefined();
     expect(settings.agentKeymaps.claude.actions?.details?.hidden).toBe(true);
     expect(settings.agentKeymaps.claude.actions?.invalid).toBeUndefined();
-    expect(settings.agentKeymaps.claude.custom).toEqual([{
-      id: 'too-long', label: 'Duplicate', keys: 'ctrl+x',
-    }]);
+    expect(settings.agentKeymaps.claude.custom).toEqual([
+      {
+        id: 'too-long',
+        label: 'Duplicate',
+        keys: 'ctrl+x',
+      },
+    ]);
     expect(settings.agentKeymaps['__proto__']).toBeUndefined();
   });
 });

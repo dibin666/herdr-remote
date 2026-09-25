@@ -27,15 +27,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from './tui';
 import { useTerminal } from '../context/TerminalContext';
-import {
-  extractImageFromClipboardEvent,
-  extractImageFromFileList,
-} from '../utils/clipboard';
-import {
-  compressAndPrepareImage,
-  formatByteSize,
-  PreparedImagePaste,
-} from '../utils/imagePaste';
+import { extractImageFromClipboardEvent, extractImageFromFileList } from '../utils/clipboard';
+import { compressAndPrepareImage, formatByteSize, PreparedImagePaste } from '../utils/imagePaste';
 
 export interface PasteFallbackModalProps {
   isOpen: boolean;
@@ -147,11 +140,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
           <Button variant="ghost" onClick={onClose}>
             {t('clipboard.cancel')}
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleSend}
-            disabled={!hasContent || isCompressing}
-          >
+          <Button variant="primary" onClick={handleSend} disabled={!hasContent || isCompressing}>
             {t('clipboard.pasteSend')}
           </Button>
         </div>
@@ -160,7 +149,10 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
       <div className="flex flex-col gap-3 p-3 font-mono select-text">
         {/* Text Section */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="paste-fallback-input" className="text-tui-sm text-tui-muted font-sans font-medium">
+          <label
+            htmlFor="paste-fallback-input"
+            className="text-tui-sm text-tui-muted font-sans font-medium"
+          >
             {t('clipboard.pasteHint')}
           </label>
           <textarea
@@ -220,7 +212,11 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
                 className="max-h-40 max-w-full object-contain rounded border border-tui-border"
               />
               <div className="flex items-center justify-between w-full text-tui-xs text-tui-muted pt-1">
-                <span>{t('clipboard.imageCompressedSize', { size: formatByteSize(imageState.byteLength) })}</span>
+                <span>
+                  {t('clipboard.imageCompressedSize', {
+                    size: formatByteSize(imageState.byteLength),
+                  })}
+                </span>
                 <Button
                   variant="ghost"
                   onClick={handleClearImage}

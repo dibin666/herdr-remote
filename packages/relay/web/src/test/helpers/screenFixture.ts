@@ -14,7 +14,14 @@ export interface ScreenFixture {
   cursor: { x: number; y: number; hidden: boolean; style: string };
   lines: string[];
   wide: Array<[number, number]>;
-  attrs: Array<{ row: number; col: number; len: number; inverse: number; dim: number; bg: number | null }>;
+  attrs: Array<{
+    row: number;
+    col: number;
+    len: number;
+    inverse: number;
+    dim: number;
+    bg: number | null;
+  }>;
 }
 
 interface Cell {
@@ -54,7 +61,9 @@ export interface TestScreen extends FieldScreen {
 const FIXTURE_DIR = path.resolve(__dirname, '../fixtures/screens');
 
 export function loadScreenFixture(name: string): ScreenFixture {
-  return JSON.parse(fs.readFileSync(path.join(FIXTURE_DIR, `${name}.json`), 'utf8')) as ScreenFixture;
+  return JSON.parse(
+    fs.readFileSync(path.join(FIXTURE_DIR, `${name}.json`), 'utf8'),
+  ) as ScreenFixture;
 }
 
 export function listScreenFixtures(): string[] {
@@ -164,7 +173,9 @@ export function screenFromFixture(fixture: ScreenFixture): TestScreen {
     for (const ch of line) {
       const codePoint = ch.codePointAt(0) ?? 0;
       if (isCombining(codePoint) && previous >= 0) {
-        screen.setCell(row, previous, { chars: `${screen.getLine(row)!.getCell(previous)!.getChars()}${ch}` });
+        screen.setCell(row, previous, {
+          chars: `${screen.getLine(row)!.getCell(previous)!.getChars()}${ch}`,
+        });
         continue;
       }
       if (x >= cols) break;
@@ -177,7 +188,8 @@ export function screenFromFixture(fixture: ScreenFixture): TestScreen {
   });
   for (const run of fixture.attrs) {
     if (!run.dim) continue;
-    for (let col = run.col; col < run.col + run.len; col++) screen.setCell(run.row, col, { dim: true });
+    for (let col = run.col; col < run.col + run.len; col++)
+      screen.setCell(run.row, col, { dim: true });
   }
   screen.setCursor(fixture.cursor.x, fixture.cursor.y, fixture.cursor.hidden);
   return screen;

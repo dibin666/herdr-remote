@@ -31,10 +31,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-xterm': [
-            '@xterm/xterm',
-            '@xterm/addon-unicode11',
-          ],
+          'vendor-xterm': ['@xterm/xterm', '@xterm/addon-unicode11'],
         },
       },
     },

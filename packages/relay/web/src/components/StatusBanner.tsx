@@ -21,7 +21,7 @@ const Line: React.FC<{
   <aside
     className={cn(
       'flex w-full items-center justify-between gap-3 border-b bg-tui-mantle px-2 py-0.5 text-tui sm:px-3',
-      TONE[tone].edgeB
+      TONE[tone].edgeB,
     )}
     aria-live={assertive ? 'assertive' : 'polite'}
   >
@@ -48,13 +48,7 @@ export const StatusBanner: React.FC = () => {
   }
 
   if (connectionState === 'connecting') {
-    return (
-      <Line
-        tone="accent"
-        glyph={<Spinner />}
-        message={t('statusBanner.connecting')}
-      />
-    );
+    return <Line tone="accent" glyph={<Spinner />} message={t('statusBanner.connecting')} />;
   }
 
   if (connectionState === 'reconnecting') {

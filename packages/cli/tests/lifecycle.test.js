@@ -15,7 +15,10 @@ function withKeepalive(status, run) {
   const saved = { status: keepalive.status, restart: keepalive.restart };
   const restarts = [];
   keepalive.status = () => status;
-  keepalive.restart = () => { restarts.push(true); return { ok: true }; };
+  keepalive.restart = () => {
+    restarts.push(true);
+    return { ok: true };
+  };
   // lifecycle binds keepalive's exports at call time through the module object.
   delete require.cache[require.resolve('../src/lifecycle')];
   const lifecycle = require('../src/lifecycle');

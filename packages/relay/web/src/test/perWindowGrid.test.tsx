@@ -19,7 +19,7 @@ const Probe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }
   onReady(ctx);
   return (
     <span data-testid="grid">
-      {('sharedGrid' in (ctx as unknown as Record<string, unknown>)) ? 'external' : 'per-window'}
+      {'sharedGrid' in (ctx as unknown as Record<string, unknown>) ? 'external' : 'per-window'}
     </span>
   );
 };
@@ -63,8 +63,12 @@ describe('Per-window terminal grid', () => {
     let ctx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <Probe onReady={(value) => { ctx = value; }} />
-      </TerminalProvider>
+        <Probe
+          onReady={(value) => {
+            ctx = value;
+          }}
+        />
+      </TerminalProvider>,
     );
 
     expect(ctx).toBeDefined();

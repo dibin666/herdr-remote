@@ -43,10 +43,7 @@ const STATUS_TONE: Record<HostStatus, 'ok' | 'warn' | 'idle'> = {
  * paired to it, and dropping it from the board would read as "those devices
  * belong to nothing" — so it stays, marked offline.
  */
-export function buildHostRows(
-  hosts: HostInfo[] = [],
-  devices: PairedDeviceInfo[] = []
-): HostRow[] {
+export function buildHostRows(hosts: HostInfo[] = [], devices: PairedDeviceInfo[] = []): HostRow[] {
   const devicesByHost = new Map<string, PairedDeviceInfo[]>();
   for (const device of devices) {
     if (!device?.hostId) continue;
@@ -137,14 +134,20 @@ export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients 
               <Segments
                 className="shrink-0 text-tui-sm"
                 items={[
-                  <span key="connected" className={row.connectedDeviceCount ? 'text-tui-ok' : 'text-tui-faint'}>
+                  <span
+                    key="connected"
+                    className={row.connectedDeviceCount ? 'text-tui-ok' : 'text-tui-faint'}
+                  >
                     {t('admin.hostConnectedDevices', { count: row.connectedDeviceCount })}
                   </span>,
                   <span key="paired" className="text-tui-muted">
                     {t('admin.hostPairedDevices', { count: row.pairedDeviceCount })}
                   </span>,
                   row.fromRosterOnly ? null : (
-                    <span key="ptys" className={row.activePtyCount ? 'text-tui-info' : 'text-tui-faint'}>
+                    <span
+                      key="ptys"
+                      className={row.activePtyCount ? 'text-tui-info' : 'text-tui-faint'}
+                    >
                       {t('admin.hostPtys', { count: row.activePtyCount })}
                     </span>
                   ),
@@ -166,12 +169,17 @@ export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients 
                       <span className="truncate text-tui-text" title={described.raw}>
                         {described.label || t('admin.unknownDevice')}
                       </span>
-                      <code className="hidden truncate text-tui-sm text-tui-faint sm:block">{device.deviceId}</code>
+                      <code className="hidden truncate text-tui-sm text-tui-faint sm:block">
+                        {device.deviceId}
+                      </code>
                       <span className="hidden truncate text-tui-sm text-tui-muted sm:block">
                         {device.lastIp || '—'}
                       </span>
                       <span
-                        className={cn('truncate text-right text-tui-sm', open ? 'text-tui-ok' : 'text-tui-faint')}
+                        className={cn(
+                          'truncate text-right text-tui-sm',
+                          open ? 'text-tui-ok' : 'text-tui-faint',
+                        )}
                         title={formatTimestamp(device.lastSeenAt)}
                       >
                         {open

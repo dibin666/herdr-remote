@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import type { ServerAgentStatusMessage } from '../types/protocol';
-import { attentionCounts, attentionLevel, newAttention, type AttentionLevel } from './agentAttention';
+import {
+  attentionCounts,
+  attentionLevel,
+  newAttention,
+  type AttentionLevel,
+} from './agentAttention';
 import { applyFaviconBadge } from './faviconBadge';
 import { armAlertChime, playAlertChime } from './alertChime';
 
@@ -39,7 +44,9 @@ export function useAgentAlerts(): void {
   const lastAlertAtRef = useRef(Number.NEGATIVE_INFINITY);
 
   useEffect(() => {
-    applyFaviconBadge(settings.agentAlertBadge ? attentionLevel(attentionCounts(agentStatus)) : null);
+    applyFaviconBadge(
+      settings.agentAlertBadge ? attentionLevel(attentionCounts(agentStatus)) : null,
+    );
   }, [agentStatus, settings.agentAlertBadge]);
 
   useEffect(() => () => applyFaviconBadge(null), []);
@@ -65,7 +72,12 @@ export function useAgentAlerts(): void {
     const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
     const unfocused = hidden || (typeof document !== 'undefined' && !document.hasFocus());
 
-    if (current.agentAlertVibrate && !hidden && typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (
+      current.agentAlertVibrate &&
+      !hidden &&
+      typeof navigator !== 'undefined' &&
+      navigator.vibrate
+    ) {
       try {
         navigator.vibrate(VIBRATION[level]);
       } catch {

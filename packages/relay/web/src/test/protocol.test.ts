@@ -138,7 +138,12 @@ describe('HerdrClientAdapter Protocol', () => {
     expect(adapter.getHostId()).toBe('host-alpha');
     expect(adapter.getAssignedClientId()).toBe('server-client-88');
     expect(readyListener).toHaveBeenCalledTimes(1);
-    expect(roleListener).toHaveBeenCalledWith('controller', 'server-client-88', 'host-alpha', 'server-client-88');
+    expect(roleListener).toHaveBeenCalledWith(
+      'controller',
+      'server-client-88',
+      'host-alpha',
+      'server-client-88',
+    );
   });
 
   it('handles paired message and emits paired event', async () => {

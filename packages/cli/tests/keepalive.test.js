@@ -16,7 +16,10 @@ const {
 } = require('../src/keepalive');
 
 test('the systemd unit restarts the supervisor and installs into the user target', () => {
-  const unit = renderSystemdUnit({ nodePath: '/usr/bin/node', entryPoint: '/opt/herdr-remote/bin/herdr-remote.js' });
+  const unit = renderSystemdUnit({
+    nodePath: '/usr/bin/node',
+    entryPoint: '/opt/herdr-remote/bin/herdr-remote.js',
+  });
 
   assert.match(unit, /ExecStart=\/usr\/bin\/node \/opt\/herdr-remote\/bin\/herdr-remote\.js run$/m);
   assert.match(unit, /^Restart=always$/m);
@@ -31,13 +34,25 @@ test('systemd environment entries are rendered one per line', () => {
 });
 
 test('systemd values with spaces or specifiers survive the unit file', () => {
-  assert.equal(systemdEnvironmentLine('PATH', '/usr/bin:/home/me/.local/bin'), 'Environment=PATH=/usr/bin:/home/me/.local/bin');
-  assert.equal(systemdEnvironmentLine('PATH', '/opt/my tools/bin'), 'Environment="PATH=/opt/my tools/bin"');
+  assert.equal(
+    systemdEnvironmentLine('PATH', '/usr/bin:/home/me/.local/bin'),
+    'Environment=PATH=/usr/bin:/home/me/.local/bin',
+  );
+  assert.equal(
+    systemdEnvironmentLine('PATH', '/opt/my tools/bin'),
+    'Environment="PATH=/opt/my tools/bin"',
+  );
   assert.equal(systemdEnvironmentLine('PATH', '/opt/a"b\\c'), 'Environment="PATH=/opt/a\\"b\\\\c"');
   // `%` opens a systemd specifier; a literal one has to be doubled.
-  assert.equal(systemdEnvironmentLine('PATH', '/opt/100%/bin'), 'Environment="PATH=/opt/100%%/bin"');
+  assert.equal(
+    systemdEnvironmentLine('PATH', '/opt/100%/bin'),
+    'Environment="PATH=/opt/100%%/bin"',
+  );
   // A newline would end the directive and turn the rest into unit syntax.
-  assert.equal(systemdEnvironmentLine('PATH', '/a\nExecStart=/evil'), 'Environment="PATH=/a ExecStart=/evil"');
+  assert.equal(
+    systemdEnvironmentLine('PATH', '/a\nExecStart=/evil'),
+    'Environment="PATH=/a ExecStart=/evil"',
+  );
 });
 
 // Issue #1: a unit installed from a shell that could run `herdr` still could
@@ -98,10 +113,18 @@ test('the launchd agent runs at load and is kept alive', () => {
 });
 
 test('the launchd agent carries the same environment as the systemd unit', () => {
-  const plist = renderLaunchdPlist({ environment: { HERDR_BIN_PATH: '/Users/me/.local/bin/herdr', PATH: '/usr/bin:/Users/me/.local/bin' } });
+  const plist = renderLaunchdPlist({
+    environment: {
+      HERDR_BIN_PATH: '/Users/me/.local/bin/herdr',
+      PATH: '/usr/bin:/Users/me/.local/bin',
+    },
+  });
 
   assert.match(plist, /<key>EnvironmentVariables<\/key>/);
-  assert.match(plist, /<key>HERDR_BIN_PATH<\/key>\s*<string>\/Users\/me\/\.local\/bin\/herdr<\/string>/);
+  assert.match(
+    plist,
+    /<key>HERDR_BIN_PATH<\/key>\s*<string>\/Users\/me\/\.local\/bin\/herdr<\/string>/,
+  );
   assert.match(plist, /<key>PATH<\/key>\s*<string>\/usr\/bin:\/Users\/me\/\.local\/bin<\/string>/);
 });
 

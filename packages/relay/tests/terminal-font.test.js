@@ -24,7 +24,12 @@ const FONT = {
   sizePx: 12,
   source: 'gnome-terminal',
   faces: [
-    { style: 'regular', format: 'truetype', bytes: TERMINAL_FONT_CHUNK_BYTES * 2 + 10, sha256: REGULAR },
+    {
+      style: 'regular',
+      format: 'truetype',
+      bytes: TERMINAL_FONT_CHUNK_BYTES * 2 + 10,
+      sha256: REGULAR,
+    },
     { style: 'bold', format: 'truetype', bytes: 100, sha256: BOLD },
   ],
   subsets: [{ family: 'Noto Sans CJK SC', style: 'regular', scope: 'cjk', sha256: CJK }],
@@ -39,19 +44,37 @@ test('a reported terminal font passes through, file paths and extras dropped', (
   assert.deepEqual(font, { ...FONT, faces: [FONT.faces[0]] });
 
   // A subset source may not smuggle a family name or an unknown scope past it.
-  assert.deepEqual(sanitizeTerminalFont({
-    ...FONT,
-    subsets: [
-      { family: 'x"; }', style: 'regular', scope: 'cjk', sha256: CJK },
-      { family: 'Noto Sans CJK SC', style: 'bold', scope: 'cjk', sha256: CJK },
-      { family: 'Noto Sans CJK SC', style: 'regular', scope: 'emoji', sha256: CJK },
-      { family: 'Noto Sans CJK SC', style: 'regular', scope: 'cjk', sha256: CJK, path: '/secret' },
-    ],
-  }).subsets, FONT.subsets);
+  assert.deepEqual(
+    sanitizeTerminalFont({
+      ...FONT,
+      subsets: [
+        { family: 'x"; }', style: 'regular', scope: 'cjk', sha256: CJK },
+        { family: 'Noto Sans CJK SC', style: 'bold', scope: 'cjk', sha256: CJK },
+        { family: 'Noto Sans CJK SC', style: 'regular', scope: 'emoji', sha256: CJK },
+        {
+          family: 'Noto Sans CJK SC',
+          style: 'regular',
+          scope: 'cjk',
+          sha256: CJK,
+          path: '/secret',
+        },
+      ],
+    }).subsets,
+    FONT.subsets,
+  );
 });
 
 test('a family that could break out of a CSS font-family list is refused', () => {
-  for (const family of ['a", serif; } body { x: "', "Evil'Font", 'A,B', 'A;B', 'A\\B', 'line\nbreak', '', 'x'.repeat(129)]) {
+  for (const family of [
+    'a", serif; } body { x: "',
+    "Evil'Font",
+    'A,B',
+    'A;B',
+    'A\\B',
+    'line\nbreak',
+    '',
+    'x'.repeat(129),
+  ]) {
     assert.equal(sanitizeTerminalFont({ family }), null, family);
   }
   assert.equal(sanitizeTerminalFont(null), null);
@@ -107,7 +130,11 @@ function nextMessage(ws, predicate = () => true, timeoutMs = 1500) {
     const onMessage = (data, isBinary) => {
       if (isBinary) return;
       let value;
-      try { value = JSON.parse(data.toString()); } catch { return; }
+      try {
+        value = JSON.parse(data.toString());
+      } catch {
+        return;
+      }
       if (!predicate(value)) return;
       clearTimeout(timer);
       ws.off('message', onMessage);
@@ -121,7 +148,9 @@ function collect(ws) {
   const seen = [];
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
-    try { seen.push(JSON.parse(data.toString())); } catch {}
+    try {
+      seen.push(JSON.parse(data.toString()));
+    } catch {}
   });
   return seen;
 }
@@ -140,7 +169,11 @@ function postJson(urlString, headers = {}) {
       const chunks = [];
       response.on('data', (chunk) => chunks.push(chunk));
       response.on('end', () => {
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch (error) { reject(error); }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        } catch (error) {
+          reject(error);
+        }
       });
     });
     request.on('error', reject);
@@ -161,9 +194,15 @@ async function startStack(t) {
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   const toHost = collect(host);
-  host.send(JSON.stringify({
-    type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789', terminalFont: FONT,
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+      terminalFont: FONT,
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const open = async (clientId) => {
@@ -171,7 +210,16 @@ async function startStack(t) {
     const client = await openWebSocket(`${wsBase}/ws/client`);
     const ready = nextMessage(client, (message) => message.type === 'ready');
     const started = nextMessage(host, (message) => message.type === 'session_start');
-    client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId, cols: 80, rows: 24 }));
+    client.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode: pairing.code,
+        clientId,
+        cols: 80,
+        rows: 24,
+      }),
+    );
     return { client, ready: await ready, session: await started, seen: collect(client) };
   };
   t.after(() => host.close());
@@ -182,12 +230,17 @@ test('ready carries the font; slices route to the asking window only', async (t)
   const { host, toHost, open } = await startStack(t);
   const a = await open('window-a');
   const b = await open('window-b');
-  t.after(() => { a.client.close(); b.client.close(); });
+  t.after(() => {
+    a.client.close();
+    b.client.close();
+  });
 
   assert.deepEqual(a.ready.terminalFont, FONT);
 
   // Not announced, or out of range: answered by the relay, never forwarded.
-  a.client.send(JSON.stringify({ type: 'host_font_chunk_request', sha256: 'c'.repeat(64), index: 0 }));
+  a.client.send(
+    JSON.stringify({ type: 'host_font_chunk_request', sha256: 'c'.repeat(64), index: 0 }),
+  );
   a.client.send(JSON.stringify({ type: 'host_font_chunk_request', sha256: BOLD, index: 1 }));
   await settle();
   assert.equal(toHost.filter((message) => message.type === 'host_font_chunk_request').length, 0);
@@ -199,12 +252,28 @@ test('ready carries the font; slices route to the asking window only', async (t)
   assert.equal(request.streamId, a.session.streamId);
 
   const delivered = nextMessage(a.client, (message) => message.type === 'host_font_chunk');
-  host.send(JSON.stringify({
-    type: 'host_font_chunk', clientId: request.streamId, sha256: REGULAR, index: 2, total: 3, dataBase64: 'AAAA',
-  }));
-  assert.deepEqual(await delivered, { type: 'host_font_chunk', sha256: REGULAR, index: 2, total: 3, dataBase64: 'AAAA' });
+  host.send(
+    JSON.stringify({
+      type: 'host_font_chunk',
+      clientId: request.streamId,
+      sha256: REGULAR,
+      index: 2,
+      total: 3,
+      dataBase64: 'AAAA',
+    }),
+  );
+  assert.deepEqual(await delivered, {
+    type: 'host_font_chunk',
+    sha256: REGULAR,
+    index: 2,
+    total: 3,
+    dataBase64: 'AAAA',
+  });
   await settle();
-  assert.equal(b.seen.some((message) => message.type === 'host_font_chunk'), false);
+  assert.equal(
+    b.seen.some((message) => message.type === 'host_font_chunk'),
+    false,
+  );
 });
 
 test('a window gets only a few slices in flight at once', async (t) => {
@@ -213,7 +282,9 @@ test('a window gets only a few slices in flight at once', async (t) => {
   t.after(() => a.client.close());
 
   for (let i = 0; i < 6; i += 1) {
-    a.client.send(JSON.stringify({ type: 'host_font_chunk_request', sha256: REGULAR, index: i % 3 }));
+    a.client.send(
+      JSON.stringify({ type: 'host_font_chunk_request', sha256: REGULAR, index: i % 3 }),
+    );
   }
   await settle();
   assert.equal(toHost.filter((message) => message.type === 'host_font_chunk_request').length, 4);
@@ -223,7 +294,10 @@ test('a refresh reaches the host once, and its answer reaches every window', asy
   const { host, toHost, open } = await startStack(t);
   const a = await open('window-a');
   const b = await open('window-b');
-  t.after(() => { a.client.close(); b.client.close(); });
+  t.after(() => {
+    a.client.close();
+    b.client.close();
+  });
 
   a.client.send(JSON.stringify({ type: 'host_font_refresh' }));
   a.client.send(JSON.stringify({ type: 'host_font_refresh' }));
@@ -247,33 +321,75 @@ test('a large font is cut for the asking window; only that window may pull the c
   const { host, toHost, open } = await startStack(t);
   const a = await open('window-a');
   const b = await open('window-b');
-  t.after(() => { a.client.close(); b.client.close(); });
+  t.after(() => {
+    a.client.close();
+    b.client.close();
+  });
 
   // Only an announced source, with a sane request id.
-  a.client.send(JSON.stringify({ type: 'host_font_subset_request', sha256: REGULAR, text: '你好', requestId: 'r1' }));
-  a.client.send(JSON.stringify({ type: 'host_font_subset_request', sha256: CJK, text: '你好', requestId: 'no spaces' }));
+  a.client.send(
+    JSON.stringify({
+      type: 'host_font_subset_request',
+      sha256: REGULAR,
+      text: '你好',
+      requestId: 'r1',
+    }),
+  );
+  a.client.send(
+    JSON.stringify({
+      type: 'host_font_subset_request',
+      sha256: CJK,
+      text: '你好',
+      requestId: 'no spaces',
+    }),
+  );
   await settle();
   assert.equal(toHost.filter((message) => message.type === 'host_font_subset_request').length, 0);
 
   const forwarded = nextMessage(host, (message) => message.type === 'host_font_subset_request');
-  a.client.send(JSON.stringify({ type: 'host_font_subset_request', sha256: CJK, text: '你好', requestId: 'r2' }));
+  a.client.send(
+    JSON.stringify({
+      type: 'host_font_subset_request',
+      sha256: CJK,
+      text: '你好',
+      requestId: 'r2',
+    }),
+  );
   const request = await forwarded;
   assert.equal(request.streamId, a.session.streamId);
   assert.equal(request.text, '你好');
 
   // Small: the font rides in the answer.
   const inline = nextMessage(a.client, (message) => message.type === 'host_font_subset_ready');
-  host.send(JSON.stringify({
-    type: 'host_font_subset_ready', clientId: request.streamId, requestId: 'r2', sha256: CJK, subsetSha: 'd'.repeat(64), bytes: 3, dataBase64: 'AAAA',
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'host_font_subset_ready',
+      clientId: request.streamId,
+      requestId: 'r2',
+      sha256: CJK,
+      subsetSha: 'd'.repeat(64),
+      bytes: 3,
+      dataBase64: 'AAAA',
+    }),
+  );
   assert.equal((await inline).dataBase64, 'AAAA');
 
   // Large: announced, then pulled in slices — by this window only.
   const big = 'e'.repeat(64);
-  const announced = nextMessage(a.client, (message) => message.type === 'host_font_subset_ready' && message.subsetSha === big);
-  host.send(JSON.stringify({
-    type: 'host_font_subset_ready', clientId: request.streamId, requestId: 'r3', sha256: CJK, subsetSha: big, bytes: TERMINAL_FONT_CHUNK_BYTES + 1,
-  }));
+  const announced = nextMessage(
+    a.client,
+    (message) => message.type === 'host_font_subset_ready' && message.subsetSha === big,
+  );
+  host.send(
+    JSON.stringify({
+      type: 'host_font_subset_ready',
+      clientId: request.streamId,
+      requestId: 'r3',
+      sha256: CJK,
+      subsetSha: big,
+      bytes: TERMINAL_FONT_CHUNK_BYTES + 1,
+    }),
+  );
   await announced;
   const pulled = nextMessage(host, (message) => message.type === 'host_font_chunk_request');
   a.client.send(JSON.stringify({ type: 'host_font_chunk_request', sha256: big, index: 1 }));
@@ -282,6 +398,12 @@ test('a large font is cut for the asking window; only that window may pull the c
   b.client.send(JSON.stringify({ type: 'host_font_chunk_request', sha256: big, index: 0 }));
   await settle();
   assert.equal(toHost.filter((message) => message.type === 'host_font_chunk_request').length, 1);
-  assert.equal(b.seen.some((message) => message.code === 'host_font_unavailable'), true);
-  assert.equal(b.seen.some((message) => message.type === 'host_font_subset_ready'), false);
+  assert.equal(
+    b.seen.some((message) => message.code === 'host_font_unavailable'),
+    true,
+  );
+  assert.equal(
+    b.seen.some((message) => message.type === 'host_font_subset_ready'),
+    false,
+  );
 });

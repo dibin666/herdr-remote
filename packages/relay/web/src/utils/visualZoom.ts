@@ -16,7 +16,7 @@ export interface VisualZoomSnapshot {
 
 export function getVisualZoomSnapshot(
   box: { width: number; height: number },
-  customWindow?: Window
+  customWindow?: Window,
 ): VisualZoomSnapshot {
   const win = customWindow || (typeof window !== 'undefined' ? window : undefined);
   const dpr =
@@ -82,7 +82,9 @@ export function evaluateResizeEvent(options: ShouldIgnoreResizeOptions): ResizeD
   if (dprChanged) {
     // Check if the physical pixel size stayed virtually constant (i.e. browser zoom changed CSS px inversely with DPR)
     const physicalWidthDiff = Math.abs(currentSnapshot.physicalWidth - lastSnapshot.physicalWidth);
-    const physicalHeightDiff = Math.abs(currentSnapshot.physicalHeight - lastSnapshot.physicalHeight);
+    const physicalHeightDiff = Math.abs(
+      currentSnapshot.physicalHeight - lastSnapshot.physicalHeight,
+    );
 
     if (physicalWidthDiff <= physicalTolerancePx && physicalHeightDiff <= physicalTolerancePx) {
       return { shouldIgnore: true, isVisualZoom: true, reason: 'dpr_zoom' };

@@ -39,7 +39,12 @@ import {
   TerminalSelectionRect,
   PaneColumnBand,
 } from '../utils/terminalSelection';
-import { copyText, readClipboardText, readClipboardImage, extractImageFromClipboardEvent } from '../utils/clipboard';
+import {
+  copyText,
+  readClipboardText,
+  readClipboardImage,
+  extractImageFromClipboardEvent,
+} from '../utils/clipboard';
 import { applyDocumentTitle, sanitizeTerminalTitle } from '../utils/documentTitle';
 import { attentionCounts } from '../utils/agentAttention';
 import { linkAtCell, openTerminalLink } from '../utils/terminalLinks';
@@ -70,7 +75,8 @@ function describePredictionField(field: InputField | null): string {
 function describeRenderStats(renderer: AttachedRenderer | null): string {
   const stats = renderer?.canvas?.stats;
   if (!stats) return `paint: ${renderer?.kind ?? '-'} renderer\n`;
-  const keyToPaint = stats.lastInputToPaintMs !== null ? `${stats.lastInputToPaintMs.toFixed(1)}ms` : '-';
+  const keyToPaint =
+    stats.lastInputToPaintMs !== null ? `${stats.lastInputToPaintMs.toFixed(1)}ms` : '-';
   return `paint: ${stats.lastPaintMs.toFixed(2)}ms  cells: ${stats.lastCells}  frames: ${stats.frames}  held: ${stats.heldFrames}  key→paint: ${keyToPaint}\n`;
 }
 
@@ -90,7 +96,7 @@ function describePredictionTrace(predictor: PredictiveEcho | null): string {
  */
 export function shouldShowPredictiveEcho(
   mode: 'auto' | 'always' | 'off',
-  srttMs: number | null
+  srttMs: number | null,
 ): boolean {
   if (mode === 'off') return false;
   if (mode === 'always') return true;
@@ -138,10 +144,7 @@ interface TouchDebugState {
   touchEvents: number;
 }
 
-export const TerminalView: React.FC<TerminalViewProps> = ({
-  onTerminalFocus,
-  isActive = true,
-}) => {
+export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isActive = true }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -303,7 +306,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const [terminalTitle, setTerminalTitle] = useState<string | null>(null);
 
   const mainRef = useRef<HTMLElement | null>(null);
-  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; link?: string | null } | null>(null);
+  const [selectionMenu, setSelectionMenu] = useState<{
+    x: number;
+    y: number;
+    link?: string | null;
+  } | null>(null);
   const selectionMenuRef = useRef<{ x: number; y: number; link?: string | null } | null>(null);
   selectionMenuRef.current = selectionMenu;
 
@@ -347,7 +354,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const linkAtPoint = useCallback((point: { clientX: number; clientY: number }): string | null => {
     const term = termRef.current;
     if (!term) return null;
-    const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
+    const screenEl =
+      (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) ||
+      surfaceRef.current;
     const cellPos = pointToCell(point, term, screenEl, currentScaleRef.current);
     if (!cellPos) return null;
     return linkAtCell(term, cellPos.col, cellPos.bufferRow);
@@ -357,7 +366,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const term = termRef.current;
     if (!term) return;
 
-    const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
+    const screenEl =
+      (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) ||
+      surfaceRef.current;
     const cellPos = pointToCell(point, term, screenEl, currentScaleRef.current);
 
     if (cellPos) {
@@ -405,7 +416,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     lastExtendPointRef.current = point;
 
-    const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
+    const screenEl =
+      (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) ||
+      surfaceRef.current;
     const currentCell = pointToCell(point, term, screenEl, currentScaleRef.current);
     if (!currentCell) return;
 
@@ -446,7 +459,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const active = term.buffer?.active;
     if (!active) return;
     const bufferRow =
-      selectionRectRef.current?.startRow ?? selectionAnchorRef.current?.bufferRow ?? active.viewportY;
+      selectionRectRef.current?.startRow ??
+      selectionAnchorRef.current?.bufferRow ??
+      active.viewportY;
     const band =
       selectionBandRef.current ??
       paneColumnBand(term, selectionAnchorRef.current?.col ?? 0, bufferRow);
@@ -551,7 +566,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     });
     return unsubscribe;
   }, [subscribeToPasteFileReady]);
-
 
   /** Debounced, change-gated PTY resize notification. */
   const notifyResize = useCallback((cols: number, rows: number) => {
@@ -688,7 +702,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         // ignore
       }
     },
-    [notifyResize]
+    [notifyResize],
   );
 
   // Listeners capture this ref, never a specific `handleFit` identity
@@ -781,7 +795,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       // An OSC 8 hyperlink resolves in *this* browser. Herdr would open it on
       // the workstation, which is no use to the phone reading it.
       linkHandler: {
-        activate: (_event, uri) => { openTerminalLink(uri); },
+        activate: (_event, uri) => {
+          openTerminalLink(uri);
+        },
       },
     });
 
@@ -798,7 +814,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       // While a pane has mouse reporting on, xterm hands clicks to the pane and
       // this layer only answers with Shift held — the bypass every emulator
       // shares. Touch has no Shift, which is what the long-press menu is for.
-      term.loadAddon(new WebLinksAddon((_event, uri) => { openTerminalLink(uri); }));
+      term.loadAddon(
+        new WebLinksAddon((_event, uri) => {
+          openTerminalLink(uri);
+        }),
+      );
     } catch (e) {
       console.debug('WebLinks addon unavailable, URLs stay plain text:', e);
     }
@@ -824,25 +844,36 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           rows: current.rows,
           baseY: active.baseY,
           getLine: (row) => active.getLine(row),
-          getNullCell: typeof active.getNullCell === 'function' ? () => active.getNullCell() : undefined,
+          getNullCell:
+            typeof active.getNullCell === 'function' ? () => active.getNullCell() : undefined,
         };
       },
       getCursor: () => {
         const active = termRef.current?.buffer.active;
         if (!active) return null;
-        return { row: active.baseY + active.cursorY, col: active.cursorX, hidden: screenState.isCursorHidden() };
+        return {
+          row: active.baseY + active.cursorY,
+          col: active.cursorX,
+          hidden: screenState.isCursorHidden(),
+        };
       },
       isSynchronizing: screenState.isSynchronizing,
     });
     fieldProbeRef.current = fieldProbe;
 
-    const unicode = (term as unknown as { _core?: { unicodeService?: { wcwidth?: (codePoint: number) => number } } })._core
-      ?.unicodeService;
+    const unicode = (
+      term as unknown as {
+        _core?: { unicodeService?: { wcwidth?: (codePoint: number) => number } };
+      }
+    )._core?.unicodeService;
     const predictor = new PredictiveEcho({
       getTerminal: () => termRef.current,
       getField: fieldProbe.detect,
       // The width xterm will draw a character at, as the guess for ones whose width may differ elsewhere.
-      charWidth: typeof unicode?.wcwidth === 'function' ? (codePoint) => unicode.wcwidth!(codePoint) : undefined,
+      charWidth:
+        typeof unicode?.wcwidth === 'function'
+          ? (codePoint) => unicode.wcwidth!(codePoint)
+          : undefined,
     });
     predictorRef.current = predictor;
 
@@ -961,18 +992,25 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     }
 
     // Refresh terminal once webfont is loaded so Nerd Font glyphs render immediately
-    if (typeof document !== 'undefined' && 'fonts' in document && typeof (document.fonts as any)?.load === 'function') {
-      (document.fonts as any).load('13px "Symbols Nerd Font Mono"').then(() => {
-        if (!termRef.current) return;
-        try {
-          termRef.current.refresh(0, Math.max(0, termRef.current.rows - 1));
-        } catch {
+    if (
+      typeof document !== 'undefined' &&
+      'fonts' in document &&
+      typeof (document.fonts as any)?.load === 'function'
+    ) {
+      (document.fonts as any)
+        .load('13px "Symbols Nerd Font Mono"')
+        .then(() => {
+          if (!termRef.current) return;
+          try {
+            termRef.current.refresh(0, Math.max(0, termRef.current.rows - 1));
+          } catch {
+            // ignore
+          }
+          scheduleBoundedFit(5);
+        })
+        .catch(() => {
           // ignore
-        }
-        scheduleBoundedFit(5);
-      }).catch(() => {
-        // ignore
-      });
+        });
     }
     // Handle user keyboard & mouse reporting input from xterm
     const dataDispose = term.onData((typed) => {
@@ -1031,7 +1069,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             if (glyphScanRef.current) {
               let drawn = '';
               for (let row = e.start; row <= e.end; row += 1) {
-                drawn += term.buffer.active.getLine(currentViewportY + row)?.translateToString(true) ?? '';
+                drawn +=
+                  term.buffer.active.getLine(currentViewportY + row)?.translateToString(true) ?? '';
               }
               // ASCII never needs a cut; skip the common case cheaply.
               if (/[^\x00-\x7f]/.test(drawn)) ensureHostGlyphsRef.current(drawn);
@@ -1139,8 +1178,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       longPressDelayMs: 500,
       dragThresholdPx: 8,
       scrollLineHeightPx: 18,
-      onLongPress: isTouchDevice ? ((p) => handleLongPressRef.current?.(p)) : undefined,
-      onSelectionExtend: isTouchDevice ? ((p) => handleSelectionExtendRef.current?.(p)) : undefined,
+      onLongPress: isTouchDevice ? (p) => handleLongPressRef.current?.(p) : undefined,
+      onSelectionExtend: isTouchDevice ? (p) => handleSelectionExtendRef.current?.(p) : undefined,
     });
 
     // The gesture is driven from PointerEvent wherever it exists. Measured on
@@ -1490,7 +1529,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     const showing = isActive && connectionState === 'connected';
     const attention = settings.agentAlertBadge ? attentionCounts(agentStatus) : null;
     applyDocumentTitle(showing ? terminalTitle : null, activeProfileName, attention);
-  }, [isActive, connectionState, terminalTitle, activeProfileName, agentStatus, settings.agentAlertBadge]);
+  }, [
+    isActive,
+    connectionState,
+    terminalTitle,
+    activeProfileName,
+    agentStatus,
+    settings.agentAlertBadge,
+  ]);
 
   // Sync visual-only changes (size, face — including the host's font arriving)
   // with the live terminal
@@ -1537,7 +1583,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         syncPredictiveOverlayRef.current();
         rendererRef.current?.canvas?.markInput();
       }),
-    [observeKeyInput]
+    [observeKeyInput],
   );
 
   // Immediately react to predictive echo preference changes (e.g. clearing active decorations on 'off')
@@ -1722,41 +1768,46 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       )}
 
       {/* Rectangular selection overlay div */}
-      {isTouchDevice && selectionRect && isHighlightVisible && (() => {
-        const term = termRef.current;
-        if (!term || !mainRef.current) return null;
-        const cell = measureCellDimensions(term);
-        if (cell.cellWidth <= 0 || cell.cellHeight <= 0) return null;
+      {isTouchDevice &&
+        selectionRect &&
+        isHighlightVisible &&
+        (() => {
+          const term = termRef.current;
+          if (!term || !mainRef.current) return null;
+          const cell = measureCellDimensions(term);
+          if (cell.cellWidth <= 0 || cell.cellHeight <= 0) return null;
 
-        const screenEl = (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) || surfaceRef.current;
-        if (!screenEl) return null;
-        const screenRect = screenEl.getBoundingClientRect();
-        const mainRect = mainRef.current.getBoundingClientRect();
+          const screenEl =
+            (surfaceRef.current?.querySelector('.xterm-screen') as HTMLElement | null) ||
+            surfaceRef.current;
+          if (!screenEl) return null;
+          const screenRect = screenEl.getBoundingClientRect();
+          const mainRect = mainRef.current.getBoundingClientRect();
 
-        const startRowRel = selectionRect.startRow - viewportY;
-        const endRowRel = selectionRect.endRow - viewportY;
+          const startRowRel = selectionRect.startRow - viewportY;
+          const endRowRel = selectionRect.endRow - viewportY;
 
-        // Hide if completely scrolled out of the visible viewport
-        if (endRowRel < 0 || startRowRel >= term.rows) return null;
+          // Hide if completely scrolled out of the visible viewport
+          if (endRowRel < 0 || startRowRel >= term.rows) return null;
 
-        const top = (screenRect.top - mainRect.top) + startRowRel * cell.cellHeight;
-        const left = (screenRect.left - mainRect.left) + selectionRect.startCol * cell.cellWidth;
-        const width = (selectionRect.endCol - selectionRect.startCol + 1) * cell.cellWidth;
-        const height = (selectionRect.endRow - selectionRect.startRow + 1) * cell.cellHeight;
+          const top = screenRect.top - mainRect.top + startRowRel * cell.cellHeight;
+          const left = screenRect.left - mainRect.left + selectionRect.startCol * cell.cellWidth;
+          const width = (selectionRect.endCol - selectionRect.startCol + 1) * cell.cellWidth;
+          const height = (selectionRect.endRow - selectionRect.startRow + 1) * cell.cellHeight;
 
-        return (
-          <div
-            data-testid="terminal-selection-overlay"
-            className="pointer-events-none absolute z-20 bg-tui-accent/35"
-            style={{
-              top: `${top}px`,
-              left: `${left}px`,
-              width: `${width}px`,
-              height: `${height}px`,
-            }}
-          />
-        );
-      })()}
+          return (
+            <div
+              data-testid="terminal-selection-overlay"
+              className="pointer-events-none absolute z-20 bg-tui-accent/35"
+              style={{
+                top: `${top}px`,
+                left: `${left}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+              }}
+            />
+          );
+        })()}
 
       {isTouchDevice && selectionMenu && (
         <TerminalSelectionMenu

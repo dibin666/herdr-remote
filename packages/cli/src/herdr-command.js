@@ -126,7 +126,11 @@ function resolveOverride(value, searchPath) {
  * bare name: `PATH` may be right in a way we cannot see from here, and letting
  * the spawn proceed keeps the old behaviour for anyone relying on it.
  */
-function findHerdrCommand({ env = process.env, home = os.homedir(), directories = fallbackDirectories(home) } = {}) {
+function findHerdrCommand({
+  env = process.env,
+  home = os.homedir(),
+  directories = fallbackDirectories(home),
+} = {}) {
   const override = resolveOverride(env.HERDR_BIN_PATH, env.PATH);
   if (override) return { command: override, source: 'env', found: true };
   const onPath = findOnSearchPath(env.PATH);
@@ -195,22 +199,36 @@ function herdrVersion({ command, timeout = 10_000, ...lookup } = {}) {
   if (result.error || (result.status !== 0 && result.status !== 1)) return unknown;
   const raw = `${result.stdout || ''}${result.stderr || ''}`.trim();
   const version = parseHerdrVersion(raw);
-  return { command: resolved, version, raw: raw || null, supported: meetsMinimum(version), ok: true };
+  return {
+    command: resolved,
+    version,
+    raw: raw || null,
+    supported: meetsMinimum(version),
+    ok: true,
+  };
 }
 
 /** The one line that tells a user why an older Herdr is a problem here. */
 function herdrOutdatedMessage(version) {
-  return `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. `
-    + 'Run "herdr update" — window titles, background machine activation and large pastes all '
-    + 'misbehave in browser windows before that release.';
+  return (
+    `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. ` +
+    'Run "herdr update" — window titles, background machine activation and large pastes all ' +
+    'misbehave in browser windows before that release.'
+  );
 }
 
 /** The one message a user needs to fix a missing install themselves. */
-function herdrNotFoundMessage({ env = process.env, home = os.homedir(), directories = fallbackDirectories(home) } = {}) {
+function herdrNotFoundMessage({
+  env = process.env,
+  home = os.homedir(),
+  directories = fallbackDirectories(home),
+} = {}) {
   const override = String(env.HERDR_BIN_PATH || '').trim();
   const parts = [`Herdr executable "${COMMAND_NAME}" was not found.`];
   if (override) parts.push(`HERDR_BIN_PATH=${override} does not point at an executable.`);
-  parts.push(directories.length ? `Searched PATH and ${directories.join(', ')}.` : 'Searched PATH.');
+  parts.push(
+    directories.length ? `Searched PATH and ${directories.join(', ')}.` : 'Searched PATH.',
+  );
   parts.push('Install Herdr or set HERDR_BIN_PATH to its full path, then restart herdr-remote.');
   return parts.join(' ');
 }

@@ -137,7 +137,11 @@ interface Pending<T> {
 /** The cut source this window uses: the family itself over its CJK fallback. */
 function subsetSource(font: HostTerminalFont | null): HostFontSubsetSource | null {
   const sources = font?.subsets ?? [];
-  return sources.find((source) => source.scope === 'all') ?? sources.find((source) => source.scope === 'cjk') ?? null;
+  return (
+    sources.find((source) => source.scope === 'all') ??
+    sources.find((source) => source.scope === 'cjk') ??
+    null
+  );
 }
 
 function codepointsOf(text: string, scope: HostFontSubsetSource['scope']): number[] {
@@ -187,7 +191,9 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
   };
 
   const rejectPending = useCallback((reason: string) => {
-    for (const map of [pendingRef.current, pendingSubsetsRef.current] as Array<Map<string, Pending<unknown>>>) {
+    for (const map of [pendingRef.current, pendingSubsetsRef.current] as Array<
+      Map<string, Pending<unknown>>
+    >) {
       for (const pending of map.values()) {
         clearTimeout(pending.timer);
         pending.reject(new Error(reason));
@@ -196,50 +202,58 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
     }
   }, []);
 
-  const requestChunk = useCallback((sha256: string, index: number) => (
-    new Promise<Uint8Array>((resolve, reject) => {
-      if (!adapter) {
-        reject(new Error('disconnected'));
-        return;
-      }
-      const key = `${sha256}:${index}`;
-      const timer = setTimeout(() => {
-        pendingRef.current.delete(key);
-        reject(new Error('host_font_timeout'));
-      }, CHUNK_TIMEOUT_MS);
-      pendingRef.current.set(key, { resolve, reject, timer });
-      adapter.sendHostFontChunkRequest(sha256, index);
-    })
-  ), [adapter]);
+  const requestChunk = useCallback(
+    (sha256: string, index: number) =>
+      new Promise<Uint8Array>((resolve, reject) => {
+        if (!adapter) {
+          reject(new Error('disconnected'));
+          return;
+        }
+        const key = `${sha256}:${index}`;
+        const timer = setTimeout(() => {
+          pendingRef.current.delete(key);
+          reject(new Error('host_font_timeout'));
+        }, CHUNK_TIMEOUT_MS);
+        pendingRef.current.set(key, { resolve, reject, timer });
+        adapter.sendHostFontChunkRequest(sha256, index);
+      }),
+    [adapter],
+  );
 
   /**
    * Has the workstation cut `codepoints` out of `source`. A small cut arrives
    * with the answer; a large one is pulled in slices like a font file.
    */
-  const requestSubset = useCallback((
-    source: HostFontSubsetSource,
-    codepoints: number[],
-    onBytes: (bytes: number, total: number) => void,
-  ) => (
-    new Promise<CachedSubset>((resolve, reject) => {
-      if (!adapter) {
-        reject(new Error('disconnected'));
-        return;
-      }
-      const requestId = Math.random().toString(36).slice(2, 12);
-      const timer = setTimeout(() => {
-        pendingSubsetsRef.current.delete(requestId);
-        reject(new Error('host_font_timeout'));
-      }, CHUNK_TIMEOUT_MS);
-      pendingSubsetsRef.current.set(requestId, {
-        resolve: (subset) => resolve({ ...subset, codepoints }),
-        reject,
-        timer,
-      });
-      subsetProgressRef.current.set(requestId, onBytes);
-      adapter.sendHostFontSubsetRequest(source.sha256, String.fromCodePoint(...codepoints), requestId);
-    })
-  ), [adapter]);
+  const requestSubset = useCallback(
+    (
+      source: HostFontSubsetSource,
+      codepoints: number[],
+      onBytes: (bytes: number, total: number) => void,
+    ) =>
+      new Promise<CachedSubset>((resolve, reject) => {
+        if (!adapter) {
+          reject(new Error('disconnected'));
+          return;
+        }
+        const requestId = Math.random().toString(36).slice(2, 12);
+        const timer = setTimeout(() => {
+          pendingSubsetsRef.current.delete(requestId);
+          reject(new Error('host_font_timeout'));
+        }, CHUNK_TIMEOUT_MS);
+        pendingSubsetsRef.current.set(requestId, {
+          resolve: (subset) => resolve({ ...subset, codepoints }),
+          reject,
+          timer,
+        });
+        subsetProgressRef.current.set(requestId, onBytes);
+        adapter.sendHostFontSubsetRequest(
+          source.sha256,
+          String.fromCodePoint(...codepoints),
+          requestId,
+        );
+      }),
+    [adapter],
+  );
 
   /** Registers cuts, remembers what they cover, and asks the terminal to repaint. */
   const addGlyphs = async (generation: number, alias: string, subsets: CachedSubset[]) => {
@@ -268,7 +282,9 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
   ) => {
     const alias = hostGlyphAlias(source) as string;
     const common = source.scope === 'all' ? COMMON_LATIN_TEXT + COMMON_CJK_TEXT : COMMON_CJK_TEXT;
-    const missing = codepointsOf(common, source.scope).filter((codepoint) => !coveredRef.current.has(codepoint));
+    const missing = codepointsOf(common, source.scope).filter(
+      (codepoint) => !coveredRef.current.has(codepoint),
+    );
     if (!missing.length) return;
     for (const codepoint of missing) askedRef.current.add(codepoint);
     const subset = await requestSubset(source, missing, onBytes);
@@ -277,186 +293,202 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
     await addGlyphs(generation, alias, [subset]);
   };
 
-  const load = useCallback(async (target?: HostTerminalFont | null, { interactive = true } = {}) => {
-    const font = target ?? stateRef.current.font;
-    const fingerprint = hostFontFingerprint(font);
-    if (!font || !fingerprint) return;
-    const current = stateRef.current;
-    const sameFont = hostFontFingerprint(current.font) === fingerprint;
-    if (sameFont && (current.status === 'loading' || current.glyphs.status === 'loading')) return;
+  const load = useCallback(
+    async (target?: HostTerminalFont | null, { interactive = true } = {}) => {
+      const font = target ?? stateRef.current.font;
+      const fingerprint = hostFontFingerprint(font);
+      if (!font || !fingerprint) return;
+      const current = stateRef.current;
+      const sameFont = hostFontFingerprint(current.font) === fingerprint;
+      if (sameFont && (current.status === 'loading' || current.glyphs.status === 'loading')) return;
 
-    const generation = generationRef.current;
-    const { isInstalled, isRegistered, readCached, writeCached, register } = resolved();
-    saveHostFontDecision(hostKey(), fingerprint, 'accepted');
-    const alias = hostFontAlias(font);
-    const source = subsetSource(font);
-    const primaryNeeded = Boolean(alias && !isRegistered(alias) && !isInstalled(font.family));
-    const glyphs = sameFont ? current.glyphs : { ...NO_GLYPHS, source };
-    const glyphsNeeded = Boolean(source && !['installed', 'ready', 'none'].includes(glyphs.status));
+      const generation = generationRef.current;
+      const { isInstalled, isRegistered, readCached, writeCached, register } = resolved();
+      saveHostFontDecision(hostKey(), fingerprint, 'accepted');
+      const alias = hostFontAlias(font);
+      const source = subsetSource(font);
+      const primaryNeeded = Boolean(alias && !isRegistered(alias) && !isInstalled(font.family));
+      const glyphs = sameFont ? current.glyphs : { ...NO_GLYPHS, source };
+      const glyphsNeeded = Boolean(
+        source && !['installed', 'ready', 'none'].includes(glyphs.status),
+      );
 
-    let totalBytes = primaryNeeded ? hostFontBytes(font) : 0;
-    let receivedBytes = 0;
-    const progress = () => {
-      if (generation === generationRef.current) setState((previous) => ({ ...previous, receivedBytes, totalBytes }));
-    };
-    setState((previous) => ({
-      ...previous,
-      font,
-      interactive,
-      receivedBytes: 0,
-      totalBytes,
-      error: null,
-      status: primaryNeeded ? 'loading' : previous.status,
-      glyphs: glyphsNeeded ? { ...glyphs, status: 'loading' } : glyphs,
-    }));
+      let totalBytes = primaryNeeded ? hostFontBytes(font) : 0;
+      let receivedBytes = 0;
+      const progress = () => {
+        if (generation === generationRef.current)
+          setState((previous) => ({ ...previous, receivedBytes, totalBytes }));
+      };
+      setState((previous) => ({
+        ...previous,
+        font,
+        interactive,
+        receivedBytes: 0,
+        totalBytes,
+        error: null,
+        status: primaryNeeded ? 'loading' : previous.status,
+        glyphs: glyphsNeeded ? { ...glyphs, status: 'loading' } : glyphs,
+      }));
 
-    if (primaryNeeded && alias) {
-      try {
-        const entries = [];
-        for (const face of font.faces) {
-          let data = await readCached(face.sha256);
-          if (data) {
-            receivedBytes += face.bytes;
-            progress();
-          } else {
-            data = await downloadHostFontFace(face, requestChunk, (bytes) => {
-              receivedBytes += bytes;
+      if (primaryNeeded && alias) {
+        try {
+          const entries = [];
+          for (const face of font.faces) {
+            let data = await readCached(face.sha256);
+            if (data) {
+              receivedBytes += face.bytes;
               progress();
-            });
-            await writeCached(face.sha256, data);
+            } else {
+              data = await downloadHostFontFace(face, requestChunk, (bytes) => {
+                receivedBytes += bytes;
+                progress();
+              });
+              await writeCached(face.sha256, data);
+            }
+            if (generation !== generationRef.current) return;
+            entries.push({ face, data });
           }
+          await register(alias, entries);
           if (generation !== generationRef.current) return;
-          entries.push({ face, data });
+          setState((previous) => ({ ...previous, status: 'loaded', alias }));
+        } catch (error) {
+          if (generation !== generationRef.current) return;
+          const reason =
+            error instanceof Error && error.message ? error.message : 'host_font_failed';
+          setState((previous) => ({ ...previous, status: 'failed', alias: null, error: reason }));
         }
-        await register(alias, entries);
-        if (generation !== generationRef.current) return;
-        setState((previous) => ({ ...previous, status: 'loaded', alias }));
-      } catch (error) {
-        if (generation !== generationRef.current) return;
-        const reason = error instanceof Error && error.message ? error.message : 'host_font_failed';
-        setState((previous) => ({ ...previous, status: 'failed', alias: null, error: reason }));
       }
-    }
 
-    if (glyphsNeeded && source) {
-      let announced = 0;
-      try {
-        await prefetchGlyphs(generation, source, (bytes, total) => {
-          if (total && !announced) {
-            announced = total;
-            totalBytes += total;
-          }
-          receivedBytes += bytes;
-          progress();
-        });
-        setGlyphs(generation, { status: 'ready' });
-      } catch (error) {
-        if (generation !== generationRef.current) return;
-        const reason = error instanceof Error && error.message ? error.message : 'host_font_failed';
-        setState((previous) => ({
-          ...previous,
-          error: previous.error ?? reason,
-          glyphs: { ...previous.glyphs, status: 'failed' },
-        }));
+      if (glyphsNeeded && source) {
+        let announced = 0;
+        try {
+          await prefetchGlyphs(generation, source, (bytes, total) => {
+            if (total && !announced) {
+              announced = total;
+              totalBytes += total;
+            }
+            receivedBytes += bytes;
+            progress();
+          });
+          setGlyphs(generation, { status: 'ready' });
+        } catch (error) {
+          if (generation !== generationRef.current) return;
+          const reason =
+            error instanceof Error && error.message ? error.message : 'host_font_failed';
+          setState((previous) => ({
+            ...previous,
+            error: previous.error ?? reason,
+            glyphs: { ...previous.glyphs, status: 'failed' },
+          }));
+        }
       }
-    }
-  }, [requestChunk, requestSubset]);
+    },
+    [requestChunk, requestSubset],
+  );
 
   /** Decide what to do with a font the workstation reported. */
-  const evaluate = useCallback(async (font: HostTerminalFont | null) => {
-    const changed = hostFontFingerprint(font) !== hostFontFingerprint(stateRef.current.font);
-    if (changed) {
-      rejectPending('superseded');
-      coveredRef.current = new Set();
-      askedRef.current = new Set();
-      wantedRef.current = new Set();
-    }
-    const generation = ++generationRef.current;
-    if (!font) {
-      setState(INITIAL);
-      return;
-    }
-    const { isInstalled, readCached, register, isRegistered, readSubsets } = resolved();
-    const alias = hostFontAlias(font);
-    const fingerprint = hostFontFingerprint(font) as string;
-    const source = subsetSource(font);
+  const evaluate = useCallback(
+    async (font: HostTerminalFont | null) => {
+      const changed = hostFontFingerprint(font) !== hostFontFingerprint(stateRef.current.font);
+      if (changed) {
+        rejectPending('superseded');
+        coveredRef.current = new Set();
+        askedRef.current = new Set();
+        wantedRef.current = new Set();
+      }
+      const generation = ++generationRef.current;
+      if (!font) {
+        setState(INITIAL);
+        return;
+      }
+      const { isInstalled, readCached, register, isRegistered, readSubsets } = resolved();
+      const alias = hostFontAlias(font);
+      const fingerprint = hostFontFingerprint(font) as string;
+      const source = subsetSource(font);
 
-    let primary: HostFontStatus | 'needs' = 'checking';
-    if (alias && isRegistered(alias)) primary = 'loaded';
-    else if (isInstalled(font.family)) primary = 'installed';
-    else if (!alias) primary = 'unavailable';
+      let primary: HostFontStatus | 'needs' = 'checking';
+      if (alias && isRegistered(alias)) primary = 'loaded';
+      else if (isInstalled(font.family)) primary = 'installed';
+      else if (!alias) primary = 'unavailable';
 
-    let glyphs: HostGlyphStatus | 'needs' | 'cached' = 'checking';
-    if (!source) glyphs = 'none';
-    else if (source.scope === 'cjk' ? isInstalled(source.family) : primary === 'installed') glyphs = 'installed';
+      let glyphs: HostGlyphStatus | 'needs' | 'cached' = 'checking';
+      if (!source) glyphs = 'none';
+      else if (source.scope === 'cjk' ? isInstalled(source.family) : primary === 'installed')
+        glyphs = 'installed';
 
-    setState((previous) => ({
-      ...INITIAL,
-      font,
-      status: primary === 'checking' ? 'checking' : primary as HostFontStatus,
-      alias: primary === 'loaded' ? alias : null,
-      totalBytes: hostFontBytes(font),
-      glyphs: {
-        source,
-        status: glyphs as HostGlyphStatus,
-        alias: changed ? null : previous.glyphs.alias,
-        covered: coveredRef.current.size,
-      },
-      glyphRevision: previous.glyphRevision,
-    }));
+      setState((previous) => ({
+        ...INITIAL,
+        font,
+        status: primary === 'checking' ? 'checking' : (primary as HostFontStatus),
+        alias: primary === 'loaded' ? alias : null,
+        totalBytes: hostFontBytes(font),
+        glyphs: {
+          source,
+          status: glyphs as HostGlyphStatus,
+          alias: changed ? null : previous.glyphs.alias,
+          covered: coveredRef.current.size,
+        },
+        glyphRevision: previous.glyphRevision,
+      }));
 
-    // Fetched before, on this device: no question, no transfer.
-    if (primary === 'checking' && alias) {
-      const cached = await Promise.all(font.faces.map((face) => readCached(face.sha256)));
-      if (generation !== generationRef.current) return;
-      primary = 'needs';
-      if (cached.every(Boolean)) {
-        try {
-          await register(alias, font.faces.map((face, index) => ({ face, data: cached[index] as ArrayBuffer })));
-          if (generation !== generationRef.current) return;
-          primary = 'loaded';
-          setState((previous) => ({ ...previous, status: 'loaded', alias }));
-        } catch {
-          // A cached copy the browser refuses is fetched again.
+      // Fetched before, on this device: no question, no transfer.
+      if (primary === 'checking' && alias) {
+        const cached = await Promise.all(font.faces.map((face) => readCached(face.sha256)));
+        if (generation !== generationRef.current) return;
+        primary = 'needs';
+        if (cached.every(Boolean)) {
+          try {
+            await register(
+              alias,
+              font.faces.map((face, index) => ({ face, data: cached[index] as ArrayBuffer })),
+            );
+            if (generation !== generationRef.current) return;
+            primary = 'loaded';
+            setState((previous) => ({ ...previous, status: 'loaded', alias }));
+          } catch {
+            // A cached copy the browser refuses is fetched again.
+          }
         }
       }
-    }
-    if (glyphs === 'checking' && source) {
-      const cuts = await readSubsets(source.sha256);
-      if (generation !== generationRef.current) return;
-      if (cuts.length) {
-        try {
-          await addGlyphs(generation, hostGlyphAlias(source) as string, cuts);
-          glyphs = 'cached';
-        } catch {
+      if (glyphs === 'checking' && source) {
+        const cuts = await readSubsets(source.sha256);
+        if (generation !== generationRef.current) return;
+        if (cuts.length) {
+          try {
+            await addGlyphs(generation, hostGlyphAlias(source) as string, cuts);
+            glyphs = 'cached';
+          } catch {
+            glyphs = 'needs';
+          }
+        } else {
           glyphs = 'needs';
         }
-      } else {
-        glyphs = 'needs';
+        if (generation !== generationRef.current) return;
       }
-      if (generation !== generationRef.current) return;
-    }
 
-    const decision = loadHostFontDecision(hostKey(), fingerprint);
-    // Held cuts mean this device said yes before; finish what it started.
-    const accepted = decision === 'accepted' || glyphs === 'cached' || Date.now() < autoAcceptUntilRef.current;
-    if (glyphs === 'cached') {
-      glyphs = 'ready';
-      setGlyphs(generation, { status: 'ready' });
-      void prefetchGlyphs(generation, source as HostFontSubsetSource, () => {}).catch(() => {});
-    }
-    if (primary !== 'needs' && glyphs !== 'needs') return;
-    if (accepted) {
-      void load(font, { interactive: false });
-      return;
-    }
-    const answer = decision === 'declined' ? 'declined' : 'available';
-    setState((previous) => ({
-      ...previous,
-      status: primary === 'needs' ? answer : previous.status,
-      glyphs: glyphs === 'needs' ? { ...previous.glyphs, status: answer } : previous.glyphs,
-    }));
-  }, [load, rejectPending]);
+      const decision = loadHostFontDecision(hostKey(), fingerprint);
+      // Held cuts mean this device said yes before; finish what it started.
+      const accepted =
+        decision === 'accepted' || glyphs === 'cached' || Date.now() < autoAcceptUntilRef.current;
+      if (glyphs === 'cached') {
+        glyphs = 'ready';
+        setGlyphs(generation, { status: 'ready' });
+        void prefetchGlyphs(generation, source as HostFontSubsetSource, () => {}).catch(() => {});
+      }
+      if (primary !== 'needs' && glyphs !== 'needs') return;
+      if (accepted) {
+        void load(font, { interactive: false });
+        return;
+      }
+      const answer = decision === 'declined' ? 'declined' : 'available';
+      setState((previous) => ({
+        ...previous,
+        status: primary === 'needs' ? answer : previous.status,
+        glyphs: glyphs === 'needs' ? { ...previous.glyphs, status: answer } : previous.glyphs,
+      }));
+    },
+    [load, rejectPending],
+  );
 
   const decline = useCallback(() => {
     const fingerprint = hostFontFingerprint(stateRef.current.font);
@@ -490,43 +522,48 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
    * Characters the terminal is about to draw. Any the cut font should supply
    * and this device does not hold yet are fetched together, shortly after.
    */
-  const ensureGlyphs = useCallback((text: string) => {
-    const { glyphs } = stateRef.current;
-    if (glyphs.status !== 'ready' || !glyphs.source) return;
-    const source = glyphs.source;
-    for (const char of text) {
-      const codepoint = char.codePointAt(0) as number;
-      if (codepoint < 0x80 && source.scope !== 'all') continue;
-      if (!wantsGlyph(source.scope, codepoint)) continue;
-      if (coveredRef.current.has(codepoint) || askedRef.current.has(codepoint)) continue;
-      wantedRef.current.add(codepoint);
-    }
-    if (!wantedRef.current.size || batchTimerRef.current) return;
-    batchTimerRef.current = setTimeout(() => {
-      batchTimerRef.current = null;
-      const generation = generationRef.current;
-      const batch = [...wantedRef.current].slice(0, MAX_GLYPHS_PER_CUT);
-      for (const codepoint of batch) {
-        wantedRef.current.delete(codepoint);
-        askedRef.current.add(codepoint);
+  const ensureGlyphs = useCallback(
+    (text: string) => {
+      const { glyphs } = stateRef.current;
+      if (glyphs.status !== 'ready' || !glyphs.source) return;
+      const source = glyphs.source;
+      for (const char of text) {
+        const codepoint = char.codePointAt(0) as number;
+        if (codepoint < 0x80 && source.scope !== 'all') continue;
+        if (!wantsGlyph(source.scope, codepoint)) continue;
+        if (coveredRef.current.has(codepoint) || askedRef.current.has(codepoint)) continue;
+        wantedRef.current.add(codepoint);
       }
-      void (async () => {
-        const subset = await requestSubset(source, batch, () => {});
-        if (generation !== generationRef.current) return;
-        await resolved().writeSubset(source.sha256, subset);
-        await addGlyphs(generation, hostGlyphAlias(source) as string, [subset]);
-      })().catch(() => {
-        // Asked once per page; a character that failed falls back to this
-        // device's font rather than being asked for on every frame.
-      });
-    }, GLYPH_BATCH_MS);
-  }, [requestSubset]);
+      if (!wantedRef.current.size || batchTimerRef.current) return;
+      batchTimerRef.current = setTimeout(() => {
+        batchTimerRef.current = null;
+        const generation = generationRef.current;
+        const batch = [...wantedRef.current].slice(0, MAX_GLYPHS_PER_CUT);
+        for (const codepoint of batch) {
+          wantedRef.current.delete(codepoint);
+          askedRef.current.add(codepoint);
+        }
+        void (async () => {
+          const subset = await requestSubset(source, batch, () => {});
+          if (generation !== generationRef.current) return;
+          await resolved().writeSubset(source.sha256, subset);
+          await addGlyphs(generation, hostGlyphAlias(source) as string, [subset]);
+        })().catch(() => {
+          // Asked once per page; a character that failed falls back to this
+          // device's font rather than being asked for on every frame.
+        });
+      }, GLYPH_BATCH_MS);
+    },
+    [requestSubset],
+  );
 
   useEffect(() => {
     if (!adapter) return undefined;
     const pending = pendingRef.current;
     const pendingSubsets = pendingSubsetsRef.current;
-    const offFont = adapter.on('terminalFont', (font) => { void evaluate(font); });
+    const offFont = adapter.on('terminalFont', (font) => {
+      void evaluate(font);
+    });
     const offChunk = adapter.on('hostFontChunk', (message) => {
       const key = `${message.sha256}:${message.index}`;
       const waiting = pending.get(key);
@@ -550,17 +587,28 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
         try {
           const bytes = decodeBase64(message.dataBase64);
           onBytes(bytes.length, bytes.length);
-          waiting.resolve({ subsetSha: message.subsetSha, data: bytes.buffer as ArrayBuffer, codepoints: [] });
+          waiting.resolve({
+            subsetSha: message.subsetSha,
+            data: bytes.buffer as ArrayBuffer,
+            codepoints: [],
+          });
         } catch {
           waiting.reject(new Error('host_font_corrupt'));
         }
         return;
       }
       onBytes(0, message.bytes);
-      const face = { style: 'regular' as const, format: 'opentype' as const, bytes: message.bytes, sha256: message.subsetSha };
+      const face = {
+        style: 'regular' as const,
+        format: 'opentype' as const,
+        bytes: message.bytes,
+        sha256: message.subsetSha,
+      };
       downloadHostFontFace(face, requestChunk, (bytes) => onBytes(bytes, message.bytes))
         .then((data) => waiting.resolve({ subsetSha: message.subsetSha, data, codepoints: [] }))
-        .catch((error) => waiting.reject(error instanceof Error ? error : new Error('host_font_failed')));
+        .catch((error) =>
+          waiting.reject(error instanceof Error ? error : new Error('host_font_failed')),
+        );
     });
     const offError = adapter.on('error', (error) => {
       if (error.code === 'host_font_unavailable' || error.code === 'host_font_subset_failed') {

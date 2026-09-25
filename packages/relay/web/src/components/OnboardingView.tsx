@@ -2,16 +2,7 @@ import React, { useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { copyText } from '../utils/clipboard';
-import {
-  Button,
-  FieldLabel,
-  GLYPH,
-  Input,
-  Notice,
-  Panel,
-  Rule,
-  Spinner,
-} from './tui';
+import { Button, FieldLabel, GLYPH, Input, Notice, Panel, Rule, Spinner } from './tui';
 
 interface OnboardingViewProps {
   onPairedSuccess?: () => void;
@@ -159,7 +150,10 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
                 <Button
                   onClick={() => handleCopyCommand(PAIR_COMMAND)}
                   glyph={copiedCommand === PAIR_COMMAND ? GLYPH.check : '⧉'}
-                  className={cn('shrink-0', copiedCommand === PAIR_COMMAND && 'border-tui-ok text-tui-ok')}
+                  className={cn(
+                    'shrink-0',
+                    copiedCommand === PAIR_COMMAND && 'border-tui-ok text-tui-ok',
+                  )}
                 >
                   {copiedCommand === PAIR_COMMAND ? t('common.copied') : t('common.copy')}
                 </Button>
@@ -238,9 +232,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
                 </div>
 
                 <div className="space-y-1">
-                  <FieldLabel htmlFor="onboarding-ws">
-                    {t('onboarding.wsEndpointLabel')}
-                  </FieldLabel>
+                  <FieldLabel htmlFor="onboarding-ws">{t('onboarding.wsEndpointLabel')}</FieldLabel>
                   <Input
                     id="onboarding-ws"
                     type="text"

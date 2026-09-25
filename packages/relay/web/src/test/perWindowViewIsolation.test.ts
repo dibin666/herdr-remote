@@ -142,12 +142,18 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   it('keeps view settings after the tab is closed and reopened', () => {
     const sharedLocalStorage = new MemoryStorageShim();
     Object.defineProperty(window, 'localStorage', { value: sharedLocalStorage, writable: true });
-    Object.defineProperty(window, 'sessionStorage', { value: new MemoryStorageShim(), writable: true });
+    Object.defineProperty(window, 'sessionStorage', {
+      value: new MemoryStorageShim(),
+      writable: true,
+    });
 
     saveSettings({ fontSize: 22, toolbarPosition: 'top', vibrateOnKeyPress: false });
 
     // Closing the tab takes sessionStorage with it; localStorage survives.
-    Object.defineProperty(window, 'sessionStorage', { value: new MemoryStorageShim(), writable: true });
+    Object.defineProperty(window, 'sessionStorage', {
+      value: new MemoryStorageShim(),
+      writable: true,
+    });
 
     const reopened = loadSettings();
     expect(reopened.fontSize).toBe(22);
@@ -158,7 +164,10 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   it('never writes the relay operator token to localStorage', () => {
     const sharedLocalStorage = new MemoryStorageShim();
     Object.defineProperty(window, 'localStorage', { value: sharedLocalStorage, writable: true });
-    Object.defineProperty(window, 'sessionStorage', { value: new MemoryStorageShim(), writable: true });
+    Object.defineProperty(window, 'sessionStorage', {
+      value: new MemoryStorageShim(),
+      writable: true,
+    });
 
     saveSettings({ adminToken: 'operator-secret-123456789', fontSize: 20 });
 
@@ -178,7 +187,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
         token: 'legacy-token',
         fontSize: 18,
         toolbarVisible: false,
-      })
+      }),
     );
 
     // 2. Window loads and gets initial seed
@@ -205,7 +214,10 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   it('migrates a legacy HTTP relay URL without dropping its token', () => {
     localStorage.setItem(
       LOCAL_STORAGE_KEY,
-      JSON.stringify({ wsUrl: 'https://legacy.example/ws/client', token: 'legacy-token-123456789' }),
+      JSON.stringify({
+        wsUrl: 'https://legacy.example/ws/client',
+        token: 'legacy-token-123456789',
+      }),
     );
     const loaded = loadSettings();
     expect(loaded.token).toBe('legacy-token-123456789');
@@ -226,7 +238,12 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
       displayName: 'Home',
     });
 
-    saveSettings({ profiles: [first, second], activeProfileId: first.id, wsUrl: first.wsUrl, token: first.token });
+    saveSettings({
+      profiles: [first, second],
+      activeProfileId: first.id,
+      wsUrl: first.wsUrl,
+      token: first.token,
+    });
     let loaded = loadSettings();
     expect(loaded.profiles).toHaveLength(2);
     expect(loaded.activeProfileId).toBe(first.id);
@@ -274,7 +291,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
       JSON.stringify({
         wsUrl: '/ws/client',
         fontSize: 14,
-      })
+      }),
     );
     sessionStorage.clear();
 

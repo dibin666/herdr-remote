@@ -20,11 +20,13 @@ export const PtysTable: React.FC<PtysTableProps> = ({ ptys }) => {
       render: (pty) => <span className="font-bold text-tui-accent">{pty.id}</span>,
     },
     ...(showHost
-      ? [{
-        key: 'host',
-        header: t('admin.colHost'),
-        render: (pty: PtyInfo) => <span className="text-tui-text">{pty.hostId}</span>,
-      }]
+      ? [
+          {
+            key: 'host',
+            header: t('admin.colHost'),
+            render: (pty: PtyInfo) => <span className="text-tui-text">{pty.hostId}</span>,
+          },
+        ]
       : []),
     {
       key: 'pid',

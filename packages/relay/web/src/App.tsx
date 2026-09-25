@@ -71,7 +71,7 @@ function AppContent() {
           setIsVirtualKeyboardOpen(false);
         },
       },
-      { isModalOpen: isAnyModalOpen }
+      { isModalOpen: isAnyModalOpen },
     );
   }, [isPairingOpen, isSettingsOpen, isVirtualKeyboardOpen]);
 
@@ -121,9 +121,7 @@ function AppContent() {
       if (urlChanged) {
         const cleanSearch = currentUrl.searchParams.toString();
         const cleanUrl =
-          currentUrl.pathname +
-          (cleanSearch ? `?${cleanSearch}` : '') +
-          currentUrl.hash;
+          currentUrl.pathname + (cleanSearch ? `?${cleanSearch}` : '') + currentUrl.hash;
         window.history.replaceState({}, '', cleanUrl);
       }
     } catch (e) {
@@ -291,7 +289,9 @@ function AppContent() {
       {/* Desktop status area: one TUI line for the live session facts. Mobile
           uses its own compact bottom bar for switching and latency, while the
           remaining controls stay in the sheet. */}
-      {!isMobileShell && currentView !== 'admin' && <SessionStatusLine onAddProfile={() => openPairing(true)} />}
+      {!isMobileShell && currentView !== 'admin' && (
+        <SessionStatusLine onAddProfile={() => openPairing(true)} />
+      )}
 
       {/* Modals & Floating Overlays */}
       <PairingModal isOpen={isPairingOpen} isAddMode={isPairingAddMode} onClose={closePairing} />

@@ -14,7 +14,10 @@ let context: AudioContext | null = null;
 
 function audioContextClass(): AudioContextConstructor | null {
   if (typeof window === 'undefined') return null;
-  const w = window as unknown as { AudioContext?: AudioContextConstructor; webkitAudioContext?: AudioContextConstructor };
+  const w = window as unknown as {
+    AudioContext?: AudioContextConstructor;
+    webkitAudioContext?: AudioContextConstructor;
+  };
   return w.AudioContext ?? w.webkitAudioContext ?? null;
 }
 

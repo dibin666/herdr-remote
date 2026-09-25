@@ -232,7 +232,8 @@ function probeTerminalPalette({ ttyPath = '/dev/tty', timeoutMs = TOTAL_TIMEOUT_
     savedMode = saved.stdout.trim();
     // The reply is written to the terminal, not echoed by a line discipline:
     // raw mode is what lets this process read it instead of the user's shell.
-    if (runStty(['raw', '-echo', 'min', '0', 'time', READ_TIMEOUT_TENTHS], ttyPath).status !== 0) return null;
+    if (runStty(['raw', '-echo', 'min', '0', 'time', READ_TIMEOUT_TENTHS], ttyPath).status !== 0)
+      return null;
 
     const state = { pending: '', overallDeadline: Date.now() + timeoutMs };
     return collectPalette((query, prefix) => askTerminal(fd, query, prefix, state));
@@ -241,7 +242,9 @@ function probeTerminalPalette({ ttyPath = '/dev/tty', timeoutMs = TOTAL_TIMEOUT_
   } finally {
     if (savedMode) runStty([savedMode], ttyPath);
     if (fd !== null) {
-      try { fs.closeSync(fd); } catch {}
+      try {
+        fs.closeSync(fd);
+      } catch {}
     }
   }
 }

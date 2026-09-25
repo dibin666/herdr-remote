@@ -17,7 +17,9 @@ const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTermina
 const webSocketInstances = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] })
   .__webSocketInstances;
 
-const CtxProbe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({ onReady }) => {
+const CtxProbe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
+  onReady,
+}) => {
   onReady(useTerminal());
   return null;
 };
@@ -90,20 +92,28 @@ describe('The tab follows this window’s own session', () => {
     let ctx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
-        <CtxProbe onReady={(value) => { ctx = value; }} />
+        <CtxProbe
+          onReady={(value) => {
+            ctx = value;
+          }}
+        />
         <TerminalView isActive={isActive} />
       </TerminalProvider>,
     );
     await waitFor(() => expect(xtermInstances.length).toBeGreaterThan(0));
-    // @ts-expect-error test mock
-    act(() => { ctx?.adapter?.emit('sessionReady', { type: 'session_ready' }); });
+    act(() => {
+      // @ts-expect-error test mock
+      ctx?.adapter?.emit('sessionReady', { type: 'session_ready' });
+    });
     return { ctx, term: xtermInstances[0] };
   };
 
   it('renames the tab when the window’s Herdr client announces a title', async () => {
     const { term } = await connectedView(true);
 
-    act(() => { term.emitTitleChange?.('◑ Claude Code'); });
+    act(() => {
+      term.emitTitleChange?.('◑ Claude Code');
+    });
 
     await waitFor(() => expect(document.title).toBe('◑ Claude Code · Herdr Remote'));
   });
@@ -111,7 +121,9 @@ describe('The tab follows this window’s own session', () => {
   it('leaves the tab alone while the terminal layer is not the visible one', async () => {
     const { term } = await connectedView(false);
 
-    act(() => { term.emitTitleChange?.('◑ Claude Code'); });
+    act(() => {
+      term.emitTitleChange?.('◑ Claude Code');
+    });
 
     // The profile still names the tab; the hidden session does not.
     await waitFor(() => expect(document.title).not.toContain('Claude Code'));
@@ -120,25 +132,38 @@ describe('The tab follows this window’s own session', () => {
 
   it('leads with the agents that are waiting, while the badge setting is on', async () => {
     const { ctx, term } = await connectedView(true);
-    act(() => { term.emitTitleChange?.('◑ Claude Code'); });
+    act(() => {
+      term.emitTitleChange?.('◑ Claude Code');
+    });
     act(() => {
       // @ts-expect-error test mock
-      ctx?.adapter?.emit('agentStatus', { type: 'agent_status', counts: { blocked: 1, done: 2 }, total: 3, agents: [] });
+      ctx?.adapter?.emit('agentStatus', {
+        type: 'agent_status',
+        counts: { blocked: 1, done: 2 },
+        total: 3,
+        agents: [],
+      });
     });
     await waitFor(() => expect(document.title).toBe('(1⚠ 2✓) ◑ Claude Code · Herdr Remote'));
 
-    act(() => { ctx?.updateSettings({ agentAlertBadge: false }); });
+    act(() => {
+      ctx?.updateSettings({ agentAlertBadge: false });
+    });
     await waitFor(() => expect(document.title).toBe('◑ Claude Code · Herdr Remote'));
   });
 
   it('drops a title that belonged to a session that has ended', async () => {
     const { ctx, term } = await connectedView(true);
-    act(() => { term.emitTitleChange?.('◑ Claude Code'); });
+    act(() => {
+      term.emitTitleChange?.('◑ Claude Code');
+    });
     await waitFor(() => expect(document.title).toBe('◑ Claude Code · Herdr Remote'));
 
     // A reconnect starts a fresh Herdr client, so the old view's name is stale.
-    // @ts-expect-error test mock
-    act(() => { ctx?.adapter?.emit('stateChange', 'reconnecting', null, null); });
+    act(() => {
+      // @ts-expect-error test mock
+      ctx?.adapter?.emit('stateChange', 'reconnecting', null, null);
+    });
 
     await waitFor(() => expect(document.title).not.toContain('Claude Code'));
     expect(document.title.endsWith(BASE_DOCUMENT_TITLE)).toBe(true);

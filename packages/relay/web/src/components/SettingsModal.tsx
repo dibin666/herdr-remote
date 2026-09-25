@@ -84,7 +84,12 @@ interface SettingsModalProps {
  * meaning: blue headings and choices, green for a switch that is on, red for
  * the words that reset something.
  */
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab, onOpenAdmin }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  initialTab,
+  onOpenAdmin,
+}) => {
   const {
     settings,
     updateSettings,
@@ -117,13 +122,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
 
   /** A legacy/custom stack keeps its own option so the select never lies. */
   const activeFontPreset = FONT_PRESETS.find((preset) => preset.id === settings.fontFamily);
-  const presetLabel = (id: string, name: string) => (
-    id === 'host' || id === 'system' ? t(`fontPresets.${id}`) : name
-  );
+  const presetLabel = (id: string, name: string) =>
+    id === 'host' || id === 'system' ? t(`fontPresets.${id}`) : name;
   /** `JetBrainsMono Nerd Font · 12px · GNOME Terminal · Loaded from the workstation` */
   const hostFontLine = (() => {
     const { font, status } = hostFont;
-    const percent = hostFont.totalBytes ? Math.round((hostFont.receivedBytes / hostFont.totalBytes) * 100) : 0;
+    const percent = hostFont.totalBytes
+      ? Math.round((hostFont.receivedBytes / hostFont.totalBytes) * 100)
+      : 0;
     const statusText = t(`settings.hostFontStatus.${status}`, { percent });
     if (!font) return statusText;
     return [
@@ -131,18 +137,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
       font.sizePx ? `${Math.round(font.sizePx)}px` : null,
       font.source ? TERMINAL_SOURCE_NAMES[font.source] || font.source : null,
       statusText,
-    ].filter(Boolean).join(' · ');
+    ]
+      .filter(Boolean)
+      .join(' · ');
   })();
   const hostSizePx = hostFont.font?.sizePx ? clampFontSize(hostFont.font.sizePx) : null;
   /** `CJK: Noto Sans CJK SC · 3,812 characters on this device…` */
-  const hostGlyphLine = hostFont.glyphs.source && hostFont.glyphs.status !== 'none'
-    ? t('settings.hostGlyphLine', {
-      family: hostFont.glyphs.source.family,
-      status: t(`settings.hostGlyphStatus.${hostFont.glyphs.status}`, {
-        count: hostFont.glyphs.covered.toLocaleString(),
-      }),
-    })
-    : null;
+  const hostGlyphLine =
+    hostFont.glyphs.source && hostFont.glyphs.status !== 'none'
+      ? t('settings.hostGlyphLine', {
+          family: hostFont.glyphs.source.family,
+          status: t(`settings.hostGlyphStatus.${hostFont.glyphs.status}`, {
+            count: hostFont.glyphs.covered.toLocaleString(),
+          }),
+        })
+      : null;
 
   const currentVirtualKeys: ToolbarKeyDef[] =
     settings.virtualKeys && settings.virtualKeys.length > 0
@@ -154,11 +163,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   const profileActions = getProfileActions(keymapProfile, profileOverrides);
   const barChoices = getBarChoices(keymapProfile, profileOverrides);
   const shownBarCount = barChoices.filter((item) => !item.hidden).length;
-  const actionLabel = (item: AppliedAgentAction) => (item.custom
-    ? item.customLabel || ''
-    : t(`agentActions.${item.labelKey}`));
+  const actionLabel = (item: AppliedAgentAction) =>
+    item.custom ? item.customLabel || '' : t(`agentActions.${item.labelKey}`);
   const actionCaption = (item: AppliedAgentAction) => {
-    try { return formatComboCaption(item.combo); } catch { return item.combo; }
+    try {
+      return formatComboCaption(item.combo);
+    } catch {
+      return item.combo;
+    }
   };
 
   const saveAgentKeymaps = (nextProfile: AgentProfileKeymapOverride) => {
@@ -208,7 +220,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   const addCustomAgentAction = () => {
     const label = customLabel.trim();
     if (!label) return;
-    try { parseKeyCombo(customCombo); } catch { return; }
+    try {
+      parseKeyCombo(customCombo);
+    } catch {
+      return;
+    }
     const id = `custom-${Date.now().toString(36)}`;
     saveAgentKeymaps({
       ...profileOverrides,
@@ -280,7 +296,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   // Virtual keys reordering and management
   const handleToggleKey = (keyId: string) => {
     const updated = currentVirtualKeys.map((k) =>
-      k.id === keyId ? { ...k, enabled: !k.enabled } : k
+      k.id === keyId ? { ...k, enabled: !k.enabled } : k,
     );
     updateSettings({ virtualKeys: updated });
   };
@@ -302,7 +318,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
     if (exists) {
       // If already in list, ensure enabled
       const updated = currentVirtualKeys.map((k) =>
-        k.id === newKey.id ? { ...k, enabled: true } : k
+        k.id === newKey.id ? { ...k, enabled: true } : k,
       );
       updateSettings({ virtualKeys: updated });
     } else {
@@ -412,7 +428,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 label={t('settings.hostFontLabel')}
                 hint={
                   <>
-                    <span data-testid="host-font-status" className="block break-words text-tui-info">
+                    <span
+                      data-testid="host-font-status"
+                      className="block break-words text-tui-info"
+                    >
                       {hostFontLine}
                     </span>
                     {hostGlyphLine ? (
@@ -426,7 +445,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                   <Button
                     block
                     onClick={syncHostFont}
-                    disabled={connectionState !== 'connected' || hostFont.status === 'loading' || hostFont.glyphs.status === 'loading'}
+                    disabled={
+                      connectionState !== 'connected' ||
+                      hostFont.status === 'loading' ||
+                      hostFont.glyphs.status === 'loading'
+                    }
                     className={CONTROL_FIELD}
                   >
                     {t('settings.hostFontSync')}
@@ -448,7 +471,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                     max={FONT_MAX}
                     step={1}
                     value={terminalFontSize}
-                    onChange={(e) => updateSettings({ fontSize: Number(e.target.value), fontSizeFollowsHost: false })}
+                    onChange={(e) =>
+                      updateSettings({
+                        fontSize: Number(e.target.value),
+                        fontSizeFollowsHost: false,
+                      })
+                    }
                     className="h-1 w-full cursor-pointer appearance-none bg-tui-border accent-tui-accent"
                   />
                 </div>
@@ -464,9 +492,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                   checked={settings.fontSizeFollowsHost}
                   // Leaving "follow" keeps the size on screen as the manual one,
                   // so the terminal does not jump when it is switched off.
-                  onChange={(checked) => updateSettings(checked
-                    ? { fontSizeFollowsHost: true }
-                    : { fontSizeFollowsHost: false, fontSize: terminalFontSize })}
+                  onChange={(checked) =>
+                    updateSettings(
+                      checked
+                        ? { fontSizeFollowsHost: true }
+                        : { fontSizeFollowsHost: false, fontSize: terminalFontSize },
+                    )
+                  }
                 />
               }
             />
@@ -584,7 +616,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                     onChange={(checked) => {
                       if (checked && Notification.permission !== 'granted') {
                         void Notification.requestPermission().then((permission) =>
-                          updateSettings({ agentAlertNotify: permission === 'granted' })
+                          updateSettings({ agentAlertNotify: permission === 'granted' }),
                         );
                         return;
                       }
@@ -626,7 +658,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           <SettingSection
             title={t('virtualKeyboard.customizeTitle')}
             aside={
-              <Button variant="ghost" onClick={handleResetVirtualKeys} className={cn(DANGER_GHOST, COMPACT)}>
+              <Button
+                variant="ghost"
+                onClick={handleResetVirtualKeys}
+                className={cn(DANGER_GHOST, COMPACT)}
+              >
                 {t('virtualKeyboard.resetLayout')}
               </Button>
             }
@@ -636,13 +672,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
               const title = getLocalizedKeyTitle(keyItem, t);
               return (
                 <div key={keyItem.id} className="flex items-center gap-2 py-1">
-                  <KeyCap className={cn('w-16 shrink-0 truncate', !keyItem.enabled && 'opacity-50')}>
+                  <KeyCap
+                    className={cn('w-16 shrink-0 truncate', !keyItem.enabled && 'opacity-50')}
+                  >
                     {keyItem.label}
                   </KeyCap>
                   <span
                     className={cn(
                       'min-w-0 flex-1 truncate text-tui',
-                      keyItem.enabled ? 'text-tui-text' : 'text-tui-faint'
+                      keyItem.enabled ? 'text-tui-text' : 'text-tui-faint',
                     )}
                   >
                     {title}
@@ -707,11 +745,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                         'tui-focusable flex h-7 select-none items-center gap-1 border px-1.5 text-tui-sm transition-colors',
                         isAlreadyAdded
                           ? 'border-tui-border-dim text-tui-faint'
-                          : 'border-tui-border text-tui-text hover:border-tui-accent hover:text-tui-accent'
+                          : 'border-tui-border text-tui-text hover:border-tui-accent hover:text-tui-accent',
                       )}
                     >
                       <span>{availableKey.label}</span>
-                      <span aria-hidden="true" className={isAlreadyAdded ? 'text-tui-ok' : 'text-tui-accent'}>
+                      <span
+                        aria-hidden="true"
+                        className={isAlreadyAdded ? 'text-tui-ok' : 'text-tui-accent'}
+                      >
                         {isAlreadyAdded ? GLYPH.check : '+'}
                       </span>
                     </button>
@@ -728,7 +769,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           <SettingSection
             title={t('agentKeymaps.settingsProfileLabel')}
             aside={
-              <Button variant="ghost" onClick={restoreAgentProfile} className={cn(DANGER_GHOST, COMPACT)}>
+              <Button
+                variant="ghost"
+                onClick={restoreAgentProfile}
+                className={cn(DANGER_GHOST, COMPACT)}
+              >
                 {t('agentKeymaps.restoreProfile')}
               </Button>
             }
@@ -736,19 +781,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
             <SettingRow
               label={t('agentKeymaps.profileRowLabel')}
               htmlFor="agent-keymap-profile"
-              hint={(AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint
-                ? t('agentKeymaps.configHint', { path: (AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint! })
-                : undefined}
+              hint={
+                (AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint
+                  ? t('agentKeymaps.configHint', {
+                      path: (AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint!,
+                    })
+                  : undefined
+              }
               control={
                 <Select
                   id="agent-keymap-profile"
                   aria-label={t('agentKeymaps.settingsProfileLabel')}
                   value={keymapProfile}
-                  onChange={(event) => setSettingsAgentProfile(event.target.value as AgentProfileId)}
+                  onChange={(event) =>
+                    setSettingsAgentProfile(event.target.value as AgentProfileId)
+                  }
                   className={CONTROL_FIELD}
                 >
                   {AGENT_PROFILE_IDS.map((id) => (
-                    <option key={id} value={id}>{AGENT_PROFILES[id].name}</option>
+                    <option key={id} value={id}>
+                      {AGENT_PROFILES[id].name}
+                    </option>
                   ))}
                 </Select>
               }
@@ -758,14 +811,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           <SettingSection
             title={t('agentKeymaps.barGroup')}
             aside={
-              <Button variant="ghost" onClick={restoreBarVisibility} className={cn(DANGER_GHOST, COMPACT)}>
+              <Button
+                variant="ghost"
+                onClick={restoreBarVisibility}
+                className={cn(DANGER_GHOST, COMPACT)}
+              >
                 {t('agentKeymaps.restoreBar')}
               </Button>
             }
           >
             <div className="space-y-2 py-1.5">
               <p className="text-tui-sm leading-snug text-tui-faint">
-                {t('agentKeymaps.barHint', { profile: AGENT_PROFILES[keymapProfile].name, count: shownBarCount })}
+                {t('agentKeymaps.barHint', {
+                  profile: AGENT_PROFILES[keymapProfile].name,
+                  count: shownBarCount,
+                })}
               </p>
               <div
                 role="group"
@@ -789,10 +849,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                         'tui-focusable inline-flex h-7 select-none items-center gap-1 border px-1.5 text-tui-sm transition-colors',
                         shown
                           ? 'border-tui-accent bg-tui-accent text-tui-crust'
-                          : 'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent'
+                          : 'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent',
                       )}
                     >
-                      <span aria-hidden="true" className="font-bold">{shown ? GLYPH.check : '+'}</span>
+                      <span aria-hidden="true" className="font-bold">
+                        {shown ? GLYPH.check : '+'}
+                      </span>
                       <span className="font-bold">{caption}</span>
                       <span className={shown ? undefined : 'opacity-80'}>{label}</span>
                     </button>
@@ -802,10 +864,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
             </div>
           </SettingSection>
 
-          <SettingSection title={t('agentKeymaps.listGroup', { profile: AGENT_PROFILES[keymapProfile].name })}>
+          <SettingSection
+            title={t('agentKeymaps.listGroup', { profile: AGENT_PROFILES[keymapProfile].name })}
+          >
             {profileActions.map((item, index) => {
               const label = actionLabel(item);
-              const defaultText = t('agentKeymaps.defaultCombo', { combo: formatComboCaption(item.defaultCombo) });
+              const defaultText = t('agentKeymaps.defaultCombo', {
+                combo: formatComboCaption(item.defaultCombo),
+              });
               const savedCombo = profileOverrides.actions?.[item.id]?.keys ?? item.combo;
               const draftKey = comboDraftKey(keymapProfile, item.id);
               const displayedCombo = comboDrafts[draftKey] ?? savedCombo;
@@ -826,10 +892,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                   <KeyCap className="w-full overflow-hidden whitespace-nowrap font-bold [grid-area:cap]">
                     {caption || '—'}
                   </KeyCap>
-                  <span className="min-w-0 truncate text-tui text-tui-text [grid-area:label]" title={label}>
+                  <span
+                    className="min-w-0 truncate text-tui text-tui-text [grid-area:label]"
+                    title={label}
+                  >
                     {label}
                     {!item.verified && (
-                      <span className="ml-1 text-tui-sm text-tui-faint">{t('agentKeymaps.unverified')}</span>
+                      <span className="ml-1 text-tui-sm text-tui-faint">
+                        {t('agentKeymaps.unverified')}
+                      </span>
                     )}
                   </span>
                   <label className="sr-only" htmlFor={`agent-combo-${item.id}`}>
@@ -848,7 +919,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                     aria-invalid={Boolean(error)}
                     className={cn('w-full min-w-0 [grid-area:combo]', COMPACT_FIELD)}
                   />
-                  <span className="min-w-0 truncate text-tui-sm text-tui-faint [grid-area:default]" title={defaultText}>
+                  <span
+                    className="min-w-0 truncate text-tui-sm text-tui-faint [grid-area:default]"
+                    title={defaultText}
+                  >
                     {defaultText}
                   </span>
                   <div className="flex items-center justify-end [grid-area:actions]">
@@ -856,26 +930,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                       onClick={() => resetAgentAction(item)}
                       title={t('agentKeymaps.resetAction')}
                       aria-label={`${t('agentKeymaps.resetAction')} ${label}`}
-                    >↺</IconButton>
+                    >
+                      ↺
+                    </IconButton>
                     <IconButton
                       disabled={index === 0}
                       onClick={() => moveAgentAction(index, 'up')}
                       title={t('agentKeymaps.moveUp')}
                       aria-label={`${t('agentKeymaps.moveUp')} ${label}`}
-                    >↑</IconButton>
+                    >
+                      ↑
+                    </IconButton>
                     <IconButton
                       disabled={index === profileActions.length - 1}
                       onClick={() => moveAgentAction(index, 'down')}
                       title={t('agentKeymaps.moveDown')}
                       aria-label={`${t('agentKeymaps.moveDown')} ${label}`}
-                    >↓</IconButton>
+                    >
+                      ↓
+                    </IconButton>
                     {item.custom ? (
                       <IconButton
                         variant="danger"
                         onClick={() => removeCustomAction(item.id)}
                         title={t('agentKeymaps.removeCustom')}
                         aria-label={`${t('agentKeymaps.removeCustom')} ${label}`}
-                      >{GLYPH.cross}</IconButton>
+                      >
+                        {GLYPH.cross}
+                      </IconButton>
                     ) : (
                       /* Holds the delete column so every row's arrows line up. */
                       <span aria-hidden="true" className="h-7 w-7 shrink-0" />
@@ -921,15 +1003,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                   {t('agentKeymaps.addAction')}
                 </Button>
               </div>
-              {customCombo.trim() && (() => {
-                try {
-                  parseKeyCombo(customCombo);
-                  return <p className="text-tui-sm text-tui-info">{formatComboCaption(customCombo)}</p>;
-                } catch (reason) {
-                  const error = getComboErrorText(reason);
-                  return <p className="text-tui-sm text-tui-bad" role="alert">{error}</p>;
-                }
-              })()}
+              {customCombo.trim() &&
+                (() => {
+                  try {
+                    parseKeyCombo(customCombo);
+                    return (
+                      <p className="text-tui-sm text-tui-info">{formatComboCaption(customCombo)}</p>
+                    );
+                  } catch (reason) {
+                    const error = getComboErrorText(reason);
+                    return (
+                      <p className="text-tui-sm text-tui-bad" role="alert">
+                        {error}
+                      </p>
+                    );
+                  }
+                })()}
             </div>
           </SettingSection>
         </div>

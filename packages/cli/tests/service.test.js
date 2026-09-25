@@ -53,7 +53,9 @@ async function waitForExit(pid, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!pidAlive(pid)) return true;
-    await new Promise((resolve) => { setTimeout(resolve, 50); });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
   }
   return false;
 }
@@ -91,7 +93,10 @@ test('managedPids merges the legacy fields with the ledger and de-duplicates', (
     supervisorPid: process.pid,
     relayPid: process.pid,
     hostPid: DEAD_PID,
-    managedPids: [{ name: 'relay', pid: process.pid }, { name: 'host', pid: DEAD_PID }],
+    managedPids: [
+      { name: 'relay', pid: process.pid },
+      { name: 'host', pid: DEAD_PID },
+    ],
   };
   const tracked = managedPids(state);
   assert.equal(tracked.length, 1);
@@ -134,7 +139,11 @@ test('stopServices stops everything in the ledger, including strays', async () =
 
 test('stopServices is harmless when nothing is running', async () => {
   await withTemporaryState(() => {
-    writeJsonAtomic(runtimeStatePath(), { relayPid: DEAD_PID, hostPid: DEAD_PID, managedPids: [{ name: 'relay', pid: DEAD_PID }] });
+    writeJsonAtomic(runtimeStatePath(), {
+      relayPid: DEAD_PID,
+      hostPid: DEAD_PID,
+      managedPids: [{ name: 'relay', pid: DEAD_PID }],
+    });
     const result = stopServices();
     assert.equal(result.ok, true);
     assert.deepEqual(result.stopped, []);
