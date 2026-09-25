@@ -123,7 +123,6 @@
       "includes": [
         "packages/relay/web/src/render/HerdrRenderer.ts",
         "packages/relay/web/src/utils/predictiveEcho.ts",
-        "packages/relay/web/src/components/SettingsModal.tsx",
         "packages/relay/web/src/render/customGlyphs.ts",
         "packages/relay/web/src/utils/touchMouseAdapter.ts",
         "packages/relay/web/src/protocol/clientAdapter.ts",
