@@ -802,7 +802,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     newAdapter.on('exit', (code, reason) => {
       addToast(
         'info',
-        `${tRef.current('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code !== undefined ? ` (${code})` : ''}`,
+        `${tRef.current('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code != null ? ` (${code})` : ''}`,
       );
     });
 
