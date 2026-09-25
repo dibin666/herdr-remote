@@ -32,7 +32,7 @@ describe('UI Components', () => {
     );
 
     expect(screen.getByText(/Pair with Herdr Remote/i)).toBeInTheDocument();
-    expect(screen.getByText(/node bin\/service\.js pair/i)).toBeInTheDocument();
+    expect(screen.getByText(/herdr-remote pair/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
   });
 
