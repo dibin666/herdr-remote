@@ -7,6 +7,8 @@
 
 import {
   ACCESS_MODES,
+  type AccessMode,
+  type Config,
   KEEPALIVE_MANAGERS,
   LANGUAGES,
   OFFICIAL_RELAY_URL,
@@ -22,11 +24,41 @@ import {
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import { preferredLanAddress } from './net-interfaces.js';
 
+export type FieldId =
+  | 'mode'
+  | 'port'
+  | 'lanHost'
+  | 'remoteUrl'
+  | 'publicUrl'
+  | 'socketPath'
+  | 'herdrArgs'
+  | 'herdrAutoStart'
+  | 'language'
+  | 'keepaliveManager';
+
+export interface FieldSpec {
+  id: FieldId;
+  kind: 'choice' | 'text' | 'address' | 'toggle';
+  labelKey: string;
+  choices?: readonly string[];
+  visibleFor?: readonly AccessMode[];
+}
+
+/** What `setField` did: the new draft, or the old one and why. */
+export interface FieldEdit {
+  draft: Config;
+  errorKey: string | null;
+}
+
+function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
+  return (list as readonly unknown[]).includes(value);
+}
+
 /**
  * Field metadata. `kind` drives the editor the TUI shows; `visibleFor` limits a
  * field to the access modes where it means anything.
  */
-const FIELDS = [
+const FIELDS: FieldSpec[] = [
   { id: 'mode', kind: 'choice', choices: ACCESS_MODES, labelKey: 'field.mode' },
   { id: 'port', kind: 'text', labelKey: 'field.port', visibleFor: ['local', 'lan'] },
   { id: 'lanHost', kind: 'address', labelKey: 'field.lanHost', visibleFor: ['lan'] },
@@ -57,34 +89,35 @@ const EMPTY = '';
  * is what stops the official relay from being displayed as "self-hosted relay"
  * that merely happens to hold our address.
  */
-const SELECTABLE_MODES = ['local', 'lan', 'official', 'remote'];
+const SELECTABLE_MODES = ['local', 'lan', 'official', 'remote'] as const;
+export type SelectableMode = (typeof SELECTABLE_MODES)[number];
 
 /** Which of `SELECTABLE_MODES` this draft represents. */
-function selectedMode(draft) {
+function selectedMode(draft: Config): SelectableMode {
   if (draft.relay.mode === 'remote' && draft.relay.remoteUrl === OFFICIAL_RELAY_URL)
     return 'official';
   return draft.relay.mode;
 }
 
 /** True when the relay is the one we run, so its address and password are ours. */
-function isOfficialRelay(draft) {
+function isOfficialRelay(draft: Config): boolean {
   return selectedMode(draft) === 'official';
 }
 
-function clone(value) {
+function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-function createDraft(config = loadConfig()) {
+function createDraft(config: Config = loadConfig()): Config {
   return clone(config);
 }
 
-function fieldsForMode(mode) {
+function fieldsForMode(mode: AccessMode): FieldSpec[] {
   return FIELDS.filter((field) => !field.visibleFor || field.visibleFor.includes(mode));
 }
 
 /** Current value of a field as an editable string. */
-function getField(draft, id) {
+function getField(draft: Config, id: string): string {
   switch (id) {
     case 'mode':
       return draft.relay.mode;
@@ -115,7 +148,7 @@ function getField(draft, id) {
  * What the field shows when it is empty: the value that will actually be used.
  * Displaying the derived value beats an empty box the user cannot interpret.
  */
-function getFieldPlaceholder(draft, id) {
+function getFieldPlaceholder(draft: Config, id: string): string {
   switch (id) {
     case 'lanHost':
       return preferredLanAddress() || '0.0.0.0';
@@ -132,7 +165,7 @@ function getFieldPlaceholder(draft, id) {
   }
 }
 
-function isValidUrl(value, protocols) {
+function isValidUrl(value: string, protocols: string[]): boolean {
   try {
     const url = new URL(value);
     return protocols.includes(url.protocol);
@@ -148,13 +181,15 @@ function isValidUrl(value, protocols) {
  * unchanged and `errorKey` names a translatable message, so callers never have
  * to guess whether the edit landed.
  */
-function setField(draft, id, rawValue) {
+function setField(draft: Config, id: string, rawValue: string | boolean): FieldEdit {
   const next = clone(draft);
   const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+  // Every field but the toggle is edited as text.
+  const text = value as string;
 
   switch (id) {
     case 'mode': {
-      if (!SELECTABLE_MODES.includes(value)) return { draft, errorKey: 'error.invalidMode' };
+      if (!isOneOf(SELECTABLE_MODES, value)) return { draft, errorKey: 'error.invalidMode' };
       // Picking the official relay fills in its address in the same edit: a
       // remote mode with no URL is not a valid state, and asking for the
       // address we already know would be asking the user to do our filing.
@@ -183,39 +218,39 @@ function setField(draft, id, rawValue) {
       break;
     }
     case 'port': {
-      const port = Number.parseInt(value, 10);
+      const port = Number.parseInt(text, 10);
       if (!Number.isInteger(port) || port < 1 || port > 65535)
         return { draft, errorKey: 'error.invalidPort' };
       next.relay.port = port;
       break;
     }
     case 'lanHost': {
-      if (value && (isLoopbackHost(value) || isUnspecifiedAddress(value))) {
+      if (text && (isLoopbackHost(text) || isUnspecifiedAddress(text))) {
         return { draft, errorKey: 'error.invalidLanHost' };
       }
-      next.relay.lanHost = value || EMPTY;
+      next.relay.lanHost = text || EMPTY;
       break;
     }
     case 'remoteUrl': {
-      if (value && !isValidUrl(value, ['ws:', 'wss:', 'http:', 'https:'])) {
+      if (text && !isValidUrl(text, ['ws:', 'wss:', 'http:', 'https:'])) {
         return { draft, errorKey: 'error.invalidRelayUrl' };
       }
-      next.relay.remoteUrl = value.replace(/\/+$/, '');
+      next.relay.remoteUrl = text.replace(/\/+$/, '');
       break;
     }
     case 'publicUrl': {
-      if (value && (!isValidUrl(value, ['http:', 'https:']) || isUnspecifiedHost(value))) {
+      if (text && (!isValidUrl(text, ['http:', 'https:']) || isUnspecifiedHost(text))) {
         return { draft, errorKey: 'error.invalidPublicUrl' };
       }
-      next.relay.publicUrl = value.replace(/\/+$/, '');
+      next.relay.publicUrl = text.replace(/\/+$/, '');
       break;
     }
     case 'socketPath': {
-      next.herdr.socketPath = value || null;
+      next.herdr.socketPath = text || null;
       break;
     }
     case 'herdrArgs': {
-      const args = value ? value.split(/\s+/).filter(Boolean) : [];
+      const args = text ? text.split(/\s+/).filter(Boolean) : [];
       if (args.includes('--no-session')) {
         return { draft, errorKey: 'error.removedHerdrArg' };
       }
@@ -230,12 +265,12 @@ function setField(draft, id, rawValue) {
       break;
     }
     case 'language': {
-      if (!LANGUAGES.includes(value)) return { draft, errorKey: 'error.invalidLanguage' };
+      if (!isOneOf(LANGUAGES, value)) return { draft, errorKey: 'error.invalidLanguage' };
       next.ui.language = value;
       break;
     }
     case 'keepaliveManager': {
-      if (!KEEPALIVE_MANAGERS.includes(value)) return { draft, errorKey: 'error.invalidKeepalive' };
+      if (!isOneOf(KEEPALIVE_MANAGERS, value)) return { draft, errorKey: 'error.invalidKeepalive' };
       next.keepalive.manager = value;
       break;
     }
@@ -246,8 +281,8 @@ function setField(draft, id, rawValue) {
 }
 
 /** Problems that should block saving, as translatable keys. */
-function validateDraft(draft) {
-  const problems = [];
+function validateDraft(draft: Config): string[] {
+  const problems: string[] = [];
   if (draft.relay.mode === 'remote' && !draft.relay.remoteUrl)
     problems.push('error.remoteUrlRequired');
   return problems;
@@ -257,18 +292,22 @@ function validateDraft(draft) {
  * Persist a draft, merging into whatever is already on disk so keys this
  * version does not know about survive the round trip.
  */
-function saveDraft(draft) {
+function saveDraft(draft: Config): { ok: true; path: string } {
   const problems = validateDraft(draft);
   if (problems.length > 0) {
-    const error = new Error(`configuration is incomplete: ${problems.join(', ')}`);
-    error.problems = problems;
-    throw error;
+    throw Object.assign(new Error(`configuration is incomplete: ${problems.join(', ')}`), {
+      problems,
+    });
   }
 
-  const current = readJson(configPath(), {}) || {};
-  const merged = { ...current };
+  type Section = Record<string, unknown>;
+  const current = (readJson<Record<string, unknown> | null>(configPath(), {}) || {}) as Record<
+    string,
+    Section | undefined
+  >;
+  const merged: Record<string, unknown> = { ...current };
   merged.ui = { ...(current.ui || {}), language: draft.ui.language };
-  merged.relay = {
+  const relay: Section = {
     ...(current.relay || {}),
     mode: draft.relay.mode,
     port: draft.relay.port,
@@ -280,22 +319,24 @@ function saveDraft(draft) {
     publicUrl: draft.relay.publicUrl,
     remoteUrl: draft.relay.remoteUrl,
   };
+  merged.relay = relay;
   // Fields from the 0.1 schema would otherwise keep overriding the new ones on
   // the next load.
-  delete merged.relay.local;
-  delete merged.relay.host;
-  delete merged.relay.url;
+  delete relay.local;
+  delete relay.host;
+  delete relay.url;
   // The optional Herdr source patch is gone. Nothing reads this section any
   // more, so the next save is where a config written by an older build sheds
   // it rather than carrying stale checksums and paths forever.
   delete merged.patch;
-  merged.herdr = {
+  const herdr: Section = {
     ...(current.herdr || {}),
     socketPath: draft.herdr.socketPath,
     args: draft.herdr.args,
     autoStart: draft.herdr.autoStart === true,
   };
-  if (!merged.herdr.socketPath) delete merged.herdr.socketPath;
+  merged.herdr = herdr;
+  if (!herdr.socketPath) delete herdr.socketPath;
   merged.keepalive = { ...(current.keepalive || {}), manager: draft.keepalive.manager };
 
   ensureDir(configDir());
@@ -307,7 +348,7 @@ function saveDraft(draft) {
  * Settings that only take effect after the services restart. Used to show a
  * "restart required" hint rather than silently doing nothing.
  */
-function requiresRestart(before, after) {
+function requiresRestart(before: Config, after: Config): boolean {
   return (
     before.relay.mode !== after.relay.mode ||
     before.relay.port !== after.relay.port ||

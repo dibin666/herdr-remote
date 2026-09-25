@@ -20,7 +20,12 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 // One definition of what a palette may contain, shared with the relay so the
 // host cannot report a shape the wire rejects.
-import { ANSI_PALETTE_KEYS, sanitizeTerminalPalette } from 'herdr-remote-relay/protocol';
+import {
+  ANSI_PALETTE_KEYS,
+  type HostAnsiPalette,
+  type HostTerminalPalette,
+  sanitizeTerminalPalette,
+} from 'herdr-remote-relay/protocol';
 import { runtimeStatePath, stateDir } from './paths.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 
@@ -50,11 +55,20 @@ const TOTAL_TIMEOUT_MS = 3000;
 
 const ANSI_KEYS = ANSI_PALETTE_KEYS;
 
+/** Bytes read from the terminal and not yet matched to a query, and the deadline for all of them. */
+interface ProbeState {
+  pending: string;
+  overallDeadline: number;
+}
+
+/** Asks one OSC question; resolves the color, or null for no answer. */
+type Ask = (query: string, expectedPrefix: string) => string | null;
+
 /**
  * `rgb:RRRR/GGGG/BBBB` (and the 1/2/3-digit variants) to `#rrggbb`.
  * Terminals answer in 16-bit-per-channel notation; the top byte is the color.
  */
-function parseXColor(value) {
+function parseXColor(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const match = /^rgba?:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i.exec(value.trim());
   if (!match) return null;
@@ -65,7 +79,7 @@ function parseXColor(value) {
     return Math.max(0, Math.min(255, scaled));
   });
   if (channels.some((channel) => channel === null)) return null;
-  return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+  return `#${(channels as number[]).map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /**
@@ -74,7 +88,10 @@ function parseXColor(value) {
  * A reply is only complete once its terminator arrives, so a half-read answer
  * waits for the rest of the bytes instead of being parsed out of a fragment.
  */
-function findOscColorReply(text, expectedPrefix) {
+function findOscColorReply(
+  text: unknown,
+  expectedPrefix: string,
+): { color: string; start: number; end: number } | null {
   if (typeof text !== 'string') return null;
   const start = text.indexOf(`${expectedPrefix};`);
   if (start === -1) return null;
@@ -98,7 +115,7 @@ function findOscColorReply(text, expectedPrefix) {
 }
 
 /** Pulls the color out of one OSC reply. */
-function parseOscColorReply(reply, expectedPrefix) {
+function parseOscColorReply(reply: unknown, expectedPrefix: string): string | null {
   return findOscColorReply(reply, expectedPrefix)?.color ?? null;
 }
 
@@ -106,7 +123,7 @@ function parseOscColorReply(reply, expectedPrefix) {
 const sanitizePalette = sanitizeTerminalPalette;
 
 /** Reads a palette a parent process already captured, so children never re-probe. */
-function paletteFromEnvironment(env = process.env) {
+function paletteFromEnvironment(env: NodeJS.ProcessEnv = process.env): HostTerminalPalette | null {
   const raw = env.HERDR_TERM_PALETTE_JSON;
   if (!raw) return null;
   try {
@@ -116,7 +133,7 @@ function paletteFromEnvironment(env = process.env) {
   }
 }
 
-function runStty(args, ttyPath) {
+function runStty(args: string[], ttyPath: string) {
   return spawnSync('stty', [...args, '-F', ttyPath], { encoding: 'utf8', timeout: 1000 });
 }
 
@@ -127,7 +144,7 @@ function runStty(args, ttyPath) {
  * bytes of its own; dropping everything on a match would throw away replies
  * the next query is still waiting for.
  */
-function takeOscColorReply(state, expectedPrefix) {
+function takeOscColorReply(state: ProbeState, expectedPrefix: string): string | null {
   const found = findOscColorReply(state.pending, expectedPrefix);
   if (!found) return null;
   state.pending = state.pending.slice(0, found.start) + state.pending.slice(found.end);
@@ -151,8 +168,8 @@ function takeOscColorReply(state, expectedPrefix) {
  * terminal that answers none of the first four questions is left alone rather
  * than asked fifteen more times.
  */
-function collectPalette(ask) {
-  const palette = {};
+function collectPalette(ask: Ask): HostTerminalPalette | null {
+  const palette: HostTerminalPalette = {};
 
   const foreground = ask('\x1b]10;?\x1b\\', '\x1b]10');
   if (foreground) palette.foreground = foreground;
@@ -161,13 +178,13 @@ function collectPalette(ask) {
   const cursor = ask('\x1b]12;?\x1b\\', '\x1b]12');
   if (cursor) palette.cursor = cursor;
 
-  const ansi = {};
+  const ansi: Partial<HostAnsiPalette> = {};
   for (let slot = 0; slot < ANSI_SLOTS; slot += 1) {
     const color = ask(`\x1b]4;${slot};?\x1b\\`, `\x1b]4;${slot}`);
     if (!color) break;
     ansi[ANSI_KEYS[slot]] = color;
   }
-  if (Object.keys(ansi).length === ANSI_SLOTS) palette.ansi = ansi;
+  if (Object.keys(ansi).length === ANSI_SLOTS) palette.ansi = ansi as HostAnsiPalette;
 
   return sanitizePalette(palette);
 }
@@ -177,7 +194,12 @@ function collectPalette(ask) {
  * Anything the terminal volunteers in the meantime is kept in `pending` so a
  * late reply is still matched to the query it belongs to.
  */
-function askTerminal(fd, query, expectedPrefix, state) {
+function askTerminal(
+  fd: number,
+  query: string,
+  expectedPrefix: string,
+  state: ProbeState,
+): string | null {
   fs.writeSync(fd, query);
   const buffer = Buffer.alloc(256);
   let idleReads = 0;
@@ -190,7 +212,7 @@ function askTerminal(fd, query, expectedPrefix, state) {
       // Blocking, but bounded by VTIME: it returns 0 when the terminal is quiet.
       bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null);
     } catch (error) {
-      if (error.code === 'EAGAIN') {
+      if ((error as NodeJS.ErrnoException).code === 'EAGAIN') {
         idleReads += 1;
         continue;
       }
@@ -213,11 +235,14 @@ function askTerminal(fd, query, expectedPrefix, state) {
  * Returns `null` — never a guess — when there is no terminal, when the
  * terminal stays silent, or when anything about the exchange goes wrong.
  */
-function probeTerminalPalette({ ttyPath = '/dev/tty', timeoutMs = TOTAL_TIMEOUT_MS } = {}) {
+function probeTerminalPalette({
+  ttyPath = '/dev/tty',
+  timeoutMs = TOTAL_TIMEOUT_MS,
+} = {}): HostTerminalPalette | null {
   if (process.platform === 'win32') return null;
 
-  let fd = null;
-  let savedMode = null;
+  let fd: number | null = null;
+  let savedMode: string | null = null;
   try {
     fd = fs.openSync(ttyPath, 'r+');
   } catch {
@@ -233,8 +258,9 @@ function probeTerminalPalette({ ttyPath = '/dev/tty', timeoutMs = TOTAL_TIMEOUT_
     if (runStty(['raw', '-echo', 'min', '0', 'time', READ_TIMEOUT_TENTHS], ttyPath).status !== 0)
       return null;
 
-    const state = { pending: '', overallDeadline: Date.now() + timeoutMs };
-    return collectPalette((query, prefix) => askTerminal(fd, query, prefix, state));
+    const state: ProbeState = { pending: '', overallDeadline: Date.now() + timeoutMs };
+    const tty = fd;
+    return collectPalette((query, prefix) => askTerminal(tty, query, prefix, state));
   } catch {
     return null;
   } finally {
@@ -254,12 +280,12 @@ function probeTerminalPalette({ ttyPath = '/dev/tty', timeoutMs = TOTAL_TIMEOUT_
  * workstation has not changed color just because systemd, rather than a
  * person, started it this time.
  */
-function rememberTerminalPalette(palette) {
+function rememberTerminalPalette(palette: unknown): HostTerminalPalette | null {
   const clean = sanitizePalette(palette);
   if (!clean) return null;
   try {
     ensureDir(stateDir());
-    const state = readJson(runtimeStatePath(), {});
+    const state = readJson<Record<string, unknown>>(runtimeStatePath(), {});
     writeJsonAtomic(runtimeStatePath(), { ...state, terminalPalette: clean });
   } catch {
     // A palette is a nicety; failing to remember it must not break a start.
@@ -268,9 +294,11 @@ function rememberTerminalPalette(palette) {
 }
 
 /** The palette a previous start captured from a terminal, if any. */
-function rememberedTerminalPalette() {
+function rememberedTerminalPalette(): HostTerminalPalette | null {
   try {
-    return sanitizePalette(readJson(runtimeStatePath(), {}).terminalPalette);
+    return sanitizePalette(
+      readJson<{ terminalPalette?: unknown }>(runtimeStatePath(), {}).terminalPalette,
+    );
   } catch {
     return null;
   }
@@ -280,7 +308,10 @@ function rememberedTerminalPalette() {
  * The palette a service start should hand to its children: whatever a parent
  * already captured, otherwise a fresh probe of this process's terminal.
  */
-function resolveHostPalette({ env = process.env, probe = probeTerminalPalette } = {}) {
+function resolveHostPalette({
+  env = process.env,
+  probe = probeTerminalPalette as () => HostTerminalPalette | null,
+} = {}): HostTerminalPalette | null {
   return paletteFromEnvironment(env) || probe() || null;
 }
 
@@ -293,7 +324,10 @@ function resolveHostPalette({ env = process.env, probe = probeTerminalPalette } 
  * the very start of the command, means every later caller in this process tree
  * simply inherits the answer through the environment.
  */
-function captureTerminalPalette({ env = process.env, probe = probeTerminalPalette } = {}) {
+function captureTerminalPalette({
+  env = process.env,
+  probe = probeTerminalPalette as () => HostTerminalPalette | null,
+} = {}): HostTerminalPalette | null {
   if (env.HERDR_TERM_PALETTE_JSON) return paletteFromEnvironment(env);
   // Without both ends on a terminal there is nobody to answer the query.
   if (!process.stdin.isTTY || !process.stdout.isTTY) return null;

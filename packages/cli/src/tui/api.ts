@@ -98,18 +98,7 @@ export type Status = {
 
 export type Pairing = { code: string; pairUrl: string; expiresAt: number; hostId: string };
 
-/** What `checkForUpdate` answered. */
-export type UpdateCheck = {
-  ok: boolean;
-  current: string;
-  latest?: string;
-  registry?: string;
-  sources?: string[];
-  behind?: { registry: string; version?: string }[];
-  updateAvailable?: boolean;
-  errorKey?: string;
-  message?: string;
-};
+export type { UpdateCheck } from '../updater.js';
 
 export type LifecycleResult = { ok?: boolean; managed: boolean; manager?: string };
 

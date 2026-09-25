@@ -104,7 +104,7 @@ export function App({
   needsWizard,
   updateChecker = updateChecksEnabled() ? (checkForUpdate as UpdateChecker) : null,
 }: {
-  initialLanguage: Locale | null;
+  initialLanguage: string | null;
   needsWizard: boolean;
   /** Asked once when the TUI opens; null turns the check off. */
   updateChecker?: UpdateChecker | null;

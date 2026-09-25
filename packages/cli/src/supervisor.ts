@@ -1,9 +1,10 @@
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
-import { loadConfig } from './config.js';
+import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process';
+import { type Config, loadConfig } from './config.js';
 import { PACKAGE_ROOT, runtimeStatePath, stateDir } from './paths.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import {
+  type RuntimeState,
   baseEnvironment,
   ensureRuntime,
   logPath,
@@ -20,6 +21,28 @@ const MAX_BACKOFF_MS = 30_000;
 // starts backing off from scratch instead of inheriting an old penalty.
 const HEALTHY_UPTIME_MS = 30_000;
 
+type ServiceSpec = ReturnType<typeof serviceSpecs>[number];
+
+/** Something the supervisor did, as it reports it. */
+export interface SupervisorEvent {
+  type: string;
+  message: string;
+  name?: string;
+  pid?: number;
+  code?: number | null;
+  signal?: NodeJS.Signals | null;
+}
+
+interface ChildEntry {
+  spec: ServiceSpec;
+  child: ChildProcess | null;
+  pid: number | null | undefined;
+  restarts: number;
+  backoffMs: number;
+  timer: NodeJS.Timeout | null;
+  startedAt?: number;
+}
+
 /**
  * Runs the relay and host connector as managed children and restarts them when
  * they die.
@@ -29,21 +52,31 @@ const HEALTHY_UPTIME_MS = 30_000;
  * fallback daemon on systems where neither is available.
  */
 class Supervisor {
+  readonly config: Config;
+  readonly state: RuntimeState;
+  readonly logToFiles: boolean;
+  readonly onEvent: ((event: SupervisorEvent) => void) | null;
+  readonly children = new Map<string, ChildEntry>();
+  stopping = false;
+
   constructor({
     config = loadConfig(),
     state = ensureRuntime(),
     logToFiles = false,
     onEvent = null,
+  }: {
+    config?: Config;
+    state?: RuntimeState;
+    logToFiles?: boolean;
+    onEvent?: ((event: SupervisorEvent) => void) | null;
   } = {}) {
     this.config = config;
     this.state = state;
     this.logToFiles = logToFiles;
     this.onEvent = onEvent;
-    this.children = new Map();
-    this.stopping = false;
   }
 
-  emit(event) {
+  emit(event: SupervisorEvent): void {
     if (this.onEvent) this.onEvent(event);
     const line = `[${new Date().toISOString()}] herdr-remote supervisor: ${event.message}\n`;
     process.stdout.write(line);
@@ -58,7 +91,7 @@ class Supervisor {
    * connector and ours both claimed the same host id on the relay and kicked
    * each other off — which is what browsers saw as an endless reconnect.
    */
-  async reclaimStrays({ timeoutMs = 5000 } = {}) {
+  async reclaimStrays({ timeoutMs = 5000 } = {}): Promise<{ name: string; pid: number }[]> {
     const strays = managedPids().filter((entry) => entry.pid !== process.pid);
     if (strays.length === 0) return strays;
 
@@ -98,7 +131,7 @@ class Supervisor {
     return strays;
   }
 
-  async start() {
+  async start(): Promise<void> {
     this.stopping = false;
     ensureDir(stateDir());
     await this.reclaimStrays();
@@ -117,19 +150,19 @@ class Supervisor {
     this.persistPids();
   }
 
-  spawnChild(name) {
+  spawnChild(name: string): void {
     if (this.stopping) return;
     const entry = this.children.get(name);
     if (!entry || entry.child) return;
 
-    let stdio = ['ignore', 'inherit', 'inherit'];
-    let fd = null;
+    let stdio: StdioOptions = ['ignore', 'inherit', 'inherit'];
+    let fd: number | null = null;
     if (this.logToFiles) {
       fd = fs.openSync(logPath(name), 'a');
       stdio = ['ignore', fd, fd];
     }
 
-    let child;
+    let child: ChildProcess;
     try {
       child = spawn(entry.spec.command, entry.spec.args, {
         cwd: PACKAGE_ROOT,
@@ -140,7 +173,7 @@ class Supervisor {
       this.emit({
         type: 'spawn_failed',
         name,
-        message: `could not start ${name}: ${error.message}`,
+        message: `could not start ${name}: ${(error as Error).message}`,
       });
       this.scheduleRestart(name);
       return;
@@ -165,7 +198,7 @@ class Supervisor {
     this.persistPids();
 
     child.on('exit', (code, signal) => {
-      const uptimeMs = Date.now() - entry.startedAt;
+      const uptimeMs = Date.now() - (entry.startedAt ?? Date.now());
       entry.child = null;
       entry.pid = null;
       this.persistPids();
@@ -202,23 +235,24 @@ class Supervisor {
     });
   }
 
-  scheduleRestart(name) {
+  scheduleRestart(name: string): void {
     if (this.stopping) return;
     const entry = this.children.get(name);
     if (!entry || entry.timer) return;
     const delay = entry.backoffMs;
     entry.restarts += 1;
     entry.backoffMs = Math.min(MAX_BACKOFF_MS, Math.round(entry.backoffMs * 2));
-    entry.timer = setTimeout(() => {
+    const timer = setTimeout(() => {
       entry.timer = null;
       this.spawnChild(name);
     }, delay);
-    entry.timer.unref?.();
+    entry.timer = timer;
+    timer.unref?.();
   }
 
-  persistPids() {
+  persistPids(): void {
     try {
-      const current = readJson(runtimeStatePath(), {});
+      const current = readJson<Partial<RuntimeState>>(runtimeStatePath(), {});
       current.supervisorPid = process.pid;
       current.relayPid = this.children.get('relay')?.pid || null;
       current.hostPid = this.children.get('host')?.pid || null;
@@ -233,13 +267,15 @@ class Supervisor {
       }
       writeJsonAtomic(runtimeStatePath(), current);
     } catch (error) {
-      process.stderr.write(`herdr-remote supervisor: could not persist pids: ${error.message}\n`);
+      process.stderr.write(
+        `herdr-remote supervisor: could not persist pids: ${(error as Error).message}\n`,
+      );
     }
   }
 
-  async stop({ graceMs = 5000 } = {}) {
+  async stop({ graceMs = 5000 } = {}): Promise<void> {
     this.stopping = true;
-    const pending = [];
+    const pending: Promise<void>[] = [];
     for (const entry of this.children.values()) {
       if (entry.timer) {
         clearTimeout(entry.timer);
@@ -248,7 +284,7 @@ class Supervisor {
       const child = entry.child;
       if (!child) continue;
       pending.push(
-        new Promise((resolve) => {
+        new Promise<void>((resolve) => {
           const killTimer = setTimeout(() => {
             try {
               child.kill('SIGKILL');
@@ -270,7 +306,7 @@ class Supervisor {
     }
     await Promise.all(pending);
     try {
-      const current = readJson(runtimeStatePath(), {});
+      const current = readJson<Partial<RuntimeState>>(runtimeStatePath(), {});
       current.supervisorPid = null;
       current.relayPid = null;
       current.hostPid = null;
@@ -284,13 +320,13 @@ class Supervisor {
 }
 
 /** Entry point for `herdr-remote run`: supervise in the foreground until told to stop. */
-async function runForeground({ logToFiles = false } = {}) {
+async function runForeground({ logToFiles = false } = {}): Promise<number> {
   const supervisor = new Supervisor({ logToFiles });
   await supervisor.start();
 
   return new Promise((resolve) => {
     let shuttingDown = false;
-    const shutdown = async (signal) => {
+    const shutdown = async (signal: string) => {
       if (shuttingDown) return;
       shuttingDown = true;
       supervisor.emit({ type: 'shutdown', message: `${signal} received, stopping services` });

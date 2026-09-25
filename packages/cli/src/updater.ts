@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { PACKAGE_ROOT } from './paths.js';
 
 const PACKAGE_NAME = 'herdr-remote';
@@ -24,7 +24,48 @@ const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
  */
 const MIRROR_REGISTRY = 'https://registry.npmmirror.com';
 
-function currentVersion() {
+export type InstallKind = 'npm' | 'linked' | 'source';
+
+type FetchLike = (
+  url: string,
+  init: { signal: AbortSignal; headers: Record<string, string> },
+) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
+
+type SpawnLike = (command: string, args: string[], options: { timeout: number }) => ChildProcess;
+
+/** What `checkForUpdate` answered. */
+export interface UpdateCheck {
+  ok: boolean;
+  current: string;
+  latest?: string;
+  /** The preferred registry that carries `latest`. */
+  registry?: string;
+  /** Every registry that carries `latest`, preferred first. */
+  sources?: string[];
+  /** Registries still on an older release. */
+  behind?: { registry: string; version?: string }[];
+  updateAvailable?: boolean;
+  errorKey?: string;
+  message?: string;
+  triedRegistries?: string[];
+}
+
+/** What `performUpdate` did. */
+export interface UpdateResult {
+  ok: boolean;
+  errorKey?: string;
+  installed?: string | null;
+  output?: string;
+  summary?: string;
+}
+
+interface NpmRun {
+  ok: boolean;
+  output: string;
+  spawnFailed?: boolean;
+}
+
+function currentVersion(): string {
   try {
     return JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8')).version;
   } catch {
@@ -42,7 +83,7 @@ function currentVersion() {
  * The distinction is drawn from the path rather than from npm, which would
  * mean shelling out on every render.
  */
-function installKind() {
+function installKind(): InstallKind {
   const root = PACKAGE_ROOT;
   // A real install always lives inside a node_modules tree.
   if (!root.split(path.sep).includes('node_modules')) return 'source';
@@ -56,15 +97,15 @@ function installKind() {
 }
 
 /** `HERDR_REMOTE_UPDATE_CHECK=0` turns the automatic checks off (offline machines, tests). */
-function updateChecksEnabled(env = process.env) {
+function updateChecksEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.HERDR_REMOTE_UPDATE_CHECK !== '0';
 }
 
-function canSelfUpdate() {
+function canSelfUpdate(): boolean {
   return installKind() === 'npm';
 }
 
-function normalizeRegistry(value) {
+function normalizeRegistry(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim().replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(trimmed)) return null;
@@ -72,8 +113,8 @@ function normalizeRegistry(value) {
 }
 
 /** The `registry=` line from an npmrc file, if it has one. */
-function registryFromNpmrc(filePath) {
-  let contents;
+function registryFromNpmrc(filePath: string): string | null {
+  let contents: string;
   try {
     contents = fs.readFileSync(filePath, 'utf8');
   } catch {
@@ -99,9 +140,17 @@ function registryFromNpmrc(filePath) {
  * `npm install` works. The public registry and then a public mirror follow, so
  * a private registry that does not carry this package is not the end of it.
  */
-function registryCandidates({ env = process.env, home = os.homedir(), cwd = process.cwd() } = {}) {
-  const candidates = [];
-  const add = (value) => {
+function registryCandidates({
+  env = process.env,
+  home = os.homedir(),
+  cwd = process.cwd(),
+}: {
+  env?: NodeJS.ProcessEnv;
+  home?: string;
+  cwd?: string;
+} = {}): string[] {
+  const candidates: string[] = [];
+  const add = (value: unknown) => {
     const normalized = normalizeRegistry(value);
     if (normalized && !candidates.includes(normalized)) candidates.push(normalized);
   };
@@ -118,8 +167,8 @@ function registryCandidates({ env = process.env, home = os.homedir(), cwd = proc
 }
 
 /** Compare two `MAJOR.MINOR.PATCH` strings. Returns 1, -1 or 0. */
-function compareVersions(a, b) {
-  const parse = (value) =>
+function compareVersions(a: string, b: string): number {
+  const parse = (value: string) =>
     String(value)
       .split('-')[0]
       .split('.')
@@ -135,7 +184,10 @@ function compareVersions(a, b) {
 }
 
 /** One JSON request with a deadline. Never throws. */
-async function fetchJson(url, { timeoutMs, fetchImpl }) {
+async function fetchJson(
+  url: string,
+  { timeoutMs, fetchImpl }: { timeoutMs: number; fetchImpl: FetchLike },
+): Promise<{ ok: true; body: unknown } | { ok: false; message: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -146,9 +198,10 @@ async function fetchJson(url, { timeoutMs, fetchImpl }) {
     if (!response.ok) return { ok: false, message: `HTTP ${response.status ?? '?'}` };
     return { ok: true, body: await response.json() };
   } catch (error) {
+    const failure = error as Error | undefined;
     return {
       ok: false,
-      message: error?.name === 'AbortError' ? 'timed out' : String(error?.message || error),
+      message: failure?.name === 'AbortError' ? 'timed out' : String(failure?.message || error),
     };
   } finally {
     clearTimeout(timer);
@@ -164,12 +217,19 @@ async function fetchJson(url, { timeoutMs, fetchImpl }) {
  * format, which npmjs refuses on that path with a 406, so every check quietly
  * fell through to a mirror that had not synced the release yet.
  */
-async function askRegistry(registry, { timeoutMs, fetchImpl }) {
+async function askRegistry(
+  registry: string,
+  { timeoutMs, fetchImpl }: { timeoutMs: number; fetchImpl: FetchLike },
+): Promise<{ ok: true; latest: string } | { ok: false; message: string | null }> {
+  type Body = { latest?: unknown; version?: unknown } | null | undefined;
   const endpoints = [
-    { url: `${registry}/-/package/${PACKAGE_NAME}/dist-tags`, read: (body) => body?.latest },
-    { url: `${registry}/${PACKAGE_NAME}/latest`, read: (body) => body?.version },
+    {
+      url: `${registry}/-/package/${PACKAGE_NAME}/dist-tags`,
+      read: (body: unknown) => (body as Body)?.latest,
+    },
+    { url: `${registry}/${PACKAGE_NAME}/latest`, read: (body: unknown) => (body as Body)?.version },
   ];
-  let message = null;
+  let message: string | null = null;
   for (const endpoint of endpoints) {
     const attempt = await fetchJson(endpoint.url, { timeoutMs, fetchImpl });
     if (!attempt.ok) {
@@ -199,7 +259,11 @@ async function checkForUpdate({
   timeoutMs = 6000,
   fetchImpl = globalThis.fetch,
   registries = registryCandidates(),
-} = {}) {
+}: {
+  timeoutMs?: number;
+  fetchImpl?: FetchLike;
+  registries?: string[];
+} = {}): Promise<UpdateCheck> {
   const current = currentVersion();
   const attempts = await Promise.all(
     registries.map(async (registry) => ({
@@ -207,7 +271,9 @@ async function checkForUpdate({
       ...(await askRegistry(registry, { timeoutMs, fetchImpl })),
     })),
   );
-  const answers = attempts.filter((attempt) => attempt.ok);
+  const answers = attempts.filter(
+    (attempt): attempt is { registry: string; ok: true; latest: string } => attempt.ok,
+  );
 
   if (answers.length === 0) {
     // The reason is carried out with the failure. "Could not reach npm
@@ -217,7 +283,9 @@ async function checkForUpdate({
       ok: false,
       current,
       errorKey: 'update.errorNetwork',
-      message: attempts.map((attempt) => `${attempt.registry}: ${attempt.message}`).join('; '),
+      message: attempts
+        .map((attempt) => `${attempt.registry}: ${'message' in attempt ? attempt.message : ''}`)
+        .join('; '),
       triedRegistries: registries,
     };
   }
@@ -244,7 +312,7 @@ async function checkForUpdate({
 }
 
 /** Just the lines npm meant for a person: its `npm error` / `npm ERR!` summary. */
-function npmErrorSummary(output) {
+function npmErrorSummary(output: unknown): string {
   const lines = String(output || '')
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -262,12 +330,12 @@ function npmErrorSummary(output) {
 }
 
 /** "No matching version": the registry has not caught up with its own dist-tag. */
-function isNotYetPublished(output) {
+function isNotYetPublished(output: unknown): boolean {
   return /\bETARGET\b|notarget|No matching version found/i.test(String(output || ''));
 }
 
 /** What is actually installed now, read from disk rather than the require cache. */
-function installedVersionOnDisk() {
+function installedVersionOnDisk(): string | null {
   try {
     return JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8')).version;
   } catch {
@@ -275,24 +343,28 @@ function installedVersionOnDisk() {
   }
 }
 
-function runNpm(spawnImpl, args, timeoutMs) {
+function runNpm(spawnImpl: SpawnLike, args: string[], timeoutMs: number): Promise<NpmRun> {
   return new Promise((resolve) => {
-    let child;
+    let child: ChildProcess;
     try {
       child = spawnImpl('npm', args, { timeout: timeoutMs });
     } catch (error) {
-      resolve({ ok: false, spawnFailed: true, output: String(error?.message || error) });
+      resolve({
+        ok: false,
+        spawnFailed: true,
+        output: String((error as Error | undefined)?.message || error),
+      });
       return;
     }
     let output = '';
     let settled = false;
-    const finish = (result) => {
+    const finish = (result: NpmRun) => {
       if (!settled) {
         settled = true;
         resolve(result);
       }
     };
-    const collect = (chunk) => {
+    const collect = (chunk: Buffer | string) => {
       output += String(chunk);
     };
     child.stdout?.on('data', collect);
@@ -319,21 +391,6 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  *   That is a wait, not a failure, so it is retried a few times, then the next
  *   registry that carries the version is tried.
  * - Success is what is on disk afterwards, not npm's exit code.
- *
- * @param {{
- *   spawnImpl?: Function,
- *   timeoutMs?: number,
- *   installKindImpl?: () => string,
- *   registry?: string,
- *   sources?: string[],
- *   version?: string | null,
- *   attempts?: number,
- *   retryDelayMs?: number,
- *   sleep?: (ms: number) => Promise<unknown>,
- *   readInstalledVersion?: () => string | null,
- *   onAttempt?: (progress: { registry: string, attempt: number }) => void,
- * }} [options]
- * @returns {Promise<{ ok: boolean, errorKey?: string, installed?: string | null, output?: string, summary?: string }>}
  */
 async function performUpdate({
   spawnImpl = spawn,
@@ -348,23 +405,35 @@ async function performUpdate({
   version = null,
   attempts = 3,
   retryDelayMs = 15_000,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
   readInstalledVersion = installedVersionOnDisk,
   onAttempt = () => {},
-} = {}) {
+}: {
+  spawnImpl?: SpawnLike;
+  timeoutMs?: number;
+  installKindImpl?: () => InstallKind;
+  registry?: string;
+  sources?: string[];
+  version?: string | null;
+  attempts?: number;
+  retryDelayMs?: number;
+  sleep?: (ms: number) => Promise<unknown>;
+  readInstalledVersion?: () => string | null;
+  onAttempt?: (progress: { registry: string; attempt: number }) => void;
+} = {}): Promise<UpdateResult> {
   const kind = installKindImpl();
   if (kind !== 'npm') return { ok: false, errorKey: `update.cannot.${kind}` };
 
   const target = typeof version === 'string' && VERSION_PATTERN.test(version) ? version : null;
   const spec = `${PACKAGE_NAME}@${target || 'latest'}`;
-  const registries = [];
+  const registries: string[] = [];
   for (const candidate of [registry, ...sources]) {
     const normalized = normalizeRegistry(candidate);
     if (normalized && !registries.includes(normalized)) registries.push(normalized);
   }
   if (registries.length === 0) registries.push('');
 
-  let last = { output: '' };
+  let last: NpmRun = { ok: false, output: '' };
   let notYetPublished = false;
   for (const source of registries) {
     for (let attempt = 1; attempt <= attempts; attempt += 1) {

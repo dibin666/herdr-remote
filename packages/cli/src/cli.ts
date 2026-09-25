@@ -10,7 +10,8 @@ import path from 'node:path';
 import { LANGUAGES, loadConfig, migrateLegacyConfig } from './config.js';
 import { PACKAGE_ROOT, configPath, stateDir } from './paths.js';
 import { resolvePublicUrl } from './relay-urls.js';
-import { createTranslator, detectLocale } from './i18n/index.js';
+import { type Translate, createTranslator, detectLocale } from './i18n/index.js';
+import type { fullStatus } from './lifecycle.js';
 import { preferredLanAddress } from './net-interfaces.js';
 
 const VERSION = JSON.parse(
@@ -42,9 +43,21 @@ Options:
 Self-hosting: docs/self-hosted-relay.md
 `;
 
-function parseArgs(argv) {
-  const positional = [];
-  const flags = {};
+/** Flags the command line understands; `unknown` is the last one it did not. */
+export interface CliFlags {
+  json?: boolean;
+  daemon?: boolean;
+  help?: boolean;
+  version?: boolean;
+  lang?: string;
+  unknown?: string;
+}
+
+type FullStatus = Awaited<ReturnType<typeof fullStatus>>;
+
+function parseArgs(argv: string[]): { positional: string[]; flags: CliFlags } {
+  const positional: string[] = [];
+  const flags: CliFlags = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--json') {
@@ -81,12 +94,12 @@ function parseArgs(argv) {
   return { positional, flags };
 }
 
-function printJson(value) {
+function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-function describeStatus(status, t) {
-  const lines = [];
+function describeStatus(status: FullStatus, t: Translate): string {
+  const lines: string[] = [];
   lines.push(`${t('overview.mode')}: ${t(`mode.${status.mode}`)}`);
   if (status.relay.local) {
     lines.push(
@@ -118,7 +131,7 @@ function describeStatus(status, t) {
   return lines.join('\n');
 }
 
-async function runTui(options) {
+async function runTui(options: { language: string | null }): Promise<void> {
   const { startTui } = await import('./tui/index.js');
   await startTui(options);
 }
@@ -140,7 +153,10 @@ async function main(argv = process.argv.slice(2)) {
   (await import('./terminal-font.js')).captureTerminalFont();
 
   const config = loadConfig();
-  const preference = flags.lang && LANGUAGES.includes(flags.lang) ? flags.lang : config.ui.language;
+  const preference =
+    flags.lang && (LANGUAGES as readonly string[]).includes(flags.lang)
+      ? flags.lang
+      : config.ui.language;
   const t = createTranslator(detectLocale({ preference }));
 
   if (flags.help) {

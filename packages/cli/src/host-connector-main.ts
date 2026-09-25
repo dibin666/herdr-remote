@@ -7,8 +7,9 @@ const connector = new HostConnector();
 try {
   connector.start();
 } catch (error) {
-  process.stderr.write(`herdr-remote host connector failed: ${error.message}\n`);
-  process.exitCode = error.code === 'HOST_ALREADY_RUNNING' ? EXIT_REPLACED : 1;
+  const { code, message } = error as NodeJS.ErrnoException;
+  process.stderr.write(`herdr-remote host connector failed: ${message}\n`);
+  process.exitCode = code === 'HOST_ALREADY_RUNNING' ? EXIT_REPLACED : 1;
 }
 const stop = () => {
   connector.stop();

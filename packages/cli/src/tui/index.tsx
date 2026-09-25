@@ -8,7 +8,8 @@ import { configExists, type Locale } from './api.js';
 export { App } from './App.js';
 export { Wizard } from './screens/Wizard.js';
 
-export type StartTuiOptions = { language?: Locale | null };
+/** `language` comes straight from `--lang`; detectLocale ignores one it does not know. */
+export type StartTuiOptions = { language?: string | null };
 
 export async function startTui({ language = null }: StartTuiOptions = {}): Promise<void> {
   const needsWizard = !configExists();
