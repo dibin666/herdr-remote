@@ -363,7 +363,7 @@ describe('Phone control sheet', () => {
     setVisualViewport(null);
   });
 
-  it('reaches connection status, the shared-session state, settings, pairing and Admin', async () => {
+  it('reaches connection status, the shared-session state, settings and pairing', async () => {
     await renderPhoneApp();
     openSession('controller');
 
@@ -383,9 +383,10 @@ describe('Phone control sheet', () => {
     expect(
       within(sheet).getByRole('button', { name: /Connection & pairing|Connection and Pairing Settings/i })
     ).toBeInTheDocument();
+    // The dashboard is reached through Settings, not from the sheet.
     expect(
-      within(sheet).getByRole('button', { name: /Admin dashboard|Open Admin dashboard/i })
-    ).toBeInTheDocument();
+      within(sheet).queryByRole('button', { name: /Admin dashboard|Open Admin dashboard/i })
+    ).toBeNull();
   });
 
   it('reports how many windows share the terminal', async () => {
@@ -494,10 +495,13 @@ describe('Phone control sheet', () => {
 
     const sheet = await openSheet();
     await act(async () => {
-      fireEvent.click(within(sheet).getByRole('button', { name: /Admin dashboard|Open Admin dashboard/i }));
+      fireEvent.click(within(sheet).getByRole('button', { name: /Terminal Settings/i }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Open$/ }));
     });
 
-    expect(await screen.findByText(/Admin Dashboard|System Administration/i)).toBeInTheDocument();
+    expect(await screen.findByTestId('admin-layer')).toBeInTheDocument();
     // The sheet gets out of the way, and the terminal is hidden but mounted.
     expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
     expect(xtermInstances.length).toBe(1);
@@ -623,8 +627,9 @@ describe('Desktop shell is untouched by the phone layout', () => {
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Admin$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Terminal$/i })).toBeInTheDocument();
+    // The Admin tab appears only while the dashboard is open; Settings leads there.
+    expect(screen.queryByRole('button', { name: /^Admin$/i })).toBeNull();
 
     // No phone chrome anywhere.
     expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();

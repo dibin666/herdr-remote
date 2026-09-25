@@ -31,8 +31,6 @@ const actionActive = 'border-tui-accent bg-tui-accent text-tui-crust';
 interface HeaderProps {
   currentView: 'terminal' | 'admin';
   onNavigate: (view: 'terminal' | 'admin') => void;
-  /** False on operator-facing relays, where visitors get no dashboard signpost. */
-  showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
   onToggleVirtualKeyboard: () => void;
@@ -42,7 +40,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
-  showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
   onToggleVirtualKeyboard,
@@ -63,7 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const tabs = [
     { id: 'terminal', label: t('header.terminalTab'), index: 1, ariaLabel: t('header.terminalTab') },
-    ...(showAdminEntry || currentView === 'admin'
+    // The dashboard is entered from Settings. Its tab appears only while it is
+    // open, to say where you are; `1` beside it is the way back.
+    ...(currentView === 'admin'
       ? [{ id: 'admin', label: t('header.adminTab'), index: 2, ariaLabel: t('header.adminTab') }]
       : []),
   ];

@@ -93,6 +93,9 @@ describe('UI Components', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText(/Admin Dashboard/i)).toBeInTheDocument();
+    // The app header names the view; the board opens on its own tabs.
+    expect(await screen.findByLabelText('Overview')).toBeInTheDocument();
+    expect(screen.getByLabelText('PTY Sessions (1)')).toBeInTheDocument();
+    expect(screen.getByText('Active Users')).toBeInTheDocument();
   });
 });

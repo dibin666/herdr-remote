@@ -121,7 +121,6 @@ describe('Panels open without moving the page', () => {
       <TerminalProvider>
         <ContextCapture onReady={(context) => { terminalContext = context; }} />
         <MobileTerminalShell
-          onNavigateAdmin={() => {}}
           onOpenPairing={() => {}}
           onOpenSettings={() => {}}
         />
@@ -173,7 +172,6 @@ describe('Panels open without moving the page', () => {
     render(
       <TerminalProvider>
         <MobileTerminalShell
-          onNavigateAdmin={() => {}}
           onOpenPairing={() => {}}
           onOpenSettings={() => {}}
         />
@@ -218,7 +216,6 @@ describe('Panels open without moving the page', () => {
     render(
       <TerminalProvider>
         <MobileTerminalShell
-          onNavigateAdmin={() => {}}
           onOpenPairing={() => {}}
           onOpenSettings={onOpenSettings}
         />

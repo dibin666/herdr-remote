@@ -3,30 +3,25 @@ import { ConnectedClientInfo } from '../../types/admin';
 import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
 import { Badge, Column, Panel, StatusDot, Table } from '../tui';
+import { formatBytes, formatRelative, formatTimestamp } from './format';
 
 interface ClientsTableProps {
   clients: ConnectedClientInfo[];
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
-
 /**
- * Who is attached right now.
+ * Who is attached right now, and to which workstation.
  *
  * Every row can type: the windows share one terminal, and pairing is the
  * boundary. The role column says so per row rather than being dropped, because
  * "all of these can type" is the security-relevant fact an operator is here to
  * check — and a relay too old to have been updated would still show a row that
- * cannot.
+ * cannot. The host column only exists on the operator's relay-wide view; a
+ * workstation's own view is all one host.
  */
 export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
   const { t } = useTerminal();
+  const showHost = clients.some((client) => client.hostId);
 
   const columns: Column<ConnectedClientInfo>[] = [
     {
@@ -39,14 +34,21 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
         </span>
       ),
     },
+    ...(showHost
+      ? [{
+        key: 'host',
+        header: t('admin.colHost'),
+        render: (c: ConnectedClientInfo) => <span className="text-tui-text">{c.hostId || '—'}</span>,
+      }]
+      : []),
     {
       key: 'role',
       header: t('admin.colRole'),
-      width: 12,
+      width: 10,
       render: (c) => {
         const isController = c.role === 'controller';
         return (
-          <Badge tone={isController ? 'ok' : 'warn'}>
+          <Badge tone={isController ? 'ok' : 'warn'} className="text-tui-sm">
             {isController ? t('common.controller') : t('common.viewer')}
           </Badge>
         );
@@ -57,14 +59,14 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
       header: t('admin.colDevice'),
       render: (c) => {
         const device = describeUserAgent(c.userAgent);
-        if (!device.label) {
-          return <span className="text-tui-faint">{t('admin.unknownDevice')}</span>;
-        }
         // The full agent string stays reachable on hover; the cell itself shows
-        // only what tells devices apart.
+        // only what tells devices apart, and which pairing it signed in with.
         return (
-          <span className="text-tui-muted" title={device.raw}>
-            {device.label}
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className={device.label ? 'text-tui-text' : 'text-tui-faint'} title={device.raw}>
+              {device.label || t('admin.unknownDevice')}
+            </span>
+            {c.deviceId ? <code className="text-tui-sm text-tui-faint">{c.deviceId}</code> : null}
           </span>
         );
       },
@@ -78,8 +80,8 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
       key: 'connectedAt',
       header: t('admin.colConnectedAt'),
       render: (c) => (
-        <span className="text-tui-muted">
-          {c.connectedAt ? new Date(c.connectedAt).toLocaleTimeString() : t('admin.startedRecently')}
+        <span className="whitespace-nowrap text-tui-muted" title={formatTimestamp(c.connectedAt)}>
+          {c.connectedAt ? formatRelative(c.connectedAt, t) : t('admin.startedRecently')}
         </span>
       ),
     },
@@ -89,11 +91,11 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
       align: 'right',
       render: (c) => (
         <span className="whitespace-nowrap">
-          <span className="text-tui-accent">{formatBytes(c.bytesReceived || 0)}</span>
+          <span className="text-tui-accent">↓{formatBytes(c.bytesReceived || 0)}</span>
           <span aria-hidden="true" className="mx-1 text-tui-faint">
             /
           </span>
-          <span className="text-tui-ok">{formatBytes(c.bytesSent || 0)}</span>
+          <span className="text-tui-ok">↑{formatBytes(c.bytesSent || 0)}</span>
         </span>
       ),
     },

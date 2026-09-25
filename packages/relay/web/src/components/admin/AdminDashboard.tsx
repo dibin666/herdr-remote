@@ -7,9 +7,9 @@ import { PtysTable } from './PtysTable';
 import { DevicesTable } from './DevicesTable';
 import { cn } from '../../utils/cn';
 import { copyText } from '../../utils/clipboard';
+import { formatBytes, formatUptime } from './format';
 import {
   AppFrame,
-  Badge,
   Button,
   FieldLabel,
   GLYPH,
@@ -17,10 +17,10 @@ import {
   Notice,
   Panel,
   Row,
-  Rule,
   Select,
+  Sep,
   Spinner,
-  StatusDot,
+  StatTile,
 } from '../tui';
 
 /** Resolve the active profile's relay origin without performing discovery. */
@@ -47,11 +47,20 @@ function relayEndpoint(wsUrl: string, endpoint: string): string {
 interface AdminDashboardProps {
   onBackToTerminal?: () => void;
   onOpenPairing?: () => void;
+  /**
+   * Draw a way back on the board itself. A phone has no app header above the
+   * board, so this is its only exit; a desktop has the header's `1` tab.
+   */
+  showBack?: boolean;
 }
+
+/** Compact controls on the board's toolbar share one height. */
+const TOOLBAR_FIELD = 'h-7 py-0';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onBackToTerminal,
   onOpenPairing,
+  showBack = false,
 }) => {
   const { settings, updateSettings, addToast, t } = useTerminal();
   const activeRelayOrigin = relayHttpBase(settings.wsUrl)
@@ -70,14 +79,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys' | 'devices'>('overview');
   const [copiedPairCmd, setCopiedPairCmd] = useState(false);
 
-  // Relay Operator Token for GET /api/admin/status
+  /**
+   * The relay operator token for GET /api/admin/status, in two halves: what is
+   * in the field, and what the board is signed in with. Only a submitted token
+   * is ever sent — requesting with every keystroke put "invalid token" on
+   * screen before the operator had finished typing it.
+   */
   const [adminTokenInput, setAdminTokenInput] = useState(savedAdminToken);
+  const [activeAdminToken, setActiveAdminToken] = useState(savedAdminToken);
   const [isOperatorView, setIsOperatorView] = useState(Boolean(savedAdminToken));
+
+  /**
+   * This page is being served by the relay it would administer. The detour
+   * page that explained "this is a remote relay" and linked to its dashboard
+   * then only linked back to itself, so the sign-in form is shown directly.
+   */
+  const isSameOriginRelay = !relayHttpBase(settings.wsUrl);
 
   const PAIR_COMMAND = 'node bin/service.js pair';
 
   useEffect(() => {
     setAdminTokenInput(savedAdminToken);
+    setActiveAdminToken(savedAdminToken);
     setIsOperatorView(Boolean(savedAdminToken));
     setData(null);
     setRelayInfo(null);
@@ -174,9 +197,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     // Case A: REMOTE relay
     if (isRemoteRelay) {
-      // If client has not entered/saved admin token and is not operating the relay:
-      // NEVER request /api/status! Do not pretend to be local workstation.
-      if (!isOperatorView && !adminTokenInput) {
+      // Without a submitted admin token there is nothing to ask for, and a
+      // remote relay's /api/status is never requested in its place.
+      if (!activeAdminToken) {
         setData(null);
         setLoading(false);
         setError(null);
@@ -190,7 +213,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const targetEndpoint = relayEndpoint(settings.wsUrl, relayInfo?.adminStatusPath || '/api/admin/status');
         const headers: Record<string, string> = {
           Accept: 'application/json',
-          'X-Relay-Admin-Token': adminTokenInput,
+          'X-Relay-Admin-Token': activeAdminToken,
         };
 
         const res = await fetch(targetEndpoint, { headers });
@@ -263,7 +286,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [infoLoaded, isRemoteRelay, isOperatorView, adminTokenInput, relayInfo, settings.token, settings.wsUrl, activeRelayOrigin, t]);
+  }, [infoLoaded, isRemoteRelay, activeAdminToken, relayInfo, settings.token, settings.wsUrl, activeRelayOrigin, t]);
 
   /**
    * Revoke a paired device. The relay drops the stored token hash and closes
@@ -274,7 +297,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const res = await fetch(relayEndpoint(settings.wsUrl, `/api/admin/devices/${encodeURIComponent(deviceId)}`), {
         method: 'DELETE',
-        headers: { Accept: 'application/json', 'X-Relay-Admin-Token': adminTokenInput },
+        headers: { Accept: 'application/json', 'X-Relay-Admin-Token': activeAdminToken },
       });
       if (!res.ok) {
         setError(t('admin.revokeFailed'));
@@ -284,7 +307,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch {
       setError(t('admin.revokeFailed'));
     }
-  }, [adminTokenInput, fetchStatus, settings.wsUrl, t]);
+  }, [activeAdminToken, fetchStatus, settings.wsUrl, t]);
 
   useEffect(() => {
     if (!infoLoaded) return;
@@ -337,34 +360,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         [activeRelayOrigin]: cleanToken,
       },
     });
+    setActiveAdminToken(cleanToken);
     setIsOperatorView(Boolean(cleanToken));
-  };
-
-  /**
-   * An uptime in the interface's own units.
-   *
-   * `1h 24m 1s` is English abbreviation, and it stayed English on a Chinese
-   * screen — which is exactly the kind of leftover that makes a translated UI
-   * read as half-translated.
-   */
-  const formatUptime = (seconds: number): string => {
-    const total = Math.max(0, Math.floor(seconds));
-    const days = Math.floor(total / 86400);
-    const hours = Math.floor((total % 86400) / 3600);
-    const mins = Math.floor((total % 3600) / 60);
-    const secs = total % 60;
-    const unit = (value: number, key: string) => `${value}${t(`admin.unit${key}`)}`;
-    if (days > 0) return [unit(days, 'Day'), unit(hours, 'Hour'), unit(mins, 'Minute')].join(' ');
-    if (hours > 0) return [unit(hours, 'Hour'), unit(mins, 'Minute'), unit(secs, 'Second')].join(' ');
-    return [unit(mins, 'Minute'), unit(secs, 'Second')].join(' ');
-  };
-
-  const formatBytes = (bytes: number): string => {
-    if (!bytes || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   };
 
   const handleOpenRemoteAdmin = () => {
@@ -435,65 +432,84 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fetchStatus, tabIds.join('|')]);
 
-  const frameAside = (
-    <div className="flex shrink-0 items-center gap-2">
-      {onBackToTerminal && (
-        <Button
-          variant="ghost"
-          onClick={onBackToTerminal}
-          title={t('admin.returnToTerminal')}
-          aria-label={t('admin.returnToTerminal')}
-          glyph={GLYPH.arrowLeft}
-          brackets={false}
-          className="shrink-0"
-        >
-          <span className="sr-only">{t('admin.returnToTerminal')}</span>
-        </Button>
-      )}
-      <span className="hidden text-tui-sm text-tui-accent sm:inline">
-        v{relayInfo?.version || data?.version || '0.1.0'}
+  const version = relayInfo?.version || data?.version || '0.1.0';
+
+  /** Hosts the pairing roster remembers but the relay has no socket for. */
+  const offlineHostCount = data
+    ? new Set((data.devices || []).map((device) => device.hostId).filter(
+      (hostId) => hostId && !(data.hosts || []).some((host) => host.id === hostId)
+    )).size
+    : 0;
+
+  const toolbarStart = showBack && onBackToTerminal ? (
+    <Button
+      variant="ghost"
+      onClick={onBackToTerminal}
+      title={t('admin.returnToTerminal')}
+      aria-label={t('admin.returnToTerminal')}
+      glyph={GLYPH.arrowLeft}
+      brackets={false}
+      className={TOOLBAR_FIELD}
+    >
+      <span className="sr-only">{t('admin.returnToTerminal')}</span>
+    </Button>
+  ) : null;
+
+  /* The board's own controls, on the tab row: where the relay is, and how
+     often to ask it. They only mean something once there is data to refresh. */
+  const toolbarAside = (
+    <>
+      <span className="hidden items-center gap-1.5 whitespace-nowrap text-tui-sm sm:flex">
+        <span className="text-tui-faint">v{version}</span>
+        <Sep />
+        <span className={isRemoteRelay ? 'text-tui-alt' : 'text-tui-ok'}>
+          {isRemoteRelay ? t('admin.modeRemote') : t('admin.localWorkstationBadge')}
+        </span>
       </span>
-      <Badge tone={isRemoteRelay ? 'alt' : 'ok'}>
-        {isRemoteRelay ? t('admin.modeRemote') : t('admin.localWorkstationBadge')}
-      </Badge>
-      <label className="hidden items-center gap-1.5 text-tui-sm text-tui-muted md:flex">
-        <span>{t('admin.autoRefresh')}</span>
-        <Select
-          value={refreshInterval}
-          onChange={(e) => setRefreshInterval(Number(e.target.value))}
-          aria-label={t('admin.autoRefresh')}
-          className="w-auto"
-        >
-          <option value={0}>{t('admin.paused')}</option>
-          <option value={1000}>1s</option>
-          <option value={3000}>3s</option>
-          <option value={5000}>5s</option>
-          <option value={10000}>10s</option>
-        </Select>
-      </label>
-      <Button
-        variant="primary"
-        onClick={fetchStatus}
-        disabled={loading}
-        title={t('admin.refreshNow')}
-      >
-        {loading ? <Spinner /> : t('admin.refreshNow')}
-      </Button>
-    </div>
+      {data ? (
+        <>
+          <label className="hidden items-center gap-1.5 text-tui-sm text-tui-muted md:flex">
+            <span>{t('admin.autoRefresh')}</span>
+            <Select
+              value={refreshInterval}
+              onChange={(e) => setRefreshInterval(Number(e.target.value))}
+              aria-label={t('admin.autoRefresh')}
+              className={cn('w-auto', TOOLBAR_FIELD)}
+            >
+              <option value={0}>{t('admin.paused')}</option>
+              <option value={1000}>1s</option>
+              <option value={3000}>3s</option>
+              <option value={5000}>5s</option>
+              <option value={10000}>10s</option>
+            </Select>
+          </label>
+          <Button
+            variant="primary"
+            onClick={fetchStatus}
+            disabled={loading}
+            title={t('admin.refreshNow')}
+            className={TOOLBAR_FIELD}
+          >
+            {loading ? <Spinner /> : t('admin.refreshNow')}
+          </Button>
+        </>
+      ) : null}
+    </>
   );
+
+  const showRemoteGuide = infoLoaded && isRemoteRelay && !isOperatorView && !isSameOriginRelay;
+  const showOperatorSignIn = infoLoaded && isRemoteRelay && (isOperatorView || isSameOriginRelay) && !data;
 
   return (
     <AppFrame
-      name={t('admin.title')}
-      tagline={t('admin.subtitle')}
-      aside={frameAside}
       tabs={tabs}
       activeTabId={activeTab}
       onSelectTab={(id) => setActiveTab(id as typeof activeTab)}
       tabsAriaLabel={t('header.mainNavigationAria')}
+      toolbarStart={toolbarStart}
+      toolbarAside={toolbarAside}
       hints={[
-        { keys: '1–4', action: t('admin.hintTabs') },
-        { keys: 'r', action: t('admin.hintRefresh') },
+        ...(data ? [{ keys: '1–4', action: t('admin.hintTabs') }, { keys: 'r', action: t('admin.hintRefresh') }] : []),
         ...(onBackToTerminal ? [{ keys: 'esc', action: t('admin.hintBack') }] : []),
       ]}
       footerAside={
@@ -512,13 +528,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* Remote relay, seen from a client: this is not your dashboard. */}
-      {infoLoaded && isRemoteRelay && !isOperatorView && (
-        <Panel
-          title={t('admin.remoteRelayTitle')}
-          aside={t('admin.remoteRelayBadge')}
-          bodyClassName="space-y-2"
-        >
+      {/* A remote relay reached through a profile on another origin: say where
+          its own dashboard is, or sign in to it from here. */}
+      {showRemoteGuide && (
+        <Panel title={t('admin.remoteRelayTitle')} bodyClassName="space-y-2">
           <p className="text-tui leading-snug text-tui-muted">{t('admin.remoteRelayNotice')}</p>
 
           <div className="space-y-0.5 border border-tui-border-dim bg-tui-mantle px-2 py-1.5">
@@ -530,30 +543,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </Row>
           </div>
 
-          <Rule />
-
-          <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-            <p className="text-tui-sm leading-snug text-tui-faint">{t('admin.remoteRelayHelp')}</p>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button onClick={() => setIsOperatorView(true)}>
-                {t('admin.relayAdminLoginBtn')}
-              </Button>
-              <Button variant="primary" onClick={handleOpenRemoteAdmin} glyph={GLYPH.arrowRight}>
-                {t('admin.openRemoteAdminBtn')}
-              </Button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" onClick={handleOpenRemoteAdmin} glyph={GLYPH.arrowRight}>
+              {t('admin.openRemoteAdminBtn')}
+            </Button>
+            <Button onClick={() => setIsOperatorView(true)}>
+              {t('admin.relayAdminLoginBtn')}
+            </Button>
           </div>
         </Panel>
       )}
 
       {/* Operator sign-in for the relay-wide dashboard. */}
-      {infoLoaded && isRemoteRelay && isOperatorView && !data && (
+      {showOperatorSignIn && (
         <Panel title={t('admin.relayAdminTitle')} bodyClassName="space-y-2">
-          <Notice tone={relayInfo?.adminConfigured === false ? 'warn' : 'bad'}>
-            {relayInfo?.adminConfigured === false
-              ? t('admin.relayAdminNotConfigured')
-              : t('admin.relayAdminAuthError')}
-          </Notice>
+          {relayInfo?.adminConfigured === false ? (
+            <Notice tone="warn">{t('admin.relayAdminNotConfigured')}</Notice>
+          ) : isAuthError ? (
+            <Notice tone="bad">{t('admin.relayAdminAuthError')}</Notice>
+          ) : (
+            <Notice tone="accent">{t('admin.relayAdminPrompt')}</Notice>
+          )}
 
           <form onSubmit={handleSaveAdminToken} className="space-y-2">
             <div className="space-y-1">
@@ -563,6 +573,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <Input
                 id="relay-admin-token"
                 type="password"
+                autoComplete="current-password"
                 value={adminTokenInput}
                 onChange={(e) => setAdminTokenInput(e.target.value)}
                 placeholder={t('admin.relayAdminTokenPlaceholder')}
@@ -570,12 +581,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="primary" type="submit">
+              <Button variant="primary" type="submit" disabled={!adminTokenInput.trim()}>
                 {t('admin.relayAdminLoginBtn')}
               </Button>
-              <Button variant="ghost" onClick={() => setIsOperatorView(false)}>
-                {t('common.cancel')}
-              </Button>
+              {isSameOriginRelay ? (
+                onBackToTerminal && !showBack ? (
+                  <Button variant="ghost" onClick={onBackToTerminal}>
+                    {t('admin.returnToTerminal')}
+                  </Button>
+                ) : null
+              ) : (
+                <Button variant="ghost" onClick={() => setIsOperatorView(false)}>
+                  {t('common.cancel')}
+                </Button>
+              )}
             </div>
           </form>
         </Panel>
@@ -618,7 +637,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {/* Anything else that went wrong on the wire. */}
-      {infoLoaded && error && !isAuthError && !(!isRemoteRelay && isAuthError) && (
+      {infoLoaded && error && !isAuthError && (
         <Notice
           tone="warn"
           action={
@@ -634,94 +653,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Display Live Dashboard Data when Available */}
       {data && (
         <>
-          {/* Tab: Overview */}
           {activeTab === 'overview' && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {/*
                * A public relay's operator has two questions, and the board
-               * answers them in that order: who is attached to which
-               * workstation, and how much traffic the relay is carrying for
-               * them. The process readings that used to fill the rest of this
-               * grid — CPU, heap, event-loop delay, the cleanup tallies —
-               * describe whatever host runs the container, not the service
-               * being operated, and they crowded out the one thing only this
-               * relay can report: its hosts and their paired devices.
+               * answers them in that order: how much is attached and moving,
+               * then who is attached to which workstation. Each figure is one
+               * tile in its own colour, so the row reads at a glance; the
+               * process readings that used to sit here — CPU, heap, event-loop
+               * delay — describe whatever host runs the container, not the
+               * service being operated, and stay off the board.
                */}
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                <Panel
-                  title={t('admin.accessPanel')}
-                  aside={formatUptime(data.uptimeSeconds || 0)}
-                  bodyClassName="space-y-0.5"
-                >
-                  <Row label={t('admin.connectedHosts')} labelWidth={14}>
-                    <span className="flex items-center gap-1.5">
-                      <StatusDot level={data.hosts?.length ? 'ok' : 'idle'} />
-                      <span className="font-bold">{data.hosts?.length || 0}</span>
-                    </span>
-                  </Row>
-                  <Row label={t('admin.activeUsers')} labelWidth={14}>
-                    <span className="flex items-center gap-1.5">
-                      <StatusDot level={activeUserCount ? 'ok' : 'idle'} />
-                      <span className="font-bold">{activeUserCount}</span>
-                      <span className="text-tui-faint">
-                        {t('admin.acrossWindows', { count: data.clients?.length || 0 })}
-                      </span>
-                    </span>
-                  </Row>
-                  <Row label={t('admin.activePtys')} labelWidth={14}>
-                    <span className="font-bold">{data.ptys?.length || 0}</span>
-                    <span className="ml-1.5 text-tui-faint">{t('admin.terminalShells')}</span>
-                  </Row>
-                  <Row label={t('admin.uptime')} labelWidth={14}>
-                    <span className="text-tui-muted">
-                      {data.startTime
-                        ? t('admin.startedAt', {
-                            time: new Date(data.startTime).toLocaleTimeString(),
-                          })
-                        : t('admin.startedRecently')}
-                    </span>
-                  </Row>
-                </Panel>
-
-                <Panel
-                  title={t('admin.throughput')}
-                  aside={t('admin.perSecond', {
-                    value: formatBytes(data.throughput?.bytesOutPerSec || 0),
-                  })}
-                  bodyClassName="space-y-0.5"
-                >
-                  <Row label={t('admin.bytesInTotal')} labelWidth={13}>
-                    <span className="font-bold text-tui-accent">
-                      {formatBytes(data.throughput?.bytesIn || 0)}
-                    </span>
-                    <span className="ml-1.5 text-tui-faint">
-                      {t('admin.perSecond', {
-                        value: formatBytes(data.throughput?.bytesInPerSec || 0),
-                      })}
-                    </span>
-                  </Row>
-                  <Row label={t('admin.bytesOutTotal')} labelWidth={13}>
-                    <span className="font-bold text-tui-ok">
-                      {formatBytes(data.throughput?.bytesOut || 0)}
-                    </span>
-                    <span className="ml-1.5 text-tui-faint">
-                      {t('admin.perSecond', {
-                        value: formatBytes(data.throughput?.bytesOutPerSec || 0),
-                      })}
-                    </span>
-                  </Row>
-                  <Rule />
-                  <Row label={t('admin.frameRate')} labelWidth={13}>
-                    <span className="font-bold">
-                      {t('admin.framesPerSecond', {
-                        count: (data.throughput?.framesOutPerSec || 0).toFixed(0),
-                      })}
-                    </span>
-                  </Row>
-                </Panel>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                <StatTile
+                  label={t('admin.connectedHosts')}
+                  value={data.hosts?.length || 0}
+                  sub={offlineHostCount ? t('admin.hostsOfflineSub', { count: offlineHostCount }) : undefined}
+                  tone={data.hosts?.length ? 'ok' : 'idle'}
+                />
+                <StatTile
+                  label={t('admin.activeUsers')}
+                  value={activeUserCount}
+                  sub={t('admin.acrossWindows', { count: data.clients?.length || 0 })}
+                  tone={activeUserCount ? 'accent' : 'idle'}
+                />
+                <StatTile
+                  label={t('admin.activePtys')}
+                  value={data.ptys?.length || 0}
+                  sub={t('admin.terminalShells')}
+                  tone={data.ptys?.length ? 'info' : 'idle'}
+                />
+                <StatTile
+                  label={t('admin.statInbound')}
+                  value={t('admin.perSecond', { value: formatBytes(data.throughput?.bytesInPerSec || 0) })}
+                  sub={t('admin.statTotal', { value: formatBytes(data.throughput?.bytesIn || 0) })}
+                  tone="accent"
+                />
+                <StatTile
+                  label={t('admin.statOutbound')}
+                  value={t('admin.perSecond', { value: formatBytes(data.throughput?.bytesOutPerSec || 0) })}
+                  sub={t('admin.statTotal', { value: formatBytes(data.throughput?.bytesOut || 0) })}
+                  tone="ok"
+                />
+                <StatTile
+                  label={t('admin.uptime')}
+                  value={formatUptime(data.uptimeSeconds || 0, t, true)}
+                  title={formatUptime(data.uptimeSeconds || 0, t)}
+                  sub={data.startTime
+                    ? t('admin.startedAt', { time: new Date(data.startTime).toLocaleTimeString() })
+                    : t('admin.startedRecently')}
+                />
               </div>
 
-              <HostsTable hosts={data.hosts || []} devices={data.devices} />
+              <HostsTable hosts={data.hosts || []} devices={data.devices} clients={data.clients || []} />
             </div>
           )}
 
@@ -732,7 +716,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {activeTab === 'ptys' && <PtysTable ptys={data.ptys || []} />}
 
           {activeTab === 'devices' && (
-            <DevicesTable devices={data.devices || []} onRevoke={revokeDevice} />
+            <DevicesTable
+              devices={data.devices || []}
+              clients={data.clients || []}
+              onRevoke={revokeDevice}
+            />
           )}
         </>
       )}

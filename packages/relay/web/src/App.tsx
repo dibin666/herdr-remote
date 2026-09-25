@@ -53,31 +53,6 @@ function AppContent() {
    */
   useEffect(() => observeViewportMetrics(), []);
 
-  /**
-   * Operator-facing relays serve strangers: their workstations are none of a
-   * visitor's business, so the terminal chrome offers no route into the
-   * dashboard. `/admin` still works when typed directly — this hides the
-   * signpost, it is not an access control. The real gate is RELAY_ADMIN_TOKEN,
-   * which the dashboard demands before it returns anything.
-   */
-  const [showAdminEntry, setShowAdminEntry] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/info', { headers: { Accept: 'application/json' } })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((info) => {
-        if (cancelled || !info) return;
-        setShowAdminEntry(!info.isRemoteRelay);
-      })
-      .catch(() => {
-        // A relay too old to answer /api/info predates public deployments;
-        // leaving the entry visible matches how it behaved before.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Keep the dark-only document shell in sync before/after the app mounts
   useEffect(() => {
     applyDocumentTheme();
@@ -246,7 +221,6 @@ function AppContent() {
         <Header
           currentView={currentView}
           onNavigate={handleNavigate}
-          showAdminEntry={showAdminEntry}
           onOpenPairing={() => openPairing(false)}
           onOpenSettings={() => openSettings()}
           onToggleVirtualKeyboard={() => setIsVirtualKeyboardOpen(!isVirtualKeyboardOpen)}
@@ -299,6 +273,7 @@ function AppContent() {
             <AdminDashboard
               onBackToTerminal={() => handleNavigate('terminal')}
               onOpenPairing={() => openPairing(false)}
+              showBack={isMobileShell}
             />
           </div>
         )}
@@ -306,8 +281,6 @@ function AppContent() {
         {/* Phone chrome: a reserved top bar plus an overlaid control sheet */}
         {isMobileShell && isTerminalActive && (
           <MobileTerminalShell
-            onNavigateAdmin={() => handleNavigate('admin')}
-            showAdminEntry={showAdminEntry}
             onOpenPairing={() => openPairing(false)}
             onOpenSettings={() => openSettings()}
             onAddProfile={() => openPairing(true)}
@@ -326,6 +299,10 @@ function AppContent() {
         isOpen={isSettingsOpen}
         initialTab={settingsTab}
         onClose={() => setIsSettingsOpen(false)}
+        onOpenAdmin={() => {
+          setIsSettingsOpen(false);
+          handleNavigate('admin');
+        }}
       />
       <ToastContainer />
     </div>

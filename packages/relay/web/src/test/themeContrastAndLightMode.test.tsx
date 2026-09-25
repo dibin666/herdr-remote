@@ -96,9 +96,10 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
 
     // Every scroller inside is a positioned box, so an `sr-only` field in a row
     // scrolled out of view is clipped by its own list instead of being anchored
-    // to the fixed frame and stretching it.
+    // to the fixed frame and stretching it. The body is the one scroller left:
+    // lists no longer nest their own inside it.
     const scrollers = Array.from(dialog.querySelectorAll('.overflow-y-auto'));
-    expect(scrollers.length).toBeGreaterThanOrEqual(2);
+    expect(scrollers.length).toBeGreaterThanOrEqual(1);
     for (const scroller of scrollers) {
       expect(scroller.className).toContain('relative');
       expect(scroller.className).toContain('overscroll-contain');

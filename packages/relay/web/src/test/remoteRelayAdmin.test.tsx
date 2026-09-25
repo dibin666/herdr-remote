@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AdminDashboard } from '../components/admin/AdminDashboard';
+import { SettingsModal } from '../components/SettingsModal';
 import { TerminalProvider } from '../context/TerminalContext';
 import { saveSettings } from '../utils/storage';
 
@@ -248,5 +249,85 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
 
     fireEvent.click(screen.getByLabelText('Clients (1)'));
     expect(screen.getByText('client-remote-op')).toBeInTheDocument();
+  });
+
+  it('asks for the admin token straight away on the relay that serves this page', async () => {
+    // The page came from the relay itself: the profile's socket is relative.
+    saveSettings({ wsUrl: '/ws/client', token: 'device-token' });
+
+    const requestedEndpoints: string[] = [];
+    const statusPayload = {
+      version: '0.1.0',
+      uptimeSeconds: 10,
+      startTime: new Date().toISOString(),
+      serverTime: new Date().toISOString(),
+      clients: [],
+      hosts: [],
+      ptys: [],
+      throughput: { bytesIn: 0, bytesOut: 0, bytesInPerSec: 0, bytesOutPerSec: 0, framesIn: 0, framesOut: 0, framesInPerSec: 0, framesOutPerSec: 0 },
+      protocolVersion: 1,
+    };
+    global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      requestedEndpoints.push(url);
+      if (url === '/api/info') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ ok: true, version: '0.3.11', protocol: 2, relayMode: 'remote', adminConfigured: true, adminPath: '/admin', adminStatusPath: '/api/admin/status' }),
+        });
+      }
+      const token = (init?.headers as Record<string, string>)?.['X-Relay-Admin-Token'];
+      if (url === '/api/admin/status' && token === 'right') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(statusPayload) });
+      }
+      return Promise.resolve({ ok: false, status: 401, statusText: 'Unauthorized' });
+    }) as unknown as typeof fetch;
+
+    render(
+      <TerminalProvider>
+        <AdminDashboard onBackToTerminal={() => {}} />
+      </TerminalProvider>
+    );
+
+    // No detour page whose only link points back at this page.
+    const input = await screen.findByPlaceholderText(/Enter RELAY_ADMIN_TOKEN/i);
+    expect(screen.queryByText(/Remote Relay Administration/i)).toBeNull();
+    // Nothing has been tried yet, so nothing is reported as wrong.
+    expect(screen.queryByText(/Invalid or unauthorized admin token/i)).toBeNull();
+    expect(screen.getByText(/to see this relay's hosts, devices and traffic/i)).toBeInTheDocument();
+
+    // Typing sends nothing: only a submitted token is tried.
+    fireEvent.change(input, { target: { value: 'wro' } });
+    fireEvent.change(input, { target: { value: 'wrong' } });
+    expect(requestedEndpoints).toEqual(['/api/info']);
+
+    fireEvent.click(screen.getByRole('button', { name: /Verify & View Metrics/i }));
+    expect(await screen.findByText(/Invalid or unauthorized admin token/i)).toBeInTheDocument();
+    expect(requestedEndpoints.filter((url) => url === '/api/admin/status')).toHaveLength(1);
+
+    fireEvent.change(input, { target: { value: 'right' } });
+    fireEvent.click(screen.getByRole('button', { name: /Verify & View Metrics/i }));
+    expect(await screen.findByText('Active Users')).toBeInTheDocument();
+  });
+});
+
+describe('Settings is where the dashboard is entered', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('offers the relay dashboard as a row of its own and opens it', () => {
+    saveSettings({ language: 'zh' });
+    const onOpenAdmin = vi.fn();
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} onOpenAdmin={onOpenAdmin} />
+      </TerminalProvider>
+    );
+
+    expect(screen.getByText('Relay 管理面板')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^打开$/ }));
+    expect(onOpenAdmin).toHaveBeenCalledTimes(1);
   });
 });

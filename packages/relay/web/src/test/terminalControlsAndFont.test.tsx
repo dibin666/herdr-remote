@@ -126,7 +126,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(loadSettings().fontFamily).toBe('cascadia-code');
   });
 
-  it('SettingsModal states plainly that every client shares one Herdr view', () => {
+  it('SettingsModal says the text size belongs to this window alone', () => {
     let terminalCtx: ReturnType<typeof useTerminal> | undefined;
     render(
       <TerminalProvider>
@@ -135,10 +135,12 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText(/view isolation is not active/i)).toBeInTheDocument();
+    // Every window has its own Herdr view and its own PTY, so the size set
+    // here is this window's and nobody else's.
+    expect(screen.getByText('This window only')).toBeInTheDocument();
+    expect(screen.queryByText(/view isolation/i)).not.toBeInTheDocument();
 
-    // There is no per-device view any more, so nothing a host says about its
-    // own build may put that copy back.
+    // Nothing a host says about its own build may put the old copy back.
     act(() => {
       // @ts-expect-error test mock
       terminalCtx?.adapter?.emit('sessionReady', {
@@ -146,7 +148,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
         features: { independentView: true },
       });
     });
-    expect(screen.getByText(/view isolation is not active/i)).toBeInTheDocument();
+    expect(screen.queryByText(/view isolation/i)).not.toBeInTheDocument();
   });
 
   it('offers no color controls at all, because colors belong to the host', () => {
@@ -162,7 +164,6 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.queryByText(/Matrix Green/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Cursor Style$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Blinking Cursor$/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/pass through from the host/i)).toBeInTheDocument();
   });
 
   it('RoleControlBadge states shared control and how many windows are attached', () => {

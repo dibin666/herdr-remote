@@ -1,13 +1,17 @@
 import React from 'react';
-import { HostInfo, HostStatus, PairedDeviceInfo } from '../../types/admin';
+import { ConnectedClientInfo, HostInfo, HostStatus, PairedDeviceInfo } from '../../types/admin';
 import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
-import { Badge, Panel, StatusDot } from '../tui';
+import { cn } from '../../utils/cn';
+import { Badge, Panel, Segments, StatusDot } from '../tui';
+import { formatRelative, formatTimestamp, windowsByDevice } from './format';
 
 interface HostsTableProps {
   hosts: HostInfo[];
   /** Operator-only roster. Absent on `/api/status`, where counts are all there is. */
   devices?: PairedDeviceInfo[];
+  /** Live connections, to tell which paired devices are attached right now. */
+  clients?: ConnectedClientInfo[];
 }
 
 /** A host as the board draws it: what the relay knows plus who is paired to it. */
@@ -17,6 +21,7 @@ interface HostRow {
   status: HostStatus;
   connectedDeviceCount: number;
   pairedDeviceCount: number;
+  activePtyCount: number;
   devices: PairedDeviceInfo[];
   /** True when nothing but the pairing roster remembers this host. */
   fromRosterOnly: boolean;
@@ -60,6 +65,7 @@ export function buildHostRows(
       // The relay's own tally wins: it counts every valid pairing, while the
       // roster is only present for an operator.
       pairedDeviceCount: host.pairedDeviceCount ?? paired.length,
+      activePtyCount: host.activePtyCount ?? 0,
       devices: paired,
       fromRosterOnly: false,
     };
@@ -74,6 +80,7 @@ export function buildHostRows(
       status: 'offline',
       connectedDeviceCount: 0,
       pairedDeviceCount: paired.length,
+      activePtyCount: 0,
       devices: paired,
       fromRosterOnly: true,
     });
@@ -92,12 +99,14 @@ export function buildHostRows(
  *
  * On a public relay this is the board's main question — a count of clients says
  * nothing about *whose* machines they are attached to — so each host is its own
- * block: name and status on the rule, the two device counts beside it, and the
- * paired devices themselves underneath in the form an operator can recognise.
+ * block: name and status on its first line with the counts beside them, then
+ * each paired device on a line of its own, lit when it is attached right now
+ * and otherwise saying how long ago it was last seen.
  */
-export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices }) => {
+export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients }) => {
   const { t } = useTerminal();
   const rows = buildHostRows(hosts, devices);
+  const windows = windowsByDevice(clients);
   const statusLabel: Record<HostStatus, string> = {
     online: t('admin.hostStatusOnline'),
     busy: t('admin.hostStatusBusy'),
@@ -112,43 +121,62 @@ export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices }) => {
       ) : (
         rows.map((row) => (
           <div key={row.id} className="border border-tui-border-dim bg-tui-mantle">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-tui-border-dim px-2 py-1">
-              <span className="flex min-w-0 items-center gap-1.5 text-tui">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-tui-border-dim px-2 py-1">
+              {/* Sized to its content, so on a narrow screen the counts drop to
+                  their own line instead of cutting the host's name short. */}
+              <span className="flex min-w-0 flex-auto items-center gap-1.5 text-tui">
                 <StatusDot level={STATUS_TONE[row.status]} />
                 <span className="truncate font-bold text-tui-text">{row.hostname}</span>
                 {row.hostname !== row.id ? (
                   <code className="truncate text-tui-sm text-tui-faint">{row.id}</code>
                 ) : null}
+                <Badge tone={STATUS_TONE[row.status]} className="ml-1 text-tui-sm">
+                  {statusLabel[row.status]}
+                </Badge>
               </span>
-              <span className="flex shrink-0 items-center gap-3 text-tui-sm">
-                <Badge tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Badge>
-                <span className="text-tui-accent">
-                  {t('admin.hostConnectedDevices', { count: row.connectedDeviceCount })}
-                </span>
-                <span className="text-tui-muted">
-                  {t('admin.hostPairedDevices', { count: row.pairedDeviceCount })}
-                </span>
-              </span>
+              <Segments
+                className="shrink-0 text-tui-sm"
+                items={[
+                  <span key="connected" className={row.connectedDeviceCount ? 'text-tui-ok' : 'text-tui-faint'}>
+                    {t('admin.hostConnectedDevices', { count: row.connectedDeviceCount })}
+                  </span>,
+                  <span key="paired" className="text-tui-muted">
+                    {t('admin.hostPairedDevices', { count: row.pairedDeviceCount })}
+                  </span>,
+                  row.fromRosterOnly ? null : (
+                    <span key="ptys" className={row.activePtyCount ? 'text-tui-info' : 'text-tui-faint'}>
+                      {t('admin.hostPtys', { count: row.activePtyCount })}
+                    </span>
+                  ),
+                ]}
+              />
             </div>
 
             {row.devices.length > 0 ? (
               <ul className="divide-y divide-tui-border-dim">
                 {row.devices.map((device) => {
                   const described = describeUserAgent(device.userAgent);
+                  const open = windows.get(device.deviceId) || 0;
                   return (
                     <li
                       key={device.deviceId}
-                      className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-2 py-0.5 text-tui"
+                      className="grid grid-cols-[1ch_minmax(0,1fr)_auto] items-baseline gap-x-2 px-2 py-0.5 text-tui sm:grid-cols-[1ch_minmax(0,18ch)_minmax(0,1fr)_16ch_12ch]"
                     >
-                      <span aria-hidden="true" className="shrink-0 text-tui-faint">
-                        ·
-                      </span>
+                      <StatusDot level={open ? 'ok' : 'idle'} />
                       <span className="truncate text-tui-text" title={described.raw}>
                         {described.label || t('admin.unknownDevice')}
                       </span>
-                      <code className="truncate text-tui-sm text-tui-muted">{device.deviceId}</code>
-                      <span className="ml-auto shrink-0 text-tui-sm text-tui-faint">
+                      <code className="hidden truncate text-tui-sm text-tui-faint sm:block">{device.deviceId}</code>
+                      <span className="hidden truncate text-tui-sm text-tui-muted sm:block">
                         {device.lastIp || '—'}
+                      </span>
+                      <span
+                        className={cn('truncate text-right text-tui-sm', open ? 'text-tui-ok' : 'text-tui-faint')}
+                        title={formatTimestamp(device.lastSeenAt)}
+                      >
+                        {open
+                          ? t('admin.deviceWindows', { count: open })
+                          : formatRelative(device.lastSeenAt, t)}
                       </span>
                     </li>
                   );

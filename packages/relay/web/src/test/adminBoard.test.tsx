@@ -270,6 +270,30 @@ describe('HostsTable', () => {
     ).toBe(2);
   });
 
+  it('lights the devices attached right now and dates the rest', () => {
+    const now = Date.now();
+    render(
+      <TerminalProvider>
+        <HostsTable
+          hosts={STATUS_FIXTURE.hosts}
+          devices={[
+            { ...STATUS_FIXTURE.devices[0], lastSeenAt: new Date(now).toISOString() },
+            { ...STATUS_FIXTURE.devices[1], lastSeenAt: new Date(now - 3 * 86400000).toISOString() },
+          ]}
+          clients={[
+            { id: 'w1', role: 'controller', deviceId: STATUS_FIXTURE.devices[0].deviceId, connectedAt: NOW },
+            { id: 'w2', role: 'controller', deviceId: STATUS_FIXTURE.devices[0].deviceId, connectedAt: NOW },
+          ]}
+        />
+      </TerminalProvider>
+    );
+
+    // Two windows of one device: one line, lit, saying how many are open.
+    expect(screen.getByText('2 windows open')).toBeInTheDocument();
+    // A device with no connection says when it was last seen, not a timestamp.
+    expect(screen.getByText('3d ago')).toBeInTheDocument();
+  });
+
   it('says so plainly when the relay carries nothing at all', () => {
     render(
       <TerminalProvider>
@@ -294,9 +318,10 @@ describe('Admin status board', () => {
 
     await waitFor(() => expect(screen.getByText('workstation-alpha')).toBeInTheDocument());
 
-    // Access overview: hosts, distinct users, and the windows behind them.
-    expect(screen.getByText('接入概览')).toBeInTheDocument();
+    // One row of headline figures: hosts, distinct users, and the windows
+    // behind them, then the traffic.
     expect(screen.getByText('接入主机')).toBeInTheDocument();
+    expect(screen.getByText('入站流量')).toBeInTheDocument();
     expect(screen.getByText('活跃用户')).toBeInTheDocument();
     // Three people, four windows — the count is devices, not sockets.
     expect(screen.getByText('共 4 个窗口')).toBeInTheDocument();
@@ -307,8 +332,10 @@ describe('Admin status board', () => {
     expect(screen.getByText('iPhone · Safari')).toBeInTheDocument();
     expect(screen.getByText('离线')).toBeInTheDocument();
 
-    // Uptime in the interface's units, not `1h 2m 5s`.
-    expect(screen.getByText(/1 小时 2 分 5 秒/)).toBeInTheDocument();
+    // Uptime in the interface's units, not `1h 2m 5s`: the two largest on the
+    // tile, the whole figure on hover.
+    expect(screen.getByText('1 小时 2 分')).toBeInTheDocument();
+    expect(screen.getByTitle('1 小时 2 分 5 秒')).toBeInTheDocument();
   });
 
   it('keeps English units and labels on an English interface', async () => {
@@ -316,7 +343,8 @@ describe('Admin status board', () => {
 
     await waitFor(() => expect(screen.getByText('workstation-alpha')).toBeInTheDocument());
 
-    expect(screen.getByText(/1h 2m 5s/)).toBeInTheDocument();
+    expect(screen.getByText('1h 2m')).toBeInTheDocument();
+    expect(screen.getByTitle('1h 2m 5s')).toBeInTheDocument();
     expect(screen.getByText('Connected Hosts')).toBeInTheDocument();
     expect(screen.getByText('Active Users')).toBeInTheDocument();
     expect(screen.getByText('across 4 windows')).toBeInTheDocument();
@@ -345,15 +373,17 @@ describe('Admin status board', () => {
     expect(within(usersRow).getByText('4')).toBeInTheDocument();
   });
 
-  it('keeps one traffic panel and drops the process readings entirely', async () => {
+  it('keeps the traffic figures and drops the process readings entirely', async () => {
     renderDashboard('en');
 
     await waitFor(() => expect(screen.getByText('workstation-alpha')).toBeInTheDocument());
 
     // Traffic survives: it is the one relay-wide reading an operator acts on.
-    expect(screen.getByText('Throughput')).toBeInTheDocument();
-    expect(screen.getByText('Total Inbound:')).toBeInTheDocument();
-    expect(screen.getByText('Total Outbound:')).toBeInTheDocument();
+    const inbound = screen.getByText('Inbound').parentElement as HTMLElement;
+    expect(within(inbound).getByText('10.0 B/s')).toBeInTheDocument();
+    expect(within(inbound).getByText('100.0 B total')).toBeInTheDocument();
+    const outbound = screen.getByText('Outbound').parentElement as HTMLElement;
+    expect(within(outbound).getByText('20.0 B/s')).toBeInTheDocument();
 
     // The machine readings do not.
     for (const gone of [
@@ -419,7 +449,7 @@ describe('Admin status board', () => {
     }
 
     // And the overview tab no longer promises performance it does not show.
-    expect(screen.getByLabelText('系统概览')).toBeInTheDocument();
+    expect(screen.getByLabelText('概览')).toBeInTheDocument();
     expect(screen.queryByLabelText('系统概览与性能')).toBeNull();
   });
 });

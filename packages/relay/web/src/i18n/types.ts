@@ -178,16 +178,21 @@ export interface TranslationSchema {
     title: string;
     subtitle: string;
     tabGeneral: string;
-    tabAppearance: string;
+    sectionInterface: string;
+    sectionFont: string;
+    sectionInput: string;
+    sectionAdmin: string;
+    toggleOn: string;
+    toggleOff: string;
+    hostFontLabel: string;
+    adminEntry: string;
+    adminEntryHint: string;
+    adminEntryOpen: string;
     tabVirtualKeys: string;
     tabAgentKeymaps: string;
     fontFamilyLabel: string;
+    fontSizeHint: string;
     fontSizeLabel: string;
-    fontSizeCompact: string;
-    fontSizeDefault: string;
-    fontSizeLarge: string;
-    mobileFontNote: string;
-    colorPassthroughNote: string;
     predictiveEchoLabel: string;
     predictiveEchoAuto: string;
     predictiveEchoAlways: string;
@@ -207,11 +212,8 @@ export interface TranslationSchema {
     agentAlertNotify: string;
     agentAlertNotifyDesc: string;
     languageLabel: string;
-    languageDesc: string;
     resetDefaults: string;
     resetDefaultsToast: string;
-    windowZoomSharedNote: string;
-    fontSizeZoomHelp: string;
     fontSizeFollowHost: string;
     fontSizeFollowHostUnknown: string;
     hostFontSync: string;
@@ -299,7 +301,9 @@ export interface TranslationSchema {
     auto: string;
     shell: string;
     agentGroup: string;
+    listGroup: string;
     genericGroup: string;
+    profileRowLabel: string;
     settingsProfileLabel: string;
     autoProfile: string;
     pinnedProfile: string;
@@ -415,7 +419,6 @@ export interface TranslationSchema {
     terminalControlAria: string;
     inputControl: string;
     settingsAria: string;
-    adminAria: string;
     pairingAria: string;
     keybarAria: string;
     quickInputAria: string;
@@ -489,17 +492,13 @@ export interface TranslationSchema {
     sym_backtick: string;
   };
   admin: {
-    title: string;
-    subtitle: string;
     returnToTerminal: string;
     terminalShells: string;
     startedAt: string;
     /** The overview block that answers "who is attached to what, since when". */
-    accessPanel: string;
     /** Connections behind the user count: several windows can be one person. */
     acrossWindows: string;
     perSecond: string;
-    framesPerSecond: string;
     unitDay: string;
     unitHour: string;
     unitMinute: string;
@@ -521,10 +520,6 @@ export interface TranslationSchema {
     tabClients: string;
     tabPtys: string;
     tabDevices: string;
-    throughput: string;
-    bytesInTotal: string;
-    bytesOutTotal: string;
-    frameRate: string;
     // The per-host board: which workstations this relay carries, and who is
     // paired to each of them.
     hostsTitle: string;
@@ -540,7 +535,6 @@ export interface TranslationSchema {
     noClients: string;
     colClientId: string;
     colDevice: string;
-    colDeviceId: string;
     colLastSeen: string;
     colActions: string;
     unknownDevice: string;
@@ -572,12 +566,10 @@ export interface TranslationSchema {
     loadingStatus: string;
     // Remote Relay & Info endpoints
     remoteRelayTitle: string;
-    remoteRelayBadge: string;
     remoteRelayNotice: string;
     remoteRelayEndpoint: string;
     remoteRelayAdminUrl: string;
     openRemoteAdminBtn: string;
-    remoteRelayHelp: string;
     relayAdminTitle: string;
     relayAdminTokenLabel: string;
     relayAdminTokenPlaceholder: string;
@@ -592,6 +584,19 @@ export interface TranslationSchema {
     hintTabs: string;
     hintRefresh: string;
     hintBack: string;
+    relJustNow: string;
+    relMinutes: string;
+    relHours: string;
+    relDays: string;
+    statInbound: string;
+    statOutbound: string;
+    statTotal: string;
+    hostsOfflineSub: string;
+    colHost: string;
+    colStatus: string;
+    deviceWindows: string;
+    hostPtys: string;
+    relayAdminPrompt: string;
   };
   toasts: {
     connected: string;

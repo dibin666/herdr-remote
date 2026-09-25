@@ -26,29 +26,42 @@ import {
 } from '../utils/agentKeymaps';
 import {
   Button,
-  Checkbox,
-  FieldLabel,
+  CONTROL_H,
   GLYPH,
+  IconButton,
   Input,
   KeyCap,
-  Meter,
   Modal,
-  Radio,
-  Rule,
+  Segmented,
   Select,
+  SettingRow,
+  SettingSection,
   Tabs,
+  Toggle,
 } from './tui';
 
-export type SettingsTab = 'appearance' | 'virtualKeys' | 'agentKeymaps';
+export type SettingsTab = 'general' | 'virtualKeys' | 'agentKeymaps';
+
+/** A field or button sized to the settings column: one height, no own padding. */
+const CONTROL_FIELD = cn(CONTROL_H, 'py-0');
+
+/** The same, one step smaller, for controls inside a list row. */
+const COMPACT_FIELD = 'h-7 py-0';
+
+/** A section's own small action beside its heading. */
+const COMPACT = 'h-7 py-0 px-1.5';
+
+/** Resets are the only destructive words here, so they are the only red ones. */
+const DANGER_GHOST = 'text-tui-bad hover:border-tui-bad hover:text-tui-bad';
 
 /**
  * One agent-key row. Every column has a fixed width so the combo fields and
  * buttons line up down the list; a phone splits the row over two lines.
  */
 const AGENT_ROW_GRID = [
-  'grid items-center gap-x-2 gap-y-1 border-b border-tui-border-dim px-2 py-1.5 last:border-b-0',
-  "grid-cols-[5rem_minmax(0,1fr)_6.5rem] [grid-template-areas:'cap_label_actions'_'combo_combo_default']",
-  "sm:grid-cols-[5rem_minmax(0,1fr)_9rem_7rem_6.5rem] sm:[grid-template-areas:'cap_label_combo_default_actions']",
+  'grid items-center gap-x-2 gap-y-1 py-1',
+  "grid-cols-[4rem_minmax(0,1fr)_7rem] [grid-template-areas:'cap_label_actions'_'combo_combo_default']",
+  "sm:grid-cols-[4rem_minmax(0,1fr)_9rem_7rem_7rem] sm:[grid-template-areas:'cap_label_combo_default_actions']",
 ].join(' ');
 
 interface SettingsModalProps {
@@ -56,17 +69,22 @@ interface SettingsModalProps {
   onClose: () => void;
   /** Open on this tab, showing the focused agent, instead of where it was left. */
   initialTab?: SettingsTab;
+  /** Leave the dialog for the relay dashboard. */
+  onOpenAdmin?: () => void;
 }
 
 /**
  * Preferences, as a TUI settings screen.
  *
- * Numbered tabs across the top, a label column down the left, bracketed
- * checkboxes for booleans and a `█░` meter for the one continuous value. The
- * only thing here that paints a colour is the terminal font preview, and that
- * colour belongs to the host.
+ * Numbered tabs across the top; each tab is a stack of headed groups, and each
+ * setting is one row with its words on the left and its control on the right.
+ * Every control is the same width and height and every choice is drawn the
+ * same way — cells with the chosen one filled — so the screen reads as one
+ * column of answers rather than a page of mixed widgets. Colour is kept for
+ * meaning: blue headings and choices, green for a switch that is on, red for
+ * the words that reset something.
  */
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab, onOpenAdmin }) => {
   const {
     settings,
     updateSettings,
@@ -81,7 +99,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
     terminalFontFamily,
     terminalFontSize,
   } = useTerminal();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
   const [comboDrafts, setComboDrafts] = useState<Record<string, string>>({});
   const comboDraftsRef = useRef<Record<string, string>>({});
@@ -307,6 +325,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   const FONT_MIN = 10;
   const FONT_MAX = 24;
 
+  const toggleWords = { offLabel: t('settings.toggleOff'), onLabel: t('settings.toggleOn') };
+  const followHostLabel = hostSizePx
+    ? t('settings.fontSizeFollowHost', { size: hostSizePx })
+    : t('settings.fontSizeFollowHostUnknown');
+
   return (
     <Modal
       isOpen={isOpen}
@@ -315,10 +338,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
       subtitle={t('settings.subtitle')}
       closeLabel={t('common.closeDialog')}
       size="lg"
+      fixedHeight
       hints={[{ keys: 'esc', action: t('common.close') }]}
       footer={
         <>
-          <Button variant="ghost" onClick={handleResetDefaults}>
+          <Button variant="ghost" onClick={handleResetDefaults} className={DANGER_GHOST}>
             {t('settings.resetDefaults')}
           </Button>
           <Button variant="primary" onClick={onClose}>
@@ -329,7 +353,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
     >
       <Tabs
         tabs={[
-          { id: 'appearance', label: t('settings.tabAppearance'), index: 1 },
+          { id: 'general', label: t('settings.tabGeneral'), index: 1 },
           { id: 'virtualKeys', label: t('settings.tabVirtualKeys'), index: 2 },
           { id: 'agentKeymaps', label: t('settings.tabAgentKeymaps'), index: 3 },
         ]}
@@ -338,323 +362,339 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
         className="mb-3 border-b border-tui-border-dim pb-1"
       />
 
-      {activeTab === 'appearance' && (
+      {activeTab === 'general' && (
         <div className="space-y-4">
-          {/* Language — a radio group, because it is one of two. */}
-          <div className="space-y-1">
-            <FieldLabel>{t('settings.languageLabel')}</FieldLabel>
-            <div className="grid gap-0.5 sm:grid-cols-2">
-              <Radio
-                name="ui-language"
-                checked={language === 'zh'}
-                onChange={() => setLanguage('zh')}
-                label="简体中文"
-              />
-              <Radio
-                name="ui-language"
-                checked={language === 'en'}
-                onChange={() => setLanguage('en')}
-                label="English"
-              />
-            </div>
-          </div>
+          <SettingSection title={t('settings.sectionInterface')}>
+            <SettingRow
+              label={t('settings.languageLabel')}
+              control={
+                <Segmented
+                  name="ui-language"
+                  aria-label={t('settings.languageLabel')}
+                  value={language}
+                  onChange={setLanguage}
+                  options={[
+                    { value: 'zh', label: '简体中文' },
+                    { value: 'en', label: 'English' },
+                  ]}
+                />
+              }
+            />
+          </SettingSection>
 
-          {/* Terminal font */}
-          <div className="space-y-1">
-            <FieldLabel htmlFor="terminal-font-select">
-              {t('settings.fontFamilyLabel')}
-            </FieldLabel>
-            <Select
-              id="terminal-font-select"
-              value={settings.fontFamily}
-              onChange={(e) => updateSettings({ fontFamily: e.target.value })}
-              aria-label={t('settings.fontFamilyLabel')}
-            >
-              {!activeFontPreset && (
-                <option value={settings.fontFamily}>{settings.fontFamily}</option>
-              )}
-              {FONT_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {presetLabel(preset.id, preset.name)}
-                </option>
-              ))}
-            </Select>
+          <SettingSection title={t('settings.sectionFont')}>
+            <SettingRow
+              label={t('settings.fontFamilyLabel')}
+              htmlFor="terminal-font-select"
+              control={
+                <Select
+                  id="terminal-font-select"
+                  value={settings.fontFamily}
+                  onChange={(e) => updateSettings({ fontFamily: e.target.value })}
+                  aria-label={t('settings.fontFamilyLabel')}
+                  className={CONTROL_FIELD}
+                >
+                  {!activeFontPreset && (
+                    <option value={settings.fontFamily}>{settings.fontFamily}</option>
+                  )}
+                  {FONT_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {presetLabel(preset.id, preset.name)}
+                    </option>
+                  ))}
+                </Select>
+              }
+            />
 
             {/* What the workstation reported, and whether this device has it. */}
             {settings.fontFamily === 'host' && (
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <div className="min-w-0 space-y-0.5 break-words text-tui-sm leading-snug text-tui-muted">
-                  <p data-testid="host-font-status">{hostFontLine}</p>
-                  {hostGlyphLine ? <p data-testid="host-glyph-status">{hostGlyphLine}</p> : null}
-                </div>
-                <Button
-                  onClick={syncHostFont}
-                  disabled={connectionState !== 'connected' || hostFont.status === 'loading' || hostFont.glyphs.status === 'loading'}
-                >
-                  {t('settings.hostFontSync')}
-                </Button>
-              </div>
+              <SettingRow
+                label={t('settings.hostFontLabel')}
+                hint={
+                  <>
+                    <span data-testid="host-font-status" className="block break-words text-tui-info">
+                      {hostFontLine}
+                    </span>
+                    {hostGlyphLine ? (
+                      <span data-testid="host-glyph-status" className="block break-words">
+                        {hostGlyphLine}
+                      </span>
+                    ) : null}
+                  </>
+                }
+                control={
+                  <Button
+                    block
+                    onClick={syncHostFont}
+                    disabled={connectionState !== 'connected' || hostFont.status === 'loading' || hostFont.glyphs.status === 'loading'}
+                    className={CONTROL_FIELD}
+                  >
+                    {t('settings.hostFontSync')}
+                  </Button>
+                }
+              />
             )}
+
+            <SettingRow
+              label={t('settings.fontSizeLabel', { size: terminalFontSize })}
+              hint={t('settings.fontSizeHint')}
+              htmlFor="terminal-font-size"
+              control={
+                <div className={cn('flex items-center', CONTROL_H)}>
+                  <input
+                    id="terminal-font-size"
+                    type="range"
+                    min={FONT_MIN}
+                    max={FONT_MAX}
+                    step={1}
+                    value={terminalFontSize}
+                    onChange={(e) => updateSettings({ fontSize: Number(e.target.value), fontSizeFollowsHost: false })}
+                    className="h-1 w-full cursor-pointer appearance-none bg-tui-border accent-tui-accent"
+                  />
+                </div>
+              }
+            />
+
+            <SettingRow
+              label={followHostLabel}
+              control={
+                <Toggle
+                  label={followHostLabel}
+                  {...toggleWords}
+                  checked={settings.fontSizeFollowsHost}
+                  // Leaving "follow" keeps the size on screen as the manual one,
+                  // so the terminal does not jump when it is switched off.
+                  onChange={(checked) => updateSettings(checked
+                    ? { fontSizeFollowsHost: true }
+                    : { fontSizeFollowsHost: false, fontSize: terminalFontSize })}
+                />
+              }
+            />
 
             {/* Live preview, rendered as a shell prompt in the chosen face. */}
-            <div
-              className="overflow-x-auto whitespace-nowrap border border-tui-border bg-tui-mantle px-2 py-1.5 leading-snug text-tui-text"
-              style={{ fontFamily: terminalFontFamily, fontSize: `${terminalFontSize}px` }}
-            >
-              <span className="text-tui-ok">$</span> echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt;
-              !=&quot;
+            <div className="py-1.5">
+              <div
+                className="overflow-x-auto whitespace-nowrap border border-tui-border bg-tui-mantle px-2 py-1.5 leading-snug text-tui-text"
+                style={{ fontFamily: terminalFontFamily, fontSize: `${terminalFontSize}px` }}
+              >
+                <span className="text-tui-ok">$</span> echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt;
+                !=&quot;
+              </div>
             </div>
-          </div>
+          </SettingSection>
 
-          {/* Font size, with the meter a terminal would draw. */}
-          <div className="space-y-1">
-            <FieldLabel htmlFor="terminal-font-size">
-              {t('settings.fontSizeLabel', { size: terminalFontSize })}
-            </FieldLabel>
-            <Checkbox
-              checked={settings.fontSizeFollowsHost}
-              // Leaving "follow" keeps the size on screen as the manual one,
-              // so the terminal does not jump when the box is cleared.
-              onChange={(checked) => updateSettings(checked
-                ? { fontSizeFollowsHost: true }
-                : { fontSizeFollowsHost: false, fontSize: terminalFontSize })}
-              label={hostSizePx
-                ? t('settings.fontSizeFollowHost', { size: hostSizePx })
-                : t('settings.fontSizeFollowHostUnknown')}
+          <SettingSection title={t('settings.sectionInput')}>
+            <SettingRow
+              label={t('settings.predictiveEchoLabel')}
+              hint={t('settings.predictiveEchoDesc')}
+              control={
+                <Segmented
+                  name="predictive-echo"
+                  aria-label={t('settings.predictiveEchoLabel')}
+                  value={settings.predictiveEcho}
+                  onChange={(predictiveEcho) => updateSettings({ predictiveEcho })}
+                  options={[
+                    { value: 'auto', label: t('settings.predictiveEchoAuto') },
+                    { value: 'always', label: t('settings.predictiveEchoAlways') },
+                    { value: 'off', label: t('settings.predictiveEchoOff') },
+                  ]}
+                />
+              }
             />
-            <div className="flex items-center gap-2">
-              <Meter
-                value={(terminalFontSize - FONT_MIN) / (FONT_MAX - FONT_MIN)}
-                width={24}
-                className="hidden shrink-0 sm:inline-flex"
-              />
-              <input
-                id="terminal-font-size"
-                type="range"
-                min={FONT_MIN}
-                max={FONT_MAX}
-                step={1}
-                value={terminalFontSize}
-                onChange={(e) => updateSettings({ fontSize: Number(e.target.value), fontSizeFollowsHost: false })}
-                className="h-1 w-full cursor-pointer appearance-none bg-tui-border accent-tui-accent"
-              />
-            </div>
-            <div className="flex justify-between text-tui-sm text-tui-faint">
-              <span>{t('settings.fontSizeCompact')}</span>
-              <span>{t('settings.fontSizeDefault')}</span>
-              <span>{t('settings.fontSizeLarge')}</span>
-            </div>
-            <p className="text-tui-sm leading-snug text-tui-faint">{t('settings.mobileFontNote')}</p>
-            <p className="text-tui-sm leading-snug text-tui-faint">
-              {t('settings.windowZoomSharedNote')}
-            </p>
-          </div>
-
-          <Rule />
-
-          {/* Predictive echo */}
-          <div className="space-y-1">
-            <FieldLabel>{t('settings.predictiveEchoLabel')}</FieldLabel>
-            <div className="grid gap-0.5 sm:grid-cols-3">
-              <Radio
-                name="predictive-echo"
-                checked={settings.predictiveEcho === 'auto'}
-                onChange={() => updateSettings({ predictiveEcho: 'auto' })}
-                label={t('settings.predictiveEchoAuto')}
-              />
-              <Radio
-                name="predictive-echo"
-                checked={settings.predictiveEcho === 'always'}
-                onChange={() => updateSettings({ predictiveEcho: 'always' })}
-                label={t('settings.predictiveEchoAlways')}
-              />
-              <Radio
-                name="predictive-echo"
-                checked={settings.predictiveEcho === 'off'}
-                onChange={() => updateSettings({ predictiveEcho: 'off' })}
-                label={t('settings.predictiveEchoOff')}
-              />
-            </div>
-            <p className="text-tui-sm leading-snug text-tui-faint">
-              {t('settings.predictiveEchoDesc')}
-            </p>
-          </div>
-
-          <Rule />
-
-          <div className="space-y-1">
-            <Checkbox
-              checked={settings.toolbarVisible}
-              onChange={(checked) => updateSettings({ toolbarVisible: checked })}
+            <SettingRow
               label={t('settings.touchKeyToolbar')}
-              description={t('settings.touchKeyToolbarDesc')}
+              hint={t('settings.touchKeyToolbarDesc')}
+              control={
+                <Toggle
+                  label={t('settings.touchKeyToolbar')}
+                  {...toggleWords}
+                  checked={settings.toolbarVisible}
+                  onChange={(checked) => updateSettings({ toolbarVisible: checked })}
+                />
+              }
             />
-            <Checkbox
-              checked={settings.vibrateOnKeyPress}
-              onChange={(checked) => updateSettings({ vibrateOnKeyPress: checked })}
+            <SettingRow
               label={t('settings.touchHaptics')}
-              description={t('settings.touchHapticsDesc')}
+              hint={t('settings.touchHapticsDesc')}
+              control={
+                <Toggle
+                  label={t('settings.touchHaptics')}
+                  {...toggleWords}
+                  checked={settings.vibrateOnKeyPress}
+                  onChange={(checked) => updateSettings({ vibrateOnKeyPress: checked })}
+                />
+              }
             />
-          </div>
+          </SettingSection>
 
-          <Rule />
-
-          {/* Agent alerts */}
-          <div className="space-y-1">
-            <FieldLabel>{t('settings.agentAlertsLabel')}</FieldLabel>
-            <Checkbox
-              checked={settings.agentAlertBadge}
-              onChange={(checked) => updateSettings({ agentAlertBadge: checked })}
+          <SettingSection title={t('settings.agentAlertsLabel')}>
+            <SettingRow
               label={t('settings.agentAlertBadge')}
-              description={t('settings.agentAlertBadgeDesc')}
+              hint={t('settings.agentAlertBadgeDesc')}
+              control={
+                <Toggle
+                  label={t('settings.agentAlertBadge')}
+                  {...toggleWords}
+                  checked={settings.agentAlertBadge}
+                  onChange={(checked) => updateSettings({ agentAlertBadge: checked })}
+                />
+              }
             />
-            <Checkbox
-              checked={settings.agentAlertVibrate}
-              onChange={(checked) => updateSettings({ agentAlertVibrate: checked })}
+            <SettingRow
               label={t('settings.agentAlertVibrate')}
-              description={t('settings.agentAlertVibrateDesc')}
+              hint={t('settings.agentAlertVibrateDesc')}
+              control={
+                <Toggle
+                  label={t('settings.agentAlertVibrate')}
+                  {...toggleWords}
+                  checked={settings.agentAlertVibrate}
+                  onChange={(checked) => updateSettings({ agentAlertVibrate: checked })}
+                />
+              }
             />
-            <Checkbox
-              checked={settings.agentAlertSound}
-              onChange={(checked) => {
-                updateSettings({ agentAlertSound: checked });
-                // This click is the gesture a browser wants before it plays
-                // anything; use it, and let the person hear what they chose.
-                if (checked) {
-                  unlockAlertChime();
-                  playAlertChime('done');
-                }
-              }}
+            <SettingRow
               label={t('settings.agentAlertSound')}
-              description={t('settings.agentAlertSoundDesc')}
+              hint={t('settings.agentAlertSoundDesc')}
+              control={
+                <Toggle
+                  label={t('settings.agentAlertSound')}
+                  {...toggleWords}
+                  checked={settings.agentAlertSound}
+                  onChange={(checked) => {
+                    updateSettings({ agentAlertSound: checked });
+                    // This click is the gesture a browser wants before it plays
+                    // anything; use it, and let the person hear what they chose.
+                    if (checked) {
+                      unlockAlertChime();
+                      playAlertChime('done');
+                    }
+                  }}
+                />
+              }
             />
             {notificationsAvailable && (
-              <Checkbox
-                checked={settings.agentAlertNotify}
-                onChange={(checked) => {
-                  if (checked && Notification.permission !== 'granted') {
-                    void Notification.requestPermission().then((permission) =>
-                      updateSettings({ agentAlertNotify: permission === 'granted' })
-                    );
-                    return;
-                  }
-                  updateSettings({ agentAlertNotify: checked });
-                }}
+              <SettingRow
                 label={t('settings.agentAlertNotify')}
-                description={t('settings.agentAlertNotifyDesc')}
+                hint={t('settings.agentAlertNotifyDesc')}
+                control={
+                  <Toggle
+                    label={t('settings.agentAlertNotify')}
+                    {...toggleWords}
+                    checked={settings.agentAlertNotify}
+                    onChange={(checked) => {
+                      if (checked && Notification.permission !== 'granted') {
+                        void Notification.requestPermission().then((permission) =>
+                          updateSettings({ agentAlertNotify: permission === 'granted' })
+                        );
+                        return;
+                      }
+                      updateSettings({ agentAlertNotify: checked });
+                    }}
+                  />
+                }
               />
             )}
-          </div>
+          </SettingSection>
 
-          <Rule />
-
-          <p className="text-tui-sm leading-snug text-tui-faint">
-            <span aria-hidden="true" className="mr-1">
-              {GLYPH.arrowRight}
-            </span>
-            {t('settings.colorPassthroughNote')}
-          </p>
+          {/* The dashboard's only signpost. It is not an access control — the
+              dashboard asks for the relay's admin token before it shows anything
+              — so it can live where every device can reach it. */}
+          {onOpenAdmin && (
+            <SettingSection title={t('settings.sectionAdmin')}>
+              <SettingRow
+                label={t('settings.adminEntry')}
+                hint={t('settings.adminEntryHint')}
+                control={
+                  <Button
+                    block
+                    variant="primary"
+                    glyph={GLYPH.arrowRight}
+                    onClick={onOpenAdmin}
+                    className={CONTROL_FIELD}
+                  >
+                    {t('settings.adminEntryOpen')}
+                  </Button>
+                }
+              />
+            </SettingSection>
+          )}
         </div>
       )}
 
       {activeTab === 'virtualKeys' && (
         <div className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="text-tui font-bold uppercase text-tui-accent">
-                {t('virtualKeyboard.customizeTitle')}
-              </h3>
-              <p className="text-tui-sm leading-snug text-tui-faint">
-                {t('virtualKeyboard.customizeDesc')}
-              </p>
-            </div>
-            <Button variant="ghost" onClick={handleResetVirtualKeys} className="shrink-0">
-              {t('virtualKeyboard.resetLayout')}
-            </Button>
-          </div>
-
-          {/* Configured layout: one row per key, in send order. */}
-          <div className="relative max-h-72 overflow-y-auto overscroll-contain border border-tui-border bg-tui-mantle">
-            {currentVirtualKeys.map((keyItem, index) => (
-              <div
-                key={keyItem.id}
-                className="flex items-center justify-between gap-2 border-b border-tui-border-dim px-2 py-1 last:border-b-0 hover:bg-tui-selection"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <input
-                    type="checkbox"
+          <SettingSection
+            title={t('virtualKeyboard.customizeTitle')}
+            aside={
+              <Button variant="ghost" onClick={handleResetVirtualKeys} className={cn(DANGER_GHOST, COMPACT)}>
+                {t('virtualKeyboard.resetLayout')}
+              </Button>
+            }
+          >
+            {/* Configured layout: one row per key, in send order. */}
+            {currentVirtualKeys.map((keyItem, index) => {
+              const title = getLocalizedKeyTitle(keyItem, t);
+              return (
+                <div key={keyItem.id} className="flex items-center gap-2 py-1">
+                  <KeyCap className={cn('w-16 shrink-0 truncate', !keyItem.enabled && 'opacity-50')}>
+                    {keyItem.label}
+                  </KeyCap>
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-tui',
+                      keyItem.enabled ? 'text-tui-text' : 'text-tui-faint'
+                    )}
+                  >
+                    {title}
+                  </span>
+                  <Toggle
+                    label={`${t('virtualKeyboard.enableKey')} ${keyItem.label}`}
+                    {...toggleWords}
                     checked={keyItem.enabled}
                     onChange={() => handleToggleKey(keyItem.id)}
-                    className="sr-only"
-                    id={`toggle-${keyItem.id}`}
+                    className="h-7 w-24 shrink-0"
                   />
-                  <label
-                    htmlFor={`toggle-${keyItem.id}`}
-                    className={cn(
-                      'shrink-0 cursor-pointer select-none font-bold',
-                      keyItem.enabled ? 'text-tui-ok' : 'text-tui-faint'
-                    )}
-                    aria-hidden="true"
-                  >
-                    {keyItem.enabled ? '[x]' : '[ ]'}
-                  </label>
-                  <KeyCap className={cn(!keyItem.enabled && 'opacity-50')}>{keyItem.label}</KeyCap>
-                  <span className="truncate text-tui-sm text-tui-muted">
-                    {getLocalizedKeyTitle(keyItem, t)}
-                  </span>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    brackets={false}
+                  <IconButton
                     disabled={index === 0}
                     onClick={() => handleMoveKey(index, 'up')}
                     title={t('virtualKeyboard.moveUp')}
                     aria-label={t('virtualKeyboard.moveUp')}
-                    className="px-1"
                   >
                     ↑
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    brackets={false}
+                  </IconButton>
+                  <IconButton
                     disabled={index === currentVirtualKeys.length - 1}
                     onClick={() => handleMoveKey(index, 'down')}
                     title={t('virtualKeyboard.moveDown')}
                     aria-label={t('virtualKeyboard.moveDown')}
-                    className="px-1"
                   >
                     ↓
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    brackets={false}
+                  </IconButton>
+                  <IconButton
+                    variant="danger"
                     onClick={() => handleRemoveKey(keyItem.id)}
                     title={t('virtualKeyboard.deleteKeyTitle')}
                     aria-label={t('virtualKeyboard.deleteKeyTitle')}
-                    className="px-1 text-tui-bad hover:text-tui-bad"
                   >
                     {GLYPH.cross}
-                  </Button>
+                  </IconButton>
                 </div>
-              </div>
-            ))}
-          </div>
+              );
+            })}
+          </SettingSection>
 
           <Button
             block
             glyph="+"
             onClick={() => setShowAddKeyPalette(!showAddKeyPalette)}
-            className="border-dashed"
+            className={cn('border-dashed', CONTROL_FIELD)}
           >
             {t('virtualKeyboard.addKey')}
           </Button>
 
           {showAddKeyPalette && (
-            <div className="space-y-2 border border-tui-border bg-tui-mantle p-2">
-              <Rule label={t('virtualKeyboard.availableKeys')} />
-              <div className="relative flex max-h-48 flex-wrap gap-1 overflow-y-auto overscroll-contain">
+            <SettingSection title={t('virtualKeyboard.availableKeys')}>
+              <div className="flex flex-wrap gap-1 py-1.5">
                 {ALL_AVAILABLE_KEYS.map((availableKey) => {
                   const isAlreadyAdded = currentVirtualKeys.some((k) => k.id === availableKey.id);
                   return (
@@ -664,7 +704,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                       onClick={() => handleAddKey(availableKey)}
                       title={getLocalizedKeyTitle(availableKey, t)}
                       className={cn(
-                        'tui-focusable flex select-none items-center gap-1 border px-1.5 py-0.5 text-tui-sm transition-colors',
+                        'tui-focusable flex h-7 select-none items-center gap-1 border px-1.5 text-tui-sm transition-colors',
                         isAlreadyAdded
                           ? 'border-tui-border-dim text-tui-faint'
                           : 'border-tui-border text-tui-text hover:border-tui-accent hover:text-tui-accent'
@@ -678,76 +718,91 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                   );
                 })}
               </div>
-            </div>
+            </SettingSection>
           )}
         </div>
       )}
 
       {activeTab === 'agentKeymaps' && (
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <FieldLabel htmlFor="agent-keymap-profile">{t('agentKeymaps.settingsProfileLabel')}</FieldLabel>
-            <Select
-              id="agent-keymap-profile"
-              aria-label={t('agentKeymaps.settingsProfileLabel')}
-              value={keymapProfile}
-              onChange={(event) => setSettingsAgentProfile(event.target.value as AgentProfileId)}
-            >
-              {AGENT_PROFILE_IDS.map((id) => (
-                <option key={id} value={id}>{AGENT_PROFILES[id].name}</option>
-              ))}
-            </Select>
-            {(AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint && (
-              <p className="text-tui-sm text-tui-faint">
-                {t('agentKeymaps.configHint', { path: (AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint! })}
+        <div className="space-y-4">
+          <SettingSection
+            title={t('agentKeymaps.settingsProfileLabel')}
+            aside={
+              <Button variant="ghost" onClick={restoreAgentProfile} className={cn(DANGER_GHOST, COMPACT)}>
+                {t('agentKeymaps.restoreProfile')}
+              </Button>
+            }
+          >
+            <SettingRow
+              label={t('agentKeymaps.profileRowLabel')}
+              htmlFor="agent-keymap-profile"
+              hint={(AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint
+                ? t('agentKeymaps.configHint', { path: (AGENT_PROFILES[keymapProfile] as AgentProfileDef).configHint! })
+                : undefined}
+              control={
+                <Select
+                  id="agent-keymap-profile"
+                  aria-label={t('agentKeymaps.settingsProfileLabel')}
+                  value={keymapProfile}
+                  onChange={(event) => setSettingsAgentProfile(event.target.value as AgentProfileId)}
+                  className={CONTROL_FIELD}
+                >
+                  {AGENT_PROFILE_IDS.map((id) => (
+                    <option key={id} value={id}>{AGENT_PROFILES[id].name}</option>
+                  ))}
+                </Select>
+              }
+            />
+          </SettingSection>
+
+          <SettingSection
+            title={t('agentKeymaps.barGroup')}
+            aside={
+              <Button variant="ghost" onClick={restoreBarVisibility} className={cn(DANGER_GHOST, COMPACT)}>
+                {t('agentKeymaps.restoreBar')}
+              </Button>
+            }
+          >
+            <div className="space-y-2 py-1.5">
+              <p className="text-tui-sm leading-snug text-tui-faint">
+                {t('agentKeymaps.barHint', { profile: AGENT_PROFILES[keymapProfile].name, count: shownBarCount })}
               </p>
-            )}
-          </div>
-
-          <Rule label={t('agentKeymaps.barGroup')} />
-          <div className="space-y-2">
-            <p className="text-tui-sm leading-snug text-tui-faint">
-              {t('agentKeymaps.barHint', { profile: AGENT_PROFILES[keymapProfile].name, count: shownBarCount })}
-            </p>
-            <div
-              role="group"
-              aria-label={t('agentKeymaps.barGroup')}
-              data-testid="agent-bar-choices"
-              className="flex flex-wrap gap-1"
-            >
-              {barChoices.map((item) => {
-                const label = actionLabel(item);
-                const caption = actionCaption(item);
-                const shown = !item.hidden;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    data-testid={`agent-bar-toggle-${item.id}`}
-                    aria-pressed={shown}
-                    onClick={() => updateAgentAction(item.id, { hidden: shown })}
-                    title={`${caption} ${label}`.trim()}
-                    className={cn(
-                      'tui-focusable inline-flex h-8 select-none items-center gap-1 border px-1.5 text-tui-sm transition-colors',
-                      shown
-                        ? 'border-tui-accent bg-tui-accent text-tui-crust'
-                        : 'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent'
-                    )}
-                  >
-                    <span aria-hidden="true" className="font-bold">{shown ? GLYPH.check : '+'}</span>
-                    <span className="font-bold">{caption}</span>
-                    <span className={shown ? undefined : 'opacity-80'}>{label}</span>
-                  </button>
-                );
-              })}
+              <div
+                role="group"
+                aria-label={t('agentKeymaps.barGroup')}
+                data-testid="agent-bar-choices"
+                className="flex flex-wrap gap-1"
+              >
+                {barChoices.map((item) => {
+                  const label = actionLabel(item);
+                  const caption = actionCaption(item);
+                  const shown = !item.hidden;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid={`agent-bar-toggle-${item.id}`}
+                      aria-pressed={shown}
+                      onClick={() => updateAgentAction(item.id, { hidden: shown })}
+                      title={`${caption} ${label}`.trim()}
+                      className={cn(
+                        'tui-focusable inline-flex h-7 select-none items-center gap-1 border px-1.5 text-tui-sm transition-colors',
+                        shown
+                          ? 'border-tui-accent bg-tui-accent text-tui-crust'
+                          : 'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent'
+                      )}
+                    >
+                      <span aria-hidden="true" className="font-bold">{shown ? GLYPH.check : '+'}</span>
+                      <span className="font-bold">{caption}</span>
+                      <span className={shown ? undefined : 'opacity-80'}>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <Button variant="ghost" onClick={restoreBarVisibility}>
-              {t('agentKeymaps.restoreBar')}
-            </Button>
-          </div>
+          </SettingSection>
 
-          <Rule label={t('agentKeymaps.agentGroup')} />
-          <div className="relative max-h-72 overflow-y-auto overscroll-contain border border-tui-border bg-tui-mantle">
+          <SettingSection title={t('agentKeymaps.listGroup', { profile: AGENT_PROFILES[keymapProfile].name })}>
             {profileActions.map((item, index) => {
               const label = actionLabel(item);
               const defaultText = t('agentKeymaps.defaultCombo', { combo: formatComboCaption(item.defaultCombo) });
@@ -768,10 +823,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                   data-testid={`agent-setting-row-${item.id}`}
                   className={AGENT_ROW_GRID}
                 >
-                  <KeyCap className="max-w-full justify-self-start overflow-hidden whitespace-nowrap font-bold [grid-area:cap]">
+                  <KeyCap className="w-full overflow-hidden whitespace-nowrap font-bold [grid-area:cap]">
                     {caption || '—'}
                   </KeyCap>
-                  <span className="min-w-0 truncate text-tui-sm text-tui-text [grid-area:label]" title={label}>
+                  <span className="min-w-0 truncate text-tui text-tui-text [grid-area:label]" title={label}>
                     {label}
                     {!item.verified && (
                       <span className="ml-1 text-tui-sm text-tui-faint">{t('agentKeymaps.unverified')}</span>
@@ -791,47 +846,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                     }}
                     placeholder={t('agentKeymaps.comboPlaceholder')}
                     aria-invalid={Boolean(error)}
-                    className="w-full min-w-0 [grid-area:combo]"
+                    className={cn('w-full min-w-0 [grid-area:combo]', COMPACT_FIELD)}
                   />
                   <span className="min-w-0 truncate text-tui-sm text-tui-faint [grid-area:default]" title={defaultText}>
                     {defaultText}
                   </span>
-                  <div className="flex items-center gap-1 [grid-area:actions]">
-                    <Button
-                      variant="ghost"
-                      brackets={false}
-                      className="px-1"
+                  <div className="flex items-center justify-end [grid-area:actions]">
+                    <IconButton
                       onClick={() => resetAgentAction(item)}
                       title={t('agentKeymaps.resetAction')}
                       aria-label={`${t('agentKeymaps.resetAction')} ${label}`}
-                    >↺</Button>
-                    <Button
-                      variant="ghost"
-                      brackets={false}
-                      className="px-1"
+                    >↺</IconButton>
+                    <IconButton
                       disabled={index === 0}
                       onClick={() => moveAgentAction(index, 'up')}
                       title={t('agentKeymaps.moveUp')}
                       aria-label={`${t('agentKeymaps.moveUp')} ${label}`}
-                    >↑</Button>
-                    <Button
-                      variant="ghost"
-                      brackets={false}
-                      className="px-1"
+                    >↑</IconButton>
+                    <IconButton
                       disabled={index === profileActions.length - 1}
                       onClick={() => moveAgentAction(index, 'down')}
                       title={t('agentKeymaps.moveDown')}
                       aria-label={`${t('agentKeymaps.moveDown')} ${label}`}
-                    >↓</Button>
-                    {item.custom && (
-                      <Button
-                        variant="ghost"
-                        brackets={false}
-                        className="px-1 text-tui-bad"
+                    >↓</IconButton>
+                    {item.custom ? (
+                      <IconButton
+                        variant="danger"
                         onClick={() => removeCustomAction(item.id)}
                         title={t('agentKeymaps.removeCustom')}
                         aria-label={`${t('agentKeymaps.removeCustom')} ${label}`}
-                      >{GLYPH.cross}</Button>
+                      >{GLYPH.cross}</IconButton>
+                    ) : (
+                      /* Holds the delete column so every row's arrows line up. */
+                      <span aria-hidden="true" className="h-7 w-7 shrink-0" />
                     )}
                   </div>
                   {error && (
@@ -842,34 +889,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 </div>
               );
             })}
-          </div>
+          </SettingSection>
 
-          <Rule label={t('agentKeymaps.addCustom')} />
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="min-w-[9rem] flex-1 space-y-1 text-tui-sm text-tui-faint">
-              <span>{t('agentKeymaps.customLabel')}</span>
-              <Input value={customLabel} onChange={(event) => setCustomLabel(event.target.value)} />
-            </label>
-            <label className="min-w-[9rem] flex-1 space-y-1 text-tui-sm text-tui-faint">
-              <span>{t('agentKeymaps.customCombo')}</span>
-              <Input value={customCombo} onChange={(event) => setCustomCombo(event.target.value)} />
-            </label>
-            <Button onClick={addCustomAgentAction} disabled={!customLabel.trim() || !customCombo.trim()}>
-              {t('agentKeymaps.addAction')}
-            </Button>
-          </div>
-          {customCombo.trim() && (() => {
-            try {
-              parseKeyCombo(customCombo);
-              return <p className="text-tui-sm text-tui-faint">{formatComboCaption(customCombo)}</p>;
-            } catch (reason) {
-              const error = getComboErrorText(reason);
-              return <p className="text-tui-sm text-tui-bad" role="alert">{error}</p>;
-            }
-          })()}
-          <Button variant="ghost" onClick={restoreAgentProfile}>
-            {t('agentKeymaps.restoreProfile')}
-          </Button>
+          <SettingSection title={t('agentKeymaps.addCustom')}>
+            <div className="space-y-1 py-1.5">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="min-w-[9rem] flex-1 space-y-1 text-tui-sm text-tui-muted">
+                  <span>{t('agentKeymaps.customLabel')}</span>
+                  <Input
+                    value={customLabel}
+                    onChange={(event) => setCustomLabel(event.target.value)}
+                    className={CONTROL_FIELD}
+                  />
+                </label>
+                <label className="min-w-[9rem] flex-1 space-y-1 text-tui-sm text-tui-muted">
+                  <span>{t('agentKeymaps.customCombo')}</span>
+                  <Input
+                    value={customCombo}
+                    onChange={(event) => setCustomCombo(event.target.value)}
+                    placeholder={t('agentKeymaps.comboPlaceholder')}
+                    className={CONTROL_FIELD}
+                  />
+                </label>
+                <Button
+                  variant="primary"
+                  glyph="+"
+                  onClick={addCustomAgentAction}
+                  disabled={!customLabel.trim() || !customCombo.trim()}
+                  className={CONTROL_FIELD}
+                >
+                  {t('agentKeymaps.addAction')}
+                </Button>
+              </div>
+              {customCombo.trim() && (() => {
+                try {
+                  parseKeyCombo(customCombo);
+                  return <p className="text-tui-sm text-tui-info">{formatComboCaption(customCombo)}</p>;
+                } catch (reason) {
+                  const error = getComboErrorText(reason);
+                  return <p className="text-tui-sm text-tui-bad" role="alert">{error}</p>;
+                }
+              })()}
+            </div>
+          </SettingSection>
         </div>
       )}
     </Modal>

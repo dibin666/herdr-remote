@@ -10,6 +10,8 @@ interface PtysTableProps {
 /** The shells the relay is holding open, and the geometry each one is at. */
 export const PtysTable: React.FC<PtysTableProps> = ({ ptys }) => {
   const { t } = useTerminal();
+  // Only the operator's relay-wide view spans several workstations.
+  const showHost = ptys.some((pty) => pty.hostId);
 
   const columns: Column<PtyInfo>[] = [
     {
@@ -17,6 +19,13 @@ export const PtysTable: React.FC<PtysTableProps> = ({ ptys }) => {
       header: t('admin.colPtyId'),
       render: (pty) => <span className="font-bold text-tui-accent">{pty.id}</span>,
     },
+    ...(showHost
+      ? [{
+        key: 'host',
+        header: t('admin.colHost'),
+        render: (pty: PtyInfo) => <span className="text-tui-text">{pty.hostId}</span>,
+      }]
+      : []),
     {
       key: 'pid',
       header: t('admin.colPid'),

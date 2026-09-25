@@ -133,7 +133,6 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       <TerminalProvider>
         <MobileControlSheet
           onClose={() => {}}
-          onNavigateAdmin={() => {}}
           onOpenPairing={() => {}}
           onOpenSettings={() => {}}
         />
@@ -143,7 +142,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(screen.getByText('会话控制')).toBeInTheDocument();
     expect(screen.getByText('输入控制权')).toBeInTheDocument();
     expect(screen.getByText('设置')).toBeInTheDocument();
-    expect(screen.getByText('管理面板')).toBeInTheDocument();
+    // The dashboard is entered from Settings, not from the sheet.
+    expect(screen.queryByText('管理面板')).toBeNull();
     expect(screen.getByText('配对')).toBeInTheDocument();
     expect(screen.getByText('按键条')).toBeInTheDocument();
     expect(screen.getByLabelText('关闭会话控制面板')).toBeInTheDocument();
@@ -156,7 +156,6 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       <TerminalProvider>
         <MobileControlSheet
           onClose={() => {}}
-          onNavigateAdmin={() => {}}
           onOpenPairing={() => {}}
           onOpenSettings={() => {}}
         />
@@ -166,7 +165,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(screen.getByText('Session controls')).toBeInTheDocument();
     expect(screen.getByText('Input control')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.queryByText('Admin')).toBeNull();
     expect(screen.getByText('Pairing')).toBeInTheDocument();
     expect(screen.getByText('Key bar')).toBeInTheDocument();
     expect(screen.getByLabelText('Close session controls')).toBeInTheDocument();

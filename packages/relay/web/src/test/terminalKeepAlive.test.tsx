@@ -39,8 +39,16 @@ const ADMIN_STATUS_FIXTURE = {
   protocolVersion: 1,
 };
 
-const goToAdmin = () =>
-  fireEvent.click(screen.getByRole('button', { name: /^Admin$/i }));
+// The dashboard is entered from Settings; the header has no Admin tab until
+// the dashboard is open.
+const goToAdmin = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /^Terminal settings$/i }));
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /^Open$/ }));
+  });
+};
 const goToTerminal = () =>
   fireEvent.click(screen.getByRole('button', { name: /^Terminal$/i }));
 
@@ -65,10 +73,8 @@ describe('Terminal keep-alive across view navigation', () => {
     const term = xtermInstances[0];
     expect(term.disposed).toBe(false);
 
-    await act(async () => {
-      goToAdmin();
-    });
-    expect(await screen.findByText(/Admin Dashboard/i)).toBeInTheDocument();
+    await goToAdmin();
+    expect(await screen.findByTestId('admin-layer')).toBeInTheDocument();
 
     // The single terminal instance survives: not disposed, not rebuilt.
     expect(xtermInstances.length).toBe(1);
@@ -93,9 +99,7 @@ describe('Terminal keep-alive across view navigation', () => {
     expect(layerWhileActive.style.visibility).toBe('visible');
     expect(layerWhileActive.style.pointerEvents).toBe('auto');
 
-    await act(async () => {
-      goToAdmin();
-    });
+    await goToAdmin();
 
     const hiddenLayer = screen.getByTestId('terminal-layer');
     // Still in the tree, still laid out — only visually hidden.
@@ -118,9 +122,7 @@ describe('Terminal keep-alive across view navigation', () => {
     await waitFor(() => expect(xtermInstances.length).toBe(1));
     const term = xtermInstances[0];
 
-    await act(async () => {
-      goToAdmin();
-    });
+    await goToAdmin();
 
     const refreshesBefore = term.refreshCount;
 
@@ -162,9 +164,7 @@ describe('Terminal keep-alive across view navigation', () => {
     const gridBefore = { cols: term.cols, rows: term.rows };
     const resizesBefore = term.resizeCalls.length;
 
-    await act(async () => {
-      goToAdmin();
-    });
+    await goToAdmin();
     await act(async () => {
       goToTerminal();
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -191,9 +191,7 @@ describe('Terminal keep-alive across view navigation', () => {
     await waitFor(() => expect(xtermInstances.length).toBe(1));
     const term = xtermInstances[0];
 
-    await act(async () => {
-      goToAdmin();
-    });
+    await goToAdmin();
     const focusesBefore = term.focusCount;
 
     await act(async () => {

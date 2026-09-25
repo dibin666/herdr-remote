@@ -217,9 +217,12 @@ describe('Terminal geometry across view navigation', () => {
     expect({ cols: term.cols, rows: term.rows }).toEqual(expectedGrid(DESKTOP));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^Admin$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Terminal settings$/i }));
     });
-    expect(await screen.findByText(/Admin Dashboard/i)).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Open$/ }));
+    });
+    expect(await screen.findByTestId('admin-layer')).toBeInTheDocument();
 
     // Rotate/resize into a phone viewport while the terminal is off screen.
     setPointerKind('coarse');

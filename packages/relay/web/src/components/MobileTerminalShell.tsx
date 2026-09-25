@@ -7,9 +7,6 @@ import { GLYPH, Sep, StatusDot } from './tui';
 import { MobileStatusBar } from './MobileStatusBar';
 
 export interface MobileTerminalShellProps {
-  onNavigateAdmin: () => void;
-  /** False on operator-facing relays; hides the dashboard shortcut. */
-  showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
   onAddProfile?: () => void;
@@ -23,8 +20,6 @@ export interface MobileTerminalShellProps {
  * and sitting on reserved terminal rows so they can never cover output.
  */
 export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
-  onNavigateAdmin,
-  showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
   onAddProfile = () => {},
@@ -137,11 +132,6 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           >
             <MobileControlSheet
               onClose={close}
-              showAdminEntry={showAdminEntry}
-              onNavigateAdmin={() => {
-                close();
-                onNavigateAdmin();
-              }}
               onOpenPairing={() => {
                 close();
                 onOpenPairing();

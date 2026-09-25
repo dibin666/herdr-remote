@@ -10,8 +10,6 @@ import { copyText } from '../utils/clipboard';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
-  onNavigateAdmin: () => void;
-  showAdminEntry?: boolean;
   onOpenPairing: () => void;
   onOpenSettings: () => void;
   onAddProfile?: () => void;
@@ -47,8 +45,6 @@ const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
 
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
-  onNavigateAdmin,
-  showAdminEntry = true,
   onOpenPairing,
   onOpenSettings,
   onAddProfile = () => {},
@@ -215,18 +211,6 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           <Cursor />
           <span className="truncate">{t('common.pairing')}</span>
         </button>
-
-        {showAdminEntry && (
-          <button
-            type="button"
-            onClick={withoutFocusScroll(onNavigateAdmin)}
-            className={cn(actionRowClass, idleRowClass)}
-            aria-label={t('mobile.adminAria')}
-          >
-            <Cursor />
-            <span className="truncate">{t('common.admin')}</span>
-          </button>
-        )}
 
         <button
           type="button"

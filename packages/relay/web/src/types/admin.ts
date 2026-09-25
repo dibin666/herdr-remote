@@ -70,6 +70,8 @@ export interface HostInfo {
 
 export interface PtyInfo {
   id: string;
+  /** Absent from a host-scoped response, where every row belongs to one host. */
+  hostId?: string;
   pid: number;
   command: string;
   cols: number;
