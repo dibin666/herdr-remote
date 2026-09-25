@@ -1,13 +1,11 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
 
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-test', 'X-Herdr-Host-Token': 'host-token-secret' };
 

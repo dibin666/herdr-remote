@@ -1,18 +1,16 @@
-'use strict';
-
 // The workstation's terminal font crosses the relay twice: as a family name
 // that lands in a browser's CSS `font-family` list, and as file slices a
 // browser asks for by hash. Both are untrusted here.
 
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
-const { sanitizeTerminalFont, TERMINAL_FONT_CHUNK_BYTES } = require('../src/stream-frame');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
+import { sanitizeTerminalFont, TERMINAL_FONT_CHUNK_BYTES } from '../src/stream-frame';
 
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
 const REGULAR = 'a'.repeat(64);

@@ -1,7 +1,5 @@
-'use strict';
-
-const os = require('node:os');
-const { monitorEventLoopDelay } = require('node:perf_hooks');
+import os from 'node:os';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -254,4 +252,4 @@ class RelayMetrics {
   }
 }
 
-module.exports = { RelayMetrics, countActiveUsers };
+export { RelayMetrics, countActiveUsers };

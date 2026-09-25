@@ -1,13 +1,11 @@
-'use strict';
-
 // The relay lets a read-only client scroll its own PTY stream, so this matcher
 // is a trust boundary: it decides which bytes a device without the control
 // lease may put into a terminal. It has to admit wheel reports and nothing at
 // all besides them.
 
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const { isWheelOnlyInput } = require('../src/scroll-input');
+import assert from 'node:assert/strict';
+import { isWheelOnlyInput } from '../src/scroll-input';
 
 const bytes = (text) => Buffer.from(text, 'binary');
 const ESC = '\x1b';

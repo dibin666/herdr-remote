@@ -1,14 +1,12 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
-const { loadRelayConfig } = require('../src/relay-config');
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
+import { loadRelayConfig } from '../src/relay-config';
+import {
   FRAME_V2_MAGIC,
   FRAME_TYPE_OUTPUT,
   FRAME_TYPE_INPUT,
@@ -16,7 +14,7 @@ const {
   unpackStreamFrame,
   packStreamFrameV2,
   unpackStreamFrameV2,
-} = require('../src/stream-frame');
+} from '../src/stream-frame';
 
 function openWebSocket(url) {
   return new Promise((resolve, reject) => {

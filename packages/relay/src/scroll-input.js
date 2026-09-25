@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Wheel-report recognition for read-only clients.
  *
@@ -136,4 +134,4 @@ function isWheelOnlyInput(payload) {
   return true;
 }
 
-module.exports = { isWheelOnlyInput };
+export { isWheelOnlyInput };

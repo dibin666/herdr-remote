@@ -1,5 +1,3 @@
-'use strict';
-
 // Wire protocol shared by the relay and the herdr-remote host connector. This
 // module is the single source of truth for both sides: the CLI package imports
 // it as `herdr-remote-relay/protocol` rather than keeping its own copy, so the
@@ -221,7 +219,7 @@ function unpackStreamFrame(value) {
   return unpackStreamFrameV1(frame);
 }
 
-module.exports = {
+export {
   PROTOCOL_VERSION,
   MAX_HEADER_BYTES,
   FRAME_V2_MAGIC,

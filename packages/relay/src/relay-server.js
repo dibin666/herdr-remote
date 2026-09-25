@@ -1,16 +1,14 @@
-'use strict';
-
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { URL } = require('node:url');
-const { WebSocketServer, WebSocket } = require('ws');
-const { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } = require('./relay-config');
-const { AuthStore } = require('./auth-store');
-const { RelayMetrics, countActiveUsers } = require('./metrics');
-const {
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { URL } from 'node:url';
+import { WebSocketServer, WebSocket } from 'ws';
+import { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } from './relay-config';
+import { AuthStore } from './auth-store';
+import { RelayMetrics, countActiveUsers } from './metrics';
+import {
   unpackStreamFrame,
   packStreamFrame,
   packStreamFrameV2,
@@ -18,11 +16,13 @@ const {
   sanitizeTerminalPalette,
   sanitizeTerminalFont,
   TERMINAL_FONT_CHUNK_BYTES,
-} = require('./stream-frame');
-const { ensureDir } = require('./state');
+  PROTOCOL_VERSION,
+} from './stream-frame';
+import { ensureDir } from './state';
 
-const VERSION = require('../package.json').version;
-const { PROTOCOL_VERSION } = require('./stream-frame');
+const VERSION = JSON.parse(
+  fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8'),
+).version;
 const MAX_DIMENSION = 500;
 
 /** Never shrink an individual session grid below something a program can still draw in. */
@@ -2006,4 +2006,4 @@ class RelayServer {
   }
 }
 
-module.exports = { RelayServer, PROTOCOL_VERSION, VERSION };
+export { RelayServer, PROTOCOL_VERSION, VERSION };

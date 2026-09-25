@@ -1,11 +1,9 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { AuthStore } = require('../src/auth-store');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { AuthStore } from '../src/auth-store';
 
 function makeStore(options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-auth-'));

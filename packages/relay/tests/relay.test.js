@@ -1,15 +1,14 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
-const { packStreamFrame, unpackStreamFrame } = require('../src/stream-frame');
-const { loadRelayConfig } = require('../src/relay-config');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
+import { packStreamFrame, unpackStreamFrame } from '../src/stream-frame';
+import { loadRelayConfig } from '../src/relay-config';
+import manifest from '../package.json';
 
 // Headers proving we are the workstation that owns `host-1`.
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
@@ -139,7 +138,7 @@ test('relay info identifies local and operator-facing deployments without creden
   assert.deepEqual(await response.json(), {
     ok: true,
     // Read from the manifest so a release does not have to touch this test.
-    version: require('../package.json').version,
+    version: manifest.version,
     protocol: 1,
     relayMode: 'local',
     isRemoteRelay: false,

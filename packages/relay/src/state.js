@@ -1,8 +1,6 @@
-'use strict';
-
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true, mode: 0o700 });
@@ -39,9 +37,4 @@ function randomToken(bytes = 32) {
   return crypto.randomBytes(bytes).toString('base64url');
 }
 
-module.exports = {
-  ensureDir,
-  writeJsonAtomic,
-  readJson,
-  randomToken,
-};
+export { ensureDir, writeJsonAtomic, readJson, randomToken };

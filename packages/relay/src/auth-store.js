@@ -1,7 +1,6 @@
-'use strict';
-
-const crypto = require('node:crypto');
-const { randomToken, readJson, writeJsonAtomic, ensureDir } = require('./state');
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { randomToken, readJson, writeJsonAtomic, ensureDir } from './state';
 
 function hash(value) {
   return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
@@ -47,7 +46,7 @@ class AuthStore {
       this.state.hosts && typeof this.state.hosts === 'object' ? this.state.hosts : {};
     this.state.devices =
       this.state.devices && typeof this.state.devices === 'object' ? this.state.devices : {};
-    ensureDir(require('node:path').dirname(stateFile));
+    ensureDir(path.dirname(stateFile));
   }
 
   save() {
@@ -289,4 +288,4 @@ class AuthStore {
   }
 }
 
-module.exports = { AuthStore, hash, equalHash, nowIso };
+export { AuthStore, hash, equalHash, nowIso };

@@ -1,5 +1,3 @@
-'use strict';
-
 // Standalone relay configuration.
 //
 // The relay is deliberately decoupled from the herdr-remote plugin: it never
@@ -7,9 +5,9 @@
 // come from (lowest to highest precedence) built-in defaults, an optional JSON
 // config file, environment variables, then command line flags.
 
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 
@@ -352,7 +350,7 @@ function loadRelayConfig({ argv = [], env = process.env } = {}) {
   return { config, help, version, errors, configFile, warnings: configWarnings(config) };
 }
 
-module.exports = {
+export {
   PACKAGE_ROOT,
   DEFAULTS,
   loadRelayConfig,

@@ -1,5 +1,3 @@
-'use strict';
-
 // The whole point of splitting the relay into its own package is that it can be
 // deployed on a server that has none of the workstation-side code: no plugin,
 // no Herdr, and above all no node-pty, whose native build is the reason the old
@@ -9,20 +7,25 @@
 // Relay test files are held to the same boundary as production code so that
 // test runs never require native compilation tools.
 
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+import manifest from '../package.json';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
-const manifest = require('../package.json');
+
+/** Matches a static import, a dynamic import or a require of `specifier`. */
+const importOf = (specifier) =>
+  new RegExp(`(?:\\brequire\\(|\\bimport\\(|\\bfrom\\s+)['"]${specifier}['"]`);
 
 function sourceFiles(directory) {
   const entries = fs.readdirSync(directory, { withFileTypes: true });
   return entries.flatMap((entry) => {
     const full = path.join(directory, entry.name);
     if (entry.isDirectory()) return sourceFiles(full);
-    return entry.isFile() && full.endsWith('.js') ? [full] : [];
+    return entry.isFile() && /\.(?:[cm]?js|tsx?)$/.test(full) ? [full] : [];
   });
 }
 
@@ -45,9 +48,9 @@ test('the relay depends on nothing but ws', () => {
 
 test('no relay source imports the workstation package', () => {
   const forbidden = [
-    /require\(['"]herdr-remote['"]/,
-    /require\(['"][^'"]*packages\/cli/,
-    /require\(['"]node-pty['"]/,
+    importOf('herdr-remote'),
+    importOf(`[^'"]*packages/cli[^'"]*`),
+    importOf('node-pty'),
   ];
   const offenders = [];
 
@@ -63,14 +66,15 @@ test('no relay source imports the workstation package', () => {
 });
 
 test('no relay source reaches outside the package', () => {
-  // A require that climbs above the package root would resolve during local
+  // An import that climbs above the package root would resolve during local
   // development and break in the published tarball.
+  const relative = importOf(`(\\.\\.?/[^'"]+)`);
   const offenders = [];
   for (const file of scannedFiles()) {
     const contents = fs.readFileSync(file, 'utf8');
-    const matches = contents.match(/require\(['"](\.\.?\/[^'"]+)['"]\)/g) || [];
+    const matches = contents.match(new RegExp(relative.source, 'g')) || [];
     for (const match of matches) {
-      const specifier = /require\(['"](.+)['"]\)/.exec(match)[1];
+      const specifier = relative.exec(match)[1];
       const resolved = path.resolve(path.dirname(file), specifier);
       if (!resolved.startsWith(PACKAGE_ROOT + path.sep)) {
         offenders.push(`${path.relative(PACKAGE_ROOT, file)} -> ${specifier}`);
@@ -81,13 +85,14 @@ test('no relay source reaches outside the package', () => {
 });
 
 test('the relay loads and serves without any workstation module present', () => {
-  // Requiring the entry points is the cheapest proof that the dependency graph
-  // really is self-contained.
-  const { RelayServer } = require('../src/relay-server');
-  const { loadRelayConfig } = require('../src/relay-config');
+  // Requiring the published entry points is the cheapest proof that the
+  // dependency graph really is self-contained. `pretest` builds dist/.
+  const require = createRequire(__filename);
+  const { RelayServer } = require('../dist/relay-server');
+  const { loadRelayConfig } = require('../dist/relay-config');
   assert.equal(typeof RelayServer, 'function');
   assert.equal(typeof loadRelayConfig, 'function');
-  assert.equal(require.cache[require.resolve('../src/relay-server')] !== undefined, true);
+  assert.equal(require.cache[require.resolve('../dist/relay-server')] !== undefined, true);
 
   const loadedNodePty = Object.keys(require.cache).some((key) =>
     key.includes(`${path.sep}node-pty${path.sep}`),
