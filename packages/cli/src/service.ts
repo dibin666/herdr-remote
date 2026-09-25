@@ -35,7 +35,7 @@ import {
   writeRuntime,
 } from './runtime.js';
 import { resolveSocketPath } from './socket-discovery.js';
-import { resolveHostFont } from './terminal-font.js';
+import { resolveHostFont } from './terminal-font/index.js';
 import { hostTerminalPalette } from './terminal-palette.js';
 
 /** One process to run, declaratively. */

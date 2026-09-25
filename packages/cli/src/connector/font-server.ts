@@ -5,32 +5,25 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { TERMINAL_FONT_CHUNK_BYTES } from 'herdr-remote-relay/protocol';
-import { type FontSource, FontSubsetter } from '../font-subset.js';
-import { loadHostTerminalFont, publicTerminalFont, readFontChunk } from '../terminal-font.js';
+import { FontSubsetter } from '../font-subset.js';
+import type { LocalSubsetSource } from '../terminal-font/files.js';
+import {
+  type LocalTerminalFont,
+  loadHostTerminalFont,
+  publicTerminalFont,
+  readFontChunk,
+} from '../terminal-font/index.js';
 
 /** Cut fonts kept for the slices a browser has yet to fetch, by total size. */
 const FONT_SUBSET_CACHE_BYTES = 48 * 1024 * 1024;
 
 const FONT_CHANGED = 'The terminal font changed or is no longer on this workstation';
 
-/** A font file characters can be cut out of, as it was when announced. */
-interface SubsetSource extends FontSource {
-  sha256: string;
-  bytes: number;
-  mtimeMs: number;
-}
-
-/** The terminal font with the local files behind it; see terminal-font.js. */
-export interface HostFontRecord {
-  subsets?: SubsetSource[];
-  [key: string]: unknown;
-}
-
-export type LoadTerminalFont = (options?: { refresh?: boolean }) => HostFontRecord | null;
+export type LoadTerminalFont = (options?: { refresh?: boolean }) => LocalTerminalFont | null;
 
 export interface FontServerOptions {
   /** The font to start with; loaded now when left out. */
-  terminalFont?: HostFontRecord | null;
+  terminalFont?: LocalTerminalFont | null;
   loadTerminalFont?: LoadTerminalFont;
   fontSubsetter?: FontSubsetter;
 }
@@ -51,7 +44,7 @@ interface SubsetRequest {
  * lacks the font fetches the files by hash, one chunk at a time.
  */
 export class FontServer {
-  font: HostFontRecord | null;
+  font: LocalTerminalFont | null;
   private readonly load: LoadTerminalFont;
   private readonly subsetter: FontSubsetter;
   /** Subsets too large for one message, by hash, until fetched. */
@@ -78,7 +71,7 @@ export class FontServer {
    */
   pickUp(): void {
     if (this.font) return;
-    let next: HostFontRecord | null = null;
+    let next: LocalTerminalFont | null = null;
     try {
       next = this.load();
     } catch {
@@ -171,7 +164,7 @@ export class FontServer {
   }
 
   /** Whether the file behind `source` is still the one that was announced. */
-  private unchanged(source: SubsetSource): boolean {
+  private unchanged(source: LocalSubsetSource): boolean {
     try {
       const stat = fs.statSync(source.path);
       return stat.size === source.bytes && stat.mtimeMs === source.mtimeMs;

@@ -13,22 +13,23 @@ import path from 'node:path';
 import { WebSocket } from 'ws';
 import { TERMINAL_FONT_CHUNK_BYTES } from 'herdr-remote-relay/protocol';
 
+import { resolveFontFaces, resolveSubsetSources } from '../src/terminal-font/files.js';
 import {
+  parseFontconfigPattern,
+  parseJsonc,
   parsePangoFontDescription,
   parseQtFontString,
-  parseFontconfigPattern,
   parseTomlSubset,
-  parseJsonc,
-  identifyTerminal,
-  readTerminalFont,
-  resolveFontFaces,
+} from '../src/terminal-font/formats.js';
+import {
+  captureTerminalFont,
+  fontFromEnvironment,
+  loadHostTerminalFont,
   publicTerminalFont,
   readFontChunk,
-  fontFromEnvironment,
-  captureTerminalFont,
-  loadHostTerminalFont,
-  resolveSubsetSources,
-} from '../src/terminal-font.js';
+  readTerminalFont,
+} from '../src/terminal-font/index.js';
+import { identifyTerminal } from '../src/terminal-font/terminals.js';
 import { HostConnector } from '../src/connector/host-connector.js';
 import { parseBinaryPlist } from '../src/binary-plist.js';
 import { FontSubsetter } from '../src/font-subset.js';

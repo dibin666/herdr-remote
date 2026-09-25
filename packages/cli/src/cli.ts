@@ -151,7 +151,7 @@ async function main(argv = process.argv.slice(2)) {
   // The font, likewise, is read while this process still knows which terminal
   // it runs in: its variables and its parent process are gone once a service
   // manager or Herdr's detached server starts the connector.
-  (await import('./terminal-font.js')).captureTerminalFont();
+  (await import('./terminal-font/index.js')).captureTerminalFont();
 
   const config = loadConfig();
   const preference =
