@@ -2,7 +2,7 @@
 // host connector, the relay and the browser. The single definition both
 // packages build against; nothing here may be copied into the CLI or the web.
 
-export * from './frames';
-export * from './terminal';
-export * from './messages';
-export * from './paste';
+export * from './frames.js';
+export * from './terminal.js';
+export * from './messages.js';
+export * from './paste.js';

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import type { PairedDeviceInfo } from './protocol/http';
-import { randomToken, readJson, writeJsonAtomic, ensureDir } from './state';
+import type { PairedDeviceInfo } from './protocol/http.js';
+import { randomToken, readJson, writeJsonAtomic, ensureDir } from './state.js';
 
 interface HostRecord {
   tokenHash: string;

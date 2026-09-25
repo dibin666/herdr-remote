@@ -6,7 +6,7 @@
 // Browser-safe: types and constants only. Terminal bytes travel separately as
 // binary frames (see ./frames).
 
-import type { HostTerminalFont, HostTerminalPalette } from './terminal';
+import type { HostTerminalFont, HostTerminalPalette } from './terminal.js';
 
 export const WS_HOST_PATH = '/ws/host';
 export const WS_CLIENT_PATH = '/ws/client';

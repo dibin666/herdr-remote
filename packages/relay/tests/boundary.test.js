@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'vitest';
 import manifest from '../package.json';
@@ -85,19 +85,28 @@ test('no relay source reaches outside the package', () => {
 });
 
 test('the relay loads and serves without any workstation module present', () => {
-  // Requiring the published entry points is the cheapest proof that the
-  // dependency graph really is self-contained. `pretest` builds dist/.
-  const require = createRequire(__filename);
-  const { RelayServer } = require('../dist/relay-server');
-  const { loadRelayConfig } = require('../dist/relay-config');
-  assert.equal(typeof RelayServer, 'function');
-  assert.equal(typeof loadRelayConfig, 'function');
-  assert.equal(require.cache[require.resolve('../dist/relay-server')] !== undefined, true);
-
-  const loadedNodePty = Object.keys(require.cache).some((key) =>
-    key.includes(`${path.sep}node-pty${path.sep}`),
-  );
-  assert.equal(loadedNodePty, false, 'the relay must not pull in node-pty');
+  // Loading the published entry points is the cheapest proof that the
+  // dependency graph really is self-contained. A fresh process, so nothing
+  // this test runner loaded counts; `pretest` builds dist/.
+  const probe = `
+    import { createRequire } from 'node:module';
+    const { RelayServer } = await import('./dist/relay-server.js');
+    const { loadRelayConfig } = await import('./dist/relay-config.js');
+    const loaded = Object.keys(createRequire(import.meta.url).cache);
+    console.log(JSON.stringify({
+      server: typeof RelayServer,
+      config: typeof loadRelayConfig,
+      nodePty: loaded.some((key) => key.includes('/node-pty/')),
+    }));
+  `;
+  const output = execFileSync(process.execPath, ['--input-type=module', '-e', probe], {
+    cwd: PACKAGE_ROOT,
+    encoding: 'utf8',
+  });
+  const result = JSON.parse(output);
+  assert.equal(result.server, 'function');
+  assert.equal(result.config, 'function');
+  assert.equal(result.nodePty, false, 'the relay must not pull in node-pty');
 });
 
 test('the published file list carries the built server and web UI and nothing extra', () => {

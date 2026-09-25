@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict';
 
 // Standalone entry point for the Herdr Remote relay.
 //
@@ -7,10 +6,10 @@
 // and run on its own host (`npm i -g herdr-remote-relay`) with nothing but
 // environment variables for configuration.
 
-const fs = require('node:fs');
-const path = require('node:path');
-const { loadRelayConfig, PACKAGE_ROOT } = require('../dist/relay-config');
-const { RelayServer, VERSION, PROTOCOL_VERSION } = require('../dist/relay-server');
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadRelayConfig, PACKAGE_ROOT } from '../dist/relay-config.js';
+import { RelayServer, VERSION, PROTOCOL_VERSION } from '../dist/relay-server.js';
 
 const USAGE = `herdr-remote-relay ${VERSION} — standalone relay for Herdr Remote
 
@@ -111,11 +110,7 @@ async function main(argv = process.argv.slice(2)) {
   process.on('SIGTERM', () => stop('SIGTERM'));
 }
 
-if (require.main === module) {
-  main().catch((error) => {
-    process.stderr.write(`herdr-remote-relay: ${error.stack || error.message}\n`);
-    process.exitCode = 1;
-  });
-}
-
-module.exports = { main, USAGE };
+main().catch((error) => {
+  process.stderr.write(`herdr-remote-relay: ${error.stack || error.message}\n`);
+  process.exitCode = 1;
+});

@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { URL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
-import { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } from './relay-config';
-import { AuthStore } from './auth-store';
-import { RelayMetrics, countActiveUsers } from './metrics';
+import { loadRelayConfig, defaultStateDir, PACKAGE_ROOT } from './relay-config.js';
+import { AuthStore } from './auth-store.js';
+import { RelayMetrics, countActiveUsers } from './metrics.js';
 import {
   unpackStreamFrame,
   packStreamFrame,
@@ -23,8 +23,8 @@ import {
   PASTE_MAX_BYTES,
   isPasteImageMime,
   hasImageSignature,
-} from './protocol';
-import { ensureDir } from './state';
+} from './protocol/index.js';
+import { ensureDir } from './state.js';
 
 const VERSION = JSON.parse(
   fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8'),

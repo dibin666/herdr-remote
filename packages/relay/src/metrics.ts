@@ -8,7 +8,7 @@ import type {
   HostInfo,
   PtyInfo,
   ThroughputMetrics,
-} from './protocol/http';
+} from './protocol/http.js';
 
 /** Cleanup counters that `recordCleanup` may increment. */
 export type CleanupCounterName = Exclude<keyof CleanupCounters, 'lastCleanupAt'>;
