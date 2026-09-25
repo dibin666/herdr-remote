@@ -1,7 +1,7 @@
-// English message catalogue. This file is the reference: zh.js must define
-// exactly the same keys, which tests/i18n.test.js enforces.
+// English message catalogue. This file is the reference: zh.ts must define
+// exactly the same keys, which its type and tests/i18n.test.js enforce.
 
-export default {
+const en = {
   'app.name': 'Herdr Remote',
   'app.tagline': 'Remote browser access to Herdr workspaces',
 
@@ -243,3 +243,6 @@ export default {
   'update.cannot.source': 'Source checkout — update with git',
   'update.cannot.linked': 'Linked package — managed by npm link',
 };
+
+export type MessageKey = keyof typeof en;
+export default en;

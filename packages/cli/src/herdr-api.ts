@@ -42,6 +42,19 @@ const SUBSCRIBE_RETRY_MAX_MS = 10_000;
 
 let requestCounter = 0;
 
+type Connect = (path: string) => net.Socket;
+
+/** An event from `events.subscribe`. */
+export interface HerdrEvent {
+  event: string;
+  data: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface HerdrSubscription {
+  close(): void;
+}
+
 /**
  * Ask Herdr one thing.
  *
@@ -49,17 +62,22 @@ let requestCounter = 0;
  * timeout, an unparseable answer, or an `error` response — in which case
  * `error.code` is Herdr's own code.
  */
-function requestHerdr(socketPath, method, params = {}, options = {}) {
-  const { timeout = REQUEST_TIMEOUT_MS, connect = net.connect } = options;
+function requestHerdr<T = unknown>(
+  socketPath: string,
+  method: string,
+  params: Record<string, unknown> = {},
+  options: { timeout?: number; connect?: Connect } = {},
+): Promise<T> {
+  const { timeout = REQUEST_TIMEOUT_MS, connect = net.connect as Connect } = options;
   requestCounter += 1;
   const id = `herdr-remote:${requestCounter}`;
 
-  return new Promise((resolve, reject) => {
-    let socket;
+  return new Promise<T>((resolve, reject) => {
+    let socket: net.Socket | undefined;
     let buffer = '';
     let settled = false;
 
-    const finish = (error, result) => {
+    const finish = (error: Error | null, result?: T) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -68,7 +86,7 @@ function requestHerdr(socketPath, method, params = {}, options = {}) {
         socket.destroy();
       }
       if (error) reject(error);
-      else resolve(result);
+      else resolve(result as T);
     };
 
     const timer = setTimeout(
@@ -80,15 +98,16 @@ function requestHerdr(socketPath, method, params = {}, options = {}) {
     try {
       socket = connect(socketPath);
     } catch (error) {
-      finish(error);
+      finish(error as Error);
       return;
     }
 
-    socket.setEncoding('utf8');
-    socket.on('connect', () => {
-      socket.write(`${JSON.stringify({ id, method, params })}\n`);
+    const connection = socket;
+    connection.setEncoding('utf8');
+    connection.on('connect', () => {
+      connection.write(`${JSON.stringify({ id, method, params })}\n`);
     });
-    socket.on('data', (chunk) => {
+    connection.on('data', (chunk: string) => {
       buffer += chunk;
       if (buffer.length > MAX_RESPONSE_BYTES) {
         finish(new Error('Herdr API sent an oversized response'));
@@ -96,7 +115,7 @@ function requestHerdr(socketPath, method, params = {}, options = {}) {
       }
       const newline = buffer.indexOf('\n');
       if (newline === -1) return;
-      let message;
+      let message: { result?: T; error?: { code?: string; message?: string } };
       try {
         message = JSON.parse(buffer.slice(0, newline));
       } catch {
@@ -104,17 +123,21 @@ function requestHerdr(socketPath, method, params = {}, options = {}) {
         return;
       }
       if (message.error) {
-        const error = new Error(message.error.message || 'Herdr API request failed');
-        error.code = message.error.code || 'herdr_api_error';
+        const error = Object.assign(
+          new Error(message.error.message || 'Herdr API request failed'),
+          {
+            code: message.error.code || 'herdr_api_error',
+          },
+        );
         finish(error);
         return;
       }
       finish(null, message.result);
     });
-    socket.on('error', (error) => finish(error));
+    connection.on('error', (error) => finish(error));
     // Herdr hanging up before it answered is the ordinary shape of "the server
     // is not running", not something that needs its own diagnosis.
-    socket.on('close', () => finish(new Error(`Herdr API closed before answering ${method}`)));
+    connection.on('close', () => finish(new Error(`Herdr API closed before answering ${method}`)));
   });
 }
 
@@ -127,15 +150,20 @@ function requestHerdr(socketPath, method, params = {}, options = {}) {
  * starts or writes to a terminal, so an unavailable socket is only a reason to
  * retry this side channel.
  */
-function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
+function subscribeHerdr(
+  socketPath: string,
+  subscriptions: { type: string }[],
+  onEvent: (event: HerdrEvent) => void,
+  options: { connect?: Connect; retryBaseMs?: number; retryMaxMs?: number } = {},
+): HerdrSubscription {
   const {
-    connect = net.connect,
+    connect = net.connect as Connect,
     retryBaseMs = SUBSCRIBE_RETRY_BASE_MS,
     retryMaxMs = SUBSCRIBE_RETRY_MAX_MS,
   } = options;
-  let socket = null;
-  let reconnectTimer = null;
-  let handshakeTimer = null;
+  let socket: net.Socket | null = null;
+  let reconnectTimer: NodeJS.Timeout | null = null;
+  let handshakeTimer: NodeJS.Timeout | null = null;
   let retryCount = 0;
   let closed = false;
 
@@ -150,9 +178,9 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
     if (typeof reconnectTimer.unref === 'function') reconnectTimer.unref();
   };
 
-  const open = () => {
+  const open = (): void => {
     if (closed) return;
-    let current;
+    let current: net.Socket;
     try {
       current = connect(socketPath);
     } catch {
@@ -161,7 +189,7 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
     }
     socket = current;
     let buffer = '';
-    let requestId = null;
+    let requestId: string | null = null;
     let acknowledged = false;
     const clearHandshake = () => {
       if (handshakeTimer) clearTimeout(handshakeTimer);
@@ -182,18 +210,18 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
       handshakeTimer = setTimeout(() => current.destroy(), REQUEST_TIMEOUT_MS);
       if (typeof handshakeTimer.unref === 'function') handshakeTimer.unref();
     });
-    current.on('data', (chunk) => {
+    current.on('data', (chunk: string) => {
       buffer += chunk;
       if (Buffer.byteLength(buffer, 'utf8') > MAX_RESPONSE_BYTES) {
         current.destroy();
         return;
       }
-      let newline;
-      while ((newline = buffer.indexOf('\n')) !== -1) {
+      let newline = buffer.indexOf('\n');
+      for (; newline !== -1; newline = buffer.indexOf('\n')) {
         const line = buffer.slice(0, newline);
         buffer = buffer.slice(newline + 1);
         if (!line) continue;
-        let message;
+        let message: { id?: unknown; error?: unknown; event?: unknown; data?: unknown } | null;
         try {
           message = JSON.parse(line);
         } catch {
@@ -215,7 +243,7 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
           typeof message.data === 'object'
         ) {
           try {
-            onEvent(message);
+            onEvent(message as HerdrEvent);
           } catch {}
         }
       }

@@ -1,5 +1,19 @@
 import os from 'node:os';
-import pty from 'node-pty';
+import pty, { type IPty } from 'node-pty';
+
+export interface PtySessionOptions {
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  socketPath?: string | null;
+}
+
+export interface PtyStartOptions {
+  cols?: number;
+  rows?: number;
+  onData?: (data: string) => void;
+  onExit?: (event: { exitCode: number; signal?: number }) => void;
+}
 
 class PtySession {
   static DEFAULT_COLS = 100;
@@ -7,7 +21,14 @@ class PtySession {
   static MIN_DIMENSION = 2;
   static MAX_DIMENSION = 500;
 
-  constructor({ command, args = [], cwd = os.homedir(), socketPath } = {}) {
+  readonly command: string;
+  readonly args: string[];
+  readonly cwd: string;
+  readonly socketPath: string | null | undefined;
+  terminal: IPty | null;
+  startedAt: string | null;
+
+  constructor({ command, args = [], cwd = os.homedir(), socketPath }: PtySessionOptions = {}) {
     if (typeof command !== 'string' || command.length === 0)
       throw new TypeError('command must be a non-empty string');
     if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string'))
@@ -20,7 +41,7 @@ class PtySession {
     this.startedAt = null;
   }
 
-  static childEnv(socketPath) {
+  static childEnv(socketPath: string | null | undefined): NodeJS.ProcessEnv {
     const env = { ...process.env };
     for (const key of Object.keys(env)) {
       if (key.startsWith('HERDR_')) delete env[key];
@@ -31,25 +52,26 @@ class PtySession {
     return env;
   }
 
-  static clampDimension(value, fallback) {
+  static clampDimension(value: unknown, fallback: number): number {
     const numeric = Number(value);
     if (!Number.isInteger(numeric)) return fallback;
     return Math.min(PtySession.MAX_DIMENSION, Math.max(PtySession.MIN_DIMENSION, numeric));
   }
 
-  start({ cols, rows, onData, onExit }) {
+  start({ cols, rows, onData, onExit }: PtyStartOptions): this {
     if (this.terminal) throw new Error('PTY session already started');
     this.terminal = pty.spawn(this.command, this.args, {
       name: 'xterm-256color',
       cols: PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
       rows: PtySession.clampDimension(rows, PtySession.DEFAULT_ROWS),
       cwd: this.cwd,
-      env: PtySession.childEnv(this.socketPath),
+      env: PtySession.childEnv(this.socketPath) as Record<string, string>,
     });
     this.startedAt = new Date().toISOString();
-    if (onData) this.terminal.onData(onData);
+    const terminal = this.terminal;
+    if (onData) terminal.onData(onData);
     if (onExit) {
-      this.terminal.onExit((event) => {
+      terminal.onExit((event) => {
         this.terminal = null;
         onExit(event);
       });
@@ -57,12 +79,12 @@ class PtySession {
     return this;
   }
 
-  write(data) {
+  write(data: Buffer | string): void {
     if (!this.terminal) return;
     this.terminal.write(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
   }
 
-  resize(cols, rows) {
+  resize(cols: unknown, rows: unknown): void {
     if (!this.terminal) return;
     this.terminal.resize(
       PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
@@ -70,7 +92,14 @@ class PtySession {
     );
   }
 
-  info() {
+  info(): {
+    pid: number | null;
+    command: string;
+    cols: number | null;
+    rows: number | null;
+    cwd: string;
+    createdAt: string | null;
+  } {
     return {
       pid: this.terminal?.pid || null,
       command: this.command,
@@ -81,7 +110,7 @@ class PtySession {
     };
   }
 
-  kill() {
+  kill(): void {
     try {
       this.terminal?.kill();
     } catch {}

@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-function defaultSocketPath(env = process.env, platform = process.platform) {
+function defaultSocketPath(
+  env: NodeJS.ProcessEnv = process.env,
+  platform = process.platform,
+): string {
   if (env.HERDR_SOCKET_PATH) return env.HERDR_SOCKET_PATH;
   if (platform === 'win32') {
     const appData = env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
@@ -12,11 +15,26 @@ function defaultSocketPath(env = process.env, platform = process.platform) {
   return path.join(configHome, 'herdr', 'herdr.sock');
 }
 
-function resolveSocketPath(configuredPath = null, env = process.env) {
+function resolveSocketPath(
+  configuredPath: string | null = null,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
   return configuredPath || env.HERDR_SOCKET_PATH || defaultSocketPath(env);
 }
 
-function inspectSocket(socketPath, options = {}) {
+export interface SocketInspection {
+  ok: boolean;
+  path: unknown;
+  reason?: string;
+  missing?: boolean;
+  uid?: number;
+  mode?: number;
+}
+
+function inspectSocket(
+  socketPath: unknown,
+  options: { requireOwner?: boolean } = {},
+): SocketInspection {
   if (typeof socketPath !== 'string' || socketPath.length === 0) {
     return { ok: false, reason: 'socket path is empty', path: socketPath };
   }
@@ -39,24 +57,14 @@ function inspectSocket(socketPath, options = {}) {
     }
     return { ok: true, path: socketPath, uid: stat.uid, mode: stat.mode };
   } catch (error) {
+    const { code, message } = error as NodeJS.ErrnoException;
     return {
       ok: false,
-      missing: error.code === 'ENOENT',
-      reason: error.code === 'ENOENT' ? 'socket does not exist' : error.message,
+      missing: code === 'ENOENT',
+      reason: code === 'ENOENT' ? 'socket does not exist' : message,
       path: socketPath,
     };
   }
 }
 
-function assertSocket(socketPath, options = {}) {
-  const result = inspectSocket(socketPath, options);
-  if (!result.ok) {
-    const error = new Error(`Herdr socket unavailable at ${socketPath}: ${result.reason}`);
-    error.code = 'HERDR_SOCKET_UNAVAILABLE';
-    error.details = result;
-    throw error;
-  }
-  return result;
-}
-
-export { defaultSocketPath, resolveSocketPath, inspectSocket, assertSocket };
+export { defaultSocketPath, resolveSocketPath, inspectSocket };

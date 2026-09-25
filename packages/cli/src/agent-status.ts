@@ -13,8 +13,27 @@
  * where it can be tested without either.
  */
 
+import type { AgentStatus, AgentStatusEntry } from 'herdr-remote-relay/protocol';
+
 /** Herdr's own vocabulary, in the order a person cares about them. */
-const AGENT_STATUSES = ['blocked', 'done', 'working', 'idle', 'unknown'];
+const AGENT_STATUSES: readonly AgentStatus[] = ['blocked', 'done', 'working', 'idle', 'unknown'];
+
+/** The part of Herdr's `session.snapshot` answer read here; all of it untrusted. */
+export interface HerdrSessionSnapshot {
+  agents?: unknown;
+  panes?: unknown;
+  focused_pane_id?: unknown;
+}
+
+type SnapshotRecord = Record<string, unknown> | null | undefined;
+
+export interface AgentSummary {
+  focusedPaneId: string | null;
+  focusedAgent: string | null;
+  counts: Record<AgentStatus, number>;
+  total: number;
+  agents: (AgentStatusEntry & { status: AgentStatus })[];
+}
 
 /**
  * How many agents travel with the summary.
@@ -28,7 +47,7 @@ const MAX_LISTED_AGENTS = 16;
 /** Titles come from a remote program; keep them short and printable. */
 const MAX_TITLE_LENGTH = 48;
 
-function cleanText(value, limit = MAX_TITLE_LENGTH) {
+function cleanText(value: unknown, limit = MAX_TITLE_LENGTH): string | null {
   if (typeof value !== 'string') return null;
   // eslint-disable-next-line no-control-regex
   const collapsed = value
@@ -39,12 +58,17 @@ function cleanText(value, limit = MAX_TITLE_LENGTH) {
   return collapsed.length > limit ? collapsed.slice(0, limit) : collapsed;
 }
 
-function normalizeStatus(value) {
-  return AGENT_STATUSES.includes(value) ? value : 'unknown';
+function normalizeStatus(value: unknown): AgentStatus {
+  return (AGENT_STATUSES as readonly unknown[]).includes(value)
+    ? (value as AgentStatus)
+    : 'unknown';
 }
 
-function emptyCounts() {
-  return Object.fromEntries(AGENT_STATUSES.map((status) => [status, 0]));
+function emptyCounts(): Record<AgentStatus, number> {
+  return Object.fromEntries(AGENT_STATUSES.map((status) => [status, 0])) as Record<
+    AgentStatus,
+    number
+  >;
 }
 
 /**
@@ -55,9 +79,9 @@ function emptyCounts() {
  * `focusedPaneId` and `focusedAgent` also track the live pane selection,
  * including shells and panes Herdr has not added to its agent summary.
  */
-function summarizeAgents(snapshot) {
-  const entries = Array.isArray(snapshot?.agents) ? snapshot.agents : [];
-  const panes = Array.isArray(snapshot?.panes) ? snapshot.panes : [];
+function summarizeAgents(snapshot: HerdrSessionSnapshot | null | undefined): AgentSummary {
+  const entries: SnapshotRecord[] = Array.isArray(snapshot?.agents) ? snapshot.agents : [];
+  const panes: SnapshotRecord[] = Array.isArray(snapshot?.panes) ? snapshot.panes : [];
   const reportedFocusId =
     typeof snapshot?.focused_pane_id === 'string' && snapshot.focused_pane_id
       ? snapshot.focused_pane_id
@@ -83,7 +107,7 @@ function summarizeAgents(snapshot) {
         ? focusedAgentEntry.agent
         : null;
   const counts = emptyCounts();
-  const ranked = [];
+  const ranked: AgentSummary['agents'] = [];
 
   for (const entry of entries) {
     if (!entry || typeof entry.pane_id !== 'string') continue;
@@ -115,7 +139,10 @@ function summarizeAgents(snapshot) {
 }
 
 /** Whether two summaries say the same thing, so an unchanged one is not sent. */
-function sameSummary(left, right) {
+function sameSummary(
+  left: AgentSummary | null | undefined,
+  right: AgentSummary | null | undefined,
+): boolean {
   if (!left || !right) return left === right;
   if (left.focusedPaneId !== right.focusedPaneId || left.focusedAgent !== right.focusedAgent)
     return false;
@@ -137,7 +164,7 @@ function sameSummary(left, right) {
 }
 
 /** The summary of a workstation with nothing to report, or nothing to ask. */
-function emptySummary() {
+function emptySummary(): AgentSummary {
   return { focusedPaneId: null, focusedAgent: null, counts: emptyCounts(), total: 0, agents: [] };
 }
 

@@ -11,12 +11,32 @@
 
 /** A reference to another object in a keyed archive (`CF$UID`). */
 class Uid {
-  constructor(value) {
+  readonly value: number;
+  constructor(value: number) {
     this.value = value;
   }
 }
 
-function readSizedInt(buffer, offset, size) {
+/** What a property list decodes to. */
+export type PlistValue =
+  | null
+  | boolean
+  | number
+  | string
+  | Buffer
+  | Date
+  | Uid
+  | PlistValue[]
+  | { [key: string]: PlistValue };
+
+/** A keyed archive with its references resolved; a dangling one reads as undefined. */
+export type UnarchivedValue =
+  | Exclude<PlistValue, PlistValue[] | { [key: string]: PlistValue }>
+  | undefined
+  | UnarchivedValue[]
+  | { [key: string]: UnarchivedValue };
+
+function readSizedInt(buffer: Buffer, offset: number, size: number): number {
   let value = 0;
   for (let i = 0; i < size; i += 1) value = value * 256 + buffer[offset + i];
   return value;
@@ -27,7 +47,7 @@ function readSizedInt(buffer, offset, size) {
  * strings, numbers, booleans, Buffers (data), Dates and `Uid`s. Throws on
  * anything malformed; callers treat that as "no answer".
  */
-function parseBinaryPlist(buffer) {
+function parseBinaryPlist(buffer: unknown): PlistValue {
   if (
     !Buffer.isBuffer(buffer) ||
     buffer.length < 40 ||
@@ -44,12 +64,12 @@ function parseBinaryPlist(buffer) {
   if (!offsetSize || !refSize || count > 1_000_000 || tableOffset + count * offsetSize > trailer) {
     throw new Error('corrupt binary plist trailer');
   }
-  const offsets = [];
+  const offsets: number[] = [];
   for (let i = 0; i < count; i += 1)
     offsets.push(readSizedInt(buffer, tableOffset + i * offsetSize, offsetSize));
 
-  const parsing = new Set();
-  const parse = (index) => {
+  const parsing = new Set<number>();
+  const parse = (index: number): PlistValue => {
     if (index >= count || parsing.has(index)) throw new Error('corrupt binary plist reference');
     parsing.add(index);
     try {
@@ -60,7 +80,7 @@ function parseBinaryPlist(buffer) {
   };
 
   // A length stored in the marker's low nibble, or as the int object after it.
-  const lengthAt = (offset) => {
+  const lengthAt = (offset: number): { length: number; start: number } => {
     const low = buffer[offset] & 0x0f;
     if (low !== 0x0f) return { length: low, start: offset + 1 };
     const marker = buffer[offset + 1];
@@ -69,7 +89,7 @@ function parseBinaryPlist(buffer) {
     return { length: readSizedInt(buffer, offset + 2, size), start: offset + 2 + size };
   };
 
-  const parseObject = (offset) => {
+  const parseObject = (offset: number): PlistValue => {
     const marker = buffer[offset];
     const type = marker >> 4;
     const low = marker & 0x0f;
@@ -106,14 +126,14 @@ function parseBinaryPlist(buffer) {
       case 0xa:
       case 0xc: {
         const { length, start } = lengthAt(offset);
-        const items = [];
+        const items: PlistValue[] = [];
         for (let i = 0; i < length; i += 1)
           items.push(parse(readSizedInt(buffer, start + i * refSize, refSize)));
         return items;
       }
       case 0xd: {
         const { length, start } = lengthAt(offset);
-        const result = {};
+        const result: { [key: string]: PlistValue } = {};
         for (let i = 0; i < length; i += 1) {
           const key = parse(readSizedInt(buffer, start + i * refSize, refSize));
           result[String(key)] = parse(
@@ -134,16 +154,20 @@ function parseBinaryPlist(buffer) {
  * The root object of an NSKeyedArchiver plist, with every `Uid` replaced by
  * the object it points at (to a bounded depth; archives may be cyclic).
  */
-function unarchiveKeyed(archive, depth = 6) {
-  const objects = archive?.$objects;
-  const rootRef = archive?.$top?.root;
+function unarchiveKeyed(archive: PlistValue, depth = 6): UnarchivedValue {
+  const record = (value: PlistValue | undefined) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as { [key: string]: PlistValue })
+      : undefined;
+  const objects = record(archive)?.$objects;
+  const rootRef = record(record(archive)?.$top)?.root;
   if (!Array.isArray(objects) || !(rootRef instanceof Uid)) throw new Error('not a keyed archive');
-  const resolve = (value, level) => {
+  const resolve = (value: PlistValue | undefined, level: number): UnarchivedValue => {
     if (value instanceof Uid)
       return level > depth ? null : resolve(objects[value.value], level + 1);
     if (Array.isArray(value)) return value.map((item) => resolve(item, level));
     if (value && typeof value === 'object' && !Buffer.isBuffer(value) && !(value instanceof Date)) {
-      const result = {};
+      const result: { [key: string]: UnarchivedValue } = {};
       for (const [key, item] of Object.entries(value)) result[key] = resolve(item, level);
       return result;
     }

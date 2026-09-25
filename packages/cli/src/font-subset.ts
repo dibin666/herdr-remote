@@ -22,8 +22,33 @@ const IDLE_RELEASE_MS = 60_000;
 const MAX_CODEPOINTS = 16_384;
 const HB_MEMORY_MODE_READONLY = 1;
 
-let wasmModule = null;
-function loadModule() {
+/** The HarfBuzz exports this module calls; every pointer is a heap offset. */
+interface HarfBuzz {
+  memory: WebAssembly.Memory;
+  _initialize(): void;
+  malloc(size: number): number;
+  hb_blob_create(data: number, length: number, mode: number, user: number, destroy: number): number;
+  hb_blob_destroy(blob: number): void;
+  hb_blob_get_length(blob: number): number;
+  hb_blob_get_data(blob: number, length: number): number;
+  hb_face_create(blob: number, index: number): number;
+  hb_face_destroy(face: number): void;
+  hb_face_reference_blob(face: number): number;
+  hb_set_add(set: number, codepoint: number): void;
+  hb_subset_input_create_or_fail(): number;
+  hb_subset_input_unicode_set(input: number): number;
+  hb_subset_input_destroy(input: number): void;
+  hb_subset_or_fail(face: number, input: number): number;
+}
+
+/** A font file on disk, and which face in it (for collections). */
+export interface FontSource {
+  path: string;
+  index?: number;
+}
+
+let wasmModule: WebAssembly.Module | null = null;
+function loadModule(): WebAssembly.Module {
   if (!wasmModule) {
     const file = createRequire(import.meta.url).resolve('harfbuzzjs/dist/harfbuzz-subset.wasm');
     wasmModule = new WebAssembly.Module(fs.readFileSync(file));
@@ -32,24 +57,26 @@ function loadModule() {
 }
 
 class FontSubsetter {
+  readonly idleMs: number;
+  private instance: HarfBuzz | null = null;
+  /** Loaded faces by source key, in the current instance. */
+  private readonly faces = new Map<string, { pointer: number; face: number }>();
+  private idleTimer: NodeJS.Timeout | null = null;
+
   constructor({ idleMs = IDLE_RELEASE_MS } = {}) {
     this.idleMs = idleMs;
-    this.instance = null;
-    /** Loaded faces by source key: `{ pointer, face }` in the current instance. */
-    this.faces = new Map();
-    this.idleTimer = null;
   }
 
-  exports() {
+  exports(): HarfBuzz {
     if (!this.instance) {
-      this.instance = new WebAssembly.Instance(loadModule(), {}).exports;
+      this.instance = new WebAssembly.Instance(loadModule(), {}).exports as unknown as HarfBuzz;
       // An Emscripten reactor: static constructors run here, before any call.
       this.instance._initialize();
     }
     return this.instance;
   }
 
-  face(source) {
+  face(source: FontSource): number {
     const key = `${source.path}\0${source.index || 0}`;
     const loaded = this.faces.get(key);
     if (loaded) return loaded.face;
@@ -66,7 +93,7 @@ class FontSubsetter {
   }
 
   /** A standalone font with just `codepoints` from `source` (`{ path, index }`). */
-  subset(source, codepoints) {
+  subset(source: FontSource, codepoints: number[]): Buffer {
     const hb = this.exports();
     const face = this.face(source);
     const input = hb.hb_subset_input_create_or_fail();
@@ -91,14 +118,14 @@ class FontSubsetter {
     }
   }
 
-  scheduleRelease() {
+  scheduleRelease(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => this.release(), this.idleMs);
     this.idleTimer.unref?.();
   }
 
   /** Drop every loaded face and the instance holding them. */
-  release() {
+  release(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = null;
     this.faces.clear();

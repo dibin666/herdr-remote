@@ -1,6 +1,8 @@
-// 简体中文文案。键名必须与 en.js 完全一致，由 tests/i18n.test.js 校验。
+// 简体中文文案。键名必须与 en.ts 完全一致，由类型和 tests/i18n.test.js 校验。
 
-export default {
+import type { MessageKey } from './en.js';
+
+const zh: Record<MessageKey, string> = {
   'app.name': 'Herdr Remote',
   'app.tagline': '在浏览器中使用 Herdr 工作区',
 
@@ -240,3 +242,5 @@ export default {
   'update.cannot.source': '源码目录运行，请使用 git 更新',
   'update.cannot.linked': 'npm link 工作副本，由 npm link 管理',
 };
+
+export default zh;
