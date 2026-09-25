@@ -47,7 +47,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     expect(screen.getByText(/Control Herdr sessions/i)).toBeInTheDocument();
 
     // Verifies copyable host pairing command
-    expect(screen.getByText(/node bin\/service\.js pair/i)).toBeInTheDocument();
+    expect(screen.getByText(/herdr-remote pair/i)).toBeInTheDocument();
 
     // Verifies pairing code input and connect CTA
     expect(screen.getByPlaceholderText(/e\.g\. 7X9K2A/i)).toBeInTheDocument();
@@ -74,8 +74,8 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     const copyBtn = screen.getByRole('button', { name: /^Copy$/i });
     fireEvent.click(copyBtn);
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('node bin/service.js pair');
-    expect(copiedText).toBe('node bin/service.js pair');
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('herdr-remote pair');
+    expect(copiedText).toBe('herdr-remote pair');
   });
 
   it('does not expose an interface theme toggle', () => {

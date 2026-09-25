@@ -23,6 +23,7 @@ import {
   Spinner,
   StatTile,
 } from '../tui';
+import { PAIR_COMMAND } from '../../utils/pairCommand';
 
 /** Resolve the active profile's relay origin without performing discovery. */
 function relayHttpBase(wsUrl: string): string {
@@ -103,8 +104,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
    * then only linked back to itself, so the sign-in form is shown directly.
    */
   const isSameOriginRelay = !relayHttpBase(settings.wsUrl);
-
-  const PAIR_COMMAND = 'node bin/service.js pair';
 
   useEffect(() => {
     setAdminTokenInput(savedAdminToken);

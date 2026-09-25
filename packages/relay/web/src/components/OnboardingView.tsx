@@ -5,6 +5,7 @@ import { cn } from '../utils/cn';
 import { copyText } from '../utils/clipboard';
 import { Button, FieldLabel, GLYPH, Input, Notice, Panel, Rule, Spinner } from './tui';
 import { WS_CLIENT_PATH } from '@protocol/messages';
+import { PAIR_COMMAND } from '../utils/pairCommand';
 
 interface OnboardingViewProps {
   onPairedSuccess?: () => void;
@@ -33,7 +34,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
   const [token, setToken] = useState(settings.token || '');
   const [clientId, setClientId] = useState(settings.clientId || '');
 
-  const PAIR_COMMAND = 'node bin/service.js pair';
   const CONFIG_TUI_COMMAND = 'node bin/config-tui.js';
 
   const handleCopyCommand = (cmd: string) => {
