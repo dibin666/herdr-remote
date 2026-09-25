@@ -9,7 +9,7 @@ interface HostRecord {
   lastSeenAt: string;
 }
 
-interface DeviceRecord {
+export interface DeviceRecord {
   deviceId: string;
   hostId: string;
   tokenHash: string;

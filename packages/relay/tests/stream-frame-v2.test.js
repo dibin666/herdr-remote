@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
+import { allocateStreamIndex } from '../src/server/sessions';
 import { loadRelayConfig } from '../src/relay-config';
 import {
   FRAME_V2_MAGIC,
@@ -138,16 +139,14 @@ test('malformed v2 frames are safely rejected without throwing unhandled excepti
 });
 
 test('streamIndex allocation: unique sequence, wraps cleanly, and recycles on session exit', () => {
-  const { config } = loadRelayConfig({ env: { RELAY_PORT: '0', RELAY_HOST: '127.0.0.1' } });
-  const relay = new RelayServer(config);
   const host = { streamIndices: new Map(), nextStreamIndex: 0 };
 
   // 1. Unique consecutive allocation
-  const idx0 = relay.allocateStreamIndex(host);
+  const idx0 = allocateStreamIndex(host);
   host.streamIndices.set(idx0, 'client-0');
-  const idx1 = relay.allocateStreamIndex(host);
+  const idx1 = allocateStreamIndex(host);
   host.streamIndices.set(idx1, 'client-1');
-  const idx2 = relay.allocateStreamIndex(host);
+  const idx2 = allocateStreamIndex(host);
   host.streamIndices.set(idx2, 'client-2');
 
   assert.equal(idx0, 0);
@@ -158,12 +157,12 @@ test('streamIndex allocation: unique sequence, wraps cleanly, and recycles on se
   host.streamIndices.delete(idx1); // client-1 disconnects
   // Advance to near wrap around
   host.nextStreamIndex = 65535;
-  const idxWrap1 = relay.allocateStreamIndex(host);
+  const idxWrap1 = allocateStreamIndex(host);
   host.streamIndices.set(idxWrap1, 'client-wrap');
   assert.equal(idxWrap1, 65535);
 
   // After 65535, wraps to 0; 0 is taken (client-0), so it probes 1 (freed client-1)
-  const idxWrap2 = relay.allocateStreamIndex(host);
+  const idxWrap2 = allocateStreamIndex(host);
   assert.equal(idxWrap2, 1);
 });
 

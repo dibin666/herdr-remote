@@ -121,7 +121,6 @@
     },
     {
       "includes": [
-        "packages/relay/src/relay-server.js",
         "packages/relay/web/src/components/TerminalView.tsx",
         "packages/relay/web/src/components/tui/index.tsx",
         "packages/cli/src/terminal-font.js",
@@ -143,7 +142,6 @@
         "scripts/capture-herdr-screens.mjs",
         "packages/cli/src/service.js",
         "packages/relay/web/src/utils/inputField.ts",
-        "packages/cli/src/config.js",
         "scripts/e2e-latency-harness.mjs",
         "packages/relay/web/src/utils/virtualKeys.ts",
         "packages/cli/src/keepalive.js"

@@ -304,6 +304,8 @@ export interface HostPtySummary {
   command: string;
   cols: number;
   rows: number;
+  cwd?: string;
+  createdAt?: string;
   [key: string]: unknown;
 }
 

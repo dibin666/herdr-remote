@@ -90,14 +90,14 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
   assert.equal(client.extensions, 'permessage-deflate');
   assert.match(clientUpgradeHeader || '', /permessage-deflate/);
   assert.ok(
-    client._extensions && client._extensions['permessage-deflate'],
+    client._extensions?.['permessage-deflate'],
     'permessage-deflate extension should be active on client socket',
   );
 
   // Also assert on the host socket
   assert.equal(host.extensions, 'permessage-deflate');
   assert.ok(
-    host._extensions && host._extensions['permessage-deflate'],
+    host._extensions?.['permessage-deflate'],
     'permessage-deflate extension should be active on host socket',
   );
 

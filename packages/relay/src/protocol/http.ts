@@ -17,7 +17,16 @@ export interface RelayMetadata {
   adminConfigured: boolean;
   adminPath?: string;
   adminStatusPath?: string;
+  dashboardPath?: string;
   publicUrl?: string;
+  /** The address the relay listens on, and its port. */
+  bind?: string;
+  port?: number;
+  maxClientsPerHost?: number;
+  maxHosts?: number;
+  maxPendingHandshakes?: number;
+  maxBufferedBytesPerClient?: number;
+  hostReconnectGraceMs?: number;
 }
 
 export interface ConnectedClientInfo {
@@ -27,10 +36,10 @@ export interface ConnectedClientInfo {
   hostId?: string;
   /** Operator-only: which paired device this connection authenticated as. */
   deviceId?: string;
-  ip?: string;
+  ip?: string | null;
   userAgent?: string;
   connectedAt: string;
-  lastPingAt?: string;
+  lastPingAt?: string | null;
   bytesReceived?: number;
   bytesSent?: number;
 }
@@ -70,12 +79,12 @@ export interface PtyInfo {
   id: string;
   /** Absent from a host-scoped response, where every row belongs to one host. */
   hostId?: string;
-  pid: number;
+  pid: number | null;
   command: string;
   cols: number;
   rows: number;
   cwd?: string;
-  createdAt: string;
+  createdAt?: string;
   activeClients: number;
 }
 

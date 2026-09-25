@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
+import { heartbeat, sweep } from '../src/server/maintenance';
 import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
 import { loadRelayConfig } from '../src/relay-config';
 import manifest from '../package.json';
@@ -1561,7 +1562,7 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   };
   serverWs.isAlive = false;
 
-  relay.heartbeat();
+  heartbeat(relay);
   assert.ok(terminated, 'heartbeat() should terminate inactive socket instead of only closing it');
 
   // 2. CLOSING socket in heartbeat: terminated immediately
@@ -1578,7 +1579,7 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
     ws: mockClosingSocket,
     clients: new Set(),
   });
-  relay.heartbeat();
+  heartbeat(relay);
   assert.ok(closingTerminated, 'heartbeat() should terminate socket stuck in CLOSING');
   relay.hosts.delete('mock-closing');
 
@@ -1599,7 +1600,7 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
     reconnecting: false,
     lastSeenAt: Date.now() - 10_000,
   });
-  relay.sweep();
+  sweep(relay);
   assert.ok(staleTerminated, 'sweep() should terminate stale host socket');
   assert.equal(relay.hosts.has('mock-stale'), false, 'stale host should be detached');
 
