@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { type SpawnSyncReturns, spawnSync } from 'node:child_process';
 // The same MAJOR.MINOR.PATCH comparison the self-updater uses. A second copy
 // would be a second place for 0.9.10 to sort below 0.9.9.
 import { compareVersions } from './updater.js';
@@ -218,7 +218,7 @@ function herdrVersion({
     supported: true,
     ok: false,
   };
-  let result;
+  let result: SpawnSyncReturns<string>;
   try {
     result = spawnSync(resolved, ['--version'], { encoding: 'utf8', timeout });
   } catch {
