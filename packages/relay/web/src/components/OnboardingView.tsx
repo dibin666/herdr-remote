@@ -2,7 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
-import { copyText } from '../utils/clipboard';
+import { useCopyFeedback } from '../utils/useCopyFeedback';
 import { Button, FieldLabel, GLYPH, Input, Notice, Panel, Rule, Spinner } from './tui';
 import { WS_CLIENT_PATH } from '@protocol/messages';
 import { PAIR_COMMAND } from '../utils/pairCommand';
@@ -26,7 +26,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
   const { addToast } = useToasts();
 
   const [pairCodeInput, setPairCodeInput] = useState('');
-  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
+  const { copied: copiedCommand, copy } = useCopyFeedback();
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Advanced settings fields
@@ -36,17 +36,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
 
   const CONFIG_TUI_COMMAND = 'node bin/config-tui.js';
 
-  const handleCopyCommand = (cmd: string) => {
-    copyText(cmd).then((res) => {
-      if (res === 'failed') {
-        addToast('error', t('clipboard.copyFailed'));
-        return;
-      }
-      setCopiedCommand(cmd);
-      addToast('success', t('toasts.commandCopied'));
-      setTimeout(() => setCopiedCommand(null), 2000);
-    });
-  };
+  const handleCopyCommand = (cmd: string) => copy(cmd, t('toasts.commandCopied'));
 
   const handlePairSubmit = (e: React.FormEvent) => {
     e.preventDefault();

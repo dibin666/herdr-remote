@@ -1,13 +1,13 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import type { AdminStatusResponse, RelayInfoResponse } from '@protocol/http';
-import { useSettings, useToasts } from '../../context/TerminalContext';
+import { useSettings } from '../../context/TerminalContext';
 import { ClientsTable } from './ClientsTable';
 import { HostsTable } from './HostsTable';
 import { PtysTable } from './PtysTable';
 import { DevicesTable } from './DevicesTable';
 import { cn } from '../../utils/cn';
-import { copyText } from '../../utils/clipboard';
+import { useCopyFeedback } from '../../utils/useCopyFeedback';
 import { formatBytes, formatUptime } from './format';
 import {
   AppFrame,
@@ -65,7 +65,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   showBack = false,
 }) => {
   const { settings, updateSettings, t } = useSettings();
-  const { addToast } = useToasts();
   const activeRelayOrigin =
     relayHttpBase(settings.wsUrl) ||
     (typeof window !== 'undefined' ? window.location.origin : 'local');
@@ -86,7 +85,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'ptys' | 'devices'>(
     'overview',
   );
-  const [copiedPairCmd, setCopiedPairCmd] = useState(false);
+  const { copied, copy } = useCopyFeedback();
+  const copiedPairCmd = copied !== null;
 
   /**
    * The relay operator token for GET /api/admin/status, in two halves: what is
@@ -114,17 +114,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setInfoLoaded(false);
   }, [activeRelayOrigin]);
 
-  const handleCopyPairCmd = () => {
-    copyText(PAIR_COMMAND).then((res) => {
-      if (res === 'failed') {
-        addToast('error', t('clipboard.copyFailed'));
-        return;
-      }
-      setCopiedPairCmd(true);
-      addToast('success', t('toasts.commandCopied'));
-      setTimeout(() => setCopiedPairCmd(false), 2000);
-    });
-  };
+  const handleCopyPairCmd = () => copy(PAIR_COMMAND, t('toasts.commandCopied'));
 
   // 1. Fetch Relay Info metadata from unauthenticated GET /api/info FIRST
   useEffect(() => {

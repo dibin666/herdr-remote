@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { RoleControlBadge } from './RoleControlBadge';
 import { describeConnection } from '../utils/connectionStatus';
@@ -6,7 +6,7 @@ import { cn } from '../utils/cn';
 import { translate } from '../i18n';
 import { Button, GLYPH, Panel, Row, StatusDot } from './tui';
 import { HostSwitcher } from './HostSwitcher';
-import { copyText } from '../utils/clipboard';
+import { useCopyFeedback } from '../utils/useCopyFeedback';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
@@ -53,7 +53,8 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   const { connectionState, stateDetail, rttMs, hostId, connect } = useConnection();
   const { addToast } = useToasts();
 
-  const [copiedClientId, setCopiedClientId] = React.useState(false);
+  const { copied, copy } = useCopyFeedback();
+  const copiedClientId = copied !== null;
   const status = describeConnection(connectionState, t);
 
   /**
@@ -69,17 +70,8 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
     action();
   };
 
-  const copyClientId = () => {
-    copyText(settings.clientId).then((res) => {
-      if (res === 'failed') {
-        addToast('error', t('clipboard.copyFailed'));
-        return;
-      }
-      setCopiedClientId(true);
-      addToast('info', t('toasts.clientIdCopied', { id: settings.clientId }));
-      setTimeout(() => setCopiedClientId(false), 2000);
-    });
-  };
+  const copyClientId = () =>
+    copy(settings.clientId, t('toasts.clientIdCopied', { id: settings.clientId }), 'info');
 
   const toggleLanguage = () => {
     const nextLang = language === 'zh' ? 'en' : 'zh';

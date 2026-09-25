@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { describeConnection } from '../utils/connectionStatus';
-import { copyText } from '../utils/clipboard';
+import { useCopyFeedback } from '../utils/useCopyFeedback';
 import {
   Button,
   Checkbox,
@@ -61,7 +61,8 @@ export const PairingModal: React.FC<PairingModalProps> = ({
   const [clientId, setClientId] = useState(settings.clientId);
   const [displayName, setDisplayName] = useState(activeProfile?.displayName || '');
   const [autoReconnect, setAutoReconnect] = useState(settings.autoReconnect);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const { copied, copy } = useCopyFeedback();
+  const copiedLink = copied !== null;
 
   useEffect(() => {
     if (isOpen) {
@@ -123,15 +124,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({
       url.searchParams.set('pairCode', pairCode.trim().toUpperCase());
     }
     // NEVER include long-lived tokens in share URL
-    copyText(url.toString()).then((res) => {
-      if (res === 'failed') {
-        addToast('error', t('clipboard.copyFailed'));
-        return;
-      }
-      setCopiedLink(true);
-      addToast('success', t('toasts.pairingLinkCopied'));
-      setTimeout(() => setCopiedLink(false), 2000);
-    });
+    copy(url.toString(), t('toasts.pairingLinkCopied'));
   };
 
   const tone = STATE_TONE[connectionState] ?? 'idle';
