@@ -1,0 +1,105 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/package-lock.json",
+      "!**/test/fixtures/screens",
+      "!**/public/fonts"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noControlCharactersInRegex": "off",
+        "noFocusedTests": "off",
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      },
+      "a11y": {
+        "noAutofocus": "warn",
+        "noInteractiveElementToNoninteractiveRole": "warn",
+        "noLabelWithoutControl": "warn",
+        "noNoninteractiveTabindex": "warn",
+        "noStaticElementInteractions": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useButtonType": "warn",
+        "useKeyWithClickEvents": "warn",
+        "useSemanticElements": "warn"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.*", "**/test/**", "**/tests/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noFocusedTests": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/cli/**/*.js", "packages/relay/**/*.js", "scripts/**/*.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noRedundantUseStrict": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.css"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noDuplicateProperties": "off",
+            "noUnknownAtRules": {
+              "level": "error",
+              "options": {
+                "ignore": ["tailwind"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

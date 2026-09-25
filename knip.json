@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.{js,mjs}"]
+    },
+    "packages/cli": {
+      "entry": [
+        "bin/*.js",
+        "src/host-connector.js",
+        "scripts/*.mjs",
+        "tui/src/index.tsx",
+        "tests/**/*.test.js"
+      ],
+      "project": [
+        "bin/**/*.js",
+        "src/**/*.js",
+        "tui/src/**/*.{ts,tsx}",
+        "scripts/**/*.mjs",
+        "tests/**/*.js"
+      ]
+    },
+    "packages/relay": {
+      "entry": ["bin/*.js", "tests/**/*.test.js"],
+      "project": ["bin/**/*.js", "src/**/*.js", "tests/**/*.js"]
+    },
+    "packages/relay/web": {
+      "entry": ["src/main.tsx", "src/test/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  }
+}
