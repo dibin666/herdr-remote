@@ -33,19 +33,16 @@ const WHEEL_CODE_MASK = ~(1 | 4 | 8 | 16);
 const X10_PARAM_BIAS = 32;
 const X10_PARAM_MAX = 255;
 
-function isWheelCode(code) {
+function isWheelCode(code: number): boolean {
   return Number.isInteger(code) && (code & WHEEL_CODE_MASK) === WHEEL_BASE;
 }
 
-function isDigit(byte) {
+function isDigit(byte: number): boolean {
   return byte >= ZERO && byte <= NINE;
 }
 
-/**
- * Reads one decimal parameter.
- * @returns {{ value: number, next: number } | null}
- */
-function readNumber(bytes, start) {
+/** Reads one decimal parameter. */
+function readNumber(bytes: Uint8Array, start: number): { value: number; next: number } | null {
   let index = start;
   let value = 0;
   while (index < bytes.length && isDigit(bytes[index])) {
@@ -60,9 +57,9 @@ function readNumber(bytes, start) {
 
 /**
  * Matches `ESC [ < Pb ; Px ; Py M`, the SGR and SGR-pixels encodings.
- * @returns {number} offset after the report, or -1
+ * @returns offset after the report, or -1
  */
-function matchSgrWheel(bytes, start) {
+function matchSgrWheel(bytes: Uint8Array, start: number): number {
   if (bytes[start] !== ESC || bytes[start + 1] !== LEFT_BRACKET || bytes[start + 2] !== LESS_THAN) {
     return -1;
   }
@@ -84,9 +81,9 @@ function matchSgrWheel(bytes, start) {
 
 /**
  * Matches `ESC [ M Pb Px Py`, the default single-byte encoding.
- * @returns {number} offset after the report, or -1
+ * @returns offset after the report, or -1
  */
-function matchX10Wheel(bytes, start) {
+function matchX10Wheel(bytes: Uint8Array, start: number): number {
   if (bytes[start] !== ESC || bytes[start + 1] !== LEFT_BRACKET || bytes[start + 2] !== UPPER_M) {
     return -1;
   }
@@ -101,13 +98,8 @@ function matchX10Wheel(bytes, start) {
   return start + 6;
 }
 
-/**
- * Whether every byte of `payload` belongs to a wheel report.
- *
- * @param {Buffer | Uint8Array | ArrayBuffer} payload raw client input frame
- * @returns {boolean}
- */
-function isWheelOnlyInput(payload) {
+/** Whether every byte of `payload`, a raw client input frame, belongs to a wheel report. */
+function isWheelOnlyInput(payload: Uint8Array | ArrayBuffer | null | undefined): boolean {
   if (!payload) return false;
   const bytes =
     payload instanceof Uint8Array
