@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { PtyInfo } from '../../types/admin';
+import type { PtyInfo } from '@protocol/http';
 import { useTerminal } from '../../context/TerminalContext';
 import { type Column, Panel, Table } from '../tui';
 

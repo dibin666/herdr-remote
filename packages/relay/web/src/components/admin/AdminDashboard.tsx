@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import type { AdminStatusResponse, RelayInfoResponse } from '../../types/admin';
+import type { AdminStatusResponse, RelayInfoResponse } from '@protocol/http';
 import { useTerminal } from '../../context/TerminalContext';
 import { ClientsTable } from './ClientsTable';
 import { HostsTable } from './HostsTable';

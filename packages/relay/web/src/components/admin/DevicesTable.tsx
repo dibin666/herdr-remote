@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import type { ConnectedClientInfo, PairedDeviceInfo } from '../../types/admin';
+import type { ConnectedClientInfo, PairedDeviceInfo } from '@protocol/http';
 import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
 import { cn } from '../../utils/cn';

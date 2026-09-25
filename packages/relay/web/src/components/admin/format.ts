@@ -1,4 +1,4 @@
-import type { ConnectedClientInfo } from '../../types/admin';
+import type { ConnectedClientInfo } from '@protocol/http';
 
 type Translate = (path: string, params?: Record<string, string | number>) => string;
 

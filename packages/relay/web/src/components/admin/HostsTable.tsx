@@ -1,10 +1,5 @@
 import type React from 'react';
-import type {
-  ConnectedClientInfo,
-  HostInfo,
-  HostStatus,
-  PairedDeviceInfo,
-} from '../../types/admin';
+import type { ConnectedClientInfo, HostInfo, HostStatus, PairedDeviceInfo } from '@protocol/http';
 import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
 import { cn } from '../../utils/cn';

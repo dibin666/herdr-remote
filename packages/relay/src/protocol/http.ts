@@ -1,7 +1,5 @@
-/**
- * Herdr Remote Admin Status Types
- * Corresponds to GET /api/status, GET /api/admin/status, and GET /api/info
- */
+// Bodies of the relay's HTTP API: GET /api/info, /api/status and
+// /api/admin/status. Browser-safe: types only.
 
 export interface RelayInfoResponse {
   ok: boolean;
@@ -123,7 +121,7 @@ export interface CleanupCounters {
   deadConnectionsClosed: number;
   idleHostsTerminated: number;
   slowClientsDropped?: number;
-  lastCleanupAt?: string;
+  lastCleanupAt?: string | null;
 }
 
 export interface AdminStatusResponse {

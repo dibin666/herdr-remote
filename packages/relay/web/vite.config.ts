@@ -9,6 +9,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // The wire protocol lives in the relay package, the one definition both
+      // ends build against. Only its browser-safe modules may be imported here.
+      '@protocol': path.resolve(__dirname, '../src/protocol'),
     },
   },
   server: {
