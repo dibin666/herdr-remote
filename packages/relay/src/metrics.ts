@@ -1,11 +1,58 @@
 import os from 'node:os';
-import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { type IntervalHistogram, monitorEventLoopDelay } from 'node:perf_hooks';
+import type {
+  AdminStatusResponse,
+  CleanupCounters,
+  ConnectedClientInfo,
+  EventLoopDelayMetrics,
+  HostInfo,
+  PtyInfo,
+  ThroughputMetrics,
+} from './protocol/http';
 
-function finite(value, fallback = 0) {
+/** Cleanup counters that `recordCleanup` may increment. */
+export type CleanupCounterName = Exclude<keyof CleanupCounters, 'lastCleanupAt'>;
+
+interface HostTrafficCounter {
+  bytesIn: number;
+  bytesOut: number;
+  framesIn: number;
+  framesOut: number;
+  sampleAt: number;
+  sampleBytesIn: number;
+  sampleBytesOut: number;
+  sampleFramesIn: number;
+  sampleFramesOut: number;
+}
+
+interface TrafficSample {
+  at: number;
+  bytesIn: number;
+  bytesOut: number;
+  framesIn: number;
+  framesOut: number;
+}
+
+/** A connection as `countActiveUsers` sees it. */
+interface ClientIdentity {
+  id: string;
+  deviceId?: string | null;
+}
+
+export interface SnapshotOptions {
+  clients?: ConnectedClientInfo[];
+  hosts?: HostInfo[];
+  ptys?: PtyInfo[];
+  sample?: boolean;
+  scopeHostId?: string | null;
+  activeUserCount?: number | null;
+}
+
+function finite(value: number, fallback = 0): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
-function bytesPerSecond(current, previous, elapsedMs) {
+function bytesPerSecond(current: number, previous: number, elapsedMs: number): number {
   if (!elapsedMs || elapsedMs <= 0) return 0;
   return Math.max(0, ((current - previous) * 1000) / elapsedMs);
 }
@@ -20,8 +67,8 @@ function bytesPerSecond(current, previous, elapsedMs) {
  * no `deviceId`; they fall back to their own connection id so they still count
  * once instead of collapsing into a single anonymous user.
  */
-function countActiveUsers(clients = []) {
-  const identities = new Set();
+function countActiveUsers(clients: readonly (ClientIdentity | null | undefined)[] = []): number {
+  const identities = new Set<string>();
   for (const client of clients) {
     if (!client) continue;
     identities.add(
@@ -34,6 +81,20 @@ function countActiveUsers(clients = []) {
 }
 
 class RelayMetrics {
+  readonly version: string;
+  readonly protocolVersion: number;
+  readonly startedAt: number;
+  bytesIn: number;
+  bytesOut: number;
+  framesIn: number;
+  framesOut: number;
+  cleanup: Required<Omit<CleanupCounters, 'lastCleanupAt'>> & { lastCleanupAt: string | null };
+  private lastSample: TrafficSample;
+  private readonly hostTraffic: Map<string, HostTrafficCounter>;
+  private cpuSampleAt: bigint;
+  private cpuSample: NodeJS.CpuUsage;
+  private readonly eventLoop: IntervalHistogram;
+
   constructor({ version = '0.1.0', protocolVersion = 1 } = {}) {
     this.version = version;
     this.protocolVersion = protocolVersion;
@@ -58,7 +119,7 @@ class RelayMetrics {
     this.eventLoop.enable();
   }
 
-  hostCounter(hostId) {
+  hostCounter(hostId: string | null | undefined): HostTrafficCounter | null {
     if (typeof hostId !== 'string' || hostId.length === 0) return null;
     let counter = this.hostTraffic.get(hostId);
     if (!counter) {
@@ -78,7 +139,7 @@ class RelayMetrics {
     return counter;
   }
 
-  recordIn(bytes, hostId = null) {
+  recordIn(bytes: number, hostId: string | null = null): void {
     const amount = Math.max(0, Number(bytes) || 0);
     this.bytesIn += amount;
     this.framesIn += 1;
@@ -89,7 +150,7 @@ class RelayMetrics {
     }
   }
 
-  recordOut(bytes, hostId = null) {
+  recordOut(bytes: number, hostId: string | null = null): void {
     const amount = Math.max(0, Number(bytes) || 0);
     this.bytesOut += amount;
     this.framesOut += 1;
@@ -100,11 +161,11 @@ class RelayMetrics {
     }
   }
 
-  forgetHost(hostId) {
+  forgetHost(hostId: string | null | undefined): void {
     if (typeof hostId === 'string') this.hostTraffic.delete(hostId);
   }
 
-  hostThroughput(hostId, now = Date.now()) {
+  hostThroughput(hostId: string | null | undefined, now = Date.now()): ThroughputMetrics {
     const counter = this.hostCounter(hostId);
     if (!counter)
       return {
@@ -118,7 +179,7 @@ class RelayMetrics {
         framesOutPerSec: 0,
       };
     const elapsedMs = now - counter.sampleAt;
-    const throughput = {
+    const throughput: ThroughputMetrics = {
       bytesIn: counter.bytesIn,
       bytesOut: counter.bytesOut,
       bytesInPerSec: bytesPerSecond(counter.bytesIn, counter.sampleBytesIn, elapsedMs),
@@ -136,14 +197,14 @@ class RelayMetrics {
     return throughput;
   }
 
-  recordCleanup(name, amount = 1) {
+  recordCleanup(name: CleanupCounterName, amount = 1): void {
     if (Object.hasOwn(this.cleanup, name) && typeof this.cleanup[name] === 'number') {
       this.cleanup[name] += amount;
     }
     this.cleanup.lastCleanupAt = new Date().toISOString();
   }
 
-  cpuPercent() {
+  cpuPercent(): number {
     const now = process.hrtime.bigint();
     const elapsedNs = Number(now - this.cpuSampleAt);
     const usage = process.cpuUsage(this.cpuSample);
@@ -154,8 +215,8 @@ class RelayMetrics {
     return Math.max(0, Math.round(percent * 100) / 100);
   }
 
-  eventLoopDelay() {
-    const percentile = (value) => Math.round(finite(value / 1e6) * 100) / 100;
+  eventLoopDelay(): EventLoopDelayMetrics {
+    const percentile = (value: number) => Math.round(finite(value / 1e6) * 100) / 100;
     return {
       p50Ms: percentile(this.eventLoop.percentile(50)),
       p90Ms: percentile(this.eventLoop.percentile(90)),
@@ -178,10 +239,10 @@ class RelayMetrics {
     sample = true,
     scopeHostId = null,
     activeUserCount = null,
-  } = {}) {
+  }: SnapshotOptions = {}): AdminStatusResponse {
     const now = Date.now();
     const elapsedMs = now - this.lastSample.at;
-    const throughput = {
+    const throughput: ThroughputMetrics = {
       bytesIn: this.bytesIn,
       bytesOut: this.bytesOut,
       bytesInPerSec: bytesPerSecond(this.bytesIn, this.lastSample.bytesIn, elapsedMs),
@@ -223,7 +284,7 @@ class RelayMetrics {
       hostCount: hosts.length,
       ptyCount: ptys.length,
       activeUserCount: Number.isFinite(activeUserCount)
-        ? activeUserCount
+        ? (activeUserCount as number)
         : countActiveUsers(clients),
       throughput: scopedThroughput,
       cpu: {
@@ -246,7 +307,7 @@ class RelayMetrics {
     };
   }
 
-  close() {
+  close(): void {
     this.eventLoop.disable();
     this.hostTraffic.clear();
   }

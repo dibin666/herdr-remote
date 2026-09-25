@@ -1,34 +1,114 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
+import type { PairedDeviceInfo } from './protocol/http';
 import { randomToken, readJson, writeJsonAtomic, ensureDir } from './state';
 
-function hash(value) {
+interface HostRecord {
+  tokenHash: string;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+interface DeviceRecord {
+  deviceId: string;
+  hostId: string;
+  tokenHash: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: number;
+  userAgent?: string;
+  lastIp?: string;
+}
+
+interface AuthState {
+  version: 1;
+  hosts: Record<string, HostRecord>;
+  devices: Record<string, DeviceRecord>;
+}
+
+interface Pairing {
+  codeHash: string;
+  hostId: string;
+  expiresAt: number;
+  publicUrl: string;
+}
+
+export interface AuthStoreOptions {
+  stateFile?: string;
+  pairingTtlMs?: number;
+  deviceTtlMs?: number;
+  maxDevices?: number;
+  password?: string | null;
+}
+
+export type RegisterHostResult =
+  | { ok: true; hostId: string; firstSeen: boolean }
+  | {
+      ok: false;
+      code: 'invalid_host_credentials' | 'relay_password_required' | 'host_auth_failed';
+      message: string;
+    };
+
+export interface PairingStart {
+  code: string;
+  hostId: string;
+  publicUrl: string;
+  expiresAt: number;
+  expiresAtIso: string;
+}
+
+export interface PairingResult {
+  deviceId: string;
+  hostId: string;
+  token: string;
+  expiresAt: number;
+  expiresAtIso: string;
+  publicUrl: string;
+}
+
+export interface RevokedDevice {
+  deviceId: string;
+  hostId: string;
+  userAgent: string | null;
+  lastIp: string | null;
+}
+
+function hash(value: unknown): string {
   return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
 }
 
-function equalHash(left, right) {
+function equalHash(left: unknown, right: unknown): boolean {
   if (typeof left !== 'string' || typeof right !== 'string') return false;
   const a = Buffer.from(left, 'hex');
   const b = Buffer.from(right, 'hex');
   return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
 }
 
-function nowIso(now = Date.now()) {
+function nowIso(now = Date.now()): string {
   return new Date(now).toISOString();
 }
 
-function validHostId(value) {
+function validHostId(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
 }
 
 class AuthStore {
+  readonly stateFile: string;
+  readonly pairingTtlMs: number;
+  readonly deviceTtlMs: number;
+  readonly maxDevices: number;
+  readonly password: string | null;
+  private readonly pairings = new Map<string, Pairing>();
+  private readonly lastDeviceSaveAt = new Map<string, number>();
+  state: AuthState;
+
   constructor({
     stateFile,
     pairingTtlMs = 10 * 60 * 1000,
     deviceTtlMs = 30 * 24 * 60 * 60 * 1000,
     maxDevices = 32,
     password = null,
-  } = {}) {
+  }: AuthStoreOptions = {}) {
     if (!stateFile) throw new TypeError('stateFile is required');
     this.stateFile = stateFile;
     this.pairingTtlMs = pairingTtlMs;
@@ -38,9 +118,7 @@ class AuthStore {
     // enrol a workstation. That is safe because a workstation is only ever
     // reachable through its own host token, which the relay never hands out.
     this.password = password || null;
-    this.pairings = new Map();
-    this.lastDeviceSaveAt = new Map();
-    this.state = readJson(stateFile, { version: 1, hosts: {}, devices: {} });
+    this.state = readJson<AuthState>(stateFile, { version: 1, hosts: {}, devices: {} });
     this.state.version = 1;
     this.state.hosts =
       this.state.hosts && typeof this.state.hosts === 'object' ? this.state.hosts : {};
@@ -49,12 +127,12 @@ class AuthStore {
     ensureDir(path.dirname(stateFile));
   }
 
-  save() {
+  save(): void {
     writeJsonAtomic(this.stateFile, this.state);
   }
 
   /** Does this request carry the relay password, if one is required at all? */
-  checkPassword(supplied) {
+  checkPassword(supplied: unknown): boolean {
     if (!this.password) return true;
     return typeof supplied === 'string' && equalHash(hash(supplied), hash(this.password));
   }
@@ -67,7 +145,12 @@ class AuthStore {
    * workstation and only its hash is ever stored here, so even on a public
    * relay nobody else can impersonate an enrolled host or pair a device to it.
    */
-  registerHost(hostId, token, password = null, now = Date.now()) {
+  registerHost(
+    hostId: unknown,
+    token: unknown,
+    password: unknown = null,
+    now = Date.now(),
+  ): RegisterHostResult {
     if (
       !validHostId(hostId) ||
       typeof token !== 'string' ||
@@ -107,7 +190,7 @@ class AuthStore {
   }
 
   /** Verify a host token without enrolling anything. */
-  authenticateHost(hostId, token) {
+  authenticateHost(hostId: unknown, token: unknown): boolean {
     if (
       !validHostId(hostId) ||
       typeof token !== 'string' ||
@@ -119,18 +202,18 @@ class AuthStore {
     return Boolean(existing) && equalHash(existing.tokenHash, hash(token));
   }
 
-  hostCount() {
+  hostCount(): number {
     return Object.keys(this.state.hosts).length;
   }
 
-  startPairing(hostId, publicUrl, now = Date.now()) {
+  startPairing(hostId: unknown, publicUrl: string, now = Date.now()): PairingStart {
     if (!validHostId(hostId) || !this.state.hosts[hostId]) {
-      const error = new Error('host is not connected or enrolled');
-      error.code = 'host_not_found';
-      throw error;
+      throw Object.assign(new Error('host is not connected or enrolled'), {
+        code: 'host_not_found',
+      });
     }
     this.cleanup(now);
-    let code;
+    let code: string;
     do {
       code = randomToken(4).toUpperCase().replace(/[-_]/g, '').slice(0, 6);
     } while (
@@ -146,7 +229,7 @@ class AuthStore {
     return { code, hostId, publicUrl, expiresAt, expiresAtIso: nowIso(expiresAt) };
   }
 
-  completePairing(code, now = Date.now()) {
+  completePairing(code: unknown, now = Date.now()): PairingResult | null {
     if (typeof code !== 'string' || code.length < 4 || code.length > 32) return null;
     this.cleanup(now);
     const normalized = code.trim().toUpperCase();
@@ -187,7 +270,11 @@ class AuthStore {
    * tell which phone or laptop they are about to cut off. Only the coarse
    * user agent string and the address are kept — never terminal content.
    */
-  noteDeviceSeen(deviceId, { userAgent, ip } = {}, now = Date.now()) {
+  noteDeviceSeen(
+    deviceId: string,
+    { userAgent, ip }: { userAgent?: string | null; ip?: string | null } = {},
+    now = Date.now(),
+  ): DeviceRecord | null {
     const device = this.state.devices[deviceId];
     if (!device) return null;
     let changed = false;
@@ -209,7 +296,7 @@ class AuthStore {
    * included: the dashboard has no use for them and they must not leave the
    * process.
    */
-  listDevices(now = Date.now()) {
+  listDevices(now = Date.now()): PairedDeviceInfo[] {
     return Object.values(this.state.devices)
       .filter((device) => device && device.expiresAt > now)
       .map((device) => ({
@@ -230,7 +317,7 @@ class AuthStore {
    * token it was derived from can never authenticate again. Returns the removed
    * record so the caller can also close whatever sockets it still holds.
    */
-  revokeDevice(deviceId) {
+  revokeDevice(deviceId: unknown): RevokedDevice | null {
     if (typeof deviceId !== 'string' || !deviceId) return null;
     const device = this.state.devices[deviceId];
     if (!device) return null;
@@ -245,7 +332,7 @@ class AuthStore {
     };
   }
 
-  authenticateDevice(token, now = Date.now()) {
+  authenticateDevice(token: unknown, now = Date.now()): DeviceRecord | null {
     if (typeof token !== 'string' || token.length < 16) return null;
     const tokenHash = hash(token);
     for (const device of Object.values(this.state.devices)) {
@@ -263,7 +350,7 @@ class AuthStore {
     return null;
   }
 
-  cleanup(now = Date.now()) {
+  cleanup(now = Date.now()): { removedDevices: number; removedPairings: number } {
     let removedDevices = 0;
     for (const [deviceId, device] of Object.entries(this.state.devices)) {
       if (!device || device.expiresAt <= now) {
@@ -283,7 +370,7 @@ class AuthStore {
     return { removedDevices, removedPairings };
   }
 
-  deviceCount() {
+  deviceCount(): number {
     return Object.keys(this.state.devices).length;
   }
 }

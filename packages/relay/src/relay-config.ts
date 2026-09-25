@@ -11,13 +11,57 @@ import path from 'node:path';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 
-function defaultStateDir() {
+export type RelayMode = 'local' | 'remote';
+
+/** A relay configuration after `validate`: every field present and in range. */
+export interface RelayConfig {
+  relay: {
+    mode: RelayMode;
+    host: string;
+    port: number;
+    publicUrl: string;
+    maxPayloadBytes: number;
+    maxClientsPerHost: number;
+    maxHosts: number;
+    maxPendingHandshakes: number;
+    maxBufferedBytesPerClient: number;
+    allowedOrigins: string[];
+    trustProxy: boolean;
+    hostReconnectGraceMs: number;
+    /** Development only: simulated round-trip latency. */
+    devLatencyMs?: number;
+  };
+  auth: {
+    pairingTtlMs: number;
+    deviceTtlMs: number;
+    maxDevices: number;
+    password: string | null;
+    adminToken: string | null;
+    stateFile: string | null;
+  };
+  cleanup: {
+    intervalMs: number;
+    heartbeatIntervalMs: number;
+    staleAfterMs: number;
+  };
+}
+
+/**
+ * A configuration while it is being assembled: file, environment and flags
+ * may each put a string, or anything else, where `validate` expects a number.
+ */
+type RelayConfigDraft = { [Section in keyof RelayConfig]: Record<string, unknown> };
+
+/** Flags given as `--name value` or `--name=value`, by name. */
+export type RelayOptions = Record<string, string>;
+
+function defaultStateDir(): string {
   if (process.env.RELAY_STATE_DIR) return process.env.RELAY_STATE_DIR;
   const stateHome = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
   return path.join(stateHome, 'herdr-remote-relay');
 }
 
-const DEFAULTS = {
+const DEFAULTS: RelayConfig = {
   relay: {
     // A relay package is remote/operator-facing by default. The workstation
     // service sets this to local for the private relay it starts itself so the
@@ -63,20 +107,21 @@ const DEFAULTS = {
   },
 };
 
-function clone(value) {
+function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-function readJsonFile(filePath) {
+function readJsonFile(filePath: string): unknown {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
-    if (error.code === 'ENOENT') return null;
-    throw new Error(`cannot read relay config ${filePath}: ${error.message}`);
+    const { code, message } = error as NodeJS.ErrnoException;
+    if (code === 'ENOENT') return null;
+    throw new Error(`cannot read relay config ${filePath}: ${message}`);
   }
 }
 
-function parseBoolean(value, fallback) {
+function parseBoolean<T>(value: unknown, fallback: T): boolean | T {
   if (value === undefined || value === null || value === '') return fallback;
   if (value === true || value === false) return value;
   const normalized = String(value).trim().toLowerCase();
@@ -85,13 +130,13 @@ function parseBoolean(value, fallback) {
   return fallback;
 }
 
-function parseInteger(value, fallback, min, max) {
+function parseInteger(value: unknown, fallback: number, min: number, max: number): number {
   const numeric = Number(value);
   if (!Number.isInteger(numeric) || numeric < min || numeric > max) return fallback;
   return numeric;
 }
 
-function parseOriginList(value) {
+function parseOriginList(value: unknown): string[] | null {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
   if (typeof value !== 'string') return null;
   return value
@@ -100,10 +145,11 @@ function parseOriginList(value) {
     .filter(Boolean);
 }
 
-function mergeSection(target, source) {
+function mergeSection(target: Record<string, unknown>, source: unknown): void {
   if (!source || typeof source !== 'object') return;
+  const values = source as Record<string, unknown>;
   for (const key of Object.keys(target)) {
-    if (source[key] !== undefined) target[key] = source[key];
+    if (values[key] !== undefined) target[key] = values[key];
   }
 }
 
@@ -111,9 +157,14 @@ function mergeSection(target, source) {
  * Parse `--flag value` / `--flag=value` pairs plus the standalone flags the
  * relay binary understands. Returns { options, help, version, errors }.
  */
-function parseArgv(argv = []) {
-  const options = {};
-  const errors = [];
+function parseArgv(argv: readonly string[] = []): {
+  options: RelayOptions;
+  help: boolean;
+  version: boolean;
+  errors: string[];
+} {
+  const options: RelayOptions = {};
+  const errors: string[] = [];
   let help = false;
   let version = false;
   for (let index = 0; index < argv.length; index += 1) {
@@ -148,14 +199,15 @@ function parseArgv(argv = []) {
   return { options, help, version, errors };
 }
 
-function applyFile(config, fileConfig) {
+function applyFile(config: RelayConfigDraft, fileConfig: unknown): void {
   if (!fileConfig || typeof fileConfig !== 'object') return;
-  mergeSection(config.relay, fileConfig.relay);
-  mergeSection(config.auth, fileConfig.auth);
-  mergeSection(config.cleanup, fileConfig.cleanup);
+  const sections = fileConfig as Partial<Record<keyof RelayConfig, unknown>>;
+  mergeSection(config.relay, sections.relay);
+  mergeSection(config.auth, sections.auth);
+  mergeSection(config.cleanup, sections.cleanup);
 }
 
-function applyEnvironment(config, env) {
+function applyEnvironment(config: RelayConfigDraft, env: NodeJS.ProcessEnv): void {
   if (env.RELAY_DEPLOYMENT_MODE === 'local' || env.RELAY_DEPLOYMENT_MODE === 'remote') {
     config.relay.mode = env.RELAY_DEPLOYMENT_MODE;
   }
@@ -187,7 +239,7 @@ function applyEnvironment(config, env) {
   if (env.RELAY_MAX_DEVICES) config.auth.maxDevices = env.RELAY_MAX_DEVICES;
 }
 
-function applyOptions(config, options) {
+function applyOptions(config: RelayConfigDraft, options: RelayOptions): void {
   if (options['deployment-mode'] === 'local' || options['deployment-mode'] === 'remote') {
     config.relay.mode = options['deployment-mode'];
   }
@@ -214,7 +266,7 @@ function applyOptions(config, options) {
     config.relay.hostReconnectGraceMs = options['host-reconnect-grace-ms'];
 }
 
-function validate(config) {
+function validate(config: RelayConfigDraft): RelayConfig {
   if (config.relay.mode !== 'local' && config.relay.mode !== 'remote')
     config.relay.mode = DEFAULTS.relay.mode;
   config.relay.port = parseInteger(config.relay.port, DEFAULTS.relay.port, 0, 65535);
@@ -277,7 +329,7 @@ function validate(config) {
   config.cleanup.staleAfterMs = parseInteger(
     config.cleanup.staleAfterMs,
     DEFAULTS.cleanup.staleAfterMs,
-    config.cleanup.heartbeatIntervalMs * 2,
+    (config.cleanup.heartbeatIntervalMs as number) * 2,
     24 * 60 * 60 * 1000,
   );
 
@@ -293,7 +345,8 @@ function validate(config) {
   if (!config.auth.stateFile) {
     config.auth.stateFile = path.join(defaultStateDir(), 'relay-auth.json');
   }
-  return config;
+  // Every field `RelayConfig` promises has been normalised above.
+  return config as unknown as RelayConfig;
 }
 
 /**
@@ -301,10 +354,10 @@ function validate(config) {
  * the relay still starts, because a loopback-only development run legitimately
  * needs neither TLS nor tokens.
  */
-function configWarnings(config) {
-  const warnings = [];
+function configWarnings(config: RelayConfig): string[] {
+  const warnings: string[] = [];
   const isLoopbackBind = ['127.0.0.1', 'localhost', '::1'].includes(config.relay.host);
-  let publicUrl;
+  let publicUrl: URL | undefined;
   try {
     publicUrl = new URL(config.relay.publicUrl);
   } catch {
@@ -333,19 +386,25 @@ function configWarnings(config) {
   return warnings;
 }
 
-function loadRelayConfig({ argv = [], env = process.env } = {}) {
+function loadRelayConfig({
+  argv = [],
+  env = process.env,
+}: {
+  argv?: readonly string[];
+  env?: NodeJS.ProcessEnv;
+} = {}) {
   const { options, help, version, errors } = parseArgv(argv);
-  const config = clone(DEFAULTS);
+  const draft = clone(DEFAULTS) as unknown as RelayConfigDraft;
 
   const configFile = options.config || env.HERDR_RELAY_CONFIG || null;
   if (configFile) {
     const fileConfig = readJsonFile(path.resolve(configFile));
     if (fileConfig === null) throw new Error(`relay config not found: ${configFile}`);
-    applyFile(config, fileConfig);
+    applyFile(draft, fileConfig);
   }
-  applyEnvironment(config, env);
-  applyOptions(config, options);
-  validate(config);
+  applyEnvironment(draft, env);
+  applyOptions(draft, options);
+  const config = validate(draft);
 
   return { config, help, version, errors, configFile, warnings: configWarnings(config) };
 }
