@@ -9,7 +9,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { WebSocket } from 'ws';
 import { unpackStreamFrame } from 'herdr-remote-relay/protocol';
-import { HostConnector } from '../src/host-connector.js';
+import { HostConnector } from '../src/connector/host-connector.js';
 
 test('host connector coalesces multiple onData chunks emitted in the same tick into one frame', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-coalesce-'));
@@ -151,7 +151,7 @@ test('stopping a session clears pending output and scheduled flush', async (t) =
   capturedOnData(Buffer.from('abandoned-output', 'utf8'));
 
   // Stop session before flush executes
-  connector.stopSession('session-cancel-1');
+  connector.sessions.stop('session-cancel-1');
 
   await new Promise((resolve) => setImmediate(resolve));
 

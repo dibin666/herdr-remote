@@ -29,7 +29,7 @@ import {
   loadHostTerminalFont,
   resolveSubsetSources,
 } from '../src/terminal-font.js';
-import { HostConnector } from '../src/host-connector.js';
+import { HostConnector } from '../src/connector/host-connector.js';
 import { parseBinaryPlist } from '../src/binary-plist.js';
 import { FontSubsetter } from '../src/font-subset.js';
 
@@ -455,14 +455,14 @@ test('a connector that started with no font picks one up when a window opens', (
     close() {},
   };
 
-  connector.pickUpTerminalFont();
+  connector.font.pickUp();
   assert.equal(sent.length, 0);
 
   // `herdr-remote start` from a terminal wrote one down meanwhile.
   remembered = { family: 'JetBrains Mono', sizePx: 13.3, source: 'ghostty', faces: [] };
-  connector.pickUpTerminalFont();
+  connector.font.pickUp();
   assert.deepEqual(sent, [{ type: 'terminal_font', terminalFont: { ...remembered, subsets: [] } }]);
-  connector.pickUpTerminalFont();
+  connector.font.pickUp();
   assert.equal(sent.length, 1);
 });
 

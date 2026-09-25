@@ -1,9 +1,9 @@
 // Process entry for the host connector; service.js spawns this file.
 
-import { EXIT_REPLACED } from './exit-codes.js';
+import { EXIT_REPLACED } from '../exit-codes.js';
 import { HostConnector } from './host-connector.js';
 
-const connector = new HostConnector();
+const connector = new HostConnector({ onFatal: (exitCode) => process.exit(exitCode) });
 try {
   connector.start();
 } catch (error) {

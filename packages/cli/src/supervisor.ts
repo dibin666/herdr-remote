@@ -9,11 +9,11 @@ import {
   ensureRuntime,
   logPath,
   managedPids,
-  pidAlive,
   recordManagedPid,
   serviceSpecs,
 } from './service.js';
 import { EXIT_REPLACED, EXIT_AUTH_FAILED } from './exit-codes.js';
+import { pidAlive } from './lib/process.js';
 
 const MIN_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 30_000;

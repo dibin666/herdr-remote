@@ -13,7 +13,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { loadConfig } from './config.js';
 import { PACKAGE_ROOT, stateDir } from './paths.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
-import { logPath, pidAlive } from './service.js';
+import { pidAlive } from './lib/process.js';
+import { logPath } from './service.js';
 import { findHerdrCommand } from './herdr-command.js';
 
 const SYSTEMD_UNIT_NAME = 'herdr-remote.service';

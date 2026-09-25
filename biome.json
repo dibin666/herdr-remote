@@ -126,7 +126,6 @@
         "packages/cli/src/terminal-font.js",
         "packages/relay/web/src/context/TerminalContext.tsx",
         "packages/relay/web/src/render/HerdrRenderer.ts",
-        "packages/cli/src/host-connector.js",
         "packages/relay/web/src/utils/predictiveEcho.ts",
         "packages/relay/web/src/components/SettingsModal.tsx",
         "packages/relay/web/src/render/customGlyphs.ts",

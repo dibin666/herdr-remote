@@ -22,6 +22,7 @@ import {
 } from './terminal-palette.js';
 import { resolveHostFont } from './terminal-font.js';
 import { resolveSocketPath } from './socket-discovery.js';
+import { pidAlive } from './lib/process.js';
 import { preferredLanAddress } from './net-interfaces.js';
 import {
   MIN_HERDR_VERSION,
@@ -31,16 +32,6 @@ import {
 } from './herdr-command.js';
 
 const RUNTIME_VERSION = 2;
-
-function pidAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === 'EPERM';
-  }
-}
 
 /**
  * What runtime.json holds: this workstation's relay credentials, plus facts
@@ -212,7 +203,7 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
   specs.push({
     name: 'host',
     command: process.execPath,
-    args: [path.join(PACKAGE_ROOT, 'dist', 'host-connector-main.js')],
+    args: [path.join(PACKAGE_ROOT, 'dist', 'connector', 'main.js')],
     env: {
       // Captured here, where a terminal may still be attached, because the
       // connector itself usually runs detached with no terminal to ask.
@@ -550,7 +541,6 @@ function readLogTail(name, lines = 40) {
 
 export {
   RUNTIME_VERSION,
-  pidAlive,
   readRuntime,
   ensureRuntime,
   recordManagedPid,
