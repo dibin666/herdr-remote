@@ -20,9 +20,8 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 
 - `npm ci`：安装（node-pty 需要编译工具链）
 - `npm run check`：Biome + 类型检查，提交前必跑
-- `npm run test:all`：全部测试
-  - 单个 cli/relay 测试：`node --test packages/relay/tests/x.test.js`
-  - 单个 web 测试：`npm test -w herdr-remote-web -- src/test/x.test.ts`
+- `npm test`：用 vitest 跑三个包的全部测试
+  - 跑单个文件：`npx vitest run packages/relay/tests/x.test.js`
 - `npm run format`：自动格式化，并应用可自动修复的 lint
 - `npm run knip`：列出未使用的文件、导出和依赖
 - `npm run dev -w herdr-remote-web`：前端开发服务器，代理到 127.0.0.1:8787 的 relay
@@ -50,8 +49,8 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 ## 测试
 
 - 修 bug 时，先加一个修复前会失败的测试。
-- cli、relay：用 `node:test` + `assert/strict`，测试放在各包的 `tests/`。用依赖注入和 `HERDR_REMOTE_CONFIG_DIR`、`HERDR_REMOTE_STATE_DIR` 做隔离，不要碰真实的 home 目录。
-- web：用 vitest + Testing Library。`src/test/setup.ts` 全局 mock 了 WebSocket 和 xterm。`fixtures/screens/*.json` 由 `scripts/capture-herdr-screens.mjs` 生成，不要手改。
+- 三个包都用 vitest。cli、relay 的测试放在各包的 `tests/`，断言用 `node:assert/strict`，清理逻辑写在 `t.onTestFinished` 里；用依赖注入和 `HERDR_REMOTE_CONFIG_DIR`、`HERDR_REMOTE_STATE_DIR` 做隔离，不要碰真实的 home 目录。
+- web：用 Testing Library。`src/test/setup.ts` 全局 mock 了 WebSocket 和 xterm。`fixtures/screens/*.json` 由 `scripts/capture-herdr-screens.mjs` 生成，不要手改。
 
 ## 提交与 PR
 

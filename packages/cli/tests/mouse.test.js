@@ -3,7 +3,7 @@
 // The mouse layer is bundled TypeScript, so these tests exercise it through a
 // build the same way the render tests do.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

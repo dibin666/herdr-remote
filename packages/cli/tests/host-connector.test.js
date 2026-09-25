@@ -3,7 +3,7 @@
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -130,7 +130,7 @@ test('agent focus events trigger a debounced snapshot read and stop with the wat
       };
     },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -167,7 +167,7 @@ test('a missing Herdr is reported as an error instead of a session that exits', 
     herdrCommand: path.join(directory, 'nowhere', 'herdr'),
     herdrLookup: { env: { PATH: '' }, home: directory, directories: [] },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -198,7 +198,7 @@ test('a Herdr installed after the connector started is picked up without a resta
     herdrCommand: 'herdr',
     herdrLookup: { env: { PATH: '' }, home: directory, directories: [bin] },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -215,7 +215,7 @@ test('a Herdr installed after the connector started is picked up without a resta
 test('starts that keep dying immediately stop being reported as exits', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-fastfail-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -243,7 +243,7 @@ test('starts that keep dying immediately stop being reported as exits', (t) => {
 test('a quick clean exit is a finished session, not a broken start', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-quickexit-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -264,7 +264,7 @@ test('two sessions run side by side and are resized and stopped independently', 
   connector.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
   const socketServer = net.createServer();
   await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
-  t.after(() => {
+  t.onTestFinished(() => {
     socketServer.close();
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -309,7 +309,7 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
   connector.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
   const socketServer = net.createServer();
   await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
-  t.after(() => {
+  t.onTestFinished(() => {
     socketServer.close();
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -384,7 +384,7 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
 test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-keepalive-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -436,7 +436,7 @@ test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {
 test('keepalive timer lifecycle: start, stop, close, and replacement isolation', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-timer-lifecycle-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -479,7 +479,7 @@ test('keepalive timer lifecycle: start, stop, close, and replacement isolation',
 test('watchdog terminates socket and schedules reconnect when pong is missed', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-watchdog-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -552,7 +552,7 @@ function herdrLessConnector(t, overrides = {}) {
     herdrArgs: ['--session', 'work'],
     ...overrides,
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -582,7 +582,7 @@ test('a socket file with nothing behind it counts as a stopped Herdr', async (t)
   });
   const socketServer = net.createServer();
   await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
-  t.after(() => socketServer.close());
+  t.onTestFinished(() => socketServer.close());
 
   await connector.handleMessage(
     JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
@@ -742,7 +742,7 @@ function updateConnector(t, { latest = '0.3.0', installed = '0.2.16', ok = true 
       return ok ? { ok: true, latest } : { ok: false };
     },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });

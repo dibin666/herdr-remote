@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const fs = require('node:fs');
@@ -70,7 +70,7 @@ test('probeRelay reports public liveness when scoped host status is unavailable'
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   const url = `http://127.0.0.1:${address.port}`;
-  t.after(() => {
+  t.onTestFinished(() => {
     server.close();
     fs.rmSync(stateDir, { recursive: true, force: true });
   });

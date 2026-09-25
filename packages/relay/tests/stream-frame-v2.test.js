@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -177,7 +177,7 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const httpBase = `http://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -186,7 +186,7 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
   {
     const hostV2Auth = { 'X-Herdr-Host-Id': 'host-v2', 'X-Herdr-Host-Token': 'v2-token-123456789' };
     const hostV2Ws = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostV2Ws.close());
+    t.onTestFinished(() => hostV2Ws.close());
 
     const hostReadyPromise = nextMessage(hostV2Ws, (m) => m.type === 'host_ready');
     hostV2Ws.send(
@@ -208,7 +208,7 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
     const { code: pairCode } = await pairRes.json();
 
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostV2Ws, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
@@ -265,7 +265,7 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
       'X-Herdr-Host-Token': 'legacy-token-123456789',
     };
     const hostLegacyWs = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostLegacyWs.close());
+    t.onTestFinished(() => hostLegacyWs.close());
 
     const hostReadyPromise = nextMessage(hostLegacyWs, (m) => m.type === 'host_ready');
     hostLegacyWs.send(
@@ -287,7 +287,7 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
     const { code: pairCode } = await pairRes.json();
 
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostLegacyWs, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
@@ -347,7 +347,7 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const httpBase = `http://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -360,7 +360,7 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
       'X-Herdr-Host-Token': 'v2-token-123456789',
     };
     const hostWs = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostWs.close());
+    t.onTestFinished(() => hostWs.close());
 
     const hostReadyPromise = nextMessage(hostWs, (m) => m.type === 'host_ready');
     hostWs.send(
@@ -380,7 +380,7 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
     });
     const { code: pairCode } = await pairRes.json();
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostWs, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
@@ -418,7 +418,7 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
       'X-Herdr-Host-Token': 'legacy-token-123456789',
     };
     const hostWs = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostWs.close());
+    t.onTestFinished(() => hostWs.close());
 
     const hostReadyPromise = nextMessage(hostWs, (m) => m.type === 'host_ready');
     hostWs.send(
@@ -438,7 +438,7 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
     });
     const { code: pairCode } = await pairRes.json();
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostWs, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
@@ -483,7 +483,7 @@ test('relay safely disconnects host on truly malformed truncated binary frames w
   const address = await relay.listen(0, '127.0.0.1');
   const wsBase = `ws://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });

@@ -4,7 +4,7 @@
 // that lands in a browser's CSS `font-family` list, and as file slices a
 // browser asks for by hash. Both are untrusted here.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -185,10 +185,10 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
 
 async function startStack(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-font-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
 
@@ -222,7 +222,7 @@ async function startStack(t) {
     );
     return { client, ready: await ready, session: await started, seen: collect(client) };
   };
-  t.after(() => host.close());
+  t.onTestFinished(() => host.close());
   return { host, toHost, open };
 }
 
@@ -230,7 +230,7 @@ test('ready carries the font; slices route to the asking window only', async (t)
   const { host, toHost, open } = await startStack(t);
   const a = await open('window-a');
   const b = await open('window-b');
-  t.after(() => {
+  t.onTestFinished(() => {
     a.client.close();
     b.client.close();
   });
@@ -279,7 +279,7 @@ test('ready carries the font; slices route to the asking window only', async (t)
 test('a window gets only a few slices in flight at once', async (t) => {
   const { toHost, open } = await startStack(t);
   const a = await open('window-a');
-  t.after(() => a.client.close());
+  t.onTestFinished(() => a.client.close());
 
   for (let i = 0; i < 6; i += 1) {
     a.client.send(
@@ -294,7 +294,7 @@ test('a refresh reaches the host once, and its answer reaches every window', asy
   const { host, toHost, open } = await startStack(t);
   const a = await open('window-a');
   const b = await open('window-b');
-  t.after(() => {
+  t.onTestFinished(() => {
     a.client.close();
     b.client.close();
   });
@@ -313,7 +313,7 @@ test('a refresh reaches the host once, and its answer reaches every window', asy
 
   // A window that opens later is told the new font in its `ready`.
   const c = await open('window-c');
-  t.after(() => c.client.close());
+  t.onTestFinished(() => c.client.close());
   assert.deepEqual(c.ready.terminalFont, changed);
 });
 
@@ -321,7 +321,7 @@ test('a large font is cut for the asking window; only that window may pull the c
   const { host, toHost, open } = await startStack(t);
   const a = await open('window-a');
   const b = await open('window-b');
-  t.after(() => {
+  t.onTestFinished(() => {
     a.client.close();
     b.client.close();
   });

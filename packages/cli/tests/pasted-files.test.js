@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -39,7 +39,7 @@ const FIXTURES = {
 
 test('savePastedFile generates unpredictable filename ignoring client inputs, with extension derived from MIME', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // Client attempts directory traversal / malicious naming
   const clientPayload = {
@@ -69,7 +69,7 @@ test('savePastedFile generates unpredictable filename ignoring client inputs, wi
 
 test('savePastedFile derives appropriate extension for all supported MIME types', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   for (const [mime, fixture] of Object.entries(FIXTURES)) {
     const savedPath = savePastedFile({
@@ -84,7 +84,7 @@ test('savePastedFile derives appropriate extension for all supported MIME types'
 
 test('savePastedFile rejects file when magic bytes do not match declared MIME (sniffing)', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // 1. ELF executable binary spoofed as image/png
   const fakePngElf = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00]);
@@ -120,7 +120,7 @@ test('savePastedFile rejects file when magic bytes do not match declared MIME (s
 
 test('savePastedFile re-checks size limit on host independently of relay', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // Create oversized PNG buffer (> 3 MB)
   const oversizedBuf = Buffer.alloc(MAX_PASTE_BYTES + 1024);
@@ -139,7 +139,7 @@ test('savePastedFile re-checks size limit on host independently of relay', (t) =
 
 test('savePastedFile writes file with mode 0o600', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const savedPath = savePastedFile({
     mime: 'image/png',
@@ -156,7 +156,7 @@ test('savePastedFile writes file with mode 0o600', (t) => {
 
 test('cleanPastedDir purges oldest files when count or byte limit is exceeded', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const baseTime = 1700000000000;
 
@@ -183,7 +183,7 @@ test('cleanPastedDir purges oldest files when count or byte limit is exceeded', 
 
 test('cleanPastedDir purges stale files older than 24 hours', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const now = Date.now();
   const freshPath = path.join(tmpDir, 'fresh.png');

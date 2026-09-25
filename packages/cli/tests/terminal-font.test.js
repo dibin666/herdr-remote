@@ -6,7 +6,7 @@
 
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -239,7 +239,7 @@ function fontFile(directory, name, magic, size = 1000) {
 
 test('font files: real TTF/OTF of the right family only, never the same file twice', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-files-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const regular = fontFile(directory, 'Mono-Regular.ttf', '\x00\x01\x00\x00');
   const bold = fontFile(directory, 'Mono-Bold.otf', 'OTTO');
   const other = fontFile(directory, 'Other-Italic.ttf', 'true');
@@ -303,7 +303,7 @@ test('font files: real TTF/OTF of the right family only, never the same file twi
 
 test('font files are served a slice at a time, and a changed file is refused', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-chunks-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const size = TERMINAL_FONT_CHUNK_BYTES * 2 + 5;
   const file = fontFile(directory, 'Big.ttf', 'true', size);
   const run = fakeRun({
@@ -328,7 +328,7 @@ test('the font detected at the entry point is inherited and remembered', (t) => 
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-state-'));
   const previous = process.env.HERDR_REMOTE_STATE_DIR;
   process.env.HERDR_REMOTE_STATE_DIR = directory;
-  t.after(() => {
+  t.onTestFinished(() => {
     if (previous === undefined) delete process.env.HERDR_REMOTE_STATE_DIR;
     else process.env.HERDR_REMOTE_STATE_DIR = previous;
     fs.rmSync(directory, { recursive: true, force: true });
@@ -363,7 +363,7 @@ test('the font detected at the entry point is inherited and remembered', (t) => 
 test('the connector serves slices and re-reads the font for a window that asks', (t) => {
   const { HostConnector } = require('../src/host-connector');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-connector-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const file = fontFile(directory, 'Mono.ttf', 'true', 10);
   // "Mono" alone is a generic name, which is never resolved to files.
   const run = fakeRun({
@@ -427,7 +427,7 @@ test('the connector serves slices and re-reads the font for a window that asks',
 test('a connector that started with no font picks one up when a window opens', (t) => {
   const { HostConnector } = require('../src/host-connector');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-late-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   let remembered = null;
   const connector = new HostConnector({
     relayUrl: 'ws://127.0.0.1:1/ws/host',
@@ -524,7 +524,7 @@ test('Apple’s own faces are named without a font scan and never offered as fil
   assert.deepEqual(fixtureless, { source: 'apple-terminal', family: 'SF Mono', sizePx: 14.7 });
 
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-apple-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const bundled = path.join(directory, 'Terminal.app', 'Contents', 'Resources', 'Fonts');
   fs.mkdirSync(bundled, { recursive: true });
   const file = fontFile(bundled, 'SF-Mono-Regular.otf', 'OTTO');
@@ -591,7 +591,7 @@ test('xterm and urxvt: the emulator’s command line over the X resources', () =
 test('large fonts are offered for cutting: the CJK fallback, or a family too big to send', (t) => {
   const { resolveSubsetSources } = require('../src/terminal-font');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-subsets-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const cjk = fontFile(directory, 'NotoSansCJK-Regular.ttc', 'ttcf');
   const mono = fontFile(directory, 'Mono-Regular.ttf', 'true');
   const answer = (file, family, index = 0) => `${file}\n${family}\n${index}\n`;
@@ -632,7 +632,7 @@ test('large fonts are offered for cutting: the CJK fallback, or a family too big
 test('the connector answers a cut inline when small, and in slices when large', (t) => {
   const { HostConnector } = require('../src/host-connector');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-cut-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const file = fontFile(directory, 'cjk.otf', 'OTTO');
   const stat = fs.statSync(file);
   const source = {

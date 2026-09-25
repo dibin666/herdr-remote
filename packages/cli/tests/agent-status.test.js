@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const net = require('node:net');
 const fs = require('node:fs');
@@ -165,7 +165,7 @@ function fakeHerdrSocket(t, handler) {
       buffer = '';
     });
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     server.close();
     fs.rmSync(path.dirname(socketPath), { recursive: true, force: true });
   });
@@ -271,7 +271,7 @@ test('an acknowledged subscription resets the reconnect backoff', async (t) => {
       }
     });
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     if (subscription) subscription.close();
     server.close();
     fs.rmSync(directory, { recursive: true, force: true });

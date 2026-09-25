@@ -14,9 +14,7 @@
   ],
   "scripts": {
     "build": "npm run build -w herdr-remote-relay && npm run build -w herdr-remote",
-    "test": "npm run test -w herdr-remote-relay && npm run test -w herdr-remote",
-    "test:web": "npm test -w herdr-remote-web",
-    "test:all": "npm run test && npm run test:web",
+    "test": "vitest run",
     "typecheck": "npm run typecheck -w herdr-remote-web && npm run typecheck -w herdr-remote",
     "lint": "biome lint .",
     "format": "biome check --write .",

@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -59,7 +59,7 @@ test('systemd values with spaces or specifiers survive the unit file', () => {
 // not, because systemd hands the unit a PATH without ~/.local/bin in it.
 test('the installed environment pins the Herdr binary and the PATH that found it', (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-keepalive-'));
-  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(home, { recursive: true, force: true }));
   const directory = path.join(home, '.local', 'bin');
   fs.mkdirSync(directory, { recursive: true });
   const binary = path.join(directory, 'herdr');
@@ -77,7 +77,7 @@ test('the installed environment pins the Herdr binary and the PATH that found it
 
 test('a PATH that already covers Herdr is not given a duplicate entry', (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-keepalive-path-'));
-  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(home, { recursive: true, force: true }));
 
   const searchPath = servicePath({
     env: { PATH: ['/usr/bin', path.join(home, 'bin'), '/usr/bin'].join(path.delimiter) },
@@ -89,7 +89,7 @@ test('a PATH that already covers Herdr is not given a duplicate entry', (t) => {
 
 test('no Herdr install means no HERDR_BIN_PATH is invented', (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-keepalive-empty-'));
-  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(home, { recursive: true, force: true }));
 
   const environment = serviceEnvironment({ env: { PATH: '' }, home, directories: [] });
 

@@ -44,9 +44,12 @@
     "build": "npm --prefix web run build",
     "prepack": "npm run build",
     "start": "node bin/herdr-remote-relay.js",
-    "test": "node --test tests/*.test.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
   }
 }

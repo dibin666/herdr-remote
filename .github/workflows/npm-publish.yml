@@ -119,7 +119,7 @@ jobs:
 
       - name: Test
         if: steps.plan.outputs.cli == 'true' || steps.plan.outputs.relay == 'true'
-        run: npm run test:all
+        run: npm test
 
       # The relay is published first and unconditionally waited on: the CLI
       # depends on it by version range, so a CLI release that lands first would

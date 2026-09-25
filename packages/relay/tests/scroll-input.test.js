@@ -5,7 +5,7 @@
 // lease may put into a terminal. It has to admit wheel reports and nothing at
 // all besides them.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const { isWheelOnlyInput } = require('../src/scroll-input');
 

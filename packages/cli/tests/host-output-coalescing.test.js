@@ -3,7 +3,7 @@
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -49,7 +49,7 @@ test('host connector coalesces multiple onData chunks emitted in the same tick i
     },
   });
 
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     socketServer.close();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -129,7 +129,7 @@ test('stopping a session clears pending output and scheduled flush', async (t) =
     },
   });
 
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     socketServer.close();
     fs.rmSync(directory, { recursive: true, force: true });

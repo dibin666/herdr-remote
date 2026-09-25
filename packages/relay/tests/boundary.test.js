@@ -9,7 +9,7 @@
 // Relay test files are held to the same boundary as production code so that
 // test runs never require native compilation tools.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

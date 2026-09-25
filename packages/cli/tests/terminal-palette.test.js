@@ -5,7 +5,7 @@
 // mean. These tests cover the path that closes that gap — asking the host's own
 // terminal, and refusing to invent an answer when there is nothing to ask.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

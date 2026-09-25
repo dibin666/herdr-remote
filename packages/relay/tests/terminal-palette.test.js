@@ -4,7 +4,7 @@
 // the relay treats it as untrusted input: only plain hex colors in the exact
 // shape xterm understands may pass.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const { sanitizeTerminalPalette, ANSI_PALETTE_KEYS } = require('../src/stream-frame');
 

@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -132,7 +132,7 @@ test('relay info identifies local and operator-facing deployments without creden
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`${base}/api/info`);
   assert.equal(response.status, 200);
@@ -157,7 +157,7 @@ test('scoped status and public health never expose another host', async (t) => {
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const hostA = await openWebSocket(`${wsBase}/ws/host`);
   const hostB = await openWebSocket(`${wsBase}/ws/host`);
@@ -299,7 +299,7 @@ test('the content security policy lets the page draw its own data: icons', async
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-csp-'));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`http://127.0.0.1:${address.port}/api/info`);
   const policy = response.headers.get('content-security-policy') || '';
@@ -314,7 +314,7 @@ test('CORS echoes only an explicitly allowed origin', async (t) => {
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const allowed = await fetch(`${base}/api/info`, {
     headers: { Origin: 'https://console.example' },
@@ -331,7 +331,7 @@ test('relay pairs a client and preserves output/input streams', async (t) => {
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -429,7 +429,7 @@ test('relay operator dashboard requires its separate admin token', async (t) => 
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   assert.equal((await fetch(`${base}/api/admin/status`)).status, 401);
   assert.equal(
@@ -455,7 +455,7 @@ test('relay operator dashboard reports when administration is not configured', a
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`${base}/api/admin/status`);
   assert.equal(response.status, 503);
@@ -469,7 +469,7 @@ test('workstation status remains scoped away from the operator token', async (t)
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`${base}/api/status`, {
     headers: { 'X-Relay-Admin-Token': 'operator-secret-123456789' },
@@ -481,12 +481,12 @@ test('workstation status remains scoped away from the operator token', async (t)
 // PTY stream and its own geometry, without being constrained by other windows.
 test('every paired window gets its own terminal and all of them may type', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-dedicated-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
     JSON.stringify({
@@ -584,12 +584,12 @@ test('every paired window gets its own terminal and all of them may type', async
 // workstation, so it goes to every window watching it.
 test('agent status reaches every window, clamped on the way through', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-agents-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -686,12 +686,12 @@ test('agent status reaches every window, clamped on the way through', async (t) 
 
 test('each window drives its own grid without shrinking the others', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-resize-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -777,12 +777,12 @@ test('each window drives its own grid without shrinking the others', async (t) =
 
 test('a window opening a session gets its own stream id and geometry', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-session-grid-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -819,12 +819,12 @@ test('a window opening a session gets its own stream id and geometry', async (t)
 
 test('a window joining late starts its own session instead of replaying another window', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-replay-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -889,12 +889,12 @@ test('a window joining late starts its own session instead of replaying another 
 
 test('input from one window never reaches another window stream', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-stream-isolation-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -967,12 +967,12 @@ test('input from one window never reaches another window stream', async (t) => {
 
 test('a session is never started below the minimum usable grid', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-min-grid-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -1012,12 +1012,12 @@ test('the workstation palette reaches the browser with ready, before any output'
   // the first message a client gets — before the first PTY byte, or the
   // terminal would repaint mid-session.
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-palette-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const ansi = {
     black: '#2e3436',
@@ -1084,12 +1084,12 @@ test('the workstation palette reaches the browser with ready, before any output'
 
 test('a host with no terminal to ask leaves the browser on its own defaults', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-no-palette-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -1134,7 +1134,7 @@ test('two windows of one browser both stay attached instead of evicting each oth
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -1216,7 +1216,7 @@ test('a capable host reconnects without dropping its authorized browser', async 
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
   const hello = {
     type: 'host_hello',
     protocol: 1,
@@ -1283,7 +1283,7 @@ test('an operator can list paired devices and revoke one', async (t) => {
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const admin = { 'X-Relay-Admin-Token': 'operator-secret-123456789' };
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -1375,7 +1375,7 @@ test('the status board counts devices and their hosts, not open sockets', async 
   const admin = { 'X-Relay-Admin-Token': 'operator-secret-123456789' };
   const hostAAuth = { 'X-Herdr-Host-Id': 'host-a', 'X-Herdr-Host-Token': 'host-a-token-123456789' };
   const hostBAuth = { 'X-Herdr-Host-Id': 'host-b', 'X-Herdr-Host-Token': 'host-b-token-123456789' };
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const hostA = await openWebSocket(`${wsBase}/ws/host`);
   const hostB = await openWebSocket(`${wsBase}/ws/host`);
@@ -1490,7 +1490,7 @@ test('idle heartbeat refreshes host lastSeenAt on relay', async (t) => {
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(
@@ -1535,7 +1535,7 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const hostWs = await openWebSocket(`${wsBase}/ws/host`);
   hostWs.send(
@@ -1613,7 +1613,7 @@ test('a request to start Herdr reaches only the workstation the window is paired
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -1694,12 +1694,12 @@ test('a request to start Herdr reaches only the workstation the window is paired
 
 test('a newer herdr-remote is announced to every window, versions only, and replayed to late ones', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-update-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(

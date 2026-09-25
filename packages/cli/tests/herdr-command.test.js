@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -28,7 +28,7 @@ function makeInstall(directory, { executable = true, name = 'herdr' } = {}) {
 
 function withTempHome(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-command-'));
-  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(home, { recursive: true, force: true }));
   return home;
 }
 

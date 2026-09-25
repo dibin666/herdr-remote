@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -28,7 +28,7 @@ test('socket inspection distinguishes regular files from Unix sockets', async (t
 
   const socketPath = path.join(directory, 'herdr.sock');
   const server = net.createServer();
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   await new Promise((resolve) => server.listen(socketPath, resolve));
   assert.equal(inspectSocket(socketPath).ok, true);
 });

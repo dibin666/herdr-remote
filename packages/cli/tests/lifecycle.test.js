@@ -6,7 +6,7 @@
 // Herdr server starts. Restarting a service that is already up there dropped
 // every browser attached to the workstation, so start only starts.
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 
 const keepalive = require('../src/keepalive');

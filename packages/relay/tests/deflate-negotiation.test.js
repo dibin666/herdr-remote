@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -48,14 +48,14 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const httpBase = `http://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
   const hostAuth = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  t.after(() => host.close());
+  t.onTestFinished(() => host.close());
 
   const hostReadyPromise = nextMessage(host, (m) => m.type === 'host_ready');
   host.send(
@@ -83,7 +83,7 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
     client.once('open', resolve);
     client.once('error', reject);
   });
-  t.after(() => client.close());
+  t.onTestFinished(() => client.close());
 
   // 1. Assert permessage-deflate negotiation:
   // - ws exposes negotiated extension name via `ws.extensions` getter (Object.keys(this._extensions).join())

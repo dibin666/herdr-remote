@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -18,7 +18,7 @@ const {
 
 function tempDir(t, prefix) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
 
@@ -31,7 +31,7 @@ test('a socket that accepts is a running Herdr', async (t) => {
   const socketPath = path.join(tempDir(t, 'herdr-probe-live-'), 'herdr.sock');
   const server = net.createServer((socket) => socket.end());
   await new Promise((resolve) => server.listen(socketPath, resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   assert.deepEqual(await probeHerdrServer(socketPath), { state: 'running' });
 });
 

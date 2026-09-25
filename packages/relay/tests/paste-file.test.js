@@ -1,6 +1,6 @@
 'use strict';
 
-const test = require('node:test');
+import { test } from 'vitest';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -88,7 +88,7 @@ test('paste_file rejects unsupported MIME type with paste_file_unsupported error
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -144,7 +144,7 @@ test('paste_file rejects payload over 3 MB with paste_file_too_large and keeps c
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -211,7 +211,7 @@ test('paste_file forwards valid request with streamId to host, and routes paste_
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -315,7 +315,7 @@ test('paste_file rejects mismatched magic bytes on relay with paste_file_unsuppo
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -372,7 +372,7 @@ test('paste_file rejects request when host is offline with host_offline error', 
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -435,7 +435,7 @@ test('paste_file rejects request when client is viewer mode with viewer_mode err
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
