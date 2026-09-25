@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { AgentStatusChip } from './AgentStatusChip';
 import { HostSwitcher } from './HostSwitcher';
@@ -15,7 +15,8 @@ interface MobileStatusBarProps {
  * checking latency are the two actions needed while watching a terminal.
  */
 export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }) => {
-  const { rttMs, t } = useTerminal();
+  const { t } = useSettings();
+  const { rttMs } = useConnection();
 
   return (
     <footer

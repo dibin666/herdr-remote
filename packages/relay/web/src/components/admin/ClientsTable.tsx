@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ConnectedClientInfo } from '@protocol/http';
 import { describeUserAgent } from '../../utils/userAgent';
-import { useTerminal } from '../../context/TerminalContext';
+import { useSettings } from '../../context/TerminalContext';
 import { Badge, type Column, Panel, StatusDot, Table } from '../tui';
 import { formatBytes, formatRelative, formatTimestamp } from './format';
 
@@ -20,7 +20,7 @@ interface ClientsTableProps {
  * workstation's own view is all one host.
  */
 export const ClientsTable: React.FC<ClientsTableProps> = ({ clients }) => {
-  const { t } = useTerminal();
+  const { t } = useSettings();
   const showHost = clients.some((client) => client.hostId);
 
   const columns: Column<ConnectedClientInfo>[] = [

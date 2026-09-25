@@ -27,7 +27,7 @@
 import type React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from './tui';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useToasts } from '../context/TerminalContext';
 import { extractImageFromClipboardEvent, extractImageFromFileList } from '../utils/clipboard';
 import {
   compressAndPrepareImage,
@@ -48,7 +48,8 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
   onSend,
   onSendImage,
 }) => {
-  const { t, addToast } = useTerminal();
+  const { t } = useSettings();
+  const { addToast } = useToasts();
   const [textValue, setTextValue] = useState('');
   const [imageState, setImageState] = useState<PreparedImagePaste | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { describeConnection } from '../utils/connectionStatus';
 import { Badge, Segments, StatusDot, StatusLine } from './tui';
 import { AgentStatusChip, agentStatusHasContent } from './AgentStatusChip';
@@ -22,17 +22,9 @@ interface SessionStatusLineProps {
 export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
   onAddProfile = () => {},
 }) => {
-  const {
-    connectionState,
-    role,
-    hostId,
-    assignedClientId,
-    sharedWindowCount,
-    settings,
-    rttMs,
-    agentStatus,
-    t,
-  } = useTerminal();
+  const { settings, t } = useSettings();
+  const { connectionState, role, hostId, assignedClientId, sharedWindowCount, rttMs, agentStatus } =
+    useConnection();
   const status = describeConnection(connectionState, t);
   const connected = connectionState === 'connected';
   const updateVisible = useUpdateNoticeVisible();

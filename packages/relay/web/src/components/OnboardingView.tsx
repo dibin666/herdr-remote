@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { copyText } from '../utils/clipboard';
 import { Button, FieldLabel, GLYPH, Input, Notice, Panel, Rule, Spinner } from './tui';
@@ -20,8 +20,9 @@ interface OnboardingViewProps {
  * second screen.
  */
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess }) => {
-  const { settings, updateSettings, connect, connectionState, stateDetail, addToast, t } =
-    useTerminal();
+  const { settings, updateSettings, t } = useSettings();
+  const { connect, connectionState, stateDetail } = useConnection();
+  const { addToast } = useToasts();
 
   const [pairCodeInput, setPairCodeInput] = useState('');
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null);

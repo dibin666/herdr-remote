@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useToasts } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { translate } from '../i18n';
 import { Tabs } from './tui';
@@ -45,7 +45,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleVirtualKeyboard,
   isVirtualKeyboardOpen,
 }) => {
-  const { addToast, language, setLanguage, t } = useTerminal();
+  const { language, setLanguage, t } = useSettings();
+  const { addToast } = useToasts();
 
   const toggleLanguage = () => {
     const nextLang = language === 'zh' ? 'en' : 'zh';

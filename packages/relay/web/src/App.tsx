@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TerminalProvider, useTerminal } from './context/TerminalContext';
+import { TerminalProvider, useSettings, useConnection } from './context/TerminalContext';
 import { useAgentAlerts } from './utils/useAgentAlerts';
 import { Header } from './components/Header';
 import { StatusBanner } from './components/StatusBanner';
@@ -32,8 +32,9 @@ function AppContent() {
   };
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
-  const { updateSettings, settings, connectionState, stateDetail, stateCode, lastPairedAt } =
-    useTerminal();
+  const { updateSettings, settings } = useSettings();
+
+  const { connectionState, stateDetail, stateCode, lastPairedAt } = useConnection();
   useAgentAlerts();
 
   /**

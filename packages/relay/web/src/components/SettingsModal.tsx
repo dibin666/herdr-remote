@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { getDefaultSettings } from '../utils/storage';
 import { FONT_PRESETS } from '../utils/theme';
 import { clampFontSize } from '../utils/terminalLayout';
@@ -94,17 +94,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const {
     settings,
     updateSettings,
-    addToast,
     language,
     setLanguage,
     t,
-    agentProfile,
-    connectionState,
     hostFont,
     syncHostFont,
     terminalFontFamily,
     terminalFontSize,
-  } = useTerminal();
+  } = useSettings();
+  const { agentProfile, connectionState } = useConnection();
+  const { addToast } = useToasts();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
   const [comboDrafts, setComboDrafts] = useState<Record<string, string>>({});

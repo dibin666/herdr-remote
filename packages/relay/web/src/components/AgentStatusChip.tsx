@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { StatusDot } from './tui';
 import type { ServerAgentStatusMessage } from '@protocol/messages';
@@ -51,7 +51,8 @@ export interface AgentStatusChipProps {
 }
 
 export const AgentStatusChip: React.FC<AgentStatusChipProps> = ({ className, compact = false }) => {
-  const { agentStatus, t } = useTerminal();
+  const { t } = useSettings();
+  const { agentStatus } = useConnection();
 
   // Null is "the workstation has not said", which is not the same as "nothing
   // is running" — so the chip is absent rather than reporting a zero.

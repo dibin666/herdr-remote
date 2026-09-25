@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { describeConnection } from '../utils/connectionStatus';
 import { copyText } from '../utils/clipboard';
@@ -46,17 +46,14 @@ export const PairingModal: React.FC<PairingModalProps> = ({
   const {
     settings,
     updateSettings,
-    connect,
-    disconnect,
-    connectionState,
-    hostId,
-    addToast,
     t,
     activeProfile,
     activeProfileId,
     addProfileAndConnect,
     renameProfile,
-  } = useTerminal();
+  } = useSettings();
+  const { connect, disconnect, connectionState, hostId } = useConnection();
+  const { addToast } = useToasts();
 
   const [wsUrl, setWsUrl] = useState(settings.wsUrl);
   const [token, setToken] = useState(settings.token);

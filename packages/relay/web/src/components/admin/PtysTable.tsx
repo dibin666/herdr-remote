@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { PtyInfo } from '@protocol/http';
-import { useTerminal } from '../../context/TerminalContext';
+import { useSettings } from '../../context/TerminalContext';
 import { type Column, Panel, Table } from '../tui';
 
 interface PtysTableProps {
@@ -9,7 +9,7 @@ interface PtysTableProps {
 
 /** The shells the relay is holding open, and the geometry each one is at. */
 export const PtysTable: React.FC<PtysTableProps> = ({ ptys }) => {
-  const { t } = useTerminal();
+  const { t } = useSettings();
   // Only the operator's relay-wide view spans several workstations.
   const showHost = ptys.some((pty) => pty.hostId);
 

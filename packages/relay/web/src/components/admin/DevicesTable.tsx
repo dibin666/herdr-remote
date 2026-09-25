@@ -2,7 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import type { ConnectedClientInfo, PairedDeviceInfo } from '@protocol/http';
 import { describeUserAgent } from '../../utils/userAgent';
-import { useTerminal } from '../../context/TerminalContext';
+import { useSettings } from '../../context/TerminalContext';
 import { cn } from '../../utils/cn';
 import { Button, type Column, Panel, Spinner, StatusDot, Table } from '../tui';
 import { formatRelative, formatTimestamp, windowsByDevice } from './format';
@@ -22,7 +22,7 @@ interface DevicesTableProps {
  * mid-session, and the ones an operator is usually looking for.
  */
 export const DevicesTable: React.FC<DevicesTableProps> = ({ devices, clients, onRevoke }) => {
-  const { t } = useTerminal();
+  const { t } = useSettings();
   // Which device the operator has clicked once. Revoking cuts off a real person
   // mid-session, so it takes a second, deliberate click rather than a single
   // stray tap on a phone-sized dashboard.

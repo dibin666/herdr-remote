@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ConnectedClientInfo, HostInfo, HostStatus, PairedDeviceInfo } from '@protocol/http';
 import { describeUserAgent } from '../../utils/userAgent';
-import { useTerminal } from '../../context/TerminalContext';
+import { useSettings } from '../../context/TerminalContext';
 import { cn } from '../../utils/cn';
 import { Badge, Panel, Segments, StatusDot } from '../tui';
 import { formatRelative, formatTimestamp, windowsByDevice } from './format';
@@ -101,7 +101,7 @@ export function buildHostRows(hosts: HostInfo[] = [], devices: PairedDeviceInfo[
  * and otherwise saying how long ago it was last seen.
  */
 export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients }) => {
-  const { t } = useTerminal();
+  const { t } = useSettings();
   const rows = buildHostRows(hosts, devices);
   const windows = windowsByDevice(clients);
   const statusLabel: Record<HostStatus, string> = {

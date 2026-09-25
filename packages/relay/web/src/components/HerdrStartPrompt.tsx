@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { Button, Notice, Panel, Spinner } from './tui';
 
 /**
@@ -11,7 +11,8 @@ import { Button, Notice, Panel, Spinner } from './tui';
  * button starts something on a real machine and the user should see which one.
  */
 export const HerdrStartPrompt: React.FC = () => {
-  const { herdrLaunch, startHerdr, hostname, activeProfile, t } = useTerminal();
+  const { activeProfile, t } = useSettings();
+  const { herdrLaunch, startHerdr, hostname } = useConnection();
   if (!herdrLaunch) return null;
 
   const host = hostname || activeProfile?.displayName || t('herdrLaunch.thisHost');

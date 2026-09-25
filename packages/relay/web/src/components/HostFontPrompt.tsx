@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import type { TranslationSchema } from '../i18n';
 import { formatFontBytes } from '../utils/hostFont';
 import { Button, Meter, Notice, Panel } from './tui';
@@ -43,17 +43,9 @@ const KNOWN_REASONS: readonly string[] = [
  * top of the "start Herdr" question.
  */
 export const HostFontPrompt: React.FC = () => {
-  const {
-    hostFont,
-    loadHostFont,
-    declineHostFont,
-    settings,
-    herdrLaunch,
-    hostname,
-    activeProfile,
-    addToast,
-    t,
-  } = useTerminal();
+  const { hostFont, loadHostFont, declineHostFont, settings, activeProfile, t } = useSettings();
+  const { herdrLaunch, hostname } = useConnection();
+  const { addToast } = useToasts();
 
   const { font, status, glyphs } = hostFont;
   const busy = status === 'loading' || glyphs.status === 'loading';

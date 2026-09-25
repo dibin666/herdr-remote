@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useTerminalIO } from '../context/TerminalContext';
 import { Button, GLYPH, Input } from './tui';
 
 interface VirtualKeyboardHelperProps {
@@ -21,7 +21,9 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { sendKey, isController, warnViewerMode, t } = useTerminal();
+  const { t } = useSettings();
+  const { isController } = useConnection();
+  const { sendKey, warnViewerMode } = useTerminalIO();
   const [text, setText] = useState('');
 
   if (!isOpen) return null;

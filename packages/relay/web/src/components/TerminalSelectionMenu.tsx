@@ -21,7 +21,7 @@ import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { GLYPH, Panel } from './tui';
 import { cn } from '../utils/cn';
 import { linkDisplayHost } from '../utils/terminalLinks';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings } from '../context/TerminalContext';
 
 const actionRowClass =
   'tui-focusable group flex h-11 w-full select-none items-center gap-2 border px-2 text-left text-tui transition-colors';
@@ -61,7 +61,7 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
   onPaste,
   onClose,
 }) => {
-  const { t } = useTerminal();
+  const { t } = useSettings();
   const menuRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
 

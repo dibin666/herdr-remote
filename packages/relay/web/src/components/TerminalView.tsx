@@ -3,7 +3,13 @@ import { Terminal } from '@xterm/xterm';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
-import { useTerminal } from '../context/TerminalContext';
+import {
+  useSettings,
+  useConnection,
+  useToasts,
+  useTerminalIO,
+  useUpload,
+} from '../context/TerminalContext';
 import { hostPaletteToTheme } from '../utils/theme';
 import { encodeKeyWithModifiers, encodeStringToBytes, isSingleKey } from '../protocol/keyEncoder';
 import { classifyInput } from '../utils/inputClassifier';
@@ -218,31 +224,39 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
   }, [touchDebugEnabled]);
 
   const {
-    isController,
-    connectionState,
     settings,
-    hostPalette,
     terminalFontFamily,
     terminalFontSize,
     hostFont,
     ensureHostGlyphs,
+    profiles,
+    activeProfileId,
+    t,
+  } = useSettings();
+
+  const {
+    isController,
+    connectionState,
+    hostPalette,
     terminalResetVersion,
+    agentStatus,
+    connect,
+    rttMs,
+  } = useConnection();
+
+  const { addToast } = useToasts();
+
+  const {
     sendResize,
     sendBinary,
     observeKeyInput,
     consumeModifierLatch,
-    agentStatus,
-    addToast,
     warnViewerMode,
-    connect,
     subscribeToOutput,
     subscribeToPasteFileReady,
-    uploadImage,
-    profiles,
-    activeProfileId,
-    t,
-    rttMs,
-  } = useTerminal();
+  } = useTerminalIO();
+
+  const { uploadImage } = useUpload();
 
   /**
    * The host's own terminal colors, in xterm's theme shape. Not a theme this

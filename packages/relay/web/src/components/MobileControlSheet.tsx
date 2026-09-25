@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { RoleControlBadge } from './RoleControlBadge';
 import { describeConnection } from '../utils/connectionStatus';
 import { cn } from '../utils/cn';
@@ -49,19 +49,9 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onOpenSettings,
   onAddProfile = () => {},
 }) => {
-  const {
-    connectionState,
-    stateDetail,
-    rttMs,
-    hostId,
-    settings,
-    updateSettings,
-    connect,
-    addToast,
-    language,
-    setLanguage,
-    t,
-  } = useTerminal();
+  const { settings, updateSettings, language, setLanguage, t } = useSettings();
+  const { connectionState, stateDetail, rttMs, hostId, connect } = useConnection();
+  const { addToast } = useToasts();
 
   const [copiedClientId, setCopiedClientId] = React.useState(false);
   const status = describeConnection(connectionState, t);

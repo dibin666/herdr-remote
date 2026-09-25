@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useToasts } from '../context/TerminalContext';
 import { copyText } from '../utils/clipboard';
 import { cn } from '../utils/cn';
 import { Button, GLYPH, Modal, Row } from './tui';
@@ -19,7 +19,7 @@ import { Button, GLYPH, Modal, Row } from './tui';
  * which ones exist, so it has to ask before adding the chip, not after.
  */
 export function useUpdateNoticeVisible(): boolean {
-  const { updateStatus, ignoredUpdate } = useTerminal();
+  const { updateStatus, ignoredUpdate } = useConnection();
   return Boolean(updateStatus?.updateAvailable) && ignoredUpdate !== updateStatus?.latest;
 }
 
@@ -27,7 +27,8 @@ export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = (
   compact = false,
   className,
 }) => {
-  const { updateStatus, t } = useTerminal();
+  const { t } = useSettings();
+  const { updateStatus } = useConnection();
   const visible = useUpdateNoticeVisible();
   const [open, setOpen] = useState(false);
 
@@ -60,7 +61,8 @@ export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = (
 };
 
 const Command: React.FC<{ command: string }> = ({ command }) => {
-  const { addToast, t } = useTerminal();
+  const { t } = useSettings();
+  const { addToast } = useToasts();
   return (
     <div className="flex items-center gap-2 border border-tui-border bg-tui-mantle px-2 py-1">
       <span aria-hidden="true" className="shrink-0 select-none text-tui-ok">
@@ -90,7 +92,8 @@ export const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
   isOpen,
   onClose,
 }) => {
-  const { updateStatus, ignoreUpdate, hostname, hostId, t } = useTerminal();
+  const { t } = useSettings();
+  const { updateStatus, ignoreUpdate, hostname, hostId } = useConnection();
   if (!updateStatus) return null;
   const { current, installed, latest, restartPending } = updateStatus;
 

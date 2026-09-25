@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { Row, StatusDot } from './tui';
 
@@ -14,7 +14,8 @@ import { Row, StatusDot } from './tui';
  * than as a control the user has to operate.
  */
 export const RoleControlBadge: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
-  const { role, connectionState, sharedWindowCount, assignedClientId, t } = useTerminal();
+  const { t } = useSettings();
+  const { role, connectionState, sharedWindowCount, assignedClientId } = useConnection();
 
   const isConnected = connectionState === 'connected';
 

@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { MobileControlSheet } from './MobileControlSheet';
 import { describeConnection } from '../utils/connectionStatus';
 import { cn } from '../utils/cn';
@@ -25,7 +25,8 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   onOpenSettings,
   onAddProfile = () => {},
 }) => {
-  const { connectionState, isController, t } = useTerminal();
+  const { t } = useSettings();
+  const { connectionState, isController } = useConnection();
   const [isOpen, setIsOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
 

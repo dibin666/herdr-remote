@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import type { ServerAgentStatusMessage } from '@protocol/messages';
 import {
   attentionCounts,
@@ -35,7 +35,8 @@ const VIBRATION: Record<AttentionLevel, number[]> = {
  *   does not exist, which is why none of the rest depends on it.
  */
 export function useAgentAlerts(): void {
-  const { agentStatus, settings, t } = useTerminal();
+  const { settings, t } = useSettings();
+  const { agentStatus } = useConnection();
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const tRef = useRef(t);

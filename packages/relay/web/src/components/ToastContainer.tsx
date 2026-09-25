@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal, type ToastItem } from '../context/TerminalContext';
+import { type ToastItem, useSettings, useToasts } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { GLYPH, type StatusLevel, TONE } from './tui';
 
@@ -26,7 +26,8 @@ const TOAST_PREFIX: Record<ToastItem['type'], string> = {
 };
 
 export const ToastContainer: React.FC = () => {
-  const { toasts, removeToast, t } = useTerminal();
+  const { t } = useSettings();
+  const { toasts, removeToast } = useToasts();
 
   if (toasts.length === 0) return null;
 

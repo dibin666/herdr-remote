@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { Button, GLYPH, Spinner, type StatusLevel, TONE } from './tui';
 
@@ -36,7 +36,8 @@ const Line: React.FC<{
 );
 
 export const StatusBanner: React.FC = () => {
-  const { connectionState, stateDetail, connect, settings, t } = useTerminal();
+  const { settings, t } = useSettings();
+  const { connectionState, stateDetail, connect } = useConnection();
 
   if (connectionState === 'connected') {
     return null;

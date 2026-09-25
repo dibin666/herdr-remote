@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import type { AdminStatusResponse, RelayInfoResponse } from '@protocol/http';
-import { useTerminal } from '../../context/TerminalContext';
+import { useSettings, useToasts } from '../../context/TerminalContext';
 import { ClientsTable } from './ClientsTable';
 import { HostsTable } from './HostsTable';
 import { PtysTable } from './PtysTable';
@@ -63,7 +63,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenPairing,
   showBack = false,
 }) => {
-  const { settings, updateSettings, addToast, t } = useTerminal();
+  const { settings, updateSettings, t } = useSettings();
+  const { addToast } = useToasts();
   const activeRelayOrigin =
     relayHttpBase(settings.wsUrl) ||
     (typeof window !== 'undefined' ? window.location.origin : 'local');

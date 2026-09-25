@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { Button, GLYPH, StatusDot } from './tui';
 
@@ -25,12 +25,12 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
     profiles,
     activeProfileId,
     activeProfile,
-    connectionState,
     switchProfile,
     renameProfile,
     removeProfile,
     t,
-  } = useTerminal();
+  } = useSettings();
+  const { connectionState } = useConnection();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');

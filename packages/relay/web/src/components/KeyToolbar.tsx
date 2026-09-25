@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useTerminal } from '../context/TerminalContext';
+import { useSettings, useConnection, useTerminalIO, useUpload } from '../context/TerminalContext';
 import { ANSI_KEYS, encodeKeyWithModifiers } from '../protocol/keyEncoder';
 import { formatComboCaption, parseKeyCombo } from '../protocol/keyCombo';
 import { cn } from '../utils/cn';
@@ -52,20 +52,11 @@ const CHORD_TONE_CLASS = {
 } as const;
 
 export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCustomize }) => {
-  const {
-    sendKey,
-    settings,
-    updateSettings,
-    isController,
-    warnViewerMode,
-    t,
-    uploadProgress,
-    uploadImage,
-    modifierLatch,
-    toggleModifierLatch,
-    consumeModifierLatch,
-    agentProfile,
-  } = useTerminal();
+  const { settings, updateSettings, t } = useSettings();
+  const { isController, agentProfile } = useConnection();
+  const { sendKey, warnViewerMode, modifierLatch, toggleModifierLatch, consumeModifierLatch } =
+    useTerminalIO();
+  const { uploadProgress, uploadImage } = useUpload();
 
   // One cap height for every key on the bar and in its drawers: agent
   // shortcuts a size smaller than ESC beside them made the row read as two
