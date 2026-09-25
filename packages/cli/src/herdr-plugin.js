@@ -1,16 +1,14 @@
-'use strict';
-
 // Registration with the Herdr CLI.
 //
 // Installing from npm puts this package somewhere under a global node_modules
 // tree; Herdr learns about it with `herdr plugin link <path>`. Doing that from
 // here means the user never has to find the install directory themselves.
 
-const fs = require('node:fs');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const { PACKAGE_ROOT } = require('./config');
-const { herdrVersion, resolveHerdrCommand } = require('./herdr-command');
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { PACKAGE_ROOT } from './config.js';
+import { herdrVersion, resolveHerdrCommand } from './herdr-command.js';
 
 const PLUGIN_ID = 'herdr.remote.web';
 const MANIFEST_NAME = 'herdr-plugin.toml';
@@ -133,7 +131,7 @@ function unregister() {
   return { ok: true, output: String(result.stdout || '').trim() };
 }
 
-module.exports = {
+export {
   PLUGIN_ID,
   manifestPath,
   herdrAvailable,

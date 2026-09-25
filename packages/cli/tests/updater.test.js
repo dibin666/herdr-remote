@@ -1,18 +1,19 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const { EventEmitter } = require('node:events');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
   checkForUpdate,
   compareVersions,
   currentVersion,
   installKind,
   performUpdate,
-} = require('../src/updater');
+  registryCandidates,
+  DEFAULT_REGISTRY,
+  MIRROR_REGISTRY,
+} from '../src/updater.js';
 
 test('version comparison orders releases numerically, not as text', () => {
   assert.equal(compareVersions('0.2.10', '0.2.9'), 1, '10 is newer than 9');
@@ -128,7 +129,6 @@ test('a clean npm exit reports success', async () => {
 // not reach npm registry" forever. Whatever npm itself is configured to use
 // comes first now.
 test('the check follows the registry npm itself is configured with', () => {
-  const { registryCandidates, DEFAULT_REGISTRY, MIRROR_REGISTRY } = require('../src/updater');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-npmrc-'));
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-project-'));
   fs.writeFileSync(

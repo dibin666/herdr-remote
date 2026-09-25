@@ -1,5 +1,3 @@
-'use strict';
-
 // Self-update for the npm-installed CLI.
 //
 // The update path is only meaningful for a package installed from npm. A source
@@ -7,11 +5,11 @@
 // this refuses to touch either: silently running `npm install -g` over a
 // checkout would replace the tree someone is working in.
 
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
-const { PACKAGE_ROOT } = require('./config');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { PACKAGE_ROOT } from './config.js';
 
 const PACKAGE_NAME = 'herdr-remote';
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
@@ -28,7 +26,7 @@ const MIRROR_REGISTRY = 'https://registry.npmmirror.com';
 
 function currentVersion() {
   try {
-    return require(path.join(PACKAGE_ROOT, 'package.json')).version;
+    return JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8')).version;
   } catch {
     return '0.0.0';
   }
@@ -408,7 +406,7 @@ async function performUpdate({
   };
 }
 
-module.exports = {
+export {
   PACKAGE_NAME,
   DEFAULT_REGISTRY,
   MIRROR_REGISTRY,

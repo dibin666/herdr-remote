@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * One question for Herdr's local socket API.
  *
@@ -30,7 +28,7 @@
  * the PTYs keep streaming while this quietly fails and is asked again later.
  */
 
-const net = require('node:net');
+import net from 'node:net';
 
 /** How long one question waits, connection included. */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -246,8 +244,4 @@ function subscribeHerdr(socketPath, subscriptions, onEvent, options = {}) {
   };
 }
 
-module.exports = {
-  REQUEST_TIMEOUT_MS,
-  requestHerdr,
-  subscribeHerdr,
-};
+export { REQUEST_TIMEOUT_MS, requestHerdr, subscribeHerdr };

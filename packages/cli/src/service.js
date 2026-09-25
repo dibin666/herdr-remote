@@ -1,11 +1,10 @@
-'use strict';
-
-const fs = require('node:fs');
-const http = require('node:http');
-const https = require('node:https');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
-const {
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import {
   PACKAGE_ROOT,
   bindAddress,
   configDir,
@@ -16,23 +15,23 @@ const {
   runsLocalRelay,
   runtimeStatePath,
   stateDir,
-} = require('./config');
-const { ensureDir, randomToken, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
-const {
+} from './config.js';
+import { ensureDir, randomToken, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import {
   probeTerminalPalette,
   paletteFromEnvironment,
   rememberTerminalPalette,
   rememberedTerminalPalette,
-} = require('./terminal-palette');
-const { resolveHostFont } = require('./terminal-font');
-const { resolveSocketPath } = require('./socket-discovery');
-const { preferredLanAddress } = require('./net-interfaces');
-const {
+} from './terminal-palette.js';
+import { resolveHostFont } from './terminal-font.js';
+import { resolveSocketPath } from './socket-discovery.js';
+import { preferredLanAddress } from './net-interfaces.js';
+import {
   MIN_HERDR_VERSION,
   findHerdrCommand,
   herdrVersion,
   resolveHerdrCommand,
-} = require('./herdr-command');
+} from './herdr-command.js';
 
 const RUNTIME_VERSION = 2;
 
@@ -163,7 +162,7 @@ function logPath(name) {
 function relayBinPath() {
   // Resolved rather than hard-coded: the relay is a separate npm package, so
   // its location depends on how npm hoisted it.
-  const manifest = require.resolve('herdr-remote-relay/package.json');
+  const manifest = createRequire(import.meta.url).resolve('herdr-remote-relay/package.json');
   return path.join(path.dirname(manifest), 'bin', 'herdr-remote-relay.js');
 }
 
@@ -216,7 +215,7 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
   specs.push({
     name: 'host',
     command: process.execPath,
-    args: [path.join(PACKAGE_ROOT, 'src', 'host-connector.js')],
+    args: [path.join(PACKAGE_ROOT, 'src', 'host-connector-main.js')],
     env: {
       // Captured here, where a terminal may still be attached, because the
       // connector itself usually runs detached with no terminal to ask.
@@ -552,7 +551,7 @@ function readLogTail(name, lines = 40) {
   }
 }
 
-module.exports = {
+export {
   RUNTIME_VERSION,
   pidAlive,
   readRuntime,

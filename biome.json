@@ -81,16 +81,6 @@
       }
     },
     {
-      "includes": ["packages/cli/**/*.js", "packages/relay/**/*.js", "scripts/**/*.js"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noRedundantUseStrict": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["**/*.css"],
       "linter": {
         "rules": {
@@ -154,7 +144,7 @@
         "packages/cli/src/service.js",
         "packages/relay/web/src/utils/inputField.ts",
         "packages/cli/src/config.js",
-        "scripts/e2e-latency-harness.js",
+        "scripts/e2e-latency-harness.mjs",
         "packages/relay/web/src/utils/virtualKeys.ts",
         "packages/cli/src/keepalive.js"
       ],

@@ -1,8 +1,6 @@
-'use strict';
-
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 function defaultSocketPath(env = process.env, platform = process.platform) {
   if (env.HERDR_SOCKET_PATH) return env.HERDR_SOCKET_PATH;
@@ -61,9 +59,4 @@ function assertSocket(socketPath, options = {}) {
   return result;
 }
 
-module.exports = {
-  defaultSocketPath,
-  resolveSocketPath,
-  inspectSocket,
-  assertSocket,
-};
+export { defaultSocketPath, resolveSocketPath, inspectSocket, assertSocket };

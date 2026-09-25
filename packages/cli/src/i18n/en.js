@@ -1,9 +1,7 @@
-'use strict';
-
 // English message catalogue. This file is the reference: zh.js must define
 // exactly the same keys, which tests/i18n.test.js enforces.
 
-module.exports = {
+export default {
   'app.name': 'Herdr Remote',
   'app.tagline': 'Remote browser access to Herdr workspaces',
 

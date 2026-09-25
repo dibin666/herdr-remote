@@ -1,11 +1,9 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
   detectManager,
   escapeXml,
   renderLaunchdPlist,
@@ -13,7 +11,7 @@ const {
   serviceEnvironment,
   servicePath,
   systemdEnvironmentLine,
-} = require('../src/keepalive');
+} from '../src/keepalive.js';
 
 test('the systemd unit restarts the supervisor and installs into the user target', () => {
   const unit = renderSystemdUnit({

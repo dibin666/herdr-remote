@@ -1,10 +1,8 @@
-'use strict';
-
-const fs = require('node:fs');
-const { spawn } = require('node:child_process');
-const { PACKAGE_ROOT, loadConfig, runtimeStatePath, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
-const {
+import fs from 'node:fs';
+import { spawn } from 'node:child_process';
+import { PACKAGE_ROOT, loadConfig, runtimeStatePath, stateDir } from './config.js';
+import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import {
   baseEnvironment,
   ensureRuntime,
   logPath,
@@ -12,8 +10,8 @@ const {
   pidAlive,
   recordManagedPid,
   serviceSpecs,
-} = require('./service');
-const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
+} from './service.js';
+import { EXIT_REPLACED, EXIT_AUTH_FAILED } from './exit-codes.js';
 
 const MIN_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 30_000;
@@ -310,4 +308,4 @@ async function runForeground({ logToFiles = false } = {}) {
   });
 }
 
-module.exports = { Supervisor, runForeground, MIN_BACKOFF_MS, MAX_BACKOFF_MS, HEALTHY_UPTIME_MS };
+export { Supervisor, runForeground, MIN_BACKOFF_MS, MAX_BACKOFF_MS, HEALTHY_UPTIME_MS };

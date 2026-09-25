@@ -1,12 +1,10 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const {
+import assert from 'node:assert/strict';
+import {
   isTailscaleAddress,
   listReachableAddresses,
   preferredLanAddress,
-} = require('../src/net-interfaces');
+} from '../src/net-interfaces.js';
 
 test('the Tailscale CGNAT range is recognised by address', () => {
   // Interface names differ per platform (tailscale0 on Linux, utunN on macOS),

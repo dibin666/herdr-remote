@@ -1,17 +1,15 @@
-'use strict';
-
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const net = require('node:net');
-const { WebSocket } = require('ws');
-const { unpackStreamFrame } = require('herdr-remote-relay/protocol');
-const { HostConnector } = require('../src/host-connector');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import { WebSocket } from 'ws';
+import { unpackStreamFrame } from 'herdr-remote-relay/protocol';
+import { HostConnector } from '../src/host-connector.js';
 
 test('host connector coalesces multiple onData chunks emitted in the same tick into one frame', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-coalesce-'));

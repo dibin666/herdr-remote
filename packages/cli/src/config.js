@@ -1,10 +1,8 @@
-'use strict';
-
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { DEFAULTS: RELAY_DEFAULTS } = require('herdr-remote-relay/config');
-const { WS_HOST_PATH } = require('herdr-remote-relay/protocol');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { DEFAULTS as RELAY_DEFAULTS } from 'herdr-remote-relay/config';
+import { WS_HOST_PATH } from 'herdr-remote-relay/protocol';
 
 /**
  * Locate the package directory by walking up to our own package.json.
@@ -31,7 +29,7 @@ function findPackageRoot(start) {
   return path.resolve(start, '..');
 }
 
-const PACKAGE_ROOT = findPackageRoot(__dirname);
+const PACKAGE_ROOT = findPackageRoot(import.meta.dirname);
 
 // Access modes
 //   local  — a relay runs on this machine, reachable only from this machine.
@@ -483,7 +481,7 @@ function hostWebSocketUrl(base) {
   return url.toString();
 }
 
-module.exports = {
+export {
   PACKAGE_ROOT,
   DEFAULTS,
   ACCESS_MODES,

@@ -1,20 +1,19 @@
-'use strict';
-
 // The browser draws a Herdr session in whatever font it has; these tests cover
 // how the workstation finds out which font its own terminal uses, and how the
 // files behind it are offered without ever sending a path.
 
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
+import { spawnSync } from 'node:child_process';
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { TERMINAL_FONT_CHUNK_BYTES } = require('herdr-remote-relay/protocol');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { TERMINAL_FONT_CHUNK_BYTES } from 'herdr-remote-relay/protocol';
 
-const {
+import {
   parsePangoFontDescription,
   parseQtFontString,
   parseFontconfigPattern,
@@ -28,7 +27,11 @@ const {
   fontFromEnvironment,
   captureTerminalFont,
   loadHostTerminalFont,
-} = require('../src/terminal-font');
+  resolveSubsetSources,
+} from '../src/terminal-font.js';
+import { HostConnector } from '../src/host-connector.js';
+import { parseBinaryPlist } from '../src/binary-plist.js';
+import { FontSubsetter } from '../src/font-subset.js';
 
 /** A command runner answering from a table, `command args…` → stdout. */
 function fakeRun(table) {
@@ -361,7 +364,6 @@ test('the font detected at the entry point is inherited and remembered', (t) => 
 });
 
 test('the connector serves slices and re-reads the font for a window that asks', (t) => {
-  const { HostConnector } = require('../src/host-connector');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-connector-'));
   t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const file = fontFile(directory, 'Mono.ttf', 'true', 10);
@@ -425,7 +427,6 @@ test('the connector serves slices and re-reads the font for a window that asks',
 });
 
 test('a connector that started with no font picks one up when a window opens', (t) => {
-  const { HostConnector } = require('../src/host-connector');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-late-'));
   t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   let remembered = null;
@@ -466,7 +467,6 @@ test('a connector that started with no font picks one up when a window opens', (
 });
 
 test('Terminal.app: the default profile’s archived NSFont', () => {
-  const { parseBinaryPlist } = require('../src/binary-plist');
   const fixture = fs.readFileSync(path.join(__dirname, 'fixtures', 'com.apple.Terminal.plist'));
   const prefs = `${HOME}/Library/Preferences/com.apple.Terminal.plist`;
   const run = fakeRun({
@@ -589,7 +589,6 @@ test('xterm and urxvt: the emulator’s command line over the X resources', () =
 });
 
 test('large fonts are offered for cutting: the CJK fallback, or a family too big to send', (t) => {
-  const { resolveSubsetSources } = require('../src/terminal-font');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-subsets-'));
   t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const cjk = fontFile(directory, 'NotoSansCJK-Regular.ttc', 'ttcf');
@@ -630,7 +629,6 @@ test('large fonts are offered for cutting: the CJK fallback, or a family too big
 });
 
 test('the connector answers a cut inline when small, and in slices when large', (t) => {
-  const { HostConnector } = require('../src/host-connector');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-cut-'));
   t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const file = fontFile(directory, 'cjk.otf', 'OTTO');
@@ -713,12 +711,9 @@ test('the connector answers a cut inline when small, and in slices when large', 
 });
 
 test('HarfBuzz cuts a real font down to the requested characters', (t) => {
-  const { FontSubsetter } = require('../src/font-subset');
-  const located = require('node:child_process').spawnSync(
-    'fc-match',
-    ['-f', '%{file}', 'DejaVu Sans Mono'],
-    { encoding: 'utf8' },
-  );
+  const located = spawnSync('fc-match', ['-f', '%{file}', 'DejaVu Sans Mono'], {
+    encoding: 'utf8',
+  });
   const file = located.status === 0 ? located.stdout.trim() : '';
   if (!/\.(ttf|otf)$/i.test(file)) {
     t.skip('no DejaVu Sans Mono TTF on this machine');

@@ -1,13 +1,11 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const http = require('node:http');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
-const { pathToFileURL } = require('node:url');
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 const PACKAGE_ROOT = path.join(__dirname, '..');
 

@@ -10,7 +10,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 
 | 目录 | 包 | 职责 |
 |---|---|---|
-| `packages/cli` | `herdr-remote`（npm） | `bin/` CLI 入口；`src/` 服务层与 host connector；`tui/` Ink 配置界面；`herdr-plugin.toml` 插件清单 |
+| `packages/cli` | `herdr-remote`（npm） | `src/cli.js` 命令行（`bin/` 只是启动器）；`src/` 服务层与 host connector；`tui/` Ink 配置界面；`herdr-plugin.toml` 插件清单 |
 | `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`tsc` 编译到 `dist/`，`bin/` 和 cli 都加载 `dist/` |
 | `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布 |
 

@@ -1,8 +1,6 @@
-'use strict';
-
 // 简体中文文案。键名必须与 en.js 完全一致，由 tests/i18n.test.js 校验。
 
-module.exports = {
+export default {
   'app.name': 'Herdr Remote',
   'app.tagline': '在浏览器中使用 Herdr 工作区',
 

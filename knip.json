@@ -9,7 +9,7 @@
     "packages/cli": {
       "entry": [
         "bin/*.js",
-        "src/host-connector.js",
+        "src/host-connector-main.js",
         "scripts/*.mjs",
         "tui/src/index.tsx",
         "tests/**/*.test.js"
@@ -20,7 +20,8 @@
         "tui/src/**/*.{ts,tsx}",
         "scripts/**/*.mjs",
         "tests/**/*.js"
-      ]
+      ],
+      "ignoreBinaries": ["loginctl", "fc-match"]
     },
     "packages/relay": {
       "entry": ["bin/*.js", "tests/**/*.test.js"],

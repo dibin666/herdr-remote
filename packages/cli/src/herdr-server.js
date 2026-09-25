@@ -1,5 +1,3 @@
-'use strict';
-
 // Whether Herdr's server is running on this workstation, and starting it when
 // the user asked for that.
 //
@@ -20,12 +18,12 @@
 //   scope of its own, the same place it would live had the user started it
 //   from a terminal.
 
-const fs = require('node:fs');
-const net = require('node:net');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
-const { inspectSocket } = require('./socket-discovery');
-const { ensureDir } = require('herdr-remote-relay/state');
+import fs from 'node:fs';
+import net from 'node:net';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { inspectSocket } from './socket-discovery.js';
+import { ensureDir } from 'herdr-remote-relay/state';
 
 /** A Unix socket either accepts at once or is dead; this only guards a hang. */
 const PROBE_TIMEOUT_MS = 1_000;
@@ -220,7 +218,7 @@ async function ensureHerdrServer({
   }
 }
 
-module.exports = {
+export {
   PROBE_TIMEOUT_MS,
   START_TIMEOUT_MS,
   probeHerdrServer,

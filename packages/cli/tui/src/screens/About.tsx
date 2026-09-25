@@ -7,6 +7,7 @@ import {
   canSelfUpdate,
   checkForUpdate,
   configPath,
+  currentVersion,
   detectLocale,
   installKind,
   performUpdate,
@@ -30,9 +31,6 @@ type CheckRef = { current: { registry: string; sources: string[] } };
 
 /** `https://registry.npmmirror.com` → `registry.npmmirror.com`, for one line of text. */
 const registryHost = (registry: string) => registry.replace(/^https?:\/\//, '');
-
-// Injected at build time by scripts/build-tui.mjs.
-declare const __APP_VERSION__: string;
 
 export function About({ ctx }: { ctx: AppContext }) {
   const { t, draft } = ctx;
@@ -237,7 +235,7 @@ export function About({ ctx }: { ctx: AppContext }) {
       </Box>
 
       <Row label={t('about.version')}>
-        <Text color={theme.muted}>{__APP_VERSION__}</Text>
+        <Text color={theme.muted}>{currentVersion()}</Text>
       </Row>
       <Row label={t('about.configPath')}>
         <Text color={theme.muted}>{configPath()}</Text>

@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Reads the font the workstation's terminal draws with.
  *
@@ -15,20 +13,20 @@
  * `null`, and the browser keeps its own monospace stack.
  */
 
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const {
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import {
   MAX_TERMINAL_FONT_BYTES,
   TERMINAL_FONT_CHUNK_BYTES,
   TERMINAL_FONT_STYLES,
   sanitizeTerminalFont,
-} = require('herdr-remote-relay/protocol');
-const { runtimeStatePath, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
-const { parseBinaryPlist, unarchiveKeyed } = require('./binary-plist');
+} from 'herdr-remote-relay/protocol';
+import { runtimeStatePath, stateDir } from './config.js';
+import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import { parseBinaryPlist, unarchiveKeyed } from './binary-plist.js';
 
 /** Terminals size fonts in points; CSS pixels are 1/96 inch. */
 const PX_PER_PT = 96 / 72;
@@ -1343,7 +1341,7 @@ function loadHostTerminalFont({ env = process.env, refresh = false, deps = {} } 
   return describeTerminalFont(current || known, deps);
 }
 
-module.exports = {
+export {
   PX_PER_PT,
   parsePangoFontDescription,
   parseQtFontString,

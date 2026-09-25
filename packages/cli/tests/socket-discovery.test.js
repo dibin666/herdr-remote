@@ -1,12 +1,10 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const net = require('node:net');
-const { defaultSocketPath, inspectSocket, resolveSocketPath } = require('../src/socket-discovery');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import { defaultSocketPath, inspectSocket, resolveSocketPath } from '../src/socket-discovery.js';
 
 test('socket discovery prefers explicit and injected paths', () => {
   assert.equal(

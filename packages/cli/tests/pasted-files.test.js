@@ -1,12 +1,10 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { savePastedFile, cleanPastedDir } = require('../src/pasted-files');
-const { PASTE_MAX_BYTES, PASTE_IMAGE_EXTENSIONS } = require('herdr-remote-relay/protocol');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { savePastedFile, cleanPastedDir } from '../src/pasted-files.js';
+import { PASTE_MAX_BYTES, PASTE_IMAGE_EXTENSIONS } from 'herdr-remote-relay/protocol';
 
 // Valid magic byte fixtures for each supported image type
 const FIXTURES = {

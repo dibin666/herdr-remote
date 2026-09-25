@@ -3,6 +3,7 @@
   "version": "0.2.18",
   "description": "Browser access to Herdr workspaces: plugin, host connector, and configuration TUI",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dibin666/herdr-remote.git",

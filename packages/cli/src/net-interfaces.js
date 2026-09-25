@@ -1,6 +1,4 @@
-'use strict';
-
-const os = require('node:os');
+import os from 'node:os';
 
 // Interface names that are almost always virtual bridges rather than something
 // a phone can reach. They are still listed, just ranked last.
@@ -69,8 +67,4 @@ function preferredLanAddress() {
   return candidates.length > 0 ? candidates[0].address : null;
 }
 
-module.exports = {
-  isTailscaleAddress,
-  listReachableAddresses,
-  preferredLanAddress,
-};
+export { isTailscaleAddress, listReachableAddresses, preferredLanAddress };

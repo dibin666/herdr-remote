@@ -1,15 +1,13 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
 
-const { managedPids, pidAlive, recordManagedPid, stopServices } = require('../src/service');
-const { runtimeStatePath } = require('../src/config');
-const { writeJsonAtomic, readJson } = require('herdr-remote-relay/state');
+import { managedPids, pidAlive, recordManagedPid, stopServices } from '../src/service.js';
+import { runtimeStatePath } from '../src/config.js';
+import { writeJsonAtomic, readJson } from 'herdr-remote-relay/state';
 
 // A pid that is certainly not running: above the kernel maximum.
 const DEAD_PID = 4194304;

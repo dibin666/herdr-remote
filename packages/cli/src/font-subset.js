@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Cuts the characters a browser needs out of a large font.
  *
@@ -15,7 +13,8 @@
  * a new instance gives it back.
  */
 
-const fs = require('node:fs');
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
 
 /** How long a loaded font may sit unused before its memory is released. */
 const IDLE_RELEASE_MS = 60_000;
@@ -26,7 +25,7 @@ const HB_MEMORY_MODE_READONLY = 1;
 let wasmModule = null;
 function loadModule() {
   if (!wasmModule) {
-    const file = require.resolve('harfbuzzjs/dist/harfbuzz-subset.wasm');
+    const file = createRequire(import.meta.url).resolve('harfbuzzjs/dist/harfbuzz-subset.wasm');
     wasmModule = new WebAssembly.Module(fs.readFileSync(file));
   }
   return wasmModule;
@@ -107,4 +106,4 @@ class FontSubsetter {
   }
 }
 
-module.exports = { FontSubsetter, MAX_CODEPOINTS };
+export { FontSubsetter, MAX_CODEPOINTS };

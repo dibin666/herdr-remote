@@ -1,5 +1,3 @@
-'use strict';
-
 // How a spawned Herdr is located.
 //
 // `HERDR_BIN_PATH` is what the service layer hands to the host connector, and
@@ -15,13 +13,13 @@
 // an honoured override first, then `PATH`, then the handful of directories
 // installers actually use.
 
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 // The same MAJOR.MINOR.PATCH comparison the self-updater uses. A second copy
 // would be a second place for 0.9.10 to sort below 0.9.9.
-const { compareVersions } = require('./updater');
+import { compareVersions } from './updater.js';
 
 const COMMAND_NAME = 'herdr';
 
@@ -233,7 +231,7 @@ function herdrNotFoundMessage({
   return parts.join(' ');
 }
 
-module.exports = {
+export {
   COMMAND_NAME,
   FALLBACK_DIRECTORIES,
   MIN_HERDR_VERSION,

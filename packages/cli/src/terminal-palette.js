@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Reads the colors of the terminal the workstation is actually looking at.
  *
@@ -18,13 +16,13 @@
  * `null` and the browser keeps xterm's own defaults.
  */
 
-const fs = require('node:fs');
-const { spawnSync } = require('node:child_process');
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 // One definition of what a palette may contain, shared with the relay so the
 // host cannot report a shape the wire rejects.
-const { ANSI_PALETTE_KEYS, sanitizeTerminalPalette } = require('herdr-remote-relay/protocol');
-const { runtimeStatePath, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
+import { ANSI_PALETTE_KEYS, sanitizeTerminalPalette } from 'herdr-remote-relay/protocol';
+import { runtimeStatePath, stateDir } from './config.js';
+import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 
 const ANSI_SLOTS = ANSI_PALETTE_KEYS.length;
 /**
@@ -311,7 +309,7 @@ function captureTerminalPalette({ env = process.env, probe = probeTerminalPalett
   return palette;
 }
 
-module.exports = {
+export {
   ANSI_KEYS,
   ANSI_SLOTS,
   parseXColor,

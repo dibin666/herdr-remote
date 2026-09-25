@@ -1,48 +1,12 @@
-'use strict';
-
-// The mouse layer is bundled TypeScript, so these tests exercise it through a
-// build the same way the render tests do.
+// The mouse layer is TypeScript; vitest compiles it directly.
 
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+import assert from 'node:assert/strict';
 
-const PACKAGE_ROOT = path.join(__dirname, '..');
 const ESC = String.fromCharCode(27);
 
-let modulePromise = null;
-
-async function loadMouse() {
-  if (!modulePromise) {
-    modulePromise = (async () => {
-      const { build } = await import('esbuild');
-      const { cjsBanner } = await import('../scripts/cjs-banner.mjs');
-      const directory = path.join(
-        PACKAGE_ROOT,
-        'node_modules',
-        '.cache',
-        'herdr-remote-mouse-test',
-      );
-      fs.mkdirSync(directory, { recursive: true });
-      const outfile = path.join(directory, 'mouse.mjs');
-      await build({
-        entryPoints: [path.join(PACKAGE_ROOT, 'tui', 'src', 'mouse', 'index.tsx')],
-        outfile,
-        bundle: true,
-        format: 'esm',
-        platform: 'node',
-        target: 'node22',
-        packages: 'external',
-        jsx: 'automatic',
-        logLevel: 'silent',
-        banner: { js: cjsBanner },
-      });
-      return import(pathToFileURL(outfile).href);
-    })();
-  }
-  return modulePromise;
+function loadMouse() {
+  return import('../tui/src/mouse/index.tsx');
 }
 
 test('SGR press, release and motion reports are decoded', async () => {

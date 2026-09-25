@@ -1,5 +1,3 @@
-'use strict';
-
 // Start/stop/restart that respect the keep-alive manager.
 //
 // When systemd or launchd supervises the services, killing the processes just
@@ -7,9 +5,9 @@
 // second, unmanaged copy fighting for the port. Every entry point goes through
 // here so the managed and unmanaged paths behave the same from the outside.
 
-const { loadConfig } = require('./config');
-const keepalive = require('./keepalive');
-const { restartServices, startServices, statusServices, stopServices } = require('./service');
+import { loadConfig } from './config.js';
+import * as keepalive from './keepalive.js';
+import { restartServices, startServices, statusServices, stopServices } from './service.js';
 
 function managerInUse(config) {
   const status = keepalive.status(config);
@@ -64,4 +62,4 @@ async function fullStatus(config = loadConfig()) {
   };
 }
 
-module.exports = { startAll, stopAll, restartAll, fullStatus, managerInUse };
+export { startAll, stopAll, restartAll, fullStatus, managerInUse };

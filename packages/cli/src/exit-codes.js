@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Exit codes the supervisor interprets.
  *
@@ -13,4 +11,4 @@ const EXIT_REPLACED = 12;
 /** Credentials need operator intervention; a supervisor must not loop. */
 const EXIT_AUTH_FAILED = 13;
 
-module.exports = { EXIT_REPLACED, EXIT_AUTH_FAILED };
+export { EXIT_REPLACED, EXIT_AUTH_FAILED };

@@ -1,17 +1,15 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
-const { describeStatus, parseArgs } = require('../bin/herdr-remote');
-const { createTranslator } = require('../src/i18n');
-const { parsePluginList } = require('../src/herdr-plugin');
-const { serviceSpecs, relayBinPath } = require('../src/service');
-const { DEFAULTS } = require('../src/config');
+import { describeStatus, parseArgs } from '../src/cli.js';
+import { createTranslator } from '../src/i18n/index.js';
+import { parsePluginList } from '../src/herdr-plugin.js';
+import { serviceSpecs, relayBinPath } from '../src/service.js';
+import { DEFAULTS } from '../src/config.js';
 
 const ENTRY_POINT = path.join(__dirname, '..', 'bin', 'herdr-remote.js');
 

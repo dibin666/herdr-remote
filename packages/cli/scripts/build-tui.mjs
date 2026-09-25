@@ -5,14 +5,11 @@
 // resolve from node_modules at runtime, so the published package ships one
 // small artifact rather than a copy of its dependency tree.
 
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { cjsBanner } from './cjs-banner.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const manifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
 
 const result = await build({
   entryPoints: [path.join(packageRoot, 'tui', 'src', 'index.tsx')],
@@ -25,8 +22,6 @@ const result = await build({
   jsx: 'automatic',
   sourcemap: false,
   legalComments: 'none',
-  banner: { js: cjsBanner },
-  define: { __APP_VERSION__: JSON.stringify(manifest.version) },
   logLevel: 'info',
   metafile: true,
 });

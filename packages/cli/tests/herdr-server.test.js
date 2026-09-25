@@ -1,20 +1,18 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const net = require('node:net');
-const { EventEmitter } = require('node:events');
-const { spawn } = require('node:child_process');
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import { EventEmitter } from 'node:events';
+import { spawn } from 'node:child_process';
+import {
   probeHerdrServer,
   runningInSystemdService,
   serverCommand,
   serverEnv,
   ensureHerdrServer,
-} = require('../src/herdr-server');
+} from '../src/herdr-server.js';
 
 function tempDir(t, prefix) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));

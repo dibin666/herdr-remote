@@ -1,7 +1,5 @@
-'use strict';
-
-const os = require('node:os');
-const pty = require('node-pty');
+import os from 'node:os';
+import pty from 'node-pty';
 
 class PtySession {
   static DEFAULT_COLS = 100;
@@ -91,4 +89,4 @@ class PtySession {
   }
 }
 
-module.exports = { PtySession };
+export { PtySession };

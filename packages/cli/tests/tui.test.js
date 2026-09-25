@@ -1,55 +1,20 @@
-'use strict';
-
 // Render tests for the Ink interface.
 //
-// The TUI is TypeScript/JSX, so each run bundles it into a temporary file with
-// the same esbuild settings as the shipped build and imports that. Testing the
-// artifact rather than the sources means a build-level mistake (a bad banner, a
-// dependency that cannot resolve at runtime) fails here too.
+// vitest compiles the TypeScript/JSX sources directly.
 
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { readRuntime, setRelayPassword } from '../src/service.js';
+import { bindAddress, loadConfig } from '../src/config.js';
 
-const PACKAGE_ROOT = path.join(__dirname, '..');
-
-let bundlePromise = null;
-
-async function loadTui() {
-  if (!bundlePromise) {
-    bundlePromise = (async () => {
-      const { build } = await import('esbuild');
-      const { cjsBanner } = await import('../scripts/cjs-banner.mjs');
-      // Inside the package tree, not the system temp directory: the bundle
-      // leaves ink and react external, so Node must be able to resolve them
-      // from the importing file's location. node_modules/.cache is never
-      // published, so nothing leaks into the tarball.
-      const directory = path.join(PACKAGE_ROOT, 'node_modules', '.cache', 'herdr-remote-tui-test');
-      fs.mkdirSync(directory, { recursive: true });
-      const outfile = path.join(directory, 'tui.mjs');
-      await build({
-        entryPoints: [path.join(PACKAGE_ROOT, 'tui', 'src', 'index.tsx')],
-        outfile,
-        bundle: true,
-        format: 'esm',
-        platform: 'node',
-        target: 'node22',
-        packages: 'external',
-        jsx: 'automatic',
-        logLevel: 'silent',
-        banner: { js: cjsBanner },
-        define: { __APP_VERSION__: JSON.stringify('test') },
-      });
-      return import(pathToFileURL(outfile).href);
-    })();
-  }
-  return bundlePromise;
+function loadTui() {
+  return import('../tui/src/index.tsx');
 }
 
 function withTemporaryHome() {
@@ -304,7 +269,6 @@ test('the relay screen offers a password only for a self-hosted relay', async (t
   assert.match(output, /Relay password/);
   assert.match(output, /not set \(public\)/);
   // The host token is a credential and is never rendered.
-  const { readRuntime } = require('../src/service');
   const runtime = readRuntime();
   if (runtime.hostToken) assert.equal(output.includes(runtime.hostToken), false);
 });
@@ -346,7 +310,6 @@ test('the relay screen commits an access-mode change to disk from its own row', 
   t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
-  const { bindAddress, loadConfig } = require('../src/config');
 
   instance.stdin.write('4'); // Relay tab
   await settle();
@@ -475,7 +438,6 @@ test('choosing the official relay sets both the mode and the URL', async (t) => 
   instance.stdin.write('s'); // save
   await settle();
 
-  const { loadConfig } = require('../src/config');
   const saved = loadConfig();
   assert.equal(saved.relay.mode, 'remote', 'the access mode must survive the second field write');
   assert.equal(saved.relay.remoteUrl, 'wss://herdr-remote.564616.xyz');
@@ -561,7 +523,6 @@ test('choosing the official relay drops the password typed for a self-hosted one
     relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
   });
 
-  const { setRelayPassword, readRuntime } = require('../src/service');
   setRelayPassword('self-hosted-secret');
   assert.equal(readRuntime().relayPassword, 'self-hosted-secret');
 

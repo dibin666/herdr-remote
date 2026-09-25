@@ -51,6 +51,7 @@ import * as keepalive from '../../src/keepalive.js';
 import {
   canSelfUpdate,
   checkForUpdate,
+  currentVersion,
   updateChecksEnabled,
   installKind,
   performUpdate,
@@ -175,6 +176,7 @@ export {
   selectedMode,
   canSelfUpdate,
   checkForUpdate,
+  currentVersion,
   updateChecksEnabled,
   installKind,
   performUpdate,

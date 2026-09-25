@@ -1,12 +1,10 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-const {
+import {
   advertisedHost,
   bindAddress,
   configPath,
@@ -17,7 +15,7 @@ const {
   resolvePublicUrl,
   runsLocalRelay,
   validate,
-} = require('../src/config');
+} from '../src/config.js';
 
 function withEnvironment(overrides, run) {
   const previous = {};

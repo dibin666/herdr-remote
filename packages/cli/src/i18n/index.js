@@ -1,7 +1,5 @@
-'use strict';
-
-const en = require('./en');
-const zh = require('./zh');
+import en from './en.js';
+import zh from './zh.js';
 
 const CATALOGUES = { en, zh };
 const DEFAULT_LOCALE = 'en';
@@ -47,10 +45,4 @@ function createTranslator(locale = DEFAULT_LOCALE) {
   return t;
 }
 
-module.exports = {
-  CATALOGUES,
-  DEFAULT_LOCALE,
-  detectLocale,
-  createTranslator,
-  interpolate,
-};
+export { CATALOGUES, DEFAULT_LOCALE, detectLocale, createTranslator, interpolate };

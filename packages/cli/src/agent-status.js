@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * What the agents on this workstation are doing, small enough to put in a
  * status bar.
@@ -143,10 +141,4 @@ function emptySummary() {
   return { focusedPaneId: null, focusedAgent: null, counts: emptyCounts(), total: 0, agents: [] };
 }
 
-module.exports = {
-  AGENT_STATUSES,
-  MAX_LISTED_AGENTS,
-  emptySummary,
-  sameSummary,
-  summarizeAgents,
-};
+export { AGENT_STATUSES, MAX_LISTED_AGENTS, emptySummary, sameSummary, summarizeAgents };

@@ -1,18 +1,11 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const net = require('node:net');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
-  AGENT_STATUSES,
-  emptySummary,
-  sameSummary,
-  summarizeAgents,
-} = require('../src/agent-status');
-const { requestHerdr } = require('../src/herdr-api');
+import assert from 'node:assert/strict';
+import net from 'node:net';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { AGENT_STATUSES, emptySummary, sameSummary, summarizeAgents } from '../src/agent-status.js';
+import { requestHerdr, subscribeHerdr } from '../src/herdr-api.js';
 
 /** One entry as `session.snapshot` reports it. */
 function agent(paneId, status, extra = {}) {
@@ -217,7 +210,6 @@ test('a Herdr subscription parses the live event envelope and can be closed', as
     );
   });
 
-  const { subscribeHerdr } = require('../src/herdr-api');
   let closeCount = 0;
   const event = await new Promise((resolve) => {
     const subscription = subscribeHerdr(herdr.socketPath, subscriptions, (message) => {
@@ -278,7 +270,6 @@ test('an acknowledged subscription resets the reconnect backoff', async (t) => {
   });
   await new Promise((resolve) => server.listen(socketPath, resolve));
 
-  const { subscribeHerdr } = require('../src/herdr-api');
   subscription = subscribeHerdr(socketPath, [{ type: 'pane.focused' }], () => {}, {
     retryBaseMs: 200,
     retryMaxMs: 600,

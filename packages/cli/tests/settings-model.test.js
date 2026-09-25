@@ -1,12 +1,10 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-const {
+import {
   createDraft,
   fieldsForMode,
   getField,
@@ -14,8 +12,8 @@ const {
   saveDraft,
   setField,
   validateDraft,
-} = require('../src/settings-model');
-const {
+} from '../src/settings-model.js';
+import {
   DEFAULTS,
   configPath,
   loadConfig,
@@ -23,8 +21,8 @@ const {
   resolveHostRelayUrl,
   runsLocalRelay,
   bindAddress,
-} = require('../src/config');
-const { readJson } = require('herdr-remote-relay/state');
+} from '../src/config.js';
+import { readJson } from 'herdr-remote-relay/state';
 
 function withTempConfig(run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-settings-'));

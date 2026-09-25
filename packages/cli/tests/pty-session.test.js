@@ -1,8 +1,6 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const { PtySession } = require('../src/pty-session');
+import assert from 'node:assert/strict';
+import { PtySession } from '../src/pty-session.js';
 
 test('PTY sessions run a real terminal child with plugin context removed', async (t) => {
   const output = [];

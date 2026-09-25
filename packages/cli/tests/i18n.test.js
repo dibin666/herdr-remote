@@ -1,8 +1,6 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const { CATALOGUES, createTranslator, detectLocale, interpolate } = require('../src/i18n');
+import assert from 'node:assert/strict';
+import { CATALOGUES, createTranslator, detectLocale, interpolate } from '../src/i18n/index.js';
 
 test('both catalogues define exactly the same keys', () => {
   const english = Object.keys(CATALOGUES.en).sort();

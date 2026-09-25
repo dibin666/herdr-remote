@@ -1,24 +1,22 @@
-'use strict';
-
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const crypto = require('node:crypto');
-const { WebSocket } = require('ws');
-const { loadConfig, hostWebSocketUrl, resolveHostRelayUrl, stateDir } = require('./config');
-const { ensureDir } = require('herdr-remote-relay/state');
-const { resolveSocketPath, inspectSocket } = require('./socket-discovery');
-const { PtySession } = require('./pty-session');
-const {
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { WebSocket } from 'ws';
+import { loadConfig, hostWebSocketUrl, resolveHostRelayUrl, stateDir } from './config.js';
+import { ensureDir } from 'herdr-remote-relay/state';
+import { resolveSocketPath, inspectSocket } from './socket-discovery.js';
+import { PtySession } from './pty-session.js';
+import {
   resolveHerdrCommand,
   verifyHerdrCommand,
   herdrNotFoundMessage,
   herdrOutdatedMessage,
   herdrVersion,
-} = require('./herdr-command');
+} from './herdr-command.js';
 // The wire format lives in the relay package so both ends of the protocol are
 // generated from one definition.
-const {
+import {
   packStreamFrame,
   unpackStreamFrame,
   packStreamFrameV2,
@@ -26,22 +24,22 @@ const {
   PROTOCOL_VERSION,
   TERMINAL_FONT_CHUNK_BYTES,
   CAPABILITY,
-} = require('herdr-remote-relay/protocol');
-const { resolveHostPalette } = require('./terminal-palette');
-const { loadHostTerminalFont, publicTerminalFont, readFontChunk } = require('./terminal-font');
-const { FontSubsetter } = require('./font-subset');
-const { requestHerdr, subscribeHerdr } = require('./herdr-api');
-const { sameSummary, summarizeAgents } = require('./agent-status');
-const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
-const { savePastedFile, cleanPastedDir } = require('./pasted-files');
-const { ensureHerdrServer, probeHerdrServer } = require('./herdr-server');
-const {
+} from 'herdr-remote-relay/protocol';
+import { resolveHostPalette } from './terminal-palette.js';
+import { loadHostTerminalFont, publicTerminalFont, readFontChunk } from './terminal-font.js';
+import { FontSubsetter } from './font-subset.js';
+import { requestHerdr, subscribeHerdr } from './herdr-api.js';
+import { sameSummary, summarizeAgents } from './agent-status.js';
+import { EXIT_REPLACED, EXIT_AUTH_FAILED } from './exit-codes.js';
+import { savePastedFile, cleanPastedDir } from './pasted-files.js';
+import { ensureHerdrServer, probeHerdrServer } from './herdr-server.js';
+import {
   checkForUpdate,
   compareVersions,
   currentVersion,
   installedVersionOnDisk,
   updateChecksEnabled,
-} = require('./updater');
+} from './updater.js';
 
 /** Windows opening within this long of a check reuse its answer. */
 const UPDATE_RECHECK_MS = 60_000;
@@ -1173,20 +1171,4 @@ class HostConnector {
   }
 }
 
-if (require.main === module) {
-  const connector = new HostConnector();
-  try {
-    connector.start();
-  } catch (error) {
-    process.stderr.write(`herdr-remote host connector failed: ${error.message}\n`);
-    process.exitCode = error.code === 'HOST_ALREADY_RUNNING' ? EXIT_REPLACED : 1;
-  }
-  const stop = () => {
-    connector.stop();
-    process.exit(0);
-  };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
-}
-
-module.exports = { HostConnector, PROTOCOL_VERSION };
+export { HostConnector, PROTOCOL_VERSION };

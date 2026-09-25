@@ -1,5 +1,3 @@
-'use strict';
-
 // Editable settings, independent of how they are rendered.
 //
 // The TUI holds a *draft* copy of the config, mutates it through these pure
@@ -7,7 +5,7 @@
 // the view) means they can be tested without a terminal, and the same
 // validation applies to the first-run wizard and the settings screen.
 
-const {
+import {
   ACCESS_MODES,
   KEEPALIVE_MANAGERS,
   LANGUAGES,
@@ -19,9 +17,9 @@ const {
   isUnspecifiedHost,
   loadConfig,
   resolvePublicUrl,
-} = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
-const { preferredLanAddress } = require('./net-interfaces');
+} from './config.js';
+import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import { preferredLanAddress } from './net-interfaces.js';
 
 /**
  * Field metadata. `kind` drives the editor the TUI shows; `visibleFor` limits a
@@ -320,7 +318,7 @@ function requiresRestart(before, after) {
   );
 }
 
-module.exports = {
+export {
   FIELDS,
   SELECTABLE_MODES,
   createDraft,

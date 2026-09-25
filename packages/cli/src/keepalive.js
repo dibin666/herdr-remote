@@ -1,5 +1,3 @@
-'use strict';
-
 // Keep-alive integration.
 //
 // "Start the services" and "keep the services running" are different problems:
@@ -8,14 +6,14 @@
 // (systemd --user on Linux, launchd on macOS) and falls back to a detached copy
 // of our own supervisor where neither does.
 
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawn, spawnSync } = require('node:child_process');
-const { PACKAGE_ROOT, loadConfig, stateDir } = require('./config');
-const { ensureDir, readJson, writeJsonAtomic } = require('herdr-remote-relay/state');
-const { logPath, pidAlive } = require('./service');
-const { findHerdrCommand } = require('./herdr-command');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
+import { PACKAGE_ROOT, loadConfig, stateDir } from './config.js';
+import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
+import { logPath, pidAlive } from './service.js';
+import { findHerdrCommand } from './herdr-command.js';
 
 const SYSTEMD_UNIT_NAME = 'herdr-remote.service';
 const LAUNCHD_LABEL = 'dev.herdr.remote';
@@ -481,7 +479,7 @@ function logsHint(config = loadConfig()) {
   return `tail -f ${logPath('supervisor')}`;
 }
 
-module.exports = {
+export {
   SYSTEMD_UNIT_NAME,
   LAUNCHD_LABEL,
   cliEntryPoint,

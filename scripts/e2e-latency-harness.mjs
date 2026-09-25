@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict';
 
 /**
  * End-to-end latency validation harness for herdr-remote.
@@ -9,23 +8,24 @@
  * allowing full browser UI validation of predictive echo and WebSocket latency optimization.
  */
 
-const fs = require('node:fs');
-const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
 
-const { RelayServer, PROTOCOL_VERSION } = require('../packages/relay/src/relay-server');
-const { loadRelayConfig } = require('../packages/relay/src/relay-config');
-const {
+// The relay's compiled output: `npm run build -w herdr-remote-relay` first.
+import { loadRelayConfig } from '../packages/relay/dist/relay-config.js';
+import { RelayServer, PROTOCOL_VERSION } from '../packages/relay/dist/relay-server.js';
+import {
   packStreamFrame,
   packStreamFrameV2,
   unpackStreamFrame,
   FRAME_TYPE_OUTPUT,
-} = require('../packages/relay/src/stream-frame');
+} from '../packages/relay/dist/protocol/index.js';
 
 // 1. Verify frontend web assets exist before starting
-const webDistDir = path.resolve(__dirname, '../packages/relay/web/dist');
+const webDistDir = path.resolve(import.meta.dirname, '../packages/relay/web/dist');
 const webIndexHtml = path.join(webDistDir, 'index.html');
 
 if (!fs.existsSync(webIndexHtml)) {

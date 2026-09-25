@@ -1,11 +1,9 @@
-'use strict';
-
 import { test } from 'vitest';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
   FALLBACK_DIRECTORIES,
   MIN_HERDR_VERSION,
   fallbackDirectories,
@@ -16,7 +14,7 @@ const {
   parseHerdrVersion,
   resolveHerdrCommand,
   verifyHerdrCommand,
-} = require('../src/herdr-command');
+} from '../src/herdr-command.js';
 
 /** A throwaway tree with an executable `herdr` in `directory`. */
 function makeInstall(directory, { executable = true, name = 'herdr' } = {}) {

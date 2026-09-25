@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Reads Apple binary property lists (`bplist00`), the format macOS writes its
  * preference files in, and the NSKeyedArchiver graphs stored inside them.
@@ -154,4 +152,4 @@ function unarchiveKeyed(archive, depth = 6) {
   return resolve(rootRef, 0);
 }
 
-module.exports = { Uid, parseBinaryPlist, unarchiveKeyed };
+export { Uid, parseBinaryPlist, unarchiveKeyed };

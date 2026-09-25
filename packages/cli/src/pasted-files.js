@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Secure file storage and validation for pasted clipboard images.
  *
@@ -13,17 +11,17 @@
  * 7. Automatic pruning: caps at 20 files and 50 MB (oldest deleted first), removes >24h stale files at startup.
  */
 
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-const { stateDir } = require('./config');
-const { ensureDir } = require('herdr-remote-relay/state');
-const {
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { stateDir } from './config.js';
+import { ensureDir } from 'herdr-remote-relay/state';
+import {
   PASTE_MAX_BYTES,
   PASTE_IMAGE_EXTENSIONS,
   isPasteImageMime,
   hasImageSignature,
-} = require('herdr-remote-relay/protocol');
+} from 'herdr-remote-relay/protocol';
 
 const MAX_SAVED_FILES = 20;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -128,7 +126,7 @@ function savePastedFile({ mime, dataBase64, dir = getPastedDir() }) {
   return filePath;
 }
 
-module.exports = {
+export {
   MAX_SAVED_FILES,
   MAX_TOTAL_BYTES,
   MAX_AGE_MS,
