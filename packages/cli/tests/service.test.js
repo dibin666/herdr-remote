@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { managedPids, pidAlive, recordManagedPid, stopServices } from '../src/service.js';
-import { runtimeStatePath } from '../src/config.js';
+import { runtimeStatePath } from '../src/paths.js';
 import { writeJsonAtomic, readJson } from 'herdr-remote-relay/state';
 
 // A pid that is certainly not running: above the kernel maximum.

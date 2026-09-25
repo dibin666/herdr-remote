@@ -24,7 +24,7 @@ import {
   TERMINAL_FONT_STYLES,
   sanitizeTerminalFont,
 } from 'herdr-remote-relay/protocol';
-import { runtimeStatePath, stateDir } from './config.js';
+import { runtimeStatePath, stateDir } from './paths.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import { parseBinaryPlist, unarchiveKeyed } from './binary-plist.js';
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import { PACKAGE_ROOT, loadConfig, runtimeStatePath, stateDir } from './config.js';
+import { loadConfig } from './config.js';
+import { PACKAGE_ROOT, runtimeStatePath, stateDir } from './paths.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import {
   baseEnvironment,

@@ -1,34 +1,17 @@
+// The configuration file: its shape, its defaults, and how a file on disk,
+// older schemas and the environment become one validated Config.
+
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULTS as RELAY_DEFAULTS } from 'herdr-remote-relay/config';
-import { WS_HOST_PATH } from 'herdr-remote-relay/protocol';
-
-/**
- * Locate the package directory by walking up to our own package.json.
- *
- * This module runs from src/ under the tests and from dist/ once built.
- * Everything that matters — the plugin manifest, the host connector entry
- * point, the systemd unit's ExecStart — is resolved from this value, so it has
- * to be independent of where the code happens to be loaded from.
- */
-function findPackageRoot(start) {
-  let directory = start;
-  for (let depth = 0; depth < 8; depth += 1) {
-    const candidate = path.join(directory, 'package.json');
-    try {
-      if (JSON.parse(fs.readFileSync(candidate, 'utf8')).name === 'herdr-remote') return directory;
-    } catch {
-      // Keep climbing: a missing or unrelated package.json is expected.
-    }
-    const parent = path.dirname(directory);
-    if (parent === directory) break;
-    directory = parent;
-  }
-  return path.resolve(start, '..');
-}
-
-const PACKAGE_ROOT = findPackageRoot(import.meta.dirname);
+import { configPath, legacyConfigPath } from './paths.js';
+import {
+  isLoopbackHost,
+  isUnspecifiedAddress,
+  isUnspecifiedHost,
+  normalizeUrl,
+} from './relay-urls.js';
 
 // Access modes
 //   local  — a relay runs on this machine, reachable only from this machine.
@@ -36,7 +19,8 @@ const PACKAGE_ROOT = findPackageRoot(import.meta.dirname);
 //            devices on the LAN (or on a Tailscale/WireGuard overlay) reach it.
 //   remote — no local relay; the host connector dials an operator-run relay,
 //            which is the only way in from outside the local network.
-const ACCESS_MODES = ['local', 'lan', 'remote'];
+const ACCESS_MODES = ['local', 'lan', 'remote'] as const;
+export type AccessMode = (typeof ACCESS_MODES)[number];
 
 // The relay this project runs for people who do not want to host one. Offered
 // as a one-keystroke choice during setup; it is never selected automatically,
@@ -44,10 +28,45 @@ const ACCESS_MODES = ['local', 'lan', 'remote'];
 // deliberate decision. It is a plain public relay: no join password, and each
 // workstation stays reachable only through its own host token.
 const OFFICIAL_RELAY_URL = 'wss://herdr-remote.564616.xyz';
-const LANGUAGES = ['auto', 'zh', 'en'];
-const KEEPALIVE_MANAGERS = ['auto', 'systemd', 'launchd', 'supervisor', 'none'];
+const LANGUAGES = ['auto', 'zh', 'en'] as const;
+export type LanguagePreference = (typeof LANGUAGES)[number];
+const KEEPALIVE_MANAGERS = ['auto', 'systemd', 'launchd', 'supervisor', 'none'] as const;
+export type KeepaliveManager = (typeof KEEPALIVE_MANAGERS)[number];
 
-const DEFAULTS = {
+/** A configuration after `validate`: every field present and in range. */
+export interface Config {
+  ui: { language: LanguagePreference };
+  relay: {
+    mode: AccessMode;
+    port: number;
+    lanHost: string;
+    publicUrl: string;
+    remoteUrl: string;
+    maxPayloadBytes: number;
+    maxClientsPerHost: number;
+    maxHosts: number;
+    maxPendingHandshakes: number;
+    maxBufferedBytesPerClient: number;
+    hostReconnectGraceMs: number;
+    allowedOrigins: string[];
+  };
+  herdr: { socketPath: string | null; args: string[]; cwd: string; autoStart: boolean };
+  auth: { pairingTtlMs: number; deviceTtlMs: number; maxDevices: number };
+  cleanup: { intervalMs: number; heartbeatIntervalMs: number; staleAfterMs: number };
+  keepalive: { manager: KeepaliveManager };
+}
+
+/**
+ * A configuration while it is being assembled: the file and the environment
+ * may put anything where `validate` expects a number or a list.
+ */
+export type ConfigDraft = { [Section in keyof Config]: Record<string, unknown> };
+
+function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
+  return (list as readonly unknown[]).includes(value);
+}
+
+const DEFAULTS: Config = {
   ui: {
     language: 'auto',
   },
@@ -91,50 +110,17 @@ const DEFAULTS = {
   },
 };
 
-function clone(value) {
+function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-/**
- * The canonical configuration directory.
- *
- * Deliberately NOT $HERDR_PLUGIN_CONFIG_DIR: Herdr sets that variable only when
- * it launches the plugin itself, so honouring it would give "herdr-remote" run
- * from a shell and the same tool run from a Herdr pane two different config
- * files. One path, one config; `migrateLegacyConfig()` imports the old one.
- */
-function configDir() {
-  return process.env.HERDR_REMOTE_CONFIG_DIR || path.join(os.homedir(), '.config', 'herdr-remote');
-}
-
-function stateDir() {
-  return (
-    process.env.HERDR_REMOTE_STATE_DIR || path.join(os.homedir(), '.local', 'state', 'herdr-remote')
-  );
-}
-
-function configPath() {
-  return path.join(configDir(), 'config.json');
-}
-
-function runtimeStatePath() {
-  return path.join(stateDir(), 'runtime.json');
-}
-
-function legacyConfigPath() {
-  return process.env.HERDR_PLUGIN_CONFIG_DIR
-    ? path.join(process.env.HERDR_PLUGIN_CONFIG_DIR, 'config.json')
-    : null;
-}
-
-function readJson(filePath) {
+function readJson(filePath: string): unknown {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
-    if (error.code !== 'ENOENT') {
-      process.stderr.write(
-        `herdr-remote: ignoring invalid JSON at ${filePath}: ${error.message}\n`,
-      );
+    const { code, message } = error as NodeJS.ErrnoException;
+    if (code !== 'ENOENT') {
+      process.stderr.write(`herdr-remote: ignoring invalid JSON at ${filePath}: ${message}\n`);
     }
     return {};
   }
@@ -144,7 +130,9 @@ function readJson(filePath) {
  * Copy a config written by an older, plugin-scoped install into the canonical
  * location. Runs at most once: it never overwrites an existing config.
  */
-function migrateLegacyConfig() {
+function migrateLegacyConfig():
+  | { migrated: true; from: string; to: string }
+  | { migrated: false; reason: string } {
   const target = configPath();
   if (fs.existsSync(target)) return { migrated: false, reason: 'config already exists' };
   const legacy = legacyConfigPath();
@@ -154,16 +142,16 @@ function migrateLegacyConfig() {
     fs.copyFileSync(legacy, target);
     return { migrated: true, from: legacy, to: target };
   } catch (error) {
-    return { migrated: false, reason: error.message };
+    return { migrated: false, reason: (error as Error).message };
   }
 }
 
-function mergeConfig(fileConfig) {
-  const config = clone(DEFAULTS);
-  for (const section of Object.keys(config)) {
-    if (fileConfig && fileConfig[section] && typeof fileConfig[section] === 'object') {
-      Object.assign(config[section], fileConfig[section]);
-    }
+function mergeConfig(fileConfig: unknown): ConfigDraft {
+  const config = clone(DEFAULTS) as unknown as ConfigDraft;
+  const file = (fileConfig ?? {}) as Partial<Record<keyof Config, unknown>>;
+  for (const section of Object.keys(config) as (keyof Config)[]) {
+    const values = file[section];
+    if (values && typeof values === 'object') Object.assign(config[section], values);
   }
   return config;
 }
@@ -172,11 +160,15 @@ function mergeConfig(fileConfig) {
  * Accept configs written before access modes existed. The 0.1 schema used
  * `relay.local` (boolean), `relay.host` (bind address) and `relay.url`.
  */
-function normalizeLegacyFields(config, fileConfig) {
-  const legacy = (fileConfig && fileConfig.relay) || {};
+function normalizeLegacyFields(config: ConfigDraft, fileConfig: unknown): void {
+  const legacy: Record<string, unknown> =
+    ((fileConfig as { relay?: Record<string, unknown> } | null)?.relay as Record<
+      string,
+      unknown
+    >) || {};
   // The absence of an explicit `mode` — not an invalid one — is what marks a
   // file as pre-0.2, since merging defaults always leaves a valid mode behind.
-  const hasExplicitMode = ACCESS_MODES.includes(legacy.mode);
+  const hasExplicitMode = isOneOf(ACCESS_MODES, legacy.mode);
   if (!hasExplicitMode) {
     if (legacy.local === false && typeof legacy.url === 'string' && legacy.url) {
       config.relay.mode = 'remote';
@@ -211,39 +203,16 @@ function normalizeLegacyFields(config, fileConfig) {
   }
 }
 
-function parseInteger(value, fallback, min, max) {
+function parseInteger(value: unknown, fallback: number, min: number, max: number): number {
   const numeric = Number(value);
   if (!Number.isInteger(numeric) || numeric < min || numeric > max) return fallback;
   return numeric;
 }
 
-function isLoopbackHost(value) {
-  return value === '127.0.0.1' || value === 'localhost' || value === '::1' || value === '[::1]';
-}
-
-function isUnspecifiedAddress(value) {
-  const address = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return address === '0.0.0.0' || address === '::' || address === '[::]';
-}
-
-/** An unspecified host is valid for a server bind, but not for a browser URL. */
-function isUnspecifiedHost(value) {
-  try {
-    const hostname = new URL(value).hostname.toLowerCase();
-    return hostname === '0.0.0.0' || hostname === '::' || hostname === '[::]';
-  } catch {
-    return false;
-  }
-}
-
-function normalizeUrl(value) {
-  return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
-}
-
-function validate(config) {
-  if (!ACCESS_MODES.includes(config.relay.mode)) config.relay.mode = DEFAULTS.relay.mode;
-  if (!LANGUAGES.includes(config.ui.language)) config.ui.language = DEFAULTS.ui.language;
-  if (!KEEPALIVE_MANAGERS.includes(config.keepalive.manager))
+function validate(config: ConfigDraft): Config {
+  if (!isOneOf(ACCESS_MODES, config.relay.mode)) config.relay.mode = DEFAULTS.relay.mode;
+  if (!isOneOf(LANGUAGES, config.ui.language)) config.ui.language = DEFAULTS.ui.language;
+  if (!isOneOf(KEEPALIVE_MANAGERS, config.keepalive.manager))
     config.keepalive.manager = DEFAULTS.keepalive.manager;
 
   config.relay.port = parseInteger(config.relay.port, DEFAULTS.relay.port, 1, 65535);
@@ -306,7 +275,7 @@ function validate(config) {
   config.cleanup.staleAfterMs = parseInteger(
     config.cleanup.staleAfterMs,
     DEFAULTS.cleanup.staleAfterMs,
-    config.cleanup.heartbeatIntervalMs * 2,
+    (config.cleanup.heartbeatIntervalMs as number) * 2,
     24 * 60 * 60 * 1000,
   );
 
@@ -325,7 +294,7 @@ function validate(config) {
   }
   // 0.0.0.0 is a server-side bind wildcard, never a destination a browser can
   // open. Treat it like an empty override so LAN mode derives the real address.
-  if (isUnspecifiedHost(config.relay.publicUrl)) config.relay.publicUrl = '';
+  if (isUnspecifiedHost(config.relay.publicUrl as string)) config.relay.publicUrl = '';
   if (!Array.isArray(config.relay.allowedOrigins)) config.relay.allowedOrigins = [];
 
   if (
@@ -334,10 +303,11 @@ function validate(config) {
   ) {
     config.herdr.args = [];
   }
+  const args = config.herdr.args as string[];
   // Herdr 0.9.0 removed --no-session; retaining it in saved configs causes
   // session creation to fail. Filter it out if present.
-  if (config.herdr.args.includes('--no-session')) {
-    config.herdr.args = config.herdr.args.filter((arg) => arg !== '--no-session');
+  if (args.includes('--no-session')) {
+    config.herdr.args = args.filter((arg) => arg !== '--no-session');
     process.stderr.write(
       'herdr-remote: ignoring removed --no-session argument (removed in Herdr 0.9.0)\n',
     );
@@ -355,14 +325,15 @@ function validate(config) {
   if (config.relay.mode === 'remote' && !config.relay.remoteUrl) {
     config.relay.mode = 'local';
   }
-  return config;
+  // Every field `Config` promises has been normalised above.
+  return config as unknown as Config;
 }
 
-function applyEnvironment(config) {
+function applyEnvironment(config: ConfigDraft): void {
   const env = process.env;
-  if (env.HERDR_REMOTE_LANG && LANGUAGES.includes(env.HERDR_REMOTE_LANG))
+  if (env.HERDR_REMOTE_LANG && isOneOf(LANGUAGES, env.HERDR_REMOTE_LANG))
     config.ui.language = env.HERDR_REMOTE_LANG;
-  if (env.HERDR_REMOTE_MODE && ACCESS_MODES.includes(env.HERDR_REMOTE_MODE))
+  if (env.HERDR_REMOTE_MODE && isOneOf(ACCESS_MODES, env.HERDR_REMOTE_MODE))
     config.relay.mode = env.HERDR_REMOTE_MODE;
   if (env.RELAY_PORT) config.relay.port = env.RELAY_PORT;
   if (env.RELAY_PUBLIC_URL) config.relay.publicUrl = env.RELAY_PUBLIC_URL;
@@ -381,130 +352,31 @@ function applyEnvironment(config) {
       const args = JSON.parse(env.HERDR_ARGS_JSON);
       if (Array.isArray(args)) config.herdr.args = args;
     } catch (error) {
-      process.stderr.write(`herdr-remote: invalid HERDR_ARGS_JSON: ${error.message}\n`);
+      process.stderr.write(`herdr-remote: invalid HERDR_ARGS_JSON: ${(error as Error).message}\n`);
     }
   }
 }
 
-function loadConfig() {
+function loadConfig(): Config {
   const fileConfig = readJson(configPath());
-  const config = mergeConfig(fileConfig);
-  normalizeLegacyFields(config, fileConfig);
-  applyEnvironment(config);
-  validate(config);
-  return config;
+  const draft = mergeConfig(fileConfig);
+  normalizeLegacyFields(draft, fileConfig);
+  applyEnvironment(draft);
+  return validate(draft);
 }
 
-function configExists() {
+function configExists(): boolean {
   return fs.existsSync(configPath());
 }
 
-// ---------------------------------------------------------------------------
-// Derived values
-// ---------------------------------------------------------------------------
-
-/** Whether this machine runs its own relay process. */
-function runsLocalRelay(config) {
-  return config.relay.mode !== 'remote';
-}
-
-/** Address the local relay binds to for the configured mode. */
-function bindAddress(config) {
-  return config.relay.mode === 'lan' ? '0.0.0.0' : '127.0.0.1';
-}
-
-/**
- * Host name to put into pairing URLs. For "lan" this is the interface address a
- * phone can actually reach; `lanHost` is the user's pick from the TUI, and the
- * fallback keeps things working if that interface disappeared.
- */
-function advertisedHost(config, fallbackLanHost = null) {
-  if (config.relay.mode === 'lan') {
-    const configured = config.relay.lanHost;
-    if (configured && !isLoopbackHost(configured) && !isUnspecifiedAddress(configured))
-      return configured;
-    if (
-      fallbackLanHost &&
-      !isLoopbackHost(fallbackLanHost) &&
-      !isUnspecifiedAddress(fallbackLanHost)
-    ) {
-      return fallbackLanHost;
-    }
-    return '127.0.0.1';
-  }
-  return '127.0.0.1';
-}
-
-/** The URL a browser opens. */
-function resolvePublicUrl(config, fallbackLanHost = null) {
-  if (config.relay.publicUrl) return config.relay.publicUrl;
-  if (config.relay.mode === 'remote') return httpOrigin(config.relay.remoteUrl);
-  return `http://${advertisedHost(config, fallbackLanHost)}:${config.relay.port}`;
-}
-
-/** Base HTTP origin used for relay admin calls (pairing, health). */
-function resolveAdminOrigin(config) {
-  if (config.relay.mode === 'remote') return httpOrigin(config.relay.remoteUrl);
-  return `http://127.0.0.1:${config.relay.port}`;
-}
-
-/** WebSocket URL the host connector dials. */
-function resolveHostRelayUrl(config) {
-  const base =
-    config.relay.mode === 'remote' ? config.relay.remoteUrl : `ws://127.0.0.1:${config.relay.port}`;
-  return hostWebSocketUrl(base);
-}
-
-function httpOrigin(value) {
-  try {
-    const url = new URL(value);
-    if (url.protocol === 'ws:') url.protocol = 'http:';
-    if (url.protocol === 'wss:') url.protocol = 'https:';
-    const pathname = url.pathname.replace(/\/+$/, '');
-    return `${url.origin}${pathname}`;
-  } catch {
-    return normalizeUrl(value);
-  }
-}
-
-function hostWebSocketUrl(base) {
-  const url = new URL(base);
-  if (url.protocol === 'http:') url.protocol = 'ws:';
-  if (url.protocol === 'https:') url.protocol = 'wss:';
-  const pathname = url.pathname.replace(/\/+$/, '');
-  if (!pathname || pathname === '/') {
-    url.pathname = WS_HOST_PATH;
-  } else if (!pathname.endsWith(WS_HOST_PATH)) {
-    url.pathname = `${pathname}${WS_HOST_PATH}`;
-  }
-  return url.toString();
-}
-
 export {
-  PACKAGE_ROOT,
   DEFAULTS,
   ACCESS_MODES,
   OFFICIAL_RELAY_URL,
   LANGUAGES,
   KEEPALIVE_MANAGERS,
-  configDir,
-  configPath,
   configExists,
-  stateDir,
-  runtimeStatePath,
-  legacyConfigPath,
   migrateLegacyConfig,
   loadConfig,
   validate,
-  runsLocalRelay,
-  bindAddress,
-  advertisedHost,
-  resolvePublicUrl,
-  resolveAdminOrigin,
-  resolveHostRelayUrl,
-  hostWebSocketUrl,
-  httpOrigin,
-  isLoopbackHost,
-  isUnspecifiedAddress,
-  isUnspecifiedHost,
 };

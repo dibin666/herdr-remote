@@ -170,7 +170,7 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
   process.env.HERDR_REMOTE_STATE_DIR = path.join(directory, 'state');
   vi.resetModules();
   try {
-    const { runtimeStatePath } = await import('../src/config.js');
+    const { runtimeStatePath } = await import('../src/paths.js');
     const { ensureDir, writeJsonAtomic, readJson } = await import('herdr-remote-relay/state');
     ensureDir(path.join(directory, 'state'));
     writeJsonAtomic(runtimeStatePath(), {

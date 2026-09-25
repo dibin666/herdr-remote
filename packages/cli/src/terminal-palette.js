@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 // One definition of what a palette may contain, shared with the relay so the
 // host cannot report a shape the wire rejects.
 import { ANSI_PALETTE_KEYS, sanitizeTerminalPalette } from 'herdr-remote-relay/protocol';
-import { runtimeStatePath, stateDir } from './config.js';
+import { runtimeStatePath, stateDir } from './paths.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 
 const ANSI_SLOTS = ANSI_PALETTE_KEYS.length;

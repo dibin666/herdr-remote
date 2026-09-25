@@ -4,18 +4,15 @@ import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { loadConfig } from './config.js';
+import { PACKAGE_ROOT, configDir, runtimeStatePath, stateDir } from './paths.js';
 import {
-  PACKAGE_ROOT,
   bindAddress,
-  configDir,
-  loadConfig,
   resolveAdminOrigin,
   resolveHostRelayUrl,
   resolvePublicUrl,
   runsLocalRelay,
-  runtimeStatePath,
-  stateDir,
-} from './config.js';
+} from './relay-urls.js';
 import { ensureDir, randomToken, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import {
   probeTerminalPalette,

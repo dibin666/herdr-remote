@@ -13,15 +13,14 @@ import {
   setField,
   validateDraft,
 } from '../src/settings-model.js';
+import { DEFAULTS, loadConfig } from '../src/config.js';
+import { configPath } from '../src/paths.js';
 import {
-  DEFAULTS,
-  configPath,
-  loadConfig,
   resolvePublicUrl,
   resolveHostRelayUrl,
   runsLocalRelay,
   bindAddress,
-} from '../src/config.js';
+} from '../src/relay-urls.js';
 import { readJson } from 'herdr-remote-relay/state';
 
 function withTempConfig(run) {

@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { PACKAGE_ROOT } from './config.js';
+import { PACKAGE_ROOT } from './paths.js';
 import { herdrVersion, resolveHerdrCommand } from './herdr-command.js';
 
 const PLUGIN_ID = 'herdr.remote.web';

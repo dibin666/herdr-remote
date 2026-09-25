@@ -14,7 +14,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { stateDir } from './config.js';
+import { stateDir } from './paths.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 import {
   PASTE_MAX_BYTES,

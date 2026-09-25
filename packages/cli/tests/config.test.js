@@ -4,18 +4,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { loadConfig, migrateLegacyConfig, validate } from '../src/config.js';
+import { configPath } from '../src/paths.js';
 import {
   advertisedHost,
   bindAddress,
-  configPath,
-  loadConfig,
-  migrateLegacyConfig,
   resolveAdminOrigin,
   resolveHostRelayUrl,
   resolvePublicUrl,
   runsLocalRelay,
-  validate,
-} from '../src/config.js';
+} from '../src/relay-urls.js';
 
 function withEnvironment(overrides, run) {
   const previous = {};

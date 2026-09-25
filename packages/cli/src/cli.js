@@ -7,15 +7,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import {
-  LANGUAGES,
-  PACKAGE_ROOT,
-  configPath,
-  loadConfig,
-  migrateLegacyConfig,
-  resolvePublicUrl,
-  stateDir,
-} from './config.js';
+import { LANGUAGES, loadConfig, migrateLegacyConfig } from './config.js';
+import { PACKAGE_ROOT, configPath, stateDir } from './paths.js';
+import { resolvePublicUrl } from './relay-urls.js';
 import { createTranslator, detectLocale } from './i18n/index.js';
 import { preferredLanAddress } from './net-interfaces.js';
 

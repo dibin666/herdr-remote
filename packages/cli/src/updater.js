@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { PACKAGE_ROOT } from './config.js';
+import { PACKAGE_ROOT } from './paths.js';
 
 const PACKAGE_NAME = 'herdr-remote';
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';

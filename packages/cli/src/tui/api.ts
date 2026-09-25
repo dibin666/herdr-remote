@@ -1,27 +1,15 @@
-// The only place the TUI reaches into the CommonJS service layer.
+// The only place the TUI reaches into the service layer.
 //
 // Everything below the interface — config, services, keep-alive, pairing — is
-// plain Node modules shared with the CLI. Funnelling them through one module
-// keeps the React code free of require paths and gives the screens a single,
-// typed surface to call.
+// shared with the CLI. Funnelling it through one module gives the screens a
+// single surface to call.
 
-import {
-  ACCESS_MODES,
-  OFFICIAL_RELAY_URL,
-  bindAddress,
-  configExists,
-  configPath,
-  loadConfig,
-  resolveAdminOrigin,
-  resolvePublicUrl,
-  stateDir,
-} from '../config.js';
+import { ACCESS_MODES, OFFICIAL_RELAY_URL, configExists, loadConfig } from '../config.js';
+import { configPath, stateDir } from '../paths.js';
+import { bindAddress, resolveAdminOrigin, resolvePublicUrl } from '../relay-urls.js';
 import { MIN_HERDR_VERSION, herdrVersion } from '../herdr-command.js';
-import { createTranslator, detectLocale as detectLocaleRaw } from '../i18n/index.js';
-import {
-  listReachableAddresses as listReachableAddressesRaw,
-  preferredLanAddress,
-} from '../net-interfaces.js';
+import { createTranslator, detectLocale } from '../i18n/index.js';
+import { listReachableAddresses, preferredLanAddress } from '../net-interfaces.js';
 import {
   FIELDS,
   SELECTABLE_MODES,
@@ -57,29 +45,13 @@ import {
   performUpdate,
 } from '../updater.js';
 
-export type AccessMode = 'local' | 'lan' | 'remote';
-export type Locale = 'en' | 'zh';
-export type Translate = (key: string, values?: Record<string, string | number>) => string;
+import type { AccessMode, Config } from '../config.js';
 
-export type Config = {
-  ui: { language: 'auto' | Locale };
-  relay: {
-    mode: AccessMode;
-    port: number;
-    lanHost: string;
-    publicUrl: string;
-    remoteUrl: string;
-    maxClientsPerHost: number;
-    maxHosts: number;
-    maxPendingHandshakes: number;
-    maxBufferedBytesPerClient: number;
-    hostReconnectGraceMs: number;
-    allowedOrigins: string[];
-  };
-  herdr: { socketPath: string | null; args: string[]; cwd: string; autoStart: boolean };
-  auth: { pairingTtlMs: number; deviceTtlMs: number; maxDevices: number };
-  keepalive: { manager: string };
-};
+export type { AccessMode, Config };
+export type { Locale } from '../i18n/index.js';
+export type { NetworkAddress } from '../net-interfaces.js';
+/** Screens only call `t(key, values)`; the full Translate type lives in i18n. */
+export type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 export type KeepaliveStatus = {
   manager: string;
@@ -126,14 +98,6 @@ export type Status = {
 
 export type Pairing = { code: string; pairUrl: string; expiresAt: number; hostId: string };
 
-export type NetworkAddress = {
-  name: string;
-  address: string;
-  family: string;
-  kind: 'tailscale' | 'lan' | 'virtual' | 'loopback';
-  internal: boolean;
-};
-
 /** What `checkForUpdate` answered. */
 export type UpdateCheck = {
   ok: boolean;
@@ -149,26 +113,10 @@ export type UpdateCheck = {
 
 export type LifecycleResult = { ok?: boolean; managed: boolean; manager?: string };
 
-/**
- * Typed wrappers over the untyped CommonJS layer. TypeScript infers `string`
- * for these returns, which would let a typo in an interface kind or a locale
- * through; narrowing here keeps that check at the one boundary rather than at
- * every call site.
- */
-export function detectLocale(
-  options: { preference?: string; env?: NodeJS.ProcessEnv } = {},
-): Locale {
-  return detectLocaleRaw(options) as Locale;
-}
-
-export function listReachableAddresses(
-  options: { includeLoopback?: boolean; includeIpv6?: boolean } = {},
-): NetworkAddress[] {
-  return listReachableAddressesRaw(options) as NetworkAddress[];
-}
-
 export {
   ACCESS_MODES,
+  detectLocale,
+  listReachableAddresses,
   MIN_HERDR_VERSION,
   SELECTABLE_MODES,
   OFFICIAL_RELAY_URL,

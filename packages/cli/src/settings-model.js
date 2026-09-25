@@ -10,14 +10,15 @@ import {
   KEEPALIVE_MANAGERS,
   LANGUAGES,
   OFFICIAL_RELAY_URL,
-  configDir,
-  configPath,
+  loadConfig,
+} from './config.js';
+import { configDir, configPath } from './paths.js';
+import {
   isLoopbackHost,
   isUnspecifiedAddress,
   isUnspecifiedHost,
-  loadConfig,
   resolvePublicUrl,
-} from './config.js';
+} from './relay-urls.js';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import { preferredLanAddress } from './net-interfaces.js';
 
