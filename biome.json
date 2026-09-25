@@ -121,7 +121,6 @@
     },
     {
       "includes": [
-        "packages/relay/web/src/components/TerminalView.tsx",
         "packages/relay/web/src/render/HerdrRenderer.ts",
         "packages/relay/web/src/utils/predictiveEcho.ts",
         "packages/relay/web/src/components/SettingsModal.tsx",
