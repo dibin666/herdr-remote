@@ -27,7 +27,7 @@ const MAX_SAVED_FILES = 20;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024; // 50 MB
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function getPastedDir() {
+function getPastedDir(): string {
   const dir = path.join(stateDir(), 'pasted');
   ensureDir(dir);
   return dir;
@@ -45,15 +45,15 @@ function cleanPastedDir({
   maxBytes = MAX_TOTAL_BYTES,
   maxAgeMs = MAX_AGE_MS,
   now = Date.now(),
-} = {}) {
-  let entries;
+} = {}): void {
+  let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
     return;
   }
 
-  const fileInfos = [];
+  const fileInfos: { path: string; size: number; mtimeMs: number }[] = [];
 
   for (const entry of entries) {
     if (!entry.isFile()) continue;
@@ -89,7 +89,15 @@ function cleanPastedDir({
  * Validates base64 data, checks payload limits, sniffs magic bytes against declared MIME,
  * writes to state storage with mode 0o600, and returns the absolute local path.
  */
-function savePastedFile({ mime, dataBase64, dir = getPastedDir() }) {
+function savePastedFile({
+  mime,
+  dataBase64,
+  dir = getPastedDir(),
+}: {
+  mime: unknown;
+  dataBase64: unknown;
+  dir?: string;
+}): string {
   if (!isPasteImageMime(mime)) {
     throw new Error(`unsupported MIME type: ${mime}`);
   }

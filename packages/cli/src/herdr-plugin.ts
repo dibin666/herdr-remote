@@ -6,30 +6,47 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { type SpawnSyncReturns, spawnSync } from 'node:child_process';
 import { PACKAGE_ROOT } from './paths.js';
 import { herdrVersion, resolveHerdrCommand } from './herdr-command.js';
 
 const PLUGIN_ID = 'herdr.remote.web';
 const MANIFEST_NAME = 'herdr-plugin.toml';
 
-function manifestPath() {
+/** One line of `herdr plugin list`. */
+export interface PluginListEntry {
+  id: string;
+  name: string;
+  enabled: boolean;
+  source: string | null;
+  warnings: string | null;
+  localPath: string | null;
+}
+
+/** Whether and where this package is linked into Herdr. */
+export interface RegistrationStatus {
+  available: boolean;
+  registered: boolean;
+  reason?: string;
+  enabled?: boolean;
+  linkedPath?: string | null;
+  stale?: boolean;
+  packageRoot?: string;
+  version?: string | null;
+  versionSupported?: boolean;
+}
+
+function manifestPath(): string {
   return path.join(PACKAGE_ROOT, MANIFEST_NAME);
 }
 
 // Registration also runs from `herdr plugin` actions and from the service
 // manager, neither of which is guaranteed the PATH the user installed with, so
 // the command is resolved rather than named.
-function herdrAvailable() {
-  return herdrVersion().ok;
-}
-
-function runHerdr(args, { timeout = 15_000 } = {}) {
+function runHerdr(args: string[], { timeout = 15_000 } = {}): SpawnSyncReturns<string> {
   const result = spawnSync(resolveHerdrCommand(), args, { encoding: 'utf8', timeout });
-  if (result.error && result.error.code === 'ENOENT') {
-    const error = new Error('herdr command not found');
-    error.code = 'HERDR_NOT_FOUND';
-    throw error;
+  if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+    throw Object.assign(new Error('herdr command not found'), { code: 'HERDR_NOT_FOUND' });
   }
   return result;
 }
@@ -42,8 +59,8 @@ function runHerdr(args, { timeout = 15_000 } = {}) {
  * `[local:/path; 1 warning(s)]`, so everything from the first `;` is dropped
  * before the path is read.
  */
-function parsePluginList(output) {
-  const plugins = [];
+function parsePluginList(output: unknown): PluginListEntry[] {
+  const plugins: PluginListEntry[] = [];
   for (const line of String(output || '').split('\n')) {
     const match = /^-\s+(\S+)\s+\((.*?)\)\s+(\S+)(?:\s+\[(.*)\])?/.exec(line.trim());
     if (!match) continue;
@@ -64,7 +81,7 @@ function parsePluginList(output) {
   return plugins;
 }
 
-function registrationStatus() {
+function registrationStatus(): RegistrationStatus {
   if (!fs.existsSync(manifestPath())) {
     return { available: false, registered: false, reason: 'manifest missing' };
   }
@@ -72,11 +89,11 @@ function registrationStatus() {
   // that has to say the installed Herdr is too old for this plugin.
   const { version, supported } = herdrVersion();
   const installed = { version, versionSupported: supported };
-  let result;
+  let result: SpawnSyncReturns<string>;
   try {
     result = runHerdr(['plugin', 'list']);
   } catch (error) {
-    if (error.code === 'HERDR_NOT_FOUND')
+    if ((error as NodeJS.ErrnoException).code === 'HERDR_NOT_FOUND')
       return { available: false, registered: false, reason: 'herdr not found' };
     throw error;
   }
@@ -99,13 +116,13 @@ function registrationStatus() {
     linkedPath: entry.localPath,
     // A stale link pointing at an old checkout is the main failure mode after
     // switching from a source install to npm.
-    stale: Boolean(entry.localPath) && path.resolve(entry.localPath) !== path.resolve(PACKAGE_ROOT),
+    stale: entry.localPath ? path.resolve(entry.localPath) !== path.resolve(PACKAGE_ROOT) : false,
     packageRoot: PACKAGE_ROOT,
     ...installed,
   };
 }
 
-function register() {
+function register(): { ok: true; path: string; output: string } {
   const current = registrationStatus();
   if (current.registered && current.stale) {
     // Herdr refuses to link a second plugin with the same id, so drop the old
@@ -121,7 +138,7 @@ function register() {
   return { ok: true, path: PACKAGE_ROOT, output: String(result.stdout || '').trim() };
 }
 
-function unregister() {
+function unregister(): { ok: true; output: string } {
   const result = runHerdr(['plugin', 'unlink', PLUGIN_ID]);
   if (result.status !== 0) {
     throw new Error(
@@ -131,12 +148,4 @@ function unregister() {
   return { ok: true, output: String(result.stdout || '').trim() };
 }
 
-export {
-  PLUGIN_ID,
-  manifestPath,
-  herdrAvailable,
-  parsePluginList,
-  registrationStatus,
-  register,
-  unregister,
-};
+export { PLUGIN_ID, manifestPath, parsePluginList, registrationStatus, register, unregister };

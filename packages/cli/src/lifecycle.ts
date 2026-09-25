@@ -5,11 +5,11 @@
 // second, unmanaged copy fighting for the port. Every entry point goes through
 // here so the managed and unmanaged paths behave the same from the outside.
 
-import { loadConfig } from './config.js';
+import { type Config, loadConfig } from './config.js';
 import * as keepalive from './keepalive.js';
 import { restartServices, startServices, statusServices, stopServices } from './service.js';
 
-function managerInUse(config) {
+function managerInUse(config: Config) {
   const status = keepalive.status(config);
   return status.installed || status.active ? status : null;
 }

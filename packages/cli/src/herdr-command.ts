@@ -23,6 +23,28 @@ import { compareVersions } from './updater.js';
 
 const COMMAND_NAME = 'herdr';
 
+/** Where to look for Herdr; each field defaults to this process's view. */
+export interface HerdrLookup {
+  env?: NodeJS.ProcessEnv;
+  home?: string;
+  directories?: string[];
+}
+
+/** Where Herdr was found, and how; see `findHerdrCommand`. */
+export interface HerdrCommand {
+  command: string;
+  source: 'env' | 'path' | 'fallback' | 'unresolved' | 'verified';
+  found: boolean;
+}
+
+export interface HerdrVersion {
+  command: string;
+  version: string | null;
+  raw: string | null;
+  supported: boolean;
+  ok: boolean;
+}
+
 /**
  * The oldest Herdr this release is written against.
  *
@@ -46,20 +68,20 @@ const FALLBACK_DIRECTORIES = [
   '/usr/bin',
 ];
 
-function expandHome(directory, home) {
+function expandHome(directory: string, home: string): string {
   if (directory === '~') return home;
   if (directory.startsWith('~/')) return path.join(home, directory.slice(2));
   return directory;
 }
 
 /** Windows keeps the executable bit in the extension instead of the mode. */
-function candidateNames(base = COMMAND_NAME) {
+function candidateNames(base = COMMAND_NAME): string[] {
   return process.platform === 'win32'
     ? [base, `${base}.exe`, `${base}.cmd`, `${base}.bat`]
     : [base];
 }
 
-function isExecutableFile(candidate) {
+function isExecutableFile(candidate: string): boolean {
   try {
     if (!fs.statSync(candidate).isFile()) return false;
     fs.accessSync(candidate, fs.constants.X_OK);
@@ -69,7 +91,7 @@ function isExecutableFile(candidate) {
   }
 }
 
-function findInDirectory(directory, names = candidateNames()) {
+function findInDirectory(directory: string, names = candidateNames()): string | null {
   if (!directory) return null;
   for (const name of names) {
     const candidate = path.join(directory, name);
@@ -78,7 +100,7 @@ function findInDirectory(directory, names = candidateNames()) {
   return null;
 }
 
-function findOnSearchPath(searchPath, names = candidateNames()) {
+function findOnSearchPath(searchPath: string | undefined, names = candidateNames()): string | null {
   for (const entry of String(searchPath || '').split(path.delimiter)) {
     const found = findInDirectory(entry.trim(), names);
     if (found) return found;
@@ -86,11 +108,11 @@ function findOnSearchPath(searchPath, names = candidateNames()) {
   return null;
 }
 
-function fallbackDirectories(home = os.homedir()) {
+function fallbackDirectories(home = os.homedir()): string[] {
   return FALLBACK_DIRECTORIES.map((directory) => expandHome(directory, home));
 }
 
-function looksLikePath(value) {
+function looksLikePath(value: string): boolean {
   return value.includes('/') || value.includes(path.sep);
 }
 
@@ -103,7 +125,7 @@ function looksLikePath(value) {
  * treated as absent rather than fatal: a stale override left behind by a
  * moved install is precisely the case we are trying to survive.
  */
-function resolveOverride(value, searchPath) {
+function resolveOverride(value: string | undefined, searchPath: string | undefined): string | null {
   const trimmed = String(value || '').trim();
   if (!trimmed) return null;
   if (looksLikePath(trimmed)) {
@@ -128,7 +150,7 @@ function findHerdrCommand({
   env = process.env,
   home = os.homedir(),
   directories = fallbackDirectories(home),
-} = {}) {
+}: HerdrLookup = {}): HerdrCommand {
   const override = resolveOverride(env.HERDR_BIN_PATH, env.PATH);
   if (override) return { command: override, source: 'env', found: true };
   const onPath = findOnSearchPath(env.PATH);
@@ -140,7 +162,7 @@ function findHerdrCommand({
   return { command: COMMAND_NAME, source: 'unresolved', found: false };
 }
 
-function resolveHerdrCommand(options) {
+function resolveHerdrCommand(options?: HerdrLookup): string {
   return findHerdrCommand(options).command;
 }
 
@@ -149,7 +171,7 @@ function resolveHerdrCommand(options) {
  * was missing when it started, and an absolute path outlives the binary it
  * pointed at, so neither answer stays true for the life of the service.
  */
-function verifyHerdrCommand(command, options = {}) {
+function verifyHerdrCommand(command: unknown, options: HerdrLookup = {}): HerdrCommand {
   if (typeof command === 'string' && looksLikePath(command) && isExecutableFile(command)) {
     return { command, source: 'verified', found: true };
   }
@@ -157,7 +179,7 @@ function verifyHerdrCommand(command, options = {}) {
 }
 
 /** `herdr 0.9.1`, `herdr 0.10.0-preview.2` — the three numbers are all we compare. */
-function parseHerdrVersion(output) {
+function parseHerdrVersion(output: unknown): string | null {
   const match = /(\d+)\.(\d+)\.(\d+)/.exec(String(output || ''));
   return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
 }
@@ -168,7 +190,7 @@ function parseHerdrVersion(output) {
  * An unreadable version counts as new enough. Not knowing is not evidence of an
  * old Herdr, and a warning nobody can act on is worse than no warning.
  */
-function meetsMinimum(version, minimum = MIN_HERDR_VERSION) {
+function meetsMinimum(version: string | null, minimum = MIN_HERDR_VERSION): boolean {
   if (!version) return true;
   return compareVersions(version, minimum) >= 0;
 }
@@ -183,9 +205,19 @@ function meetsMinimum(version, minimum = MIN_HERDR_VERSION) {
  * always used. `version` is null whenever the output could not be read, and
  * `supported` is true in that case for the reason `meetsMinimum` explains.
  */
-function herdrVersion({ command, timeout = 10_000, ...lookup } = {}) {
+function herdrVersion({
+  command,
+  timeout = 10_000,
+  ...lookup
+}: HerdrLookup & { command?: string | null; timeout?: number } = {}): HerdrVersion {
   const resolved = command || resolveHerdrCommand(lookup);
-  const unknown = { command: resolved, version: null, raw: null, supported: true, ok: false };
+  const unknown: HerdrVersion = {
+    command: resolved,
+    version: null,
+    raw: null,
+    supported: true,
+    ok: false,
+  };
   let result;
   try {
     result = spawnSync(resolved, ['--version'], { encoding: 'utf8', timeout });
@@ -207,7 +239,7 @@ function herdrVersion({ command, timeout = 10_000, ...lookup } = {}) {
 }
 
 /** The one line that tells a user why an older Herdr is a problem here. */
-function herdrOutdatedMessage(version) {
+function herdrOutdatedMessage(version: string): string {
   return (
     `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. ` +
     'Run "herdr update" — window titles, background machine activation and large pastes all ' +
@@ -220,7 +252,7 @@ function herdrNotFoundMessage({
   env = process.env,
   home = os.homedir(),
   directories = fallbackDirectories(home),
-} = {}) {
+}: HerdrLookup = {}): string {
   const override = String(env.HERDR_BIN_PATH || '').trim();
   const parts = [`Herdr executable "${COMMAND_NAME}" was not found.`];
   if (override) parts.push(`HERDR_BIN_PATH=${override} does not point at an executable.`);

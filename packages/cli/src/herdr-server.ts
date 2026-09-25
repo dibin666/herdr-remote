@@ -21,7 +21,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { type ChildProcess, type SpawnOptions, spawn } from 'node:child_process';
 import { inspectSocket } from './socket-discovery.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 
@@ -30,6 +30,23 @@ const PROBE_TIMEOUT_MS = 1_000;
 /** Herdr restores the saved session before its API socket opens. */
 const START_TIMEOUT_MS = 20_000;
 const START_POLL_MS = 200;
+
+export type ServerProbe =
+  | { state: 'running' }
+  | { state: 'stopped'; stale?: boolean }
+  | { state: 'unavailable'; reason?: string };
+
+type Connect = (path: string) => net.Socket;
+type SpawnProcess = (file: string, args: string[], options: SpawnOptions) => ChildProcess;
+
+/** How to start Herdr's server: its binary, its global arguments, where it runs. */
+export interface ServerLaunch {
+  command: string;
+  args?: string[];
+  socketPath: string;
+  cwd?: string;
+  logPath: string;
+}
 
 /**
  * Is Herdr's server answering on `socketPath`?
@@ -40,7 +57,10 @@ const START_POLL_MS = 200;
  * well be live, just not ours to use, and starting a second server beside it
  * would be starting somebody else's Herdr.
  */
-function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_TIMEOUT_MS } = {}) {
+function probeHerdrServer(
+  socketPath: string,
+  { connect = net.connect as Connect, timeout = PROBE_TIMEOUT_MS } = {},
+): Promise<ServerProbe> {
   const info = inspectSocket(socketPath);
   if (!info.ok) {
     return Promise.resolve(
@@ -48,8 +68,8 @@ function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_T
     );
   }
   return new Promise((resolve) => {
-    let socket;
-    const finish = (result) => {
+    let socket: net.Socket | undefined;
+    const finish = (result: ServerProbe) => {
       clearTimeout(timer);
       if (socket) {
         socket.removeAllListeners();
@@ -64,7 +84,7 @@ function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_T
     if (typeof timer.unref === 'function') timer.unref();
     socket = connect(socketPath);
     socket.once('connect', () => finish({ state: 'running' }));
-    socket.once('error', (error) =>
+    socket.once('error', (error: NodeJS.ErrnoException) =>
       finish(
         error.code === 'ECONNREFUSED' || error.code === 'ENOENT'
           ? { state: 'stopped', stale: true }
@@ -81,20 +101,26 @@ function probeHerdrServer(socketPath, { connect = net.connect, timeout = PROBE_T
 function runningInSystemdService({
   platform = process.platform,
   readCgroup = () => fs.readFileSync('/proc/self/cgroup', 'utf8'),
-} = {}) {
+}: {
+  platform?: NodeJS.Platform;
+  readCgroup?: () => string;
+} = {}): boolean {
   if (platform !== 'linux') return false;
   try {
     const unified = readCgroup()
       .split('\n')
       .find((line) => line.startsWith('0::'));
-    return Boolean(unified) && /\.service$/.test(unified.trim());
+    return unified !== undefined && /\.service$/.test(unified.trim());
   } catch {
     return false;
   }
 }
 
 /** The server's environment: the one a Herdr pane would give its client. */
-function serverEnv(socketPath, env = process.env) {
+function serverEnv(
+  socketPath: string | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
   const next = { ...env };
   for (const key of Object.keys(next)) {
     if (key.startsWith('HERDR_')) delete next[key];
@@ -108,7 +134,15 @@ function serverEnv(socketPath, env = process.env) {
  * `--session`, say) followed by `server`, wrapped in `systemd-run --scope` when
  * the caller is a systemd service.
  */
-function serverCommand({ command, args = [], inService = runningInSystemdService() }) {
+function serverCommand({
+  command,
+  args = [],
+  inService = runningInSystemdService(),
+}: {
+  command: string;
+  args?: string[];
+  inService?: boolean;
+}): { file: string; args: string[] } {
   const herdr = [command, ...args, 'server'];
   if (!inService) return { file: herdr[0], args: herdr.slice(1) };
   return {
@@ -136,13 +170,13 @@ function launchHerdrServer({
   socketPath,
   cwd,
   logPath,
-  spawnProcess = spawn,
+  spawnProcess = spawn as SpawnProcess,
   inService,
-}) {
+}: ServerLaunch & { spawnProcess?: SpawnProcess; inService?: boolean }): ChildProcess {
   const { file, args: argv } = serverCommand({ command, args, inService });
   ensureDir(path.dirname(logPath));
   const out = fs.openSync(logPath, 'a');
-  let child;
+  let child: ChildProcess;
   try {
     child = spawnProcess(file, argv, {
       cwd,
@@ -158,7 +192,7 @@ function launchHerdrServer({
   return child;
 }
 
-function readLogTail(logPath, bytes = 2_000) {
+function readLogTail(logPath: string, bytes = 2_000): string {
   try {
     const text = fs.readFileSync(logPath, 'utf8');
     return text.slice(-bytes).trim();
@@ -185,7 +219,12 @@ async function ensureHerdrServer({
   launch = launchHerdrServer,
   timeout = START_TIMEOUT_MS,
   interval = START_POLL_MS,
-}) {
+}: ServerLaunch & {
+  probe?: (socketPath: string) => Promise<ServerProbe>;
+  launch?: (options: ServerLaunch) => ChildProcess;
+  timeout?: number;
+  interval?: number;
+}): Promise<{ started: boolean }> {
   const before = await probe(socketPath);
   if (before.state === 'running') return { started: false };
   if (before.state === 'unavailable') {
@@ -193,7 +232,8 @@ async function ensureHerdrServer({
   }
 
   const child = launch({ command, args, socketPath, cwd, logPath });
-  let exit = null;
+  // Assigned by the listener; `as` keeps TypeScript from assuming it stays null.
+  let exit = null as { code: number | null; signal: NodeJS.Signals | null } | null;
   child.once('exit', (code, signal) => {
     exit = { code, signal };
   });
