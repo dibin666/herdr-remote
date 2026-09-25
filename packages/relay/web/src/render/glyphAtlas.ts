@@ -1,4 +1,4 @@
-import { tryDrawCustomChar } from './customGlyphs';
+import { tryDrawCustomChar } from './vendor/xtermCustomGlyphs';
 
 /**
  * Glyphs rasterised once and copied into place with `drawImage`.

@@ -38,6 +38,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 - `node bin/herdr-remote.js` 及其子命令是插件的对外接口，不能改名。
 - 新增文案要同时加 en 和 zh（cli 在 `src/i18n/`，web 在 `src/i18n/`）；README 和 docs 的中英文版本要一起改。web 的文案结构以 `en.ts` 为准，`t()` 的 key 由编译器检查；动态拼出的 key 只有在查不到时另有回退的地方才能 `as TranslationKey`。
 - `dist/` 是构建产物，不提交。
+- `vendor/` 目录里是原样引入的第三方代码（文件头写明来源和版本），不改写、不拆分，升级时整体替换。
 
 ## 写代码
 

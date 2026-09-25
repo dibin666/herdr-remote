@@ -18,7 +18,7 @@
     },
     "packages/relay/web": {
       "entry": ["src/main.tsx", "src/test/**/*.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}", "!src/**/vendor/**"],
       "ignoreDependencies": ["@xterm/addon-canvas"]
     }
   }

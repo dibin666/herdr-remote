@@ -104,7 +104,8 @@
         "!**/test/**",
         "!**/*.test.*",
         "!**/i18n/en.*",
-        "!**/i18n/zh.*"
+        "!**/i18n/zh.*",
+        "!**/vendor/**"
       ],
       "linter": {
         "rules": {
@@ -123,7 +124,6 @@
       "includes": [
         "packages/relay/web/src/render/HerdrRenderer.ts",
         "packages/relay/web/src/utils/predictiveEcho.ts",
-        "packages/relay/web/src/render/customGlyphs.ts",
         "packages/relay/web/src/utils/touchMouseAdapter.ts",
         "packages/relay/web/src/protocol/clientAdapter.ts",
         "packages/relay/web/src/utils/storage.ts",
