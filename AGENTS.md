@@ -11,7 +11,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 | 目录 | 包 | 职责 |
 |---|---|---|
 | `packages/cli` | `herdr-remote`（npm） | `bin/` CLI 入口；`src/` 服务层与 host connector；`tui/` Ink 配置界面；`herdr-plugin.toml` 插件清单 |
-| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/stream-frame.js` 定义线协议 |
+| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/stream-frame.js` 定义线协议；`tsc` 编译到 `dist/`，`bin/` 和 cli 都加载 `dist/` |
 | `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布 |
 
 协议细节见 `docs/protocol.md`。
@@ -19,6 +19,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 ## 命令（仓库根目录）
 
 - `npm ci`：安装（node-pty 需要编译工具链）
+- `npm run build`：构建全部产物。本地运行 cli 之前，至少要先跑一次 `npm run build:server -w herdr-remote-relay`
 - `npm run check`：Biome + 类型检查，提交前必跑
 - `npm test`：用 vitest 跑三个包的全部测试
   - 跑单个文件：`npx vitest run packages/relay/tests/x.test.js`

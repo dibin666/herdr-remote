@@ -25,31 +25,45 @@
   "bin": {
     "herdr-remote-relay": "./bin/herdr-remote-relay.js"
   },
-  "main": "./src/relay-server.js",
+  "main": "./dist/relay-server.js",
+  "types": "./dist/relay-server.d.ts",
   "exports": {
-    ".": "./src/relay-server.js",
-    "./protocol": "./src/stream-frame.js",
-    "./config": "./src/relay-config.js",
+    ".": {
+      "types": "./dist/relay-server.d.ts",
+      "default": "./dist/relay-server.js"
+    },
+    "./protocol": {
+      "types": "./dist/stream-frame.d.ts",
+      "default": "./dist/stream-frame.js"
+    },
+    "./config": {
+      "types": "./dist/relay-config.d.ts",
+      "default": "./dist/relay-config.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "bin",
-    "src",
+    "dist",
     "web/dist",
     "deploy",
     "config.example.json",
     "README.zh-CN.md"
   ],
   "scripts": {
-    "build": "npm --prefix web run build",
+    "build": "npm run build:server && npm --prefix web run build",
+    "build:server": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "prepack": "npm run build",
     "start": "node bin/herdr-remote-relay.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "~5.7.3",
     "vitest": "^3.2.7"
   }
 }

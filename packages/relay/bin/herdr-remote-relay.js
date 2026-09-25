@@ -9,8 +9,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { loadRelayConfig, PACKAGE_ROOT } = require('../src/relay-config');
-const { RelayServer, VERSION, PROTOCOL_VERSION } = require('../src/relay-server');
+const { loadRelayConfig, PACKAGE_ROOT } = require('../dist/relay-config');
+const { RelayServer, VERSION, PROTOCOL_VERSION } = require('../dist/relay-server');
 
 const USAGE = `herdr-remote-relay ${VERSION} — standalone relay for Herdr Remote
 

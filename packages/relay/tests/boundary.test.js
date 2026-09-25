@@ -95,18 +95,22 @@ test('the relay loads and serves without any workstation module present', () => 
   assert.equal(loadedNodePty, false, 'the relay must not pull in node-pty');
 });
 
-test('the published file list carries the built web UI and nothing extra', () => {
+test('the published file list carries the built server and web UI and nothing extra', () => {
+  assert.ok(manifest.files.includes('dist'));
   assert.ok(manifest.files.includes('web/dist'));
+  assert.equal(manifest.files.includes('src'), false);
   assert.equal(manifest.files.includes('web/src'), false);
-  assert.equal(manifest.exports['./protocol'], './src/stream-frame.js');
+  assert.equal(manifest.exports['./protocol'].default, './dist/stream-frame.js');
 });
 
-// Listing `web/dist` is not the same as shipping it. `web/dist` is gitignored,
-// so on a clean checkout it does not exist, and npm drops a listed path that is
-// missing rather than failing — which is how the relay was published with no
-// web UI at all. `prepack` is what makes the directory exist before npm reads
-// the file list.
-test('the tarball is built before it is packed, so web/dist is not silently dropped', () => {
+// Listing `dist` and `web/dist` is not the same as shipping them. Both are
+// gitignored, so on a clean checkout they do not exist, and npm drops a listed
+// path that is missing rather than failing — which is how the relay was once
+// published with no web UI at all. `prepack` is what makes both directories
+// exist before npm reads the file list.
+test('the tarball is built before it is packed, so dist and web/dist are not silently dropped', () => {
   assert.equal(manifest.scripts.prepack, 'npm run build');
-  assert.equal(manifest.scripts.build, 'npm --prefix web run build');
+  assert.match(manifest.scripts.build, /npm run build:server/);
+  assert.match(manifest.scripts.build, /npm --prefix web run build/);
+  assert.match(manifest.scripts['build:server'], /tsc -p tsconfig\.json/);
 });

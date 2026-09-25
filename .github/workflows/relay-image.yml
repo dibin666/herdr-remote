@@ -20,6 +20,7 @@ on:
     paths:
       - 'packages/relay/**'
       - 'packages/relay/Dockerfile'
+      - 'tsconfig.base.json'
       - '.dockerignore'
       - '.github/workflows/relay-image.yml'
       # package-lock.json is deliberately absent. It moves whenever any

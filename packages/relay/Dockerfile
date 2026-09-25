@@ -11,13 +11,13 @@
 # no npm, no toolchain. The relay's only runtime dependency is `ws`.
 
 # ---------------------------------------------------------------------------
-# Stage 1: install the web workspace and build the browser bundle.
+# Stage 1: compile the relay server and build the browser bundle.
 #
-# Pinned to BUILDPLATFORM: the output is static JS/CSS, identical for every
-# target architecture, so there is no reason to run vite under QEMU emulation
-# during the linux/arm64 leg of a multi-arch build.
+# Pinned to BUILDPLATFORM: the output is plain JS/CSS, identical for every
+# target architecture, so there is no reason to run tsc or vite under QEMU
+# emulation during the linux/arm64 leg of a multi-arch build.
 # ---------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM node:22-alpine AS web-build
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 
 # Copy only manifests first so dependency installation stays cached when
@@ -28,9 +28,14 @@ COPY packages/cli/package.json packages/cli/
 COPY packages/relay/package.json packages/relay/
 COPY packages/relay/web/package.json packages/relay/web/
 
-# `-w herdr-remote-web` keeps the install scoped to the web workspace, so the
-# CLI workspace's native `node-pty` dependency is never fetched or compiled.
-RUN npm ci -w herdr-remote-web --ignore-scripts
+# Scoping the install to the relay and web workspaces means the CLI
+# workspace's native `node-pty` dependency is never fetched or compiled.
+RUN npm ci -w herdr-remote-relay -w herdr-remote-web --ignore-scripts
+
+COPY tsconfig.base.json ./
+COPY packages/relay/tsconfig.json packages/relay/
+COPY packages/relay/src packages/relay/src
+RUN npm run build:server -w herdr-remote-relay
 
 COPY packages/relay/web packages/relay/web
 RUN npm run build -w herdr-remote-web
@@ -80,12 +85,12 @@ WORKDIR /app
 
 # Runtime dependency tree (`ws`).
 COPY --from=deps --chown=root:root /app/node_modules ./node_modules
-# Relay sources. `PACKAGE_ROOT` resolves to /app, so web assets must live at
-# /app/web/dist and package.json must sit at /app/package.json.
+# The compiled relay. `PACKAGE_ROOT` resolves to /app, so web assets must live
+# at /app/web/dist and package.json must sit at /app/package.json.
 COPY --chown=root:root packages/relay/package.json ./package.json
 COPY --chown=root:root packages/relay/bin ./bin
-COPY --chown=root:root packages/relay/src ./src
-COPY --from=web-build --chown=root:root /app/packages/relay/web/dist ./web/dist
+COPY --from=build --chown=root:root /app/packages/relay/dist ./dist
+COPY --from=build --chown=root:root /app/packages/relay/web/dist ./web/dist
 
 # Container-appropriate defaults. Every one of these stays overridable with
 # `docker run -e`.

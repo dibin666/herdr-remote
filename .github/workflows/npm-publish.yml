@@ -21,6 +21,7 @@ on:
     paths:
       - 'packages/cli/**'
       - 'packages/relay/**'
+      - 'tsconfig.base.json'
       - '.github/workflows/npm-publish.yml'
       - '.github/scripts/**'
   workflow_dispatch:
