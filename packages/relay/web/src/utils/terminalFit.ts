@@ -16,7 +16,7 @@
  * trade on a small screen.
  */
 
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 
 /** Grid bounds. Wide enough to stay usable, tight enough to stay allocatable. */
 export const MIN_TERMINAL_COLS = 20;

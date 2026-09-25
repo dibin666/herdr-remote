@@ -210,7 +210,7 @@ const patternCharacterDefinitions: { [key: string]: PatternDefinition | undefine
   ],
 };
 
-const enum Shapes {
+enum Shapes {
   /** │ */ TOP_TO_BOTTOM = 'M.5,0 L.5,1',
   /** ─ */ LEFT_TO_RIGHT = 'M0,.5 L1,.5',
 
@@ -239,7 +239,7 @@ const enum Shapes {
   /** ┊ */ FOUR_DASHES_VERTICAL = 'M.5,.05 L.5,.2 M.5,.3 L.5,.45 L.5,.55 M.5,.7 L.5,.95',
 }
 
-const enum Style {
+enum Style {
   NORMAL = 1,
   BOLD = 3,
 }
@@ -526,7 +526,7 @@ interface IVectorShape {
   rightPadding?: number;
 }
 
-const enum VectorType {
+enum VectorType {
   FILL,
   STROKE,
 }

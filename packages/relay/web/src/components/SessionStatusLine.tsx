@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { describeConnection } from '../utils/connectionStatus';
 import { Badge, Segments, StatusDot, StatusLine } from './tui';

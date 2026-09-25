@@ -8,8 +8,8 @@ import { hostPaletteToTheme } from '../utils/theme';
 import { encodeKeyWithModifiers, encodeStringToBytes, isSingleKey } from '../protocol/keyEncoder';
 import { classifyInput } from '../utils/inputClassifier';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
-import { TerminalPointerController, TouchGestureState } from '../utils/touchMouseAdapter';
-import { attachTerminalRenderer, AttachedRenderer } from '../utils/terminalRenderer';
+import { TerminalPointerController, type TouchGestureState } from '../utils/touchMouseAdapter';
+import { attachTerminalRenderer, type AttachedRenderer } from '../utils/terminalRenderer';
 import {
   computeContainerGridFit,
   measureCellDimensions,
@@ -20,7 +20,7 @@ import {
 import {
   getVisualZoomSnapshot,
   evaluateResizeEvent,
-  VisualZoomSnapshot,
+  type VisualZoomSnapshot,
 } from '../utils/visualZoom';
 import {
   getEffectiveTerminalFontSize,
@@ -36,8 +36,8 @@ import {
   paneColumnBand,
   clampRectToBand,
   rectText,
-  TerminalSelectionRect,
-  PaneColumnBand,
+  type TerminalSelectionRect,
+  type PaneColumnBand,
 } from '../utils/terminalSelection';
 import {
   copyText,
@@ -48,7 +48,7 @@ import {
 import { applyDocumentTitle, sanitizeTerminalTitle } from '../utils/documentTitle';
 import { attentionCounts } from '../utils/agentAttention';
 import { linkAtCell, openTerminalLink } from '../utils/terminalLinks';
-import { PreparedImagePaste } from '../utils/imagePaste';
+import type { PreparedImagePaste } from '../utils/imagePaste';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import { PasteFallbackModal } from './PasteFallbackModal';
 import { PredictiveEcho } from '../utils/predictiveEcho';

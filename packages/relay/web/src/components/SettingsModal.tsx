@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { getDefaultSettings } from '../utils/storage';
 import { FONT_PRESETS } from '../utils/theme';
 import { clampFontSize } from '../utils/terminalLayout';
 import { TERMINAL_SOURCE_NAMES } from './HostFontPrompt';
 import {
-  ToolbarKeyDef,
+  type ToolbarKeyDef,
   ALL_AVAILABLE_KEYS,
   getDefaultVirtualKeys,
   getLocalizedKeyTitle,

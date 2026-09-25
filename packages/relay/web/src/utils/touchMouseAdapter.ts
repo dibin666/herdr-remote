@@ -22,7 +22,7 @@
  * to xterm.
  */
 
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 import { measureCellDimensions, screenToLogicalCoords } from './terminalFit';
 
 export interface TouchMouseOptions {

@@ -16,7 +16,8 @@
  *   - "粘贴" is omitted when `isController === false` to avoid meaningless viewer warnings.
  */
 
-import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
+import type React from 'react';
+import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { GLYPH, Panel } from './tui';
 import { cn } from '../utils/cn';
 import { linkDisplayHost } from '../utils/terminalLinks';

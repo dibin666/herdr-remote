@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import type React from 'react';
+import { useState, useEffect } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { describeConnection } from '../utils/connectionStatus';
 import { copyText } from '../utils/clipboard';
-import { Button, Checkbox, FieldLabel, GLYPH, Input, Modal, StatusDot, StatusLevel } from './tui';
+import {
+  Button,
+  Checkbox,
+  FieldLabel,
+  GLYPH,
+  Input,
+  Modal,
+  StatusDot,
+  type StatusLevel,
+} from './tui';
 
 interface PairingModalProps {
   isOpen: boolean;

@@ -25,7 +25,7 @@ function detectLocale({ env = process.env, preference = 'auto' } = {}) {
 function interpolate(template, values) {
   if (!values) return template;
   return template.replace(/\{(\w+)\}/g, (match, key) =>
-    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match,
+    Object.hasOwn(values, key) ? String(values[key]) : match,
   );
 }
 
@@ -43,7 +43,7 @@ function createTranslator(locale = DEFAULT_LOCALE) {
     return interpolate(template, values);
   };
   t.locale = locale;
-  t.has = (key) => Object.prototype.hasOwnProperty.call(active, key);
+  t.has = (key) => Object.hasOwn(active, key);
   return t;
 }
 

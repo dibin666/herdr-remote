@@ -8,13 +8,13 @@
  * mirror xterm's `common/buffer/Constants.ts`.
  */
 
-export const enum Content {
+export enum Content {
   CODEPOINT_MASK = 0x1fffff,
   IS_COMBINED_MASK = 0x200000,
   WIDTH_SHIFT = 22,
 }
 
-export const enum Attributes {
+export enum Attributes {
   PCOLOR_MASK = 0xff,
   CM_MASK = 0x3000000,
   CM_DEFAULT = 0,
@@ -24,7 +24,7 @@ export const enum Attributes {
   RGB_MASK = 0xffffff,
 }
 
-export const enum FgFlags {
+export enum FgFlags {
   INVERSE = 0x4000000,
   BOLD = 0x8000000,
   UNDERLINE = 0x10000000,
@@ -33,7 +33,7 @@ export const enum FgFlags {
   STRIKETHROUGH = 0x80000000,
 }
 
-export const enum BgFlags {
+export enum BgFlags {
   ITALIC = 0x4000000,
   DIM = 0x8000000,
   HAS_EXTENDED = 0x10000000,
@@ -41,7 +41,7 @@ export const enum BgFlags {
   OVERLINE = 0x40000000,
 }
 
-export const enum UnderlineStyle {
+export enum UnderlineStyle {
   NONE = 0,
   SINGLE = 1,
   DOUBLE = 2,

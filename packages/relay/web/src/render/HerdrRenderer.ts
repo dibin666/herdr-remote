@@ -77,7 +77,7 @@ const DEFAULT_MAX_SYNC_HOLD_MS = 150;
 const BLINK_INTERVAL_MS = 600;
 const INVALID = 0xffffffff;
 
-const enum CursorShape {
+enum CursorShape {
   NONE = 0,
   BLOCK = 1,
   BAR = 2,
@@ -85,7 +85,7 @@ const enum CursorShape {
   OUTLINE = 4,
 }
 
-const enum Meta {
+enum Meta {
   CELLS_MASK = 0x3,
   COVERED = 0x4,
   CURSOR_SHIFT = 3,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 import {
   pointToCell,
   wordRangeAt,

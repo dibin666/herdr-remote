@@ -1,7 +1,7 @@
-import React from 'react';
-import { useTerminal, ToastItem } from '../context/TerminalContext';
+import type React from 'react';
+import { useTerminal, type ToastItem } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
-import { GLYPH, StatusLevel, TONE } from './tui';
+import { GLYPH, type StatusLevel, TONE } from './tui';
 
 /**
  * Notifications, drawn the way a terminal program logs.

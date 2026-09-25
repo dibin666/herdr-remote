@@ -1,4 +1,4 @@
-import { TranslationSchema } from './types';
+import type { TranslationSchema } from './types';
 
 export const zh: TranslationSchema = {
   header: {

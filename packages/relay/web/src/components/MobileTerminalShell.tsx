@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { MobileControlSheet } from './MobileControlSheet';
 import { describeConnection } from '../utils/connectionStatus';

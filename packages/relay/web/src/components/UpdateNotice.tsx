@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { copyText } from '../utils/clipboard';
 import { cn } from '../utils/cn';

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { formatFontBytes } from '../utils/hostFont';
 import { Button, Meter, Notice, Panel } from './tui';

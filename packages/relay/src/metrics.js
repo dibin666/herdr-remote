@@ -139,10 +139,7 @@ class RelayMetrics {
   }
 
   recordCleanup(name, amount = 1) {
-    if (
-      Object.prototype.hasOwnProperty.call(this.cleanup, name) &&
-      typeof this.cleanup[name] === 'number'
-    ) {
+    if (Object.hasOwn(this.cleanup, name) && typeof this.cleanup[name] === 'number') {
       this.cleanup[name] += amount;
     }
     this.cleanup.lastCleanupAt = new Date().toISOString();

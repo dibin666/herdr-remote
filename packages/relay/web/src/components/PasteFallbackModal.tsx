@@ -24,11 +24,16 @@
  *    never `blob:` URLs, because the relay's CSP header restricts images to `img-src 'self' data:`.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from './tui';
 import { useTerminal } from '../context/TerminalContext';
 import { extractImageFromClipboardEvent, extractImageFromFileList } from '../utils/clipboard';
-import { compressAndPrepareImage, formatByteSize, PreparedImagePaste } from '../utils/imagePaste';
+import {
+  compressAndPrepareImage,
+  formatByteSize,
+  type PreparedImagePaste,
+} from '../utils/imagePaste';
 
 export interface PasteFallbackModalProps {
   isOpen: boolean;

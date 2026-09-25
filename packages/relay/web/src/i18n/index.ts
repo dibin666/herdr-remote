@@ -1,6 +1,6 @@
 import { en } from './en';
 import { zh } from './zh';
-import { Language, TranslationSchema } from './types';
+import type { Language, TranslationSchema } from './types';
 
 export * from './types';
 export { en, zh };

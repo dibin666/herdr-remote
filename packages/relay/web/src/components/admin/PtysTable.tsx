@@ -1,7 +1,7 @@
-import React from 'react';
-import { PtyInfo } from '../../types/admin';
+import type React from 'react';
+import type { PtyInfo } from '../../types/admin';
 import { useTerminal } from '../../context/TerminalContext';
-import { Column, Panel, Table } from '../tui';
+import { type Column, Panel, Table } from '../tui';
 
 interface PtysTableProps {
   ptys: PtyInfo[];

@@ -45,7 +45,7 @@
  *    triggered when backing-store dimensions change.
  */
 
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 import { HerdrRenderer } from '../render/HerdrRenderer';
 
 export type TerminalRendererKind = 'dom' | 'canvas';

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
 import { AgentStatusChip } from './AgentStatusChip';

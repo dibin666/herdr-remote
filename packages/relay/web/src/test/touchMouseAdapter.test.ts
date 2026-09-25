@@ -5,7 +5,7 @@ import {
   dispatchSyntheticMouseEvent,
   TerminalPointerController,
 } from '../utils/touchMouseAdapter';
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 
 // jsdom ships no `document.elementFromPoint`, so the adapter's hit test has to
 // be installed explicitly to exercise it.

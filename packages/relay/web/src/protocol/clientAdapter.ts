@@ -3,7 +3,7 @@
  * Handles WebSocket lifecycle, binary ANSI streams, and typed JSON control messages.
  */
 
-import {
+import type {
   ClientHelloMessage,
   ClientClaimControlMessage,
   ClientReleaseControlMessage,
@@ -662,7 +662,7 @@ export class HerdrClientAdapter {
     const maxBackoff = 30000;
     const delay = Math.min(
       maxBackoff,
-      Math.floor(base * Math.pow(1.5, this.reconnectAttempts - 1) + Math.random() * 500),
+      Math.floor(base * 1.5 ** (this.reconnectAttempts - 1) + Math.random() * 500),
     );
 
     this.reconnectTimer = setTimeout(() => {

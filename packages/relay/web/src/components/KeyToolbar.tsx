@@ -1,9 +1,14 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { ANSI_KEYS, encodeKeyWithModifiers } from '../protocol/keyEncoder';
 import { formatComboCaption, parseKeyCombo } from '../protocol/keyCombo';
 import { cn } from '../utils/cn';
-import { ToolbarKeyDef, DEFAULT_TOOLBAR_KEYS, getLocalizedKeyTitle } from '../utils/virtualKeys';
+import {
+  type ToolbarKeyDef,
+  DEFAULT_TOOLBAR_KEYS,
+  getLocalizedKeyTitle,
+} from '../utils/virtualKeys';
 import { AGENT_PROFILES, getDrawerGroups, type AppliedAgentAction } from '../utils/agentKeymaps';
 import { Gauge } from './tui';
 

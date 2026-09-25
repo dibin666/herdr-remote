@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { AdminStatusResponse, RelayInfoResponse } from '../../types/admin';
+import type React from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { AdminStatusResponse, RelayInfoResponse } from '../../types/admin';
 import { useTerminal } from '../../context/TerminalContext';
 import { ClientsTable } from './ClientsTable';
 import { HostsTable } from './HostsTable';

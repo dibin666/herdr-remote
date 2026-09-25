@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';

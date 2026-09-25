@@ -586,7 +586,7 @@ export function applyOverrides(
   const ids = new Set(rows.map((row) => row.id));
   for (const custom of overrides?.custom || []) {
     if (!custom || typeof custom.id !== 'string' || ids.has(custom.id)) continue;
-    let combo = custom.keys;
+    const combo = custom.keys;
     try {
       parseKeyCombo(combo);
     } catch {

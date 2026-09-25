@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTerminal } from '../context/TerminalContext';
-import { translate, Language } from './index';
+import { translate, type Language } from './index';
 
 export function useI18n() {
   const { settings, updateSettings } = useTerminal();

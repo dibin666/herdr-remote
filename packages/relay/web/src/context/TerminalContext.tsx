@@ -1,13 +1,14 @@
-import React, {
+import type React from 'react';
+import {
   createContext,
   useContext,
   useEffect,
   useState,
   useCallback,
   useRef,
-  ReactNode,
+  type ReactNode,
 } from 'react';
-import {
+import type {
   ClientRole,
   ConnectionState,
   ConnectionConfig,
@@ -20,8 +21,8 @@ import { isWheelOnlyInput } from '../protocol/scrollInput';
 import { encodeStringToBytes, type KeyModifiers } from '../protocol/keyEncoder';
 import { installWakeListeners } from '../utils/wakeListeners';
 import {
-  ConnectionProfile,
-  StoredSettings,
+  type ConnectionProfile,
+  type StoredSettings,
   createConnectionProfile,
   loadSettings,
   profileKey,
@@ -29,15 +30,15 @@ import {
   loadIgnoredUpdate,
   saveIgnoredUpdate,
 } from '../utils/storage';
-import { translate, Language } from '../i18n';
+import { translate, type Language } from '../i18n';
 import { applyDocumentTheme, resolveTerminalFontFamily } from '../utils/theme';
 import { clampFontSize } from '../utils/terminalLayout';
 import { useHostFont, type HostFontState } from '../utils/useHostFont';
 import { resolveProfile, type AgentProfileId } from '../utils/agentKeymaps';
 import {
   compressAndPrepareImage,
-  PreparedImagePaste,
-  ImageUploadProgress,
+  type PreparedImagePaste,
+  type ImageUploadProgress,
   IDLE_IMAGE_UPLOAD_PROGRESS,
 } from '../utils/imagePaste';
 

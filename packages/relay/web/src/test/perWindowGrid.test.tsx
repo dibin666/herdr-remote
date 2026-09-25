@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import React from 'react';
+import type React from 'react';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { HerdrClientAdapter } from '../protocol/clientAdapter';
 

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { ConnectedClientInfo, PairedDeviceInfo } from '../../types/admin';
+import type React from 'react';
+import { useState } from 'react';
+import type { ConnectedClientInfo, PairedDeviceInfo } from '../../types/admin';
 import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
 import { cn } from '../../utils/cn';
-import { Button, Column, Panel, Spinner, StatusDot, Table } from '../tui';
+import { Button, type Column, Panel, Spinner, StatusDot, Table } from '../tui';
 import { formatRelative, formatTimestamp, windowsByDevice } from './format';
 
 interface DevicesTableProps {

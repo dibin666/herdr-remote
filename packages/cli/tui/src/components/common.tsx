@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
 import { Box, Text, type DOMElement } from 'ink';
 import { useMouseTarget } from '../mouse/index.js';
 import {

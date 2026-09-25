@@ -1,7 +1,7 @@
-import React from 'react';
+import type React from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { cn } from '../utils/cn';
-import { Button, GLYPH, Spinner, StatusLevel, TONE } from './tui';
+import { Button, GLYPH, Spinner, type StatusLevel, TONE } from './tui';
 
 /**
  * The connection line, drawn between the header and the grid.

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getVisualZoomSnapshot,
   evaluateResizeEvent,
-  VisualZoomSnapshot,
+  type VisualZoomSnapshot,
 } from '../utils/visualZoom';
 
 describe('visualZoom helper unit tests', () => {

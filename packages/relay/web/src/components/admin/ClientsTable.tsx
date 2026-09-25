@@ -1,8 +1,8 @@
-import React from 'react';
-import { ConnectedClientInfo } from '../../types/admin';
+import type React from 'react';
+import type { ConnectedClientInfo } from '../../types/admin';
 import { describeUserAgent } from '../../utils/userAgent';
 import { useTerminal } from '../../context/TerminalContext';
-import { Badge, Column, Panel, StatusDot, Table } from '../tui';
+import { Badge, type Column, Panel, StatusDot, Table } from '../tui';
 import { formatBytes, formatRelative, formatTimestamp } from './format';
 
 interface ClientsTableProps {
