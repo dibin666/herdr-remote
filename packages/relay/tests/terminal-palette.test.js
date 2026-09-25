@@ -4,7 +4,7 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { sanitizeTerminalPalette, ANSI_PALETTE_KEYS } from '../src/stream-frame';
+import { sanitizeTerminalPalette, ANSI_PALETTE_KEYS } from '../src/protocol';
 
 const FULL_ANSI = {
   black: '#2e3436',

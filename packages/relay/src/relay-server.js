@@ -17,7 +17,7 @@ import {
   sanitizeTerminalFont,
   TERMINAL_FONT_CHUNK_BYTES,
   PROTOCOL_VERSION,
-} from './stream-frame';
+} from './protocol';
 import { ensureDir } from './state';
 
 const VERSION = JSON.parse(

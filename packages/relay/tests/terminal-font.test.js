@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
-import { sanitizeTerminalFont, TERMINAL_FONT_CHUNK_BYTES } from '../src/stream-frame';
+import { sanitizeTerminalFont, TERMINAL_FONT_CHUNK_BYTES } from '../src/protocol';
 
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
 const REGULAR = 'a'.repeat(64);

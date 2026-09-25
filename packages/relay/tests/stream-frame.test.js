@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { packStreamFrame, unpackStreamFrame } from '../src/stream-frame';
+import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
 
 test('stream frames route without changing the raw payload', () => {
   const payload = Buffer.from('\x1b[2J\x1b[H你好\0\xff', 'utf8');

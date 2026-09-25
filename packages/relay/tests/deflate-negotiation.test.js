@@ -6,7 +6,7 @@ import path from 'node:path';
 import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
 import { loadRelayConfig } from '../src/relay-config';
-import { packStreamFrame, unpackStreamFrame } from '../src/stream-frame';
+import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
 
 function openWebSocket(url) {
   return new Promise((resolve, reject) => {

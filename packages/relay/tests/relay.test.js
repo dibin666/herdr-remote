@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
-import { packStreamFrame, unpackStreamFrame } from '../src/stream-frame';
+import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
 import { loadRelayConfig } from '../src/relay-config';
 import manifest from '../package.json';
 

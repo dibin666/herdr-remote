@@ -105,7 +105,7 @@ test('the published file list carries the built server and web UI and nothing ex
   assert.ok(manifest.files.includes('web/dist'));
   assert.equal(manifest.files.includes('src'), false);
   assert.equal(manifest.files.includes('web/src'), false);
-  assert.equal(manifest.exports['./protocol'].default, './dist/stream-frame.js');
+  assert.equal(manifest.exports['./protocol'].default, './dist/protocol/index.js');
 });
 
 // Listing `dist` and `web/dist` is not the same as shipping them. Both are

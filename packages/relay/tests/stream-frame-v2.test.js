@@ -14,7 +14,7 @@ import {
   unpackStreamFrame,
   packStreamFrameV2,
   unpackStreamFrameV2,
-} from '../src/stream-frame';
+} from '../src/protocol';
 
 function openWebSocket(url) {
   return new Promise((resolve, reject) => {
