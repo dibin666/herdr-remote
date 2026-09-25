@@ -24,8 +24,11 @@ const {
   packStreamFrameV2,
   FRAME_TYPE_OUTPUT,
   PROTOCOL_VERSION,
+  TERMINAL_FONT_CHUNK_BYTES,
 } = require('herdr-remote-relay/protocol');
 const { resolveHostPalette } = require('./terminal-palette');
+const { loadHostTerminalFont, publicTerminalFont, readFontChunk } = require('./terminal-font');
+const { FontSubsetter } = require('./font-subset');
 const { requestHerdr, subscribeHerdr } = require('./herdr-api');
 const { sameSummary, summarizeAgents } = require('./agent-status');
 const { EXIT_REPLACED, EXIT_AUTH_FAILED } = require('./exit-codes');
@@ -41,6 +44,9 @@ const {
 
 /** Windows opening within this long of a check reuse its answer. */
 const UPDATE_RECHECK_MS = 60_000;
+
+/** Cut fonts kept for the slices a browser has yet to fetch, by total size. */
+const FONT_SUBSET_CACHE_BYTES = 48 * 1024 * 1024;
 
 /** How often the agent summary is re-read while a browser is watching. */
 const AGENT_STATUS_POLL_MS = 5_000;
@@ -125,6 +131,19 @@ class HostConnector {
     this.terminalPalette = options.terminalPalette !== undefined
       ? options.terminalPalette
       : resolveHostPalette();
+    /**
+     * The terminal's font, with the local files behind it. Only the family,
+     * size and file hashes leave this process; a browser that lacks the font
+     * fetches the files by hash, one chunk at a time. Injectable for tests.
+     */
+    this.loadTerminalFont = options.loadTerminalFont || loadHostTerminalFont;
+    this.terminalFont = options.terminalFont !== undefined
+      ? options.terminalFont
+      : this.loadTerminalFont();
+    /** Cuts characters out of large fonts; see font-subset.js. */
+    this.fontSubsetter = options.fontSubsetter || new FontSubsetter();
+    /** Subsets too large for one message, by hash, until fetched. */
+    this.fontSubsets = new Map();
     this.ws = null;
     this.sessions = new Map();
     this.streamIndexToId = new Map();
@@ -277,6 +296,7 @@ class HostConnector {
         platform: process.platform,
         arch: process.arch,
         terminalPalette: this.terminalPalette || null,
+        terminalFont: publicTerminalFont(this.terminalFont),
         capabilities: ['host_handoff', 'idle_heartbeat', 'binary_frame_v2'],
       });
       // The relay sends host_ready with the current browser count. No business
@@ -386,6 +406,127 @@ class HostConnector {
     if (message.type === 'session_stop') this.stopSession(message.clientId || message.streamId);
     else if (message.type === 'resize') this.resizeSession(message);
     else if (message.type === 'paste_file') this.handlePasteFile(message);
+    else if (message.type === 'host_font_chunk_request') this.handleFontChunkRequest(message);
+    else if (message.type === 'host_font_subset_request') this.handleFontSubsetRequest(message);
+    else if (message.type === 'host_font_refresh') this.handleFontRefresh();
+  }
+
+  /**
+   * A service started at boot runs before anything has seen a terminal, so it
+   * starts with no font. The first `herdr-remote start` from a terminal (or
+   * from Herdr's plugin hook) writes one down; the next window to open picks
+   * it up here instead of waiting for a restart.
+   */
+  pickUpTerminalFont() {
+    if (this.terminalFont) return;
+    let next = null;
+    try {
+      next = this.loadTerminalFont();
+    } catch {
+      return;
+    }
+    if (!next) return;
+    this.terminalFont = next;
+    sendJson(this.ws, { type: 'terminal_font', terminalFont: publicTerminalFont(next) });
+  }
+
+  /** One slice of a terminal font file, for the window that asked for it. */
+  handleFontChunkRequest(message) {
+    const streamId = message.clientId || message.streamId;
+    const chunk = this.subsetChunk(message.sha256, message.index)
+      || readFontChunk(this.terminalFont, message.sha256, message.index);
+    if (!chunk) {
+      sendJson(this.ws, {
+        type: 'error',
+        clientId: streamId,
+        code: 'host_font_unavailable',
+        message: 'The terminal font changed or is no longer on this workstation',
+      });
+      return;
+    }
+    sendJson(this.ws, {
+      type: 'host_font_chunk',
+      clientId: streamId,
+      sha256: message.sha256,
+      index: message.index,
+      total: chunk.total,
+      dataBase64: chunk.data.toString('base64'),
+    });
+  }
+
+  /** A slice of a cut font still held for the browser that asked for it. */
+  subsetChunk(sha256, index) {
+    const data = this.fontSubsets.get(sha256);
+    if (!data) return null;
+    const total = Math.ceil(data.length / TERMINAL_FONT_CHUNK_BYTES);
+    if (!Number.isInteger(index) || index < 0 || index >= total) return null;
+    const start = index * TERMINAL_FONT_CHUNK_BYTES;
+    return { data: data.subarray(start, start + TERMINAL_FONT_CHUNK_BYTES), total };
+  }
+
+  /**
+   * The characters a window is about to draw, cut out of a large font (CJK).
+   * A small result travels in the answer itself; a large one (the common
+   * characters fetched up front) is held here and pulled in slices.
+   */
+  handleFontSubsetRequest(message) {
+    const streamId = message.clientId || message.streamId;
+    const source = this.terminalFont?.subsets?.find((candidate) => candidate.sha256 === message.sha256);
+    const fail = (code, text) => sendJson(this.ws, { type: 'error', clientId: streamId, code, message: text });
+    if (!source) {
+      fail('host_font_unavailable', 'The terminal font changed or is no longer on this workstation');
+      return;
+    }
+    let stat;
+    try { stat = fs.statSync(source.path); } catch {}
+    if (!stat || stat.size !== source.bytes || stat.mtimeMs !== source.mtimeMs) {
+      fail('host_font_unavailable', 'The terminal font changed or is no longer on this workstation');
+      return;
+    }
+    const codepoints = [...new Set(Array.from(String(message.text || ''), (char) => char.codePointAt(0)))];
+    let data;
+    try {
+      data = this.fontSubsetter.subset(source, codepoints);
+    } catch (error) {
+      fail('host_font_subset_failed', error.message || 'The font could not be subset');
+      return;
+    }
+    const subsetSha = crypto.createHash('sha256').update(data).digest('hex');
+    const answer = {
+      type: 'host_font_subset_ready',
+      clientId: streamId,
+      requestId: message.requestId,
+      sha256: source.sha256,
+      subsetSha,
+      bytes: data.length,
+    };
+    if (data.length <= TERMINAL_FONT_CHUNK_BYTES) {
+      answer.dataBase64 = data.toString('base64');
+    } else {
+      this.fontSubsets.delete(subsetSha);
+      this.fontSubsets.set(subsetSha, data);
+      let held = [...this.fontSubsets.values()].reduce((sum, item) => sum + item.length, 0);
+      for (const [key, item] of this.fontSubsets) {
+        if (held <= FONT_SUBSET_CACHE_BYTES || key === subsetSha) break;
+        this.fontSubsets.delete(key);
+        held -= item.length;
+      }
+    }
+    sendJson(this.ws, answer);
+  }
+
+  /**
+   * Read the terminal's font settings again, at a browser's request. Every
+   * window of this workstation hears the answer, since they all draw with it.
+   */
+  handleFontRefresh() {
+    try {
+      const next = this.loadTerminalFont({ refresh: true });
+      if (next) this.terminalFont = next;
+    } catch (error) {
+      process.stderr.write(`herdr-remote host connector: could not read the terminal font: ${error.message}\n`);
+    }
+    sendJson(this.ws, { type: 'terminal_font', terminalFont: publicTerminalFont(this.terminalFont) });
   }
 
   /**
@@ -438,6 +579,7 @@ class HostConnector {
     this.stopSession(streamId);
     // A window opening is when a person is looking; that is when to ask.
     this.reportUpdateStatus();
+    this.pickUpTerminalFont();
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);

@@ -421,7 +421,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(translate('en', 'themes.claude' as any)).toBe('themes.claude');
     expect(translate('zh', 'themes.matrix' as any)).toBe('themes.matrix');
 
-    const presetIds = ['system', 'apple', 'windows', 'linux', 'courier', 'firacode'] as const;
+    // Only the two presets that are not a font's own name are translated.
+    const presetIds = ['host', 'system'] as const;
     for (const id of presetIds) {
       const enPreset = translate('en', `fontPresets.${id}` as any);
       const zhPreset = translate('zh', `fontPresets.${id}` as any);
@@ -440,8 +441,10 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>
     );
 
-    expect(screen.getByText('系统默认')).toBeInTheDocument();
+    expect(screen.getByText('宿主机终端字体（默认）')).toBeInTheDocument();
+    expect(screen.getByText('系统等宽字体')).toBeInTheDocument();
     expect(screen.getByText('Fira Code')).toBeInTheDocument();
+    expect(screen.getByText('与宿主机终端同字号（宿主机未报告）')).toBeInTheDocument();
     expect(screen.queryByText('Claude 象牙暖白 (Claude Ivory)')).not.toBeInTheDocument();
   });
 });

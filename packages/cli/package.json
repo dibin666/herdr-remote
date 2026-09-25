@@ -43,7 +43,8 @@
     "start": "node bin/herdr-remote.js"
   },
   "dependencies": {
-    "herdr-remote-relay": "^0.2.1",
+    "harfbuzzjs": "^1.6.2",
+    "herdr-remote-relay": "^0.3.9",
     "ink": "^7.1.1",
     "node-pty": "^1.1.0",
     "qrcode": "^1.5.4",

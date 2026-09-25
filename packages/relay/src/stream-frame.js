@@ -70,6 +70,68 @@ function sanitizeTerminalPalette(value) {
   return Object.keys(palette).length > 0 ? palette : null;
 }
 
+/** The faces a host may offer, in the order a browser registers them. */
+const TERMINAL_FONT_STYLES = ['regular', 'bold', 'italic', 'boldItalic'];
+const TERMINAL_FONT_FORMATS = ['truetype', 'opentype'];
+/** `cjk`: the face Hanzi fall back to; `all`: the family itself, too big to send whole. */
+const TERMINAL_FONT_SUBSET_SCOPES = ['cjk', 'all'];
+/** One font file; a CJK face is larger than this and is left to the browser. */
+const MAX_TERMINAL_FONT_BYTES = 16 * 1024 * 1024;
+/** Raw bytes per `host_font_chunk`; base64 keeps it far below any payload cap. */
+const TERMINAL_FONT_CHUNK_BYTES = 256 * 1024;
+/**
+ * A family name ends up inside a CSS `font-family` list in the browser. Quotes,
+ * separators and escapes are what would let a name break out of its slot, and
+ * no real family needs them.
+ */
+const FONT_FAMILY_FORBIDDEN = /["'\\;,{}<>@\u0000-\u001f\u007f]/;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/**
+ * Validates the terminal font a host reports.
+ *
+ * The browser draws the session in the family the workstation's terminal
+ * uses, and may fetch the font files by their hash. Every field is optional
+ * except the family; anything malformed is dropped rather than repaired.
+ */
+function sanitizeTerminalFont(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const family = typeof value.family === 'string' ? value.family.trim() : '';
+  if (!family || family.length > 128 || FONT_FAMILY_FORBIDDEN.test(family)) return null;
+
+  const font = { family };
+  const size = Number(value.sizePx);
+  if (Number.isFinite(size) && size >= 4 && size <= 96) font.sizePx = Math.round(size * 10) / 10;
+  if (typeof value.source === 'string' && /^[a-z0-9-]{1,32}$/.test(value.source)) font.source = value.source;
+
+  const faces = [];
+  const seen = new Set();
+  for (const face of Array.isArray(value.faces) ? value.faces.slice(0, 16) : []) {
+    if (!face || typeof face !== 'object') continue;
+    if (!TERMINAL_FONT_STYLES.includes(face.style) || seen.has(face.style)) continue;
+    if (!TERMINAL_FONT_FORMATS.includes(face.format)) continue;
+    if (!Number.isInteger(face.bytes) || face.bytes <= 0 || face.bytes > MAX_TERMINAL_FONT_BYTES) continue;
+    if (typeof face.sha256 !== 'string' || !SHA256_HEX.test(face.sha256)) continue;
+    seen.add(face.style);
+    faces.push({ style: face.style, format: face.format, bytes: face.bytes, sha256: face.sha256 });
+  }
+  font.faces = faces;
+
+  // Large fonts (CJK above all) are offered a few characters at a time.
+  const subsets = [];
+  for (const source of Array.isArray(value.subsets) ? value.subsets.slice(0, 16) : []) {
+    if (!source || typeof source !== 'object') continue;
+    const name = typeof source.family === 'string' ? source.family.trim() : '';
+    if (!name || name.length > 128 || FONT_FAMILY_FORBIDDEN.test(name)) continue;
+    if (source.style !== 'regular' || !TERMINAL_FONT_SUBSET_SCOPES.includes(source.scope)) continue;
+    if (typeof source.sha256 !== 'string' || !SHA256_HEX.test(source.sha256)) continue;
+    if (subsets.some((known) => known.scope === source.scope)) continue;
+    subsets.push({ family: name, style: 'regular', scope: source.scope, sha256: source.sha256 });
+  }
+  font.subsets = subsets;
+  return font;
+}
+
 function packStreamFrame(type, streamId, payload = Buffer.alloc(0)) {
   if (typeof type !== 'string' || !type || typeof streamId !== 'string' || !streamId) {
     throw new TypeError('type and streamId must be non-empty strings');
@@ -164,9 +226,13 @@ module.exports = {
   FRAME_TYPE_OUTPUT,
   FRAME_TYPE_INPUT,
   ANSI_PALETTE_KEYS,
+  TERMINAL_FONT_STYLES,
+  MAX_TERMINAL_FONT_BYTES,
+  TERMINAL_FONT_CHUNK_BYTES,
   packStreamFrame,
   unpackStreamFrame,
   packStreamFrameV2,
   unpackStreamFrameV2,
   sanitizeTerminalPalette,
+  sanitizeTerminalFont,
 };

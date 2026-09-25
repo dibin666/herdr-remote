@@ -41,6 +41,7 @@ test('host connector coalesces multiple onData chunks emitted in the same tick i
     socketPath,
     herdrCommand: process.execPath,
     terminalPalette: null,
+    terminalFont: null,
     PtySession: MockPty,
     config: {
       herdr: { args: [], cwd: process.cwd(), socketPath: null },
@@ -115,6 +116,7 @@ test('stopping a session clears pending output and scheduled flush', async (t) =
     socketPath,
     herdrCommand: process.execPath,
     terminalPalette: null,
+    terminalFont: null,
     PtySession: MockPty,
     config: {
       herdr: { args: [], cwd: process.cwd(), socketPath: null },

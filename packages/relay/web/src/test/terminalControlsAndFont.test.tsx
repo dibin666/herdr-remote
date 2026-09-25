@@ -6,10 +6,11 @@ import { SettingsModal } from '../components/SettingsModal';
 import {
   DEFAULT_TERMINAL_FONT,
   LEGACY_DEFAULT_FONT,
+  PREVIOUS_DEFAULT_FONT,
   getDefaultSettings,
   loadSettings,
 } from '../utils/storage';
-import { FONT_PRESETS, resolveTerminalFontFamily } from '../utils/theme';
+import { FONT_PRESETS, SYSTEM_FONT_STACK, resolveTerminalFontFamily } from '../utils/theme';
 
 // Helper component to control terminal context from within tests
 const TestControlHelper: React.FC<{
@@ -25,16 +26,43 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     localStorage.clear();
   });
 
-  it('uses system default monospace font stack by default and matches presets', () => {
+  it('follows the workstation terminal, face and size, by default', () => {
     const defaults = getDefaultSettings();
-    expect(defaults.fontFamily).toBe(DEFAULT_TERMINAL_FONT);
-    expect(defaults.fontFamily).toContain('ui-monospace');
-    expect(defaults.fontFamily).toContain('Menlo');
-    expect(defaults.fontFamily).toContain('Consolas');
-    expect(defaults.fontFamily).toContain('monospace');
+    expect(defaults.fontFamily).toBe('host');
+    expect(DEFAULT_TERMINAL_FONT).toBe('host');
+    expect(defaults.fontSizeFollowsHost).toBe(true);
+    // Before the host has said anything, "host" draws with the system stack.
+    expect(resolveTerminalFontFamily('host', null)).toBe(SYSTEM_FONT_STACK);
+    expect(SYSTEM_FONT_STACK).toContain('ui-monospace');
+    expect(SYSTEM_FONT_STACK).toContain('Consolas');
   });
 
-  it('automatically migrates legacy default font in localStorage to the new system font stack', () => {
+  it('turns the stacks older builds stored into the presets that replaced them', () => {
+    const cases: Array<[string, string]> = [
+      [PREVIOUS_DEFAULT_FONT, 'host'],
+      ['SFMono-Regular, Menlo, Monaco, "Symbols Nerd Font Mono", monospace', 'system'],
+      ['Consolas, "Lucida Console", "Symbols Nerd Font Mono", monospace', 'system'],
+      ['"Fira Code", "Symbols Nerd Font Mono", monospace', 'fira-code'],
+    ];
+    for (const [stored, expected] of cases) {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem('herdr_remote_settings_v1', JSON.stringify({ fontFamily: stored }));
+      expect(loadSettings().fontFamily).toBe(expected);
+      expect(JSON.parse(localStorage.getItem('herdr_remote_settings_v1') || '{}').fontFamily).toBe(expected);
+    }
+  });
+
+  it('keeps a size somebody chose, and lets a default size follow the host', () => {
+    localStorage.setItem('herdr_remote_settings_v1', JSON.stringify({ fontSize: 18 }));
+    expect(loadSettings().fontSizeFollowsHost).toBe(false);
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem('herdr_remote_settings_v1', JSON.stringify({ fontSize: 15 }));
+    expect(loadSettings().fontSizeFollowsHost).toBe(true);
+  });
+
+  it('automatically migrates legacy default font in localStorage to the host font', () => {
     // Simulate user having existing localStorage with legacy default font
     const legacyPayload = {
       wsUrl: '/ws/client',
@@ -47,7 +75,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     };
     localStorage.setItem('herdr_remote_settings_v1', JSON.stringify(legacyPayload));
 
-    // When loading settings, it should auto-migrate to DEFAULT_TERMINAL_FONT
+    // When loading settings, it should auto-migrate to the host font
     const loaded = loadSettings();
     expect(loaded.fontFamily).toBe(DEFAULT_TERMINAL_FONT);
     expect(loaded.token).toBe('tok-123');
@@ -74,7 +102,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(loaded.fontSize).toBe(16);
   });
 
-  it('offers the monospace font stacks as a single dropdown', () => {
+  it('offers the host font, the system stack and the bundled programming fonts in one dropdown', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
@@ -85,16 +113,17 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
 
     const fontSelect = screen.getByLabelText(/Monospace Font/i) as HTMLSelectElement;
     expect(fontSelect.tagName).toBe('SELECT');
-    expect(fontSelect.value).toBe(DEFAULT_TERMINAL_FONT);
+    expect(fontSelect.value).toBe('host');
 
     // Every preset is reachable from the one control
     const optionValues = Array.from(fontSelect.options).map((option) => option.value);
-    for (const preset of FONT_PRESETS) {
-      expect(optionValues).toContain(preset.font);
-    }
+    expect(optionValues).toEqual(FONT_PRESETS.map((preset) => preset.id));
+    expect(optionValues).toEqual(expect.arrayContaining([
+      'jetbrains-mono', 'fira-code', 'cascadia-code', 'source-code-pro', 'ibm-plex-mono',
+    ]));
 
-    fireEvent.change(fontSelect, { target: { value: FONT_PRESETS[1].font } });
-    expect(loadSettings().fontFamily).toBe(FONT_PRESETS[1].font);
+    fireEvent.change(fontSelect, { target: { value: 'cascadia-code' } });
+    expect(loadSettings().fontFamily).toBe('cascadia-code');
   });
 
   it('SettingsModal states plainly that every client shares one Herdr view', () => {
@@ -202,6 +231,22 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       expect(resolved).toContain('Symbols Nerd Font Mono');
       expect(resolved).toContain('ui-monospace');
       expect(resolved).toContain('monospace');
+    });
+
+    it('puts the host font first: fetched files, then its name, then the bundled look-alike', () => {
+      const resolved = resolveTerminalFontFamily('host', {
+        family: 'JetBrainsMono Nerd Font',
+        alias: 'Herdr Host 0ec29a68b539',
+      });
+      expect(resolved.startsWith('"Herdr Host 0ec29a68b539", "JetBrainsMono Nerd Font", "Herdr JetBrains Mono", ui-monospace')).toBe(true);
+      expect(resolved.endsWith('"Symbols Nerd Font Mono", "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Noto Sans Mono CJK TC", "Microsoft YaHei Mono", "PingFang SC", monospace')).toBe(true);
+      // Not loaded, and no bundled equivalent: the name, then the system stack.
+      expect(resolveTerminalFontFamily('host', { family: 'Iosevka Term' }).startsWith('"Iosevka Term", ui-monospace')).toBe(true);
+    });
+
+    it('names an installed copy of a programming font ahead of the bundled one', () => {
+      expect(resolveTerminalFontFamily('fira-code').startsWith('"Fira Code", "Herdr Fira Code", ui-monospace')).toBe(true);
+      expect(resolveTerminalFontFamily('system')).toBe(SYSTEM_FONT_STACK);
     });
 
     it('injects Symbols Nerd Font Mono before monospace for custom user fonts', () => {

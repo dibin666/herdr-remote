@@ -4,7 +4,11 @@ import { ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './vir
 import type { AgentKeymapsSettings } from './agentKeymaps';
 import { parseKeyCombo } from '../protocol/keyCombo';
 
-export const DEFAULT_TERMINAL_FONT =
+/** Draw the session in the workstation's own terminal font. */
+export const DEFAULT_TERMINAL_FONT = 'host';
+
+/** Earlier builds stored whole CSS stacks; these were their defaults. */
+export const PREVIOUS_DEFAULT_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace';
 
 export const OLD_SYSTEM_DEFAULT_FONT =
@@ -12,6 +16,27 @@ export const OLD_SYSTEM_DEFAULT_FONT =
 
 export const LEGACY_DEFAULT_FONT =
   'JetBrains Mono, Menlo, Monaco, Consolas, monospace';
+
+/**
+ * What an older build's font value becomes. A default follows the host now;
+ * a platform stack somebody picked becomes the system stack it was a slice
+ * of; Fira Code is still offered. Any other custom stack is kept as it is.
+ */
+const MIGRATED_FONTS: Record<string, string> = {
+  [PREVIOUS_DEFAULT_FONT]: 'host',
+  [OLD_SYSTEM_DEFAULT_FONT]: 'host',
+  [LEGACY_DEFAULT_FONT]: 'host',
+  'SFMono-Regular, Menlo, Monaco, "Symbols Nerd Font Mono", monospace': 'system',
+  'Consolas, "Lucida Console", "Symbols Nerd Font Mono", monospace': 'system',
+  '"Liberation Mono", "DejaVu Sans Mono", "Symbols Nerd Font Mono", monospace': 'system',
+  '"Courier New", Courier, "Symbols Nerd Font Mono", monospace': 'system',
+  '"Fira Code", "Symbols Nerd Font Mono", monospace': 'fira-code',
+};
+
+function migrateFontFamily(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return DEFAULT_TERMINAL_FONT;
+  return MIGRATED_FONTS[value] ?? value;
+}
 
 export interface ConnectionProfile {
   /** Browser-local identity for one relay + host pairing. */
@@ -42,6 +67,12 @@ export interface StoredSettings {
 
   // Per-window / session view states (stored in sessionStorage)
   fontSize: number;
+  /**
+   * Use the workstation terminal's size instead of `fontSize`. On by default;
+   * moving the size slider turns it off.
+   */
+  fontSizeFollowsHost: boolean;
+  /** A preset id from `FONT_PRESETS` (`host` by default) or a custom CSS stack. */
   fontFamily: string;
   toolbarVisible: boolean;
   toolbarPosition: 'bottom' | 'top';
@@ -205,6 +236,7 @@ export function getDefaultSettings(): StoredSettings {
     profiles: [],
     activeProfileId: '',
     fontSize: isMobile ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE,
+    fontSizeFollowsHost: true,
     fontFamily: DEFAULT_TERMINAL_FONT,
     toolbarVisible: true,
     toolbarPosition: 'bottom',
@@ -241,6 +273,7 @@ const CONNECTION_KEYS: Array<keyof StoredSettings> = [
 
 const SESSION_KEYS: Array<keyof StoredSettings> = [
   'fontSize',
+  'fontSizeFollowsHost',
   'fontFamily',
   'toolbarVisible',
   'toolbarPosition',
@@ -440,16 +473,20 @@ export function loadSettings(): StoredSettings {
     safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionData));
   }
 
-  // Auto-migrate legacy default font to new system monospace font stack (with Symbols Nerd Font Mono)
-  let fontFamily = sessionData.fontFamily ?? localData.fontFamily ?? defaults.fontFamily;
-  if (!fontFamily || fontFamily === LEGACY_DEFAULT_FONT || fontFamily === OLD_SYSTEM_DEFAULT_FONT) {
-    fontFamily = DEFAULT_TERMINAL_FONT;
-  }
+  // Stacks stored by older builds become the preset that replaced them.
+  const fontFamily = migrateFontFamily(sessionData.fontFamily ?? localData.fontFamily ?? defaults.fontFamily);
 
   const fallbackSize = window.innerWidth < 640 ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE;
   // Strict priority: sessionData (per-window) > localData (seed) > defaults
   const rawFontSize = sessionData.fontSize ?? localData.fontSize ?? defaults.fontSize;
   const fontSize = clampFontSize(rawFontSize, fallbackSize);
+  // Settings from before the size could follow the host: a size somebody
+  // moved away from the default was a choice and is kept; a default size
+  // follows the host like a fresh install.
+  const storedFollows = sessionData.fontSizeFollowsHost ?? localData.fontSizeFollowsHost;
+  const fontSizeFollowsHost = typeof storedFollows === 'boolean'
+    ? storedFollows
+    : rawFontSize === undefined || fontSize === DEFAULT_DESKTOP_FONT_SIZE || fontSize === DEFAULT_MOBILE_FONT_SIZE;
 
   const rawVirtualKeys = sessionData.virtualKeys ?? localData.virtualKeys ?? defaults.virtualKeys;
   const virtualKeys = sanitizeVirtualKeys(rawVirtualKeys);
@@ -501,6 +538,7 @@ export function loadSettings(): StoredSettings {
       : defaults.clientId,
     fontFamily,
     fontSize,
+    fontSizeFollowsHost,
     toolbarVisible,
     toolbarPosition,
     vibrateOnKeyPress,
@@ -516,9 +554,10 @@ export function loadSettings(): StoredSettings {
     adminTokens,
   };
 
-  // If migrated from legacy default font in localStorage, update localStorage
-  if (localData.fontFamily === LEGACY_DEFAULT_FONT) {
-    localData.fontFamily = DEFAULT_TERMINAL_FONT;
+  // Write a migrated font back, so the browser-wide copy a new window seeds
+  // from no longer names a stack that is not offered any more.
+  if (typeof localData.fontFamily === 'string' && migrateFontFamily(localData.fontFamily) !== localData.fontFamily) {
+    localData.fontFamily = migrateFontFamily(localData.fontFamily);
     safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localData));
   }
 

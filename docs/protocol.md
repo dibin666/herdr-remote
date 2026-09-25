@@ -24,6 +24,14 @@ The host connects to `/ws/host` and sends:
     "foreground": "#ffffff",
     "cursor": "#ffffff",
     "ansi": { "black": "#2e3436", "red": "#cc0000", "...": "16 slots" }
+  },
+  "terminalFont": {
+    "family": "JetBrainsMono Nerd Font",
+    "sizePx": 12,
+    "source": "gnome-terminal",
+    "faces": [
+      { "style": "regular", "format": "truetype", "bytes": 2469104, "sha256": "0ec29a68..." }
+    ]
   }
 }
 ```
@@ -83,6 +91,83 @@ its own defaults — no side of this protocol ever invents a color. The relay va
 (plain `#rrggbb` only, and an all-or-nothing set of sixteen ANSI slots) before
 forwarding it, because it ends up in a browser's renderer options.
 
+### Terminal font
+
+No escape sequence that mainstream emulators answer reports the font, so the
+host identifies its terminal — the nearest emulator among its ancestor
+processes, else the variables emulators export (`GNOME_TERMINAL_SCREEN`,
+`KITTY_WINDOW_ID`, `TERM_PROGRAM`, …) — and reads that terminal's own
+settings: GSettings for GNOME Terminal, Ptyxis and Tilix; the config files of
+Konsole, xfce4-terminal, kitty, Alacritty, Ghostty, foot and VS Code; `wezterm
+ls-fonts`; the binary preference files of iTerm2 and Terminal.app (whose font
+is an archived NSFont); and, for xterm and urxvt, the emulator's own command
+line (`-fa`/`-fs`/`-fn`/`-xrm`) over the X resource database. An xterm drawing
+with a bitmap core font reports nothing, since no browser can load one. Like the palette, the answer is captured where
+the terminal is still known, handed down in `HERDR_TERM_FONT_JSON`, and
+remembered in the state file. An unknown terminal yields `null`; the browser
+then keeps its own monospace stack.
+
+`terminalFont` carries the `family`, the size in CSS pixels (`sizePx`,
+converted from the terminal's points at 96/72), the terminal it came from
+(`source`), and up to four `faces` — `regular`, `bold`, `italic`, `boldItalic`
+— that fontconfig (or, on a stock macOS, a scan of the font folders) resolves
+to standalone TTF/OTF files of at most 16 MB. Apple's system fonts (anything
+under `/System` or inside an app bundle) are never offered: they are licensed
+for Apple devices, which have them already. File paths never leave the host;
+a face is known to the other side only by its SHA-256. The relay drops a family
+name containing quotes, commas, semicolons, braces or control characters,
+because it is placed in a CSS `font-family` list.
+
+A browser that lacks the family asks its user, then pulls the files a slice at
+a time so a font never queues ahead of terminal output:
+
+```json
+{ "type": "host_font_chunk_request", "sha256": "0ec29a68...", "index": 0 }
+```
+
+The relay forwards only hashes the workstation announced, at most four
+outstanding slices per window, and the host answers the requesting window
+alone:
+
+```json
+{ "type": "host_font_chunk", "sha256": "0ec29a68...", "index": 0, "total": 10, "dataBase64": "..." }
+```
+
+A slice is 256 KiB of the file. If the file changed since it was announced the
+host answers `error` with `host_font_unavailable` instead. A browser sends
+`host_font_refresh` to have the host read the terminal settings again; the host
+replies with `terminal_font`, which the relay stores and forwards to every
+window of that workstation.
+
+#### Large fonts, cut to size
+
+A CJK face is 16–20 MB and often lives in a collection (`.ttc`) no browser can
+load, so `terminalFont.subsets` offers it differently:
+
+```json
+"subsets": [{ "family": "Noto Sans CJK SC", "style": "regular", "scope": "cjk", "sha256": "e57be2af..." }]
+```
+
+`scope: "cjk"` is the face fontconfig falls back to for Hanzi under the
+terminal's family; `scope: "all"` is the family itself when it is too large to
+send whole. The browser asks for the characters it needs and the host cuts them
+out with HarfBuzz's subsetter (`harfbuzzjs`), a few milliseconds per request:
+
+```json
+{ "type": "host_font_subset_request", "sha256": "e57be2af...", "text": "龘靐", "requestId": "k3j9x2" }
+```
+
+The first request after the user agrees carries the 3,755 first-level GB 2312
+Hanzi plus CJK punctuation (about 1.7 MB cut); later ones carry only characters
+the terminal has drawn and this device does not hold. The answer is
+`host_font_subset_ready` with `subsetSha` and `bytes`; a cut of at most one
+slice carries `dataBase64` inline, a larger one is pulled with
+`host_font_chunk_request` by `subsetSha` — which the relay allows only for the
+window that asked. The browser registers each cut as a FontFace limited to its
+characters by `unicode-range` and keeps it in IndexedDB. The relay accepts only
+announced sources, at most four requests in flight per window, and `text` up to
+32 KiB.
+
 ## Browser connection
 
 The browser connects to `/ws/client` and sends `hello` with either a one-time
@@ -101,7 +186,8 @@ The browser connects to `/ws/client` and sends `hello` with either a one-time
 ```
 
 The relay responds with `paired` when a new device token was issued, followed
-by `ready`. `ready` carries the workstation's `terminalPalette` (or `null`),
+by `ready`. `ready` carries the workstation's `terminalPalette` and
+`terminalFont` (each possibly `null`),
 delivered before the first PTY byte so the terminal is painted in the host's
 colors from its first frame instead of repainting mid-session, and `clientCount`,
 the number of windows now sharing this terminal.

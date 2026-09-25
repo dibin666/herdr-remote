@@ -212,6 +212,31 @@ export interface TranslationSchema {
     resetDefaultsToast: string;
     windowZoomSharedNote: string;
     fontSizeZoomHelp: string;
+    fontSizeFollowHost: string;
+    fontSizeFollowHostUnknown: string;
+    hostFontSync: string;
+    hostGlyphLine: string;
+    hostGlyphStatus: {
+      none: string;
+      checking: string;
+      installed: string;
+      available: string;
+      declined: string;
+      loading: string;
+      ready: string;
+      failed: string;
+    };
+    hostFontStatus: {
+      none: string;
+      checking: string;
+      installed: string;
+      loaded: string;
+      available: string;
+      declined: string;
+      loading: string;
+      failed: string;
+      unavailable: string;
+    };
   };
   virtualKeyboard: {
     collapseToolbar: string;
@@ -626,12 +651,30 @@ export interface TranslationSchema {
     no_session: string;
   };
   fontPresets: {
+    host: string;
     system: string;
-    apple: string;
-    windows: string;
-    linux: string;
-    courier: string;
-    firacode: string;
+  };
+  hostFont: {
+    title: string;
+    body: string;
+    bodyGlyphsOnly: string;
+    glyphs: string;
+    glyphsAll: string;
+    detail: string;
+    detailSeparator: string;
+    download: string;
+    load: string;
+    decline: string;
+    loading: string;
+    failed: string;
+    loaded: string;
+    reasons: {
+      host_font_unavailable: string;
+      host_font_timeout: string;
+      disconnected: string;
+      font_api_unavailable: string;
+      other: string;
+    };
   };
   agents: {
     title: string;

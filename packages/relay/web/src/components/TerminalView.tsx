@@ -4,7 +4,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../context/TerminalContext';
-import { hostPaletteToTheme, resolveTerminalFontFamily } from '../utils/theme';
+import { hostPaletteToTheme } from '../utils/theme';
 import { encodeKeyWithModifiers, encodeStringToBytes, isSingleKey } from '../protocol/keyEncoder';
 import { classifyInput } from '../utils/inputClassifier';
 import { isWheelOnlyInput } from '../protocol/scrollInput';
@@ -219,6 +219,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     connectionState,
     settings,
     hostPalette,
+    terminalFontFamily,
+    terminalFontSize,
+    hostFont,
+    ensureHostGlyphs,
     terminalResetVersion,
     sendResize,
     sendBinary,
@@ -246,6 +250,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   const hostTheme = React.useMemo(() => hostPaletteToTheme(hostPalette), [hostPalette]);
   const hostThemeRef = useRef(hostTheme);
   hostThemeRef.current = hostTheme;
+  // Characters on screen are offered to the host font's cut, when there is one.
+  const ensureHostGlyphsRef = useRef(ensureHostGlyphs);
+  ensureHostGlyphsRef.current = ensureHostGlyphs;
+  const glyphScanRef = useRef(false);
+  glyphScanRef.current = hostFont.glyphs.status === 'ready';
 
   // Fresh mutable refs to avoid stale React closure bugs in event listeners
   const isControllerRef = useRef(isController);
@@ -750,14 +759,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     lastBoxRef.current = { width: initialBox.width, height: initialBox.height };
     lastZoomSnapshotRef.current = getVisualZoomSnapshot(initialBox);
 
-    const initialVisualFontSize = getEffectiveTerminalFontSize(settings.fontSize, initialBox.width);
+    const initialVisualFontSize = getEffectiveTerminalFontSize(terminalFontSize, initialBox.width);
 
     // The only palette in play is the host's, when the host could report one.
     // There is no client theme and no `minimumContrastRatio`, so every SGR/OSC
     // color the Herdr host emits reaches the screen unaltered.
     const term = new Terminal({
       fontSize: initialVisualFontSize,
-      fontFamily: resolveTerminalFontFamily(settings.fontFamily),
+      fontFamily: terminalFontFamily,
       lineHeight: 1.15,
       ...(hostThemeRef.current ? { theme: { ...hostThemeRef.current } } : {}),
       allowProposedApi: true,
@@ -1019,6 +1028,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         ? term.onRender((e: { start: number; end: number }) => {
             // Every content frame lands here; React only hears of an actual scroll.
             const currentViewportY = term.buffer.active.viewportY ?? 0;
+            if (glyphScanRef.current) {
+              let drawn = '';
+              for (let row = e.start; row <= e.end; row += 1) {
+                drawn += term.buffer.active.getLine(currentViewportY + row)?.translateToString(true) ?? '';
+              }
+              // ASCII never needs a cut; skip the common case cheaply.
+              if (/[^\x00-\x7f]/.test(drawn)) ensureHostGlyphsRef.current(drawn);
+            }
             if (currentViewportY !== viewportYRef.current) {
               viewportYRef.current = currentViewportY;
               setViewportY(currentViewportY);
@@ -1475,14 +1492,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     applyDocumentTitle(showing ? terminalTitle : null, activeProfileName, attention);
   }, [isActive, connectionState, terminalTitle, activeProfileName, agentStatus, settings.agentAlertBadge]);
 
-  // Sync visual-only settings changes (fontSize, fontFamily) with the live terminal
+  // Sync visual-only changes (size, face — including the host's font arriving)
+  // with the live terminal
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
 
     const box = measureElementBox(containerRef.current, getViewportWidth(), getViewportHeight());
-    term.options.fontSize = getEffectiveTerminalFontSize(settings.fontSize, box.width);
-    term.options.fontFamily = resolveTerminalFontFamily(settings.fontFamily);
+    term.options.fontSize = getEffectiveTerminalFontSize(terminalFontSize, box.width);
+    term.options.fontFamily = terminalFontFamily;
 
     try {
       term.refresh(0, Math.max(0, term.rows - 1));
@@ -1495,7 +1513,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     // leaving the frame half-painted; the renderer needs a frame to re-measure,
     // which is what the bounded chain waits for.
     scheduleBoundedFit(10);
-  }, [settings.fontSize, settings.fontFamily]);
+  }, [terminalFontSize, terminalFontFamily]);
+
+  // New characters from the host's cut font arrived under a family already in
+  // the stack: nothing about the font options changed, so repaint explicitly.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || !hostFont.glyphRevision) return;
+    rendererRef.current?.canvas?.clearTextureAtlas();
+    try {
+      term.refresh(0, Math.max(0, term.rows - 1));
+    } catch {
+      // ignore
+    }
+  }, [hostFont.glyphRevision]);
 
   // Keys from the on-screen toolbars go out through the context, not through
   // xterm, so they reach the predictor here.

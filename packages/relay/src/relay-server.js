@@ -16,6 +16,8 @@ const {
   packStreamFrameV2,
   FRAME_TYPE_INPUT,
   sanitizeTerminalPalette,
+  sanitizeTerminalFont,
+  TERMINAL_FONT_CHUNK_BYTES,
 } = require('./stream-frame');
 const { ensureDir } = require('./state');
 
@@ -32,6 +34,25 @@ const RELEASE_VERSION = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/;
 
 /** A window asks to start its workstation's Herdr at most this often. */
 const HERDR_START_REPEAT_MS = 3_000;
+
+/** A window asks its workstation to re-read the terminal font at most this often. */
+const FONT_REFRESH_REPEAT_MS = 2_000;
+/**
+ * Font chunks a window may have outstanding. Fonts are pulled a slice at a
+ * time so megabytes of font never queue ahead of terminal output; an answer
+ * that never comes stops counting after the timeout.
+ */
+const MAX_FONT_CHUNKS_IN_FLIGHT = 4;
+const FONT_CHUNK_TIMEOUT_MS = 30_000;
+/** Base64 of one full chunk, the most a `host_font_chunk` may carry. */
+const MAX_FONT_CHUNK_BASE64 = Math.ceil(TERMINAL_FONT_CHUNK_BYTES / 3) * 4;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+/** Characters one subset request may ask for (UTF-16 units of `text`). */
+const MAX_FONT_SUBSET_TEXT = 32 * 1024;
+/** Cut fonts a window may pull by hash; older ones stop being fetchable. */
+const MAX_FONT_SUBSETS_PER_CLIENT = 64;
+const MAX_FONT_SUBSET_BYTES = 16 * 1024 * 1024;
+const REQUEST_ID = /^[A-Za-z0-9_-]{1,32}$/;
 
 /** Matches the host's own cap; the relay re-applies it rather than trusting it. */
 const MAX_AGENT_STATUS_ENTRIES = 16;
@@ -57,6 +78,16 @@ function isOpen(socket) {
 
 function jsonSend(socket, payload) {
   if (isOpen(socket)) socket.send(JSON.stringify(payload));
+}
+
+/** One outstanding font chunk request of this window was answered. */
+function settleFontChunk(client) {
+  if (Array.isArray(client.fontChunkRequests) && client.fontChunkRequests.length) client.fontChunkRequests.shift();
+}
+
+/** One outstanding font subset request of this window was answered. */
+function settleFontSubset(client) {
+  if (Array.isArray(client.fontSubsetRequests) && client.fontSubsetRequests.length) client.fontSubsetRequests.shift();
 }
 
 function closeSocket(socket, code = 1000, reason = '') {
@@ -613,6 +644,8 @@ class RelayServer {
       connectedAt: new Date(pending.connectedAt).toISOString(),
       connectedAtMs: pending.connectedAt,
       terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
+      /** Family, size and fetchable files of the workstation's terminal font. */
+      terminalFont: sanitizeTerminalFont(message.terminalFont),
       /** The latest workstation snapshot is replayed when a browser joins late. */
       agentStatus: null,
       /** Whether the workstation's herdr-remote is behind; replayed the same way. */
@@ -841,6 +874,10 @@ class RelayServer {
       this.broadcastUpdateStatus(host, message);
       return;
     }
+    if (message.type === 'terminal_font') {
+      this.broadcastTerminalFont(host, message);
+      return;
+    }
     // Session events target the single client that owns this stream.
     const streamId = typeof message.clientId === 'string' ? message.clientId : message.streamId;
     const clientId = streamId ? this.streams.get(streamId) : null;
@@ -861,12 +898,21 @@ class RelayServer {
         client.session = null;
       }
       this.detachClient(client, { notify: false });
+    } else if (message.type === 'host_font_chunk') {
+      this.forwardFontChunk(host, client, message);
+    } else if (message.type === 'host_font_subset_ready') {
+      this.forwardFontSubset(client, message);
     } else if (message.type === 'paste_file_ready') {
       jsonSend(client.ws, {
         type: 'paste_file_ready',
         path: message.path,
       });
     } else if (message.type === 'error') {
+      if (message.code === 'host_font_unavailable') {
+        settleFontChunk(client);
+        settleFontSubset(client);
+      }
+      if (message.code === 'host_font_subset_failed') settleFontSubset(client);
       jsonSend(client.ws, {
         type: 'error',
         code: message.code || 'host_error',
@@ -1009,6 +1055,7 @@ class RelayServer {
         rows: client.rows,
         hostname: host.hostname,
         terminalPalette: host.terminalPalette || null,
+        terminalFont: host.terminalFont || null,
       });
     }
   }
@@ -1112,6 +1159,7 @@ class RelayServer {
           // Delivered with `ready`, before the first PTY byte, so the terminal
           // is painted in the host's colors from its very first frame.
           terminalPalette: host.terminalPalette || null,
+          terminalFont: host.terminalFont || null,
           clientCount: host.clients.size,
         });
         if (host.agentStatus) jsonSend(ws, host.agentStatus);
@@ -1199,6 +1247,19 @@ class RelayServer {
       if (isOpen(host.ws)) {
         jsonSend(host.ws, { type: 'herdr_start', clientId: client.session.streamId, streamId: client.session.streamId });
       }
+    } else if (message.type === 'host_font_chunk_request') {
+      this.requestFontChunk(host, client, message);
+    } else if (message.type === 'host_font_subset_request') {
+      this.requestFontSubset(host, client, message);
+    } else if (message.type === 'host_font_refresh') {
+      // Same routing as herdr_start: only the workstation this window is
+      // bound to, and only what it offered. Repeats inside the window are
+      // dropped; the answer is broadcast to every window anyway.
+      if (!client.session || !isOpen(host.ws)) return;
+      const now = Date.now();
+      if (client.fontRefreshAt && now - client.fontRefreshAt < FONT_REFRESH_REPEAT_MS) return;
+      client.fontRefreshAt = now;
+      jsonSend(host.ws, { type: 'host_font_refresh', clientId: client.session.streamId, streamId: client.session.streamId });
     } else if (message.type === 'claim_control') {
       // Control is no longer a lease. Answering the old request keeps clients
       // built against the previous protocol working.
@@ -1356,6 +1417,116 @@ class RelayServer {
    * it. Only version strings and two flags pass: this ends up as text in the
    * browser, and the host is not the relay's to trust.
    */
+  /** The workstation re-read its terminal font; every window draws with it. */
+  broadcastTerminalFont(host, message) {
+    host.terminalFont = sanitizeTerminalFont(message.terminalFont);
+    const payload = { type: 'terminal_font', terminalFont: host.terminalFont || null };
+    for (const clientId of host.clients) {
+      const client = this.clients.get(clientId);
+      if (client) jsonSend(client.ws, payload);
+    }
+  }
+
+  /**
+   * Pass a browser's request for one slice of a font file to its workstation.
+   * Only a file the workstation announced can be asked for, by its hash, and
+   * only a few slices at a time.
+   */
+  requestFontChunk(host, client, message) {
+    if (!client.session || !isOpen(host.ws)) return;
+    const face = host.terminalFont?.faces?.find((candidate) => candidate.sha256 === message.sha256);
+    // A whole font file the workstation announced, or a cut it made for this window.
+    const bytes = face ? face.bytes : client.fontSubsets?.get(message.sha256) || 0;
+    const total = Math.ceil(bytes / TERMINAL_FONT_CHUNK_BYTES);
+    if (!bytes || !Number.isInteger(message.index) || message.index < 0 || message.index >= total) {
+      jsonSend(client.ws, { type: 'error', code: 'host_font_unavailable', message: 'The workstation did not offer this font file' });
+      return;
+    }
+    const now = Date.now();
+    client.fontChunkRequests = (client.fontChunkRequests || []).filter((at) => now - at < FONT_CHUNK_TIMEOUT_MS);
+    if (client.fontChunkRequests.length >= MAX_FONT_CHUNKS_IN_FLIGHT) return;
+    client.fontChunkRequests.push(now);
+    jsonSend(host.ws, {
+      type: 'host_font_chunk_request',
+      clientId: client.session.streamId,
+      streamId: client.session.streamId,
+      sha256: message.sha256,
+      index: message.index,
+    });
+  }
+
+  /**
+   * Ask the workstation to cut characters out of a large font it announced.
+   * The text is only characters to look up; a few requests at a time.
+   */
+  requestFontSubset(host, client, message) {
+    if (!client.session || !isOpen(host.ws)) return;
+    const known = host.terminalFont?.subsets?.some((source) => source.sha256 === message.sha256);
+    const valid = known && typeof message.text === 'string' && message.text.length > 0
+      && message.text.length <= MAX_FONT_SUBSET_TEXT
+      && typeof message.requestId === 'string' && REQUEST_ID.test(message.requestId);
+    if (!valid) {
+      jsonSend(client.ws, { type: 'error', code: 'host_font_unavailable', message: 'The workstation did not offer this font' });
+      return;
+    }
+    const now = Date.now();
+    client.fontSubsetRequests = (client.fontSubsetRequests || []).filter((at) => now - at < FONT_CHUNK_TIMEOUT_MS);
+    if (client.fontSubsetRequests.length >= MAX_FONT_CHUNKS_IN_FLIGHT) return;
+    client.fontSubsetRequests.push(now);
+    jsonSend(host.ws, {
+      type: 'host_font_subset_request',
+      clientId: client.session.streamId,
+      streamId: client.session.streamId,
+      requestId: message.requestId,
+      sha256: message.sha256,
+      text: message.text,
+    });
+  }
+
+  forwardFontSubset(client, message) {
+    settleFontSubset(client);
+    const valid = typeof message.sha256 === 'string' && SHA256_HEX.test(message.sha256)
+      && typeof message.subsetSha === 'string' && SHA256_HEX.test(message.subsetSha)
+      && typeof message.requestId === 'string' && REQUEST_ID.test(message.requestId)
+      && Number.isInteger(message.bytes) && message.bytes > 0 && message.bytes <= MAX_FONT_SUBSET_BYTES
+      && (message.dataBase64 === undefined
+        || (typeof message.dataBase64 === 'string' && message.dataBase64.length <= MAX_FONT_CHUNK_BASE64));
+    if (!valid) return;
+    if (message.dataBase64 === undefined) {
+      // Pulled in slices next: make this hash fetchable for this window only.
+      client.fontSubsets ||= new Map();
+      client.fontSubsets.delete(message.subsetSha);
+      client.fontSubsets.set(message.subsetSha, message.bytes);
+      while (client.fontSubsets.size > MAX_FONT_SUBSETS_PER_CLIENT) {
+        client.fontSubsets.delete(client.fontSubsets.keys().next().value);
+      }
+    }
+    jsonSend(client.ws, {
+      type: 'host_font_subset_ready',
+      requestId: message.requestId,
+      sha256: message.sha256,
+      subsetSha: message.subsetSha,
+      bytes: message.bytes,
+      ...(message.dataBase64 !== undefined ? { dataBase64: message.dataBase64 } : {}),
+    });
+  }
+
+  forwardFontChunk(host, client, message) {
+    settleFontChunk(client);
+    const valid = typeof message.sha256 === 'string' && SHA256_HEX.test(message.sha256)
+      && Number.isInteger(message.index) && message.index >= 0
+      && Number.isInteger(message.total) && message.total > message.index
+      && typeof message.dataBase64 === 'string' && message.dataBase64.length <= MAX_FONT_CHUNK_BASE64;
+    if (!valid) return;
+    jsonSend(client.ws, {
+      type: 'host_font_chunk',
+      sha256: message.sha256,
+      index: message.index,
+      total: message.total,
+      dataBase64: message.dataBase64,
+    });
+  }
+
   broadcastUpdateStatus(host, message) {
     const version = (value) => (typeof value === 'string' && RELEASE_VERSION.test(value) ? value : null);
     const current = version(message.current);

@@ -30,7 +30,9 @@ import {
   saveIgnoredUpdate,
 } from '../utils/storage';
 import { translate, Language } from '../i18n';
-import { applyDocumentTheme } from '../utils/theme';
+import { applyDocumentTheme, resolveTerminalFontFamily } from '../utils/theme';
+import { clampFontSize } from '../utils/terminalLayout';
+import { useHostFont, type HostFontState } from '../utils/useHostFont';
 import { resolveProfile, type AgentProfileId } from '../utils/agentKeymaps';
 import {
   compressAndPrepareImage,
@@ -119,6 +121,20 @@ interface TerminalContextValue {
   settings: StoredSettings;
   /** The host terminal's own colors, or null when the host could not report them. */
   hostPalette: HostTerminalPalette | null;
+  /** The workstation terminal's font, and whether this window can draw it. */
+  hostFont: HostFontState;
+  /** Fetch the host's font files (asked once per font, remembered per host). */
+  loadHostFont: () => void;
+  /** Keep this device's own fonts for the current host font. */
+  declineHostFont: () => void;
+  /** Have the host re-read its terminal's font, and load what it reports. */
+  syncHostFont: () => void;
+  /** Characters about to be drawn; fetches any the host's cut font should supply. */
+  ensureHostGlyphs: (text: string) => void;
+  /** The CSS font-family list the terminal and the interface draw with. */
+  terminalFontFamily: string;
+  /** The terminal's base size in CSS pixels, before small-screen fitting. */
+  terminalFontSize: number;
   terminalDimensions: { cols: number; rows: number };
   toasts: ToastItem[];
   adapter: HerdrClientAdapter | null;
@@ -755,6 +771,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         setHerdrLaunch({ phase: 'failed', message: err.message || '' });
         return;
       }
+      // Belongs to a font transfer, which reports it in its own dialog.
+      if (err.code === 'host_font_unavailable') return;
       if (activeUploadTaskIdRef.current !== null) {
         if (uploadTimeoutTimerRef.current) {
           clearTimeout(uploadTimeoutTimerRef.current);
@@ -842,6 +860,29 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const adapter = adapterRef.current;
   const activeProfile = settings.profiles.find((profile) => profile.id === settings.activeProfileId);
+
+  const { hostFont, loadHostFont, declineHostFont, syncHostFont, ensureHostGlyphs } = useHostFont(adapter);
+  const terminalFontFamily = resolveTerminalFontFamily(
+    settings.fontFamily,
+    hostFont.font
+      ? {
+        family: hostFont.font.family,
+        alias: hostFont.status === 'loaded' ? hostFont.alias : null,
+        glyphs: hostFont.glyphs.source
+          ? { family: hostFont.glyphs.source.family, scope: hostFont.glyphs.source.scope, alias: hostFont.glyphs.alias }
+          : null,
+      }
+      : null,
+  );
+  const terminalFontSize = settings.fontSizeFollowsHost && hostFont.font?.sizePx
+    ? clampFontSize(hostFont.font.sizePx, settings.fontSize)
+    : settings.fontSize;
+
+  // The interface around the terminal is drawn as terminal cells too; it uses
+  // the terminal's face so the two read as one screen. Sizes stay fixed.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--tui-font', terminalFontFamily);
+  }, [terminalFontFamily]);
 
   // Keep the live adapter's credentials in step with saved settings.
   useEffect(() => {
@@ -1184,6 +1225,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         lastPairedAt,
         settings,
         hostPalette,
+        hostFont,
+        loadHostFont: () => { void loadHostFont(); },
+        declineHostFont,
+        syncHostFont,
+        ensureHostGlyphs,
+        terminalFontFamily,
+        terminalFontSize,
         terminalDimensions,
         toasts,
         adapter,

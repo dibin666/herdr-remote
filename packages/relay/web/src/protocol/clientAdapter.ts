@@ -16,6 +16,9 @@ import {
   ServerAgentStatusMessage,
   ServerUpdateStatusMessage,
   ServerSessionRestartedMessage,
+  ServerHostFontChunkMessage,
+  ServerHostFontSubsetMessage,
+  HostTerminalFont,
   ClientRole,
   ConnectionState,
   ConnectionConfig,
@@ -57,6 +60,15 @@ export type AdapterEventMap = {
   agentStatus: (status: ServerAgentStatusMessage) => void;
   /** Whether the workstation's herdr-remote has a newer release; broadcast. */
   updateStatus: (status: ServerUpdateStatusMessage) => void;
+  /**
+   * The workstation's terminal font: with `ready`, after a session restart,
+   * and whenever the host re-reads it. `null` when the host reported none.
+   */
+  terminalFont: (font: HostTerminalFont | null) => void;
+  /** One slice of a font file this window asked for. */
+  hostFontChunk: (chunk: ServerHostFontChunkMessage) => void;
+  /** A large font cut to the characters this window asked for. */
+  hostFontSubset: (subset: ServerHostFontSubsetMessage) => void;
 };
 
 /** How long a ping may go unanswered before the socket is written off. */
@@ -116,6 +128,9 @@ export class HerdrClientAdapter {
     pasteFileReady: new Set(),
     agentStatus: new Set(),
     updateStatus: new Set(),
+    terminalFont: new Set(),
+    hostFontChunk: new Set(),
+    hostFontSubset: new Set(),
   };
 
   private terminalCols = 80;
@@ -409,6 +424,7 @@ export class HerdrClientAdapter {
         this.emit('ready', msg);
         this.emit('roleChange', msg.role, msg.controllerId, msg.hostId, msg.clientId);
         if (typeof msg.clientCount === 'number') this.emit('peerCount', msg.clientCount);
+        this.emit('terminalFont', msg.terminalFont ?? null);
         break;
       }
 
@@ -441,6 +457,7 @@ export class HerdrClientAdapter {
       case 'session_restarted': {
         this.setState('reconnecting', 'Herdr session is restarting', 'session_restarted');
         this.emit('sessionRestarted', msg.cols, msg.rows, msg.terminalPalette, msg.hostname);
+        this.emit('terminalFont', msg.terminalFont ?? null);
         break;
       }
 
@@ -526,6 +543,21 @@ export class HerdrClientAdapter {
 
       case 'update_status': {
         this.emit('updateStatus', msg);
+        break;
+      }
+
+      case 'terminal_font': {
+        this.emit('terminalFont', msg.terminalFont ?? null);
+        break;
+      }
+
+      case 'host_font_chunk': {
+        this.emit('hostFontChunk', msg);
+        break;
+      }
+
+      case 'host_font_subset_ready': {
+        this.emit('hostFontSubset', msg);
         break;
       }
 
@@ -686,6 +718,21 @@ export class HerdrClientAdapter {
       mime,
       dataBase64,
     });
+  }
+
+  /** One slice of an announced terminal font file, by the file's hash. */
+  public sendHostFontChunkRequest(sha256: string, index: number): void {
+    this.sendJson({ type: 'host_font_chunk_request', sha256, index });
+  }
+
+  /** Cut `text`'s characters out of an announced large font. */
+  public sendHostFontSubsetRequest(sha256: string, text: string, requestId: string): void {
+    this.sendJson({ type: 'host_font_subset_request', sha256, text, requestId });
+  }
+
+  /** Ask the workstation to read its terminal's font settings again. */
+  public sendHostFontRefresh(): void {
+    this.sendJson({ type: 'host_font_refresh' });
   }
 
   /** Ask the paired workstation to start its Herdr; see `ClientHerdrStartMessage`. */

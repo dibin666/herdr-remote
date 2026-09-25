@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTerminal } from '../context/TerminalContext';
 import { getDefaultSettings } from '../utils/storage';
 import { FONT_PRESETS } from '../utils/theme';
+import { clampFontSize } from '../utils/terminalLayout';
+import { TERMINAL_SOURCE_NAMES } from './HostFontPrompt';
 import {
   ToolbarKeyDef,
   ALL_AVAILABLE_KEYS,
@@ -65,7 +67,20 @@ interface SettingsModalProps {
  * colour belongs to the host.
  */
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
-  const { settings, updateSettings, addToast, language, setLanguage, t, agentProfile } = useTerminal();
+  const {
+    settings,
+    updateSettings,
+    addToast,
+    language,
+    setLanguage,
+    t,
+    agentProfile,
+    connectionState,
+    hostFont,
+    syncHostFont,
+    terminalFontFamily,
+    terminalFontSize,
+  } = useTerminal();
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
   const [comboDrafts, setComboDrafts] = useState<Record<string, string>>({});
@@ -83,7 +98,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   if (!isOpen) return null;
 
   /** A legacy/custom stack keeps its own option so the select never lies. */
-  const activeFontPreset = FONT_PRESETS.find((preset) => preset.font === settings.fontFamily);
+  const activeFontPreset = FONT_PRESETS.find((preset) => preset.id === settings.fontFamily);
+  const presetLabel = (id: string, name: string) => (
+    id === 'host' || id === 'system' ? t(`fontPresets.${id}`) : name
+  );
+  /** `JetBrainsMono Nerd Font · 12px · GNOME Terminal · Loaded from the workstation` */
+  const hostFontLine = (() => {
+    const { font, status } = hostFont;
+    const percent = hostFont.totalBytes ? Math.round((hostFont.receivedBytes / hostFont.totalBytes) * 100) : 0;
+    const statusText = t(`settings.hostFontStatus.${status}`, { percent });
+    if (!font) return statusText;
+    return [
+      font.family,
+      font.sizePx ? `${Math.round(font.sizePx)}px` : null,
+      font.source ? TERMINAL_SOURCE_NAMES[font.source] || font.source : null,
+      statusText,
+    ].filter(Boolean).join(' · ');
+  })();
+  const hostSizePx = hostFont.font?.sizePx ? clampFontSize(hostFont.font.sizePx) : null;
+  /** `CJK: Noto Sans CJK SC · 3,812 characters on this device…` */
+  const hostGlyphLine = hostFont.glyphs.source && hostFont.glyphs.status !== 'none'
+    ? t('settings.hostGlyphLine', {
+      family: hostFont.glyphs.source.family,
+      status: t(`settings.hostGlyphStatus.${hostFont.glyphs.status}`, {
+        count: hostFont.glyphs.covered.toLocaleString(),
+      }),
+    })
+    : null;
 
   const currentVirtualKeys: ToolbarKeyDef[] =
     settings.virtualKeys && settings.virtualKeys.length > 0
@@ -203,6 +244,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
     const defaults = getDefaultSettings();
     updateSettings({
       fontSize: defaults.fontSize,
+      fontSizeFollowsHost: defaults.fontSizeFollowsHost,
       fontFamily: defaults.fontFamily,
       toolbarVisible: defaults.toolbarVisible,
       vibrateOnKeyPress: defaults.vibrateOnKeyPress,
@@ -332,16 +374,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 <option value={settings.fontFamily}>{settings.fontFamily}</option>
               )}
               {FONT_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.font}>
-                  {t(`fontPresets.${preset.id}` as any) || preset.name}
+                <option key={preset.id} value={preset.id}>
+                  {presetLabel(preset.id, preset.name)}
                 </option>
               ))}
             </Select>
 
+            {/* What the workstation reported, and whether this device has it. */}
+            {settings.fontFamily === 'host' && (
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <div className="min-w-0 space-y-0.5 break-words text-tui-sm leading-snug text-tui-muted">
+                  <p data-testid="host-font-status">{hostFontLine}</p>
+                  {hostGlyphLine ? <p data-testid="host-glyph-status">{hostGlyphLine}</p> : null}
+                </div>
+                <Button
+                  onClick={syncHostFont}
+                  disabled={connectionState !== 'connected' || hostFont.status === 'loading' || hostFont.glyphs.status === 'loading'}
+                >
+                  {t('settings.hostFontSync')}
+                </Button>
+              </div>
+            )}
+
             {/* Live preview, rendered as a shell prompt in the chosen face. */}
             <div
               className="overflow-x-auto whitespace-nowrap border border-tui-border bg-tui-mantle px-2 py-1.5 leading-snug text-tui-text"
-              style={{ fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}
+              style={{ fontFamily: terminalFontFamily, fontSize: `${terminalFontSize}px` }}
             >
               <span className="text-tui-ok">$</span> echo &quot;Herdr 0O 1lI {} [] () -&gt; =&gt;
               !=&quot;
@@ -351,11 +409,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           {/* Font size, with the meter a terminal would draw. */}
           <div className="space-y-1">
             <FieldLabel htmlFor="terminal-font-size">
-              {t('settings.fontSizeLabel', { size: settings.fontSize })}
+              {t('settings.fontSizeLabel', { size: terminalFontSize })}
             </FieldLabel>
+            <Checkbox
+              checked={settings.fontSizeFollowsHost}
+              // Leaving "follow" keeps the size on screen as the manual one,
+              // so the terminal does not jump when the box is cleared.
+              onChange={(checked) => updateSettings(checked
+                ? { fontSizeFollowsHost: true }
+                : { fontSizeFollowsHost: false, fontSize: terminalFontSize })}
+              label={hostSizePx
+                ? t('settings.fontSizeFollowHost', { size: hostSizePx })
+                : t('settings.fontSizeFollowHostUnknown')}
+            />
             <div className="flex items-center gap-2">
               <Meter
-                value={(settings.fontSize - FONT_MIN) / (FONT_MAX - FONT_MIN)}
+                value={(terminalFontSize - FONT_MIN) / (FONT_MAX - FONT_MIN)}
                 width={24}
                 className="hidden shrink-0 sm:inline-flex"
               />
@@ -365,8 +434,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 min={FONT_MIN}
                 max={FONT_MAX}
                 step={1}
-                value={settings.fontSize}
-                onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })}
+                value={terminalFontSize}
+                onChange={(e) => updateSettings({ fontSize: Number(e.target.value), fontSizeFollowsHost: false })}
                 className="h-1 w-full cursor-pointer appearance-none bg-tui-border accent-tui-accent"
               />
             </div>

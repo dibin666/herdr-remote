@@ -28,6 +28,7 @@ function makeConnector(lockPath, overrides = {}) {
     socketPath: path.join(path.dirname(lockPath), 'herdr.sock'),
     herdrCommand: process.execPath,
     terminalPalette: null,
+    terminalFont: null,
     config: {
       herdr: { args: [], cwd: process.cwd(), socketPath: null },
       cleanup: { heartbeatIntervalMs: 10 },

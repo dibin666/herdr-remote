@@ -24,6 +24,7 @@ const {
   rememberTerminalPalette,
   rememberedTerminalPalette,
 } = require('./terminal-palette');
+const { resolveHostFont } = require('./terminal-font');
 const { resolveSocketPath } = require('./socket-discovery');
 const { preferredLanAddress } = require('./net-interfaces');
 const { MIN_HERDR_VERSION, findHerdrCommand, herdrVersion, resolveHerdrCommand } = require('./herdr-command');
@@ -120,6 +121,16 @@ function hostTerminalPalette({ refresh = false } = {}) {
   return cachedTerminalPalette;
 }
 
+/**
+ * The terminal font a service start hands its connector: what this command
+ * detected at its entry point, else what an earlier start with a terminal
+ * wrote down. Only the family, size and terminal travel here; the connector
+ * finds the files itself, on the machine that has them.
+ */
+function hostTerminalFont() {
+  return resolveHostFont();
+}
+
 function logPath(name) {
   return path.join(stateDir(), `${name}.log`);
 }
@@ -175,6 +186,7 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
   }
 
   const terminalPalette = hostTerminalPalette();
+  const terminalFont = hostTerminalFont();
 
   specs.push({
     name: 'host',
@@ -184,6 +196,7 @@ function serviceSpecs(config = loadConfig(), state = ensureRuntime()) {
       // Captured here, where a terminal may still be attached, because the
       // connector itself usually runs detached with no terminal to ask.
       ...(terminalPalette ? { HERDR_TERM_PALETTE_JSON: JSON.stringify(terminalPalette) } : {}),
+      ...(terminalFont ? { HERDR_TERM_FONT_JSON: JSON.stringify(terminalFont) } : {}),
       RELAY_URL: resolveHostRelayUrl(config),
       RELAY_HOST_ID: state.hostId,
       RELAY_HOST_TOKEN: state.hostToken,
@@ -500,6 +513,7 @@ module.exports = {
   serviceSpecs,
   baseEnvironment,
   hostTerminalPalette,
+  hostTerminalFont,
   startServices,
   stopServices,
   restartServices,

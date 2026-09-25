@@ -118,6 +118,10 @@ async function main(argv = process.argv.slice(2)) {
   // starts usually run detached with nothing to ask. Everything downstream
   // inherits the answer through the environment.
   require('../src/terminal-palette').captureTerminalPalette();
+  // The font, likewise, is read while this process still knows which terminal
+  // it runs in: its variables and its parent process are gone once a service
+  // manager or Herdr's detached server starts the connector.
+  require('../src/terminal-font').captureTerminalFont();
 
   const config = loadConfig();
   const preference = flags.lang && LANGUAGES.includes(flags.lang) ? flags.lang : config.ui.language;
