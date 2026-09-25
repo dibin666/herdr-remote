@@ -5,6 +5,7 @@
  */
 
 import type { ConnectionState } from '../types/connection';
+import type { Translate, TranslationKey } from '../i18n';
 
 export interface ConnectionDescriptor {
   /** Short label for the collapsed status line. */
@@ -17,11 +18,8 @@ export interface ConnectionDescriptor {
   actionLabel?: string;
 }
 
-export function describeConnection(
-  state: ConnectionState,
-  t?: (key: string, params?: Record<string, string | number>) => string,
-): ConnectionDescriptor {
-  const tr = (key: string, fallback: string) => (t ? t(key) : fallback);
+export function describeConnection(state: ConnectionState, t?: Translate): ConnectionDescriptor {
+  const tr = (key: TranslationKey, fallback: string) => (t ? t(key) : fallback);
 
   switch (state) {
     case 'connected':

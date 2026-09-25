@@ -3,7 +3,7 @@ import {
   DEFAULT_DESKTOP_FONT_SIZE,
   DEFAULT_MOBILE_FONT_SIZE,
 } from './terminalLayout';
-import type { Language } from '../i18n/types';
+import type { Language } from '../i18n';
 import { type ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
 import type { AgentKeymapsSettings } from './agentKeymaps';
 import { parseKeyCombo } from '../protocol/keyCombo';

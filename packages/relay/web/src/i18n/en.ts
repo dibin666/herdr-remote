@@ -1,6 +1,4 @@
-import type { TranslationSchema } from './types';
-
-export const en: TranslationSchema = {
+export const en = {
   header: {
     appName: 'Herdr',
     tagline: 'remote terminal client',
@@ -16,6 +14,11 @@ export const en: TranslationSchema = {
     virtualKeyboardTitle: 'Quick command helper',
     latencyTitle: 'Round-trip latency (RTT)',
     mainNavigationAria: 'Main Navigation',
+    /**
+     * The words on the right of the program line. They are commands, so they
+     * are translated like every other word in the interface: a Chinese UI that
+     * still says `CMD LINK CFG` is a Chinese UI with English in it.
+     */
     actionKeyboard: 'cmd',
     actionPairing: 'link',
     actionSettings: 'cfg',
@@ -70,6 +73,7 @@ export const en: TranslationSchema = {
     controlActive: 'Full Control',
     viewerReadOnly: 'Viewer',
     viewerWithController: 'Viewer (Active: {controllerId})',
+    /** Every paired window types into one shared terminal. */
     sharedControl: 'Full control',
     sharedControlDesc: 'Every paired window shares this terminal and may type into it.',
     sharedWindows: '{count} windows',
@@ -92,6 +96,7 @@ export const en: TranslationSchema = {
     errorDefault: 'Unable to connect to relay',
     disconnected: 'Terminal disconnected',
   },
+  /** A newer herdr-remote release for the workstation. */
   update: {
     chip: '↑ herdr-remote {version}',
     chipCompact: '↑ {version}',
@@ -110,6 +115,7 @@ export const en: TranslationSchema = {
     restartNote: 'Restarting reconnects this window after a few seconds.',
     ignore: 'Skip this version',
   },
+  /** Herdr not running on the paired workstation, and starting it from here. */
   herdrLaunch: {
     title: 'Herdr is not running',
     body: 'Herdr is not running on {host}. Start it on that workstation?',
@@ -419,6 +425,7 @@ export const en: TranslationSchema = {
     pairingAria: 'Connection & pairing',
     keybarAria: 'Toggle key toolbar',
     quickInputAria: 'Toggle quick commands',
+    /** Legend over the sheet's action list. */
     menu: 'Menu',
     statusBarAria: 'Session status bar',
   },
@@ -491,6 +498,7 @@ export const en: TranslationSchema = {
     returnToTerminal: 'Return to Terminal',
     terminalShells: 'terminal sessions',
     startedAt: 'Started at {time}',
+    /** Connections behind the user count: several windows can be one person. */
     acrossWindows: 'across {count} windows',
     perSecond: '{value}/s',
     unitDay: 'd',
@@ -503,6 +511,7 @@ export const en: TranslationSchema = {
     paused: 'Paused',
     refreshNow: 'Refresh',
     connectedHosts: 'Connected Hosts',
+    /** Distinct people attached, counted by paired device rather than socket. */
     activeUsers: 'Active Users',
     activePtys: 'Active PTYs',
     activeController: 'Active Controller',
@@ -513,6 +522,8 @@ export const en: TranslationSchema = {
     tabClients: 'Clients ({count})',
     tabPtys: 'PTY Sessions ({count})',
     tabDevices: 'Paired Devices ({count})',
+    // The per-host board: which workstations this relay carries, and who is
+    // paired to each of them.
     hostsTitle: 'Hosts ({count})',
     noHosts: 'No hosts connected or paired',
     hostConnectedDevices: '{count} connected',
@@ -555,6 +566,7 @@ export const en: TranslationSchema = {
     retryFetchBtn: 'Retry Status',
     errorConnecting: 'Failed to fetch GET /api/status: {error}',
     loadingStatus: 'Loading status from /api/status...',
+    // Remote Relay & Info endpoints
     remoteRelayTitle: 'Remote Relay Administration',
     remoteRelayNotice:
       'Connected to remote relay. For server metrics, access the operator dashboard.',
@@ -611,6 +623,12 @@ export const en: TranslationSchema = {
     help: 'Active outside terminal input area:',
     terminalInputNote: 'Terminal shortcuts pass directly to host PTY.',
   },
+  /**
+   * The relay's own failure reasons, by the code it sends.
+   *
+   * The server's English sentence is for its log; a translated interface has to
+   * be able to say the same thing itself.
+   */
   serverErrors: {
     auth_required: 'Pairing required: enter a pairing code, or a device token that is still valid.',
     unauthorized: 'This device is not authorised for that workstation.',
@@ -706,3 +724,6 @@ export const en: TranslationSchema = {
     removeImage: 'Remove image',
   },
 };
+
+/** The shape every language provides, taken from English. */
+export type TranslationSchema = typeof en;

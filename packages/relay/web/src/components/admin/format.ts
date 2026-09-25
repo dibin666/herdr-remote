@@ -1,6 +1,6 @@
 import type { ConnectedClientInfo } from '@protocol/http';
 
-type Translate = (path: string, params?: Record<string, string | number>) => string;
+import type { Translate } from '../../i18n';
 
 export function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 B';
@@ -24,7 +24,8 @@ export function formatUptime(seconds: number, t: Translate, compact = false): st
   const hours = Math.floor((total % 86400) / 3600);
   const mins = Math.floor((total % 3600) / 60);
   const secs = total % 60;
-  const unit = (value: number, key: string) => `${value}${t(`admin.unit${key}`)}`;
+  const unit = (value: number, key: 'Day' | 'Hour' | 'Minute' | 'Second') =>
+    `${value}${t(`admin.unit${key}`)}`;
   const parts =
     days > 0
       ? [unit(days, 'Day'), unit(hours, 'Hour'), unit(mins, 'Minute')]

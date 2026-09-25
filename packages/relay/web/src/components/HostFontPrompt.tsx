@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { useTerminal } from '../context/TerminalContext';
+import type { TranslationSchema } from '../i18n';
 import { formatFontBytes } from '../utils/hostFont';
 import { Button, Meter, Notice, Panel } from './tui';
 
@@ -23,12 +24,14 @@ export const TERMINAL_SOURCE_NAMES: Record<string, string> = {
   urxvt: 'urxvt',
 };
 
-const KNOWN_REASONS = [
+type FontFailure = keyof TranslationSchema['hostFont']['reasons'];
+
+const KNOWN_REASONS: readonly string[] = [
   'host_font_unavailable',
   'host_font_timeout',
   'disconnected',
   'font_api_unavailable',
-];
+] satisfies FontFailure[];
 
 /**
  * The workstation's terminal font is not on this device: fetch it?
@@ -87,8 +90,10 @@ export const HostFontPrompt: React.FC = () => {
   ]
     .filter(Boolean)
     .join(t('hostFont.detailSeparator'));
-  const reason =
-    hostFont.error && KNOWN_REASONS.includes(hostFont.error) ? hostFont.error : 'other';
+  const reason: FontFailure =
+    hostFont.error && KNOWN_REASONS.includes(hostFont.error)
+      ? (hostFont.error as FontFailure)
+      : 'other';
   const ratio = hostFont.totalBytes ? hostFont.receivedBytes / hostFont.totalBytes : 0;
 
   return (

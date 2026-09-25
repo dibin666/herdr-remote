@@ -132,7 +132,6 @@
         "packages/relay/web/src/protocol/clientAdapter.ts",
         "packages/relay/web/src/components/admin/AdminDashboard.tsx",
         "packages/relay/web/src/utils/storage.ts",
-        "packages/relay/web/src/i18n/types.ts",
         "packages/relay/web/src/components/KeyToolbar.tsx",
         "packages/relay/web/src/utils/agentKeymaps.ts",
         "packages/relay/web/src/utils/terminalSelection.ts",

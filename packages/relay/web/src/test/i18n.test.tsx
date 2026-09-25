@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, renderHook, act, fireEvent } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
-import { useI18n } from '../i18n/useI18n';
 import { translate } from '../i18n';
 import { en } from '../i18n/en';
 import { zh } from '../i18n/zh';
-import { TerminalProvider } from '../context/TerminalContext';
+import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { describeConnection } from '../utils/connectionStatus';
 import { MobileControlSheet } from '../components/MobileControlSheet';
 import { ClientsTable } from '../components/admin/ClientsTable';
@@ -63,22 +62,22 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(result).toBe('nonExistentKey');
   });
 
-  it('useI18n hook switches languages and persists', () => {
-    const { result } = renderHook(() => useI18n(), {
+  it('switching the language setting switches what t() answers', () => {
+    const { result } = renderHook(() => useTerminal(), {
       wrapper: TerminalProvider,
     });
 
     act(() => {
-      result.current.setLanguage('en');
+      result.current.updateSettings({ language: 'en' });
     });
-    expect(result.current.language).toBe('en');
+    expect(result.current.settings.language).toBe('en');
     expect(result.current.t('common.admin')).toBe('Admin');
 
     act(() => {
-      result.current.setLanguage('zh');
+      result.current.updateSettings({ language: 'zh' });
     });
 
-    expect(result.current.language).toBe('zh');
+    expect(result.current.settings.language).toBe('zh');
     expect(result.current.t('common.admin')).toBe('管理面板');
   });
 

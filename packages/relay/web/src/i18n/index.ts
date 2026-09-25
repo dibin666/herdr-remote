@@ -1,9 +1,21 @@
-import { en } from './en';
+import { en, type TranslationSchema } from './en';
 import { zh } from './zh';
-import type { Language, TranslationSchema } from './types';
 
-export * from './types';
+export type Language = 'en' | 'zh';
+export type { TranslationSchema };
 export { en, zh };
+
+/** Every dotted path to a string in the schema: `'header.appName'`, … */
+type Leaves<T> = {
+  [K in keyof T & string]: T[K] extends string ? K : `${K}.${Leaves<T[K]>}`;
+}[keyof T & string];
+
+export type TranslationKey = Leaves<TranslationSchema>;
+
+export type TranslationParams = Record<string, string | number>;
+
+/** Look a key up in the current language; checked against the schema at compile time. */
+export type Translate = (key: TranslationKey, params?: TranslationParams) => string;
 
 export const translations: Record<Language, TranslationSchema> = {
   en,
@@ -14,11 +26,7 @@ export const translations: Record<Language, TranslationSchema> = {
  * Resolves a nested translation key path like 'header.terminalTab'
  * and replaces `{param}` placeholders if params are provided.
  */
-export function translate(
-  lang: Language,
-  path: string,
-  params?: Record<string, string | number>,
-): string {
+export function translate(lang: Language, path: string, params?: TranslationParams): string {
   const dict = translations[lang] || translations.en;
   const parts = path.split('.');
   let current: unknown = dict;
@@ -54,4 +62,11 @@ export function translate(
   }
 
   return current;
+}
+
+export type ServerErrorCode = keyof TranslationSchema['serverErrors'];
+
+/** Whether this interface can say `code` in its own words; see `serverErrors`. */
+export function isServerErrorCode(code: unknown): code is ServerErrorCode {
+  return typeof code === 'string' && Object.hasOwn(en.serverErrors, code);
 }

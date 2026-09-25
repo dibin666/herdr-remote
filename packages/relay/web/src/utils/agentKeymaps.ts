@@ -1,8 +1,12 @@
+import type { TranslationSchema } from '../i18n';
 import { parseKeyCombo } from '../protocol/keyCombo';
+
+/** An action's name, as a key under `agentActions` in the translations. */
+export type AgentActionLabel = keyof TranslationSchema['agentActions'];
 
 export interface AgentActionDef {
   id: string;
-  labelKey: string;
+  labelKey: AgentActionLabel;
   combo: string;
   verified: boolean;
   /** Left off the key bar until the user ticks it in settings. */
@@ -38,15 +42,25 @@ export interface AgentProfileKeymapOverride {
 
 export type AgentKeymapsSettings = Record<string, AgentProfileKeymapOverride>;
 
-export interface AppliedAgentAction extends AgentActionDef {
+interface AppliedAgentActionBase extends Omit<AgentActionDef, 'labelKey'> {
   defaultCombo: string;
   combo: string;
   hidden: boolean;
-  custom: boolean;
-  customLabel?: string;
 }
 
-const action = (id: string, labelKey: string, combo: string, verified = true): AgentActionDef => ({
+/** An action as the key bar shows it: built in and translated, or the user's own. */
+export type AppliedAgentAction = AppliedAgentActionBase &
+  (
+    | { custom: false; labelKey: AgentActionLabel; customLabel?: undefined }
+    | { custom: true; labelKey: 'custom'; customLabel?: string }
+  );
+
+const action = (
+  id: string,
+  labelKey: AgentActionLabel,
+  combo: string,
+  verified = true,
+): AgentActionDef => ({
   id,
   labelKey,
   combo,
@@ -579,7 +593,7 @@ export function applyOverrides(
       defaultCombo: definition.combo,
       combo,
       hidden: typeof saved?.hidden === 'boolean' ? saved.hidden : definition.defaultHidden === true,
-      custom: false,
+      custom: false as const,
     };
   });
 
@@ -628,7 +642,7 @@ export function filterDuplicateGenericActions(
   return genericActions.filter((item) => !agentCombos.has(item.combo.trim().toLowerCase()));
 }
 
-const isGenericAction = (item: AgentActionDef) => item.id.startsWith('generic');
+const isGenericAction = (item: { id: string }) => item.id.startsWith('generic');
 
 export function getProfileActions(
   profileId: AgentProfileId,

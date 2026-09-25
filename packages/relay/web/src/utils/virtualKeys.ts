@@ -1,4 +1,5 @@
 import { ANSI_KEYS } from '../protocol/keyEncoder';
+import type { Translate, TranslationKey } from '../i18n';
 
 export interface ToolbarKeyDef {
   id: string;
@@ -494,10 +495,11 @@ export function sanitizeVirtualKeys(keys: unknown): ToolbarKeyDef[] {
 
 export function getLocalizedKeyTitle(
   key: { id: string; title?: string; label: string },
-  t?: (key: string, params?: Record<string, string | number>) => string,
+  t?: Translate,
 ): string {
   if (t) {
-    const keyPath = `keyTitles.${key.id}`;
+    // Not every key has a title of its own; those fall back to theirs below.
+    const keyPath = `keyTitles.${key.id}` as TranslationKey;
     const translated = t(keyPath);
     if (translated && translated !== keyPath) {
       return translated;

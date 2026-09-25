@@ -29,7 +29,7 @@ import {
   loadIgnoredUpdate,
   saveIgnoredUpdate,
 } from '../utils/storage';
-import { translate, type Language } from '../i18n';
+import { isServerErrorCode, type Language, type Translate, translate } from '../i18n';
 import { applyDocumentTheme, resolveTerminalFontFamily } from '../utils/theme';
 import { clampFontSize } from '../utils/terminalLayout';
 import { useHostFont, type HostFontState } from '../utils/useHostFont';
@@ -140,7 +140,7 @@ interface TerminalContextValue {
   adapter: HerdrClientAdapter | null;
   language: Language;
 
-  t: (path: string, params?: Record<string, string | number>) => string;
+  t: Translate;
   setLanguage: (lang: Language) => void;
   connect: (overrideConfig?: Partial<ConnectionConfig>) => void;
   disconnect: () => void;
@@ -287,10 +287,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const uploadTaskIdCounterRef = useRef<number>(0);
   const uploadTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const t = useCallback(
-    (path: string, params?: Record<string, string | number>) => {
-      return translate(settings.language, path, params);
-    },
+  const t = useCallback<Translate>(
+    (key, params) => translate(settings.language, key, params),
     [settings.language],
   );
 
@@ -707,9 +705,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       // The relay speaks English to its logs. Where it named a reason, this
       // interface says the same thing in its own language and keeps the
       // server's sentence only for reasons it has never heard of.
-      const key = code ? `serverErrors.${code}` : null;
-      const translated = key ? tRef.current(key) : null;
-      const described = translated && translated !== key ? translated : detail;
+      const described = isServerErrorCode(code) ? tRef.current(`serverErrors.${code}`) : detail;
       setStateDetail(described);
       if (state === 'connected') {
         addToast('success', tRef.current('toasts.connected'));
@@ -752,7 +748,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     newAdapter.on('hostReconnecting', (code) => {
       setStateCode(code || 'host_reconnecting');
-      setStateDetail(tRef.current(`serverErrors.${code || 'host_reconnecting'}`));
+      setStateDetail(
+        tRef.current(`serverErrors.${isServerErrorCode(code) ? code : 'host_reconnecting'}`),
+      );
       setRole('viewer');
       setControllerId(undefined);
       setHostname(undefined);
@@ -827,11 +825,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         activeUploadTaskIdRef.current = null;
         setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
       }
-      const codeStr = String(err.code);
-      const key = `serverErrors.${codeStr}`;
-      const translated = tRef.current(key);
-      const message =
-        translated && translated !== key ? translated : err.message || `[${err.code}]`;
+      const message = isServerErrorCode(err.code)
+        ? tRef.current(`serverErrors.${err.code}`)
+        : err.message || `[${err.code}]`;
       addToast('error', message);
     });
 
