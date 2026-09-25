@@ -331,6 +331,8 @@ export interface MockHerdrRenderer {
   flushes: number;
   uninstalled: boolean;
   disposed: boolean;
+  /** What `hasPaintedInk` answers: whether characters were painted where the probe samples. */
+  paintedInk: boolean;
 }
 
 vi.mock('../render/HerdrRenderer', () => {
@@ -363,6 +365,10 @@ vi.mock('../render/HerdrRenderer', () => {
     flushes = 0;
     uninstalled = false;
     disposed = false;
+    paintedInk = true;
+    hasPaintedInk() {
+      return this.paintedInk;
+    }
     setOverlayProvider(provider: (() => unknown) | null) {
       this.overlayProvider = provider;
     }

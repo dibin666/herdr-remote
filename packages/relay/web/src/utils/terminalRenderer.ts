@@ -25,15 +25,22 @@
  *    either would cause a false-positive failure detection.
  *  - Distinguish three probe outcomes:
  *      * healthy: differing pixels detected -> keep canvas;
- *      * blank: sampled pixels are fully identical -> driver returned a dead/blank
- *        surface -> hand drawing back to xterm's DOM renderer and persist failure;
+ *      * blank: sampled pixels are fully identical where the renderer painted
+ *        visible characters -> driver returned a dead/blank surface -> hand
+ *        drawing back to xterm's DOM renderer and persist failure;
  *      * inconclusive: layer not yet mounted, context unavailable, or sampling threw
  *        an unexpected error -> retain canvas without blacklisting.
  *  - Only definitive "blank" detections fall back to DOM and write to persistent storage.
+ *    Uniform pixels alone are not one: a new session resets the screen, and
+ *    Herdr can take a moment to draw it, so a probe landing in between saw a
+ *    healthy canvas painted in one colour and put the device on the DOM
+ *    renderer for a month.
  *  - Persistent failures in localStorage carry a timestamp and schema version ({ v: 1, ua: { [ua]: { failedAt } } }).
  *    Records automatically expire after 30 days to give driver updates an opportunity to recover.
  *    The key changed with the renderer, so a failure recorded against xterm's
- *    old canvas addon does not keep this one from being tried.
+ *    old canvas addon does not keep this one from being tried; and again when
+ *    uniform pixels stopped counting on their own, so the failures that rule
+ *    recorded against healthy canvases are forgotten.
  *  - Verification is repeated after the initial resize to catch driver failures
  *    triggered when backing-store dimensions change.
  */
@@ -58,9 +65,12 @@ export interface AttachedRenderer {
   verify: () => Promise<void>;
 }
 
-export const RENDERER_PROBE_STORAGE_KEY = 'herdr_remote_renderer_probe_v2';
+export const RENDERER_PROBE_STORAGE_KEY = 'herdr_remote_renderer_probe_v3';
 /** How long the probe waits for the renderer to paint before sampling anyway. */
 const MAX_PAINT_WAIT_FRAMES = 30;
+/** The top-left corner the probe samples, in device pixels. */
+const PROBE_SAMPLE_WIDTH = 640;
+const PROBE_SAMPLE_HEIGHT = 240;
 export const PROBE_STORAGE_SCHEMA_VERSION = 1;
 export const PROBE_FAILURE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -198,8 +208,8 @@ export function checkCanvasContent(canvas: HTMLCanvasElement | null | undefined)
   }
 
   // Sample top banner area expanded to min(width, 640) x min(height, 240) device pixels
-  const sampleW = Math.min(canvas.width, 640);
-  const sampleH = Math.min(canvas.height, 240);
+  const sampleW = Math.min(canvas.width, PROBE_SAMPLE_WIDTH);
+  const sampleH = Math.min(canvas.height, PROBE_SAMPLE_HEIGHT);
   if (sampleW <= 0 || sampleH <= 0) {
     console.debug('Canvas probe inconclusive: calculated sample dimensions are zero');
     return 'inconclusive';
@@ -296,8 +306,10 @@ export function attachTerminalRenderer(
         if (!current) return;
 
         const probeResult = checkCanvasContent(current.textCanvas);
-        if (probeResult === 'blank') {
+        if (probeResult === 'blank' && current.hasPaintedInk(PROBE_SAMPLE_WIDTH, PROBE_SAMPLE_HEIGHT)) {
           fallbackToDom();
+        } else if (probeResult === 'blank') {
+          console.debug('Canvas probe inconclusive: uniform, but no character was painted there');
         } else if (probeResult === 'inconclusive') {
           console.debug('Canvas probe inconclusive; retaining canvas renderer without blacklisting');
         }

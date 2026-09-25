@@ -314,6 +314,31 @@ describe('HerdrRenderer', () => {
     expect(setRenderer).toHaveBeenCalledWith(created);
     expect(t.screenElement.querySelectorAll('canvas')).toHaveLength(0);
   });
+
+  it('knows whether characters it painted are on the canvas in a corner', async () => {
+    // Cells are 8 × 16 device pixels.
+    const t = setup(20, 6);
+    expect(t.renderer.hasPaintedInk(640, 240)).toBe(false);
+
+    await t.write('\x1b[8mhidden');
+    t.frame();
+    expect(t.renderer.hasPaintedInk(640, 240)).toBe(false);
+
+    await t.write('\x1b[0m\x1b[2J\x1b[5;1Hhello');
+    t.frame();
+    // Only the first two rows are wholly inside 32 pixels.
+    expect(t.renderer.hasPaintedInk(640, 32)).toBe(false);
+    expect(t.renderer.hasPaintedInk(640, 80)).toBe(true);
+
+    // A new session clears the screen; the canvas is one colour and nothing is wrong.
+    await t.write('\x1b[2J');
+    t.frame();
+    expect(t.renderer.hasPaintedInk(640, 240)).toBe(false);
+
+    await t.write('\x1b[1;1H中');
+    t.frame();
+    expect(t.renderer.hasPaintedInk(640, 240)).toBe(true);
+  });
 });
 
 describe('resolveCellColors', () => {

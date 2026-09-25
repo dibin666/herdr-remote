@@ -417,6 +417,30 @@ export class HerdrRenderer implements XtermRenderer {
     return this.canvas;
   }
 
+  /**
+   * Whether a visible character was painted, and is still on the canvas, in
+   * the cells wholly inside the top-left `width` × `height` device pixels. A
+   * screen Herdr has just cleared is uniform on a perfectly good canvas; only
+   * where glyphs were drawn can uniform pixels mean the surface is dead.
+   */
+  hasPaintedInk(width: number, height: number): boolean {
+    const dims = this.dimensions.device;
+    if (!dims.cell.width || !dims.cell.height) return false;
+    const cols = Math.min(this.cols, Math.floor(width / dims.cell.width));
+    const rows = Math.min(this.rows, Math.floor(height / dims.cell.height));
+    const painted = this.painted;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const i = y * this.cols + x;
+        const word = painted.content[i];
+        if (word === INVALID || painted.meta[i] === Meta.COVERED || isInvisible(painted.fg[i])) continue;
+        const code = word & Content.CODEPOINT_MASK;
+        if (word & Content.IS_COMBINED_MASK ? painted.combined[i] !== '' : code !== 0 && code !== 32) return true;
+      }
+    }
+    return false;
+  }
+
   // ---------------------------------------------------------------------------
   // Painting
 

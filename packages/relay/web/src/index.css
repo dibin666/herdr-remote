@@ -259,6 +259,11 @@ select.tui-input option {
      cellHeight*rows, and padding would push the last column/row outside the
      scaled frame and get clipped. */
   padding: 0;
+  /* xterm's DOM renderer spaces each character to the grid by the width it
+     measured for 32 copies of it in a row. Chrome trims adjacent fullwidth
+     punctuation to half width by default, so `，` measured 6 px there, drew
+     12 px in the row, and pushed the rest of its row 0.8 cell right. */
+  text-spacing-trim: space-all;
 }
 
 /* The viewport keeps xterm's own background instead of being forced

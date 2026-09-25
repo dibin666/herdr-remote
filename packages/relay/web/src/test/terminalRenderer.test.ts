@@ -192,6 +192,23 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(typeof parsed.ua[navigator.userAgent].failedAt).toBe('number');
     });
 
+    it('keeps canvas without recording a failure when the canvas is uniform because nothing was painted there', async () => {
+      // A new session resets the screen; Herdr has not drawn yet.
+      const { term } = createMockTerminal();
+      const onRendererSwapped = vi.fn();
+      const renderer = attachTerminalRenderer(term, { onRendererSwapped });
+      mockCanvasContext(installedCanvas(), (w, h) => new Uint8ClampedArray(w * h * 4));
+      herdrRenderers[0].paintedInk = false;
+
+      await renderer.verify();
+
+      expect(renderer.kind).toBe('canvas');
+      expect(herdrRenderers[0].uninstalled).toBe(false);
+      expect(onRendererSwapped).not.toHaveBeenCalled();
+      expect(isCanvasProbeFailed()).toBe(false);
+      expect(localStorage.getItem(RENDERER_PROBE_STORAGE_KEY)).toBeNull();
+    });
+
     it('retains canvas and does NOT record failure when probe is inconclusive (missing text layer or exception)', async () => {
       // Case 1: the canvas has not been sized yet
       const { term: termNotSized } = createMockTerminal();
@@ -391,6 +408,16 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
     it('does not let a failure recorded against the old canvas addon disable this renderer', () => {
       localStorage.setItem(
         'herdr_remote_renderer_probe_v1',
+        JSON.stringify({ v: 1, ua: { [navigator.userAgent]: { failedAt: Date.now() } } }),
+      );
+      const { term } = createMockTerminal();
+
+      expect(attachTerminalRenderer(term).kind).toBe('canvas');
+    });
+
+    it('does not let a failure recorded when uniform pixels alone counted disable this renderer', () => {
+      localStorage.setItem(
+        'herdr_remote_renderer_probe_v2',
         JSON.stringify({ v: 1, ua: { [navigator.userAgent]: { failedAt: Date.now() } } }),
       );
       const { term } = createMockTerminal();
