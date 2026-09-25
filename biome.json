@@ -28,6 +28,11 @@
       "arrowParentheses": "always"
     }
   },
+  "css": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
   "assist": {
     "actions": {
       "source": {
