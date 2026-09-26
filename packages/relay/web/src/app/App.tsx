@@ -92,21 +92,13 @@ function AppContent() {
     window.addEventListener('popstate', handleLocationChange);
     window.addEventListener('hashchange', handleLocationChange);
 
-    // Parse URL query params (?token=..., ?pairCode=..., ?ws=...)
+    // Only a pairing code is taken from a link. A relay address (?ws=) or a
+    // device token (?token=) would let whoever wrote the link send this
+    // browser's saved token to their own server, or swap in their own device.
     try {
       const currentUrl = new URL(window.location.href);
-      const token = currentUrl.searchParams.get('token');
       const pairCode = currentUrl.searchParams.get('pairCode');
-      const wsUrl = currentUrl.searchParams.get('ws') || currentUrl.searchParams.get('wsUrl');
-
-      const updates: Partial<typeof settings> = {};
-      if (token) updates.token = token;
-      if (pairCode) updates.pairCode = pairCode.toUpperCase();
-      if (wsUrl) updates.wsUrl = wsUrl;
-
-      if (Object.keys(updates).length > 0) {
-        updateSettings(updates);
-      }
+      if (pairCode) updateSettings({ pairCode: pairCode.toUpperCase() });
 
       // Remove sensitive secrets (token & pairCode) from the address bar
       let urlChanged = false;

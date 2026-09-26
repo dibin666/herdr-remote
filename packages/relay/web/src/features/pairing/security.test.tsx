@@ -41,7 +41,25 @@ describe('Frontend Security & URL Redaction', () => {
     expect(copiedText).not.toContain('token=');
   });
 
-  it('App consumes token and pairCode from URL, stores them, and removes secret query params via replaceState', async () => {
+  it('never lets a link point the saved device token at another relay', () => {
+    saveSettings({ wsUrl: '/ws/client', token: 'device-token-of-this-browser' });
+    const originalLocation = window.location;
+    delete (window as unknown as { location: unknown }).location;
+    window.location = new URL(
+      'http://localhost:5173/?ws=wss://evil.example/ws/client&wsUrl=wss://evil.example/ws/client',
+    ) as unknown as Location;
+
+    render(<App />);
+
+    const saved = loadSettings();
+    expect(saved.wsUrl).toBe('/ws/client');
+    expect(saved.token).toBe('device-token-of-this-browser');
+    expect(saved.profiles.map((profile) => profile.wsUrl)).toEqual(['/ws/client']);
+
+    window.location = originalLocation;
+  });
+
+  it('App consumes pairCode from URL, ignores a token, and removes both via replaceState', async () => {
     const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
 
     // Simulate arriving at /admin?token=secret-token-xyz&pairCode=CODE12
@@ -87,9 +105,9 @@ describe('Frontend Security & URL Redaction', () => {
 
     render(<App />);
 
-    // Check settings were populated
+    // A token in a link is somebody else's device, not a way to pair this one.
     const saved = loadSettings();
-    expect(saved.token).toBe('secret-token-xyz');
+    expect(saved.token).toBe('');
     expect(saved.pairCode).toBe('CODE12');
 
     // Check replaceState was called to sanitize URL
