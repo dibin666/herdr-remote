@@ -14,7 +14,7 @@ import type { AgentProfileId } from '../utils/agentKeymaps';
 import type { ImageUploadProgress, PreparedImagePaste } from '../utils/imagePaste';
 import type { StoredSettings } from '../utils/storage';
 import type { ConnectionProfile } from '../utils/connectionProfiles';
-import type { HostFontState } from '../utils/useHostFont';
+import type { HostFontState } from '../utils/hostFontState';
 import type { HerdrLaunchState } from './useHerdrLaunch';
 import type { TerminalOutputSink } from './useOutputBuffer';
 import type { ModifierLatch } from './useTerminalInput';

@@ -1,10 +1,14 @@
+// The workstation's terminal font in this window: whether this device has it,
+// asking before fetching it, loading it from cache or from the host, and
+// cutting a large fallback font to the characters actually drawn.
+
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { HerdrClientAdapter } from '../protocol/clientAdapter';
 import type { HostFontSubsetSource, HostTerminalFont } from '@protocol/terminal';
+import type { HerdrClientAdapter } from '../protocol/clientAdapter';
+import { STORAGE_KEYS } from './browserStorage';
 import { COMMON_CJK_TEXT } from './commonCjk';
 import {
   type CachedSubset,
-  decodeBase64,
   downloadHostFontFace,
   hostFontAlias,
   hostFontBytes,
@@ -22,136 +26,26 @@ import {
   writeCachedFace,
   writeCachedSubset,
 } from './hostFont';
-import { STORAGE_KEYS } from './browserStorage';
+import {
+  COMMON_LATIN_TEXT,
+  codepointsOf,
+  type HostFontDeps,
+  type HostFontState,
+  type HostFontStatus,
+  type HostGlyphState,
+  type HostGlyphStatus,
+  INITIAL,
+  NO_GLYPHS,
+  subsetSource,
+} from './hostFontState';
+import { useHostFontTransfer } from './useHostFontTransfer';
 
-/**
- * Where the workstation's font stands in this window:
- *
- * - `none`: the host reported no font (unknown terminal, older host).
- * - `installed`: this device has the family; it is used by name.
- * - `loaded`: the host's files are registered (fetched now or from cache).
- * - `available`: files are offered and nobody has answered yet — ask.
- * - `declined`: the user chose this device's own fonts for this font.
- * - `loading` / `failed`: a transfer in progress, or one that did not finish.
- * - `unavailable`: no files to fetch (a font collection, or not on disk).
- */
-export type HostFontStatus =
-  | 'none'
-  | 'checking'
-  | 'installed'
-  | 'loaded'
-  | 'available'
-  | 'declined'
-  | 'loading'
-  | 'failed'
-  | 'unavailable';
-
-/**
- * The large font (the CJK fallback, usually) this window receives cut to the
- * characters it draws. `ready` means common characters are in and rarer ones
- * are fetched as they appear.
- */
-export type HostGlyphStatus =
-  | 'none'
-  | 'checking'
-  | 'installed'
-  | 'available'
-  | 'declined'
-  | 'loading'
-  | 'ready'
-  | 'failed';
-
-export interface HostGlyphState {
-  source: HostFontSubsetSource | null;
-  status: HostGlyphStatus;
-  /** The FontFace family the cuts are registered under, once one is. */
-  alias: string | null;
-  /** How many characters this device holds from the source. */
-  covered: number;
-}
-
-export interface HostFontState {
-  font: HostTerminalFont | null;
-  status: HostFontStatus;
-  /** The FontFace family of the fetched files, once registered. */
-  alias: string | null;
-  receivedBytes: number;
-  totalBytes: number;
-  /** A machine-readable reason when `failed`. */
-  error: string | null;
-  glyphs: HostGlyphState;
-  /** A transfer the user started from the prompt, which shows its progress. */
-  interactive: boolean;
-  /** Bumped whenever glyphs are added under an unchanged family: repaint. */
-  glyphRevision: number;
-}
-
-/** Seams for tests; the defaults are the real browser APIs. */
-export interface HostFontDeps {
-  isInstalled?: (family: string) => boolean;
-  readCached?: typeof readCachedFace;
-  writeCached?: typeof writeCachedFace;
-  register?: typeof registerHostFontFaces;
-  isRegistered?: typeof isHostFontRegistered;
-  readSubsets?: typeof readCachedSubsets;
-  writeSubset?: typeof writeCachedSubset;
-  registerGlyphs?: typeof registerGlyphSubset;
-}
-
-const NO_GLYPHS: HostGlyphState = { source: null, status: 'none', alias: null, covered: 0 };
-
-const INITIAL: HostFontState = {
-  font: null,
-  status: 'none',
-  alias: null,
-  receivedBytes: 0,
-  totalBytes: 0,
-  error: null,
-  glyphs: NO_GLYPHS,
-  interactive: false,
-  glyphRevision: 0,
-};
-
-/** A slice that has not arrived by now is not coming. */
-const CHUNK_TIMEOUT_MS = 30_000;
 /** A font that arrives this soon after "sync" was asked for is loaded unasked. */
 const SYNC_WINDOW_MS = 15_000;
 /** Characters met while drawing are gathered this long, then fetched together. */
 const GLYPH_BATCH_MS = 80;
 /** Characters per on-demand cut; the rest wait for the next one. */
 const MAX_GLYPHS_PER_CUT = 2000;
-
-/** For a family cut for everything, what a terminal shows besides Hanzi. */
-const COMMON_LATIN_TEXT = String.fromCodePoint(
-  ...Array.from({ length: 0x7f - 0x20 }, (_, i) => 0x20 + i),
-  ...Array.from({ length: 0x100 - 0xa0 }, (_, i) => 0xa0 + i),
-  ...Array.from({ length: 0x2070 - 0x2000 }, (_, i) => 0x2000 + i),
-);
-
-interface Pending<T> {
-  resolve: (value: T) => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-}
-
-/** The cut source this window uses: the family itself over its CJK fallback. */
-function subsetSource(font: HostTerminalFont | null): HostFontSubsetSource | null {
-  const sources = font?.subsets ?? [];
-  return (
-    sources.find((source) => source.scope === 'all') ??
-    sources.find((source) => source.scope === 'cjk') ??
-    null
-  );
-}
-
-function codepointsOf(text: string, scope: HostFontSubsetSource['scope']): number[] {
-  const seen = new Set<number>();
-  for (const char of text) {
-    const codepoint = char.codePointAt(0) as number;
-    if (wantsGlyph(scope, codepoint)) seen.add(codepoint);
-  }
-  return [...seen];
-}
 
 export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDeps = {}) {
   const [state, setState] = useState<HostFontState>(INITIAL);
@@ -161,16 +55,13 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
   depsRef.current = deps;
   /** Bumped whenever the font changes; late results of an older one are dropped. */
   const generationRef = useRef(0);
-  const pendingRef = useRef(new Map<string, Pending<Uint8Array>>());
-  const pendingSubsetsRef = useRef(new Map<string, Pending<CachedSubset>>());
-  /** Byte progress of each pending cut, reported as its slices arrive. */
-  const subsetProgressRef = useRef(new Map<string, (bytes: number, total: number) => void>());
   const autoAcceptUntilRef = useRef(0);
   /** Characters held, asked for, and waiting to be asked for, for the current source. */
   const coveredRef = useRef(new Set<number>());
   const askedRef = useRef(new Set<number>());
   const wantedRef = useRef(new Set<number>());
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { requestChunk, requestSubset, rejectPending } = useHostFontTransfer(adapter);
 
   const resolved = () => ({
     isInstalled: depsRef.current.isInstalled ?? isFontInstalled,
@@ -189,71 +80,6 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
     if (generation !== generationRef.current) return;
     setState((previous) => ({ ...previous, glyphs: { ...previous.glyphs, ...patch } }));
   };
-
-  const rejectPending = useCallback((reason: string) => {
-    for (const map of [pendingRef.current, pendingSubsetsRef.current] as Array<
-      Map<string, Pending<unknown>>
-    >) {
-      for (const pending of map.values()) {
-        clearTimeout(pending.timer);
-        pending.reject(new Error(reason));
-      }
-      map.clear();
-    }
-  }, []);
-
-  const requestChunk = useCallback(
-    (sha256: string, index: number) =>
-      new Promise<Uint8Array>((resolve, reject) => {
-        if (!adapter) {
-          reject(new Error('disconnected'));
-          return;
-        }
-        const key = `${sha256}:${index}`;
-        const timer = setTimeout(() => {
-          pendingRef.current.delete(key);
-          reject(new Error('host_font_timeout'));
-        }, CHUNK_TIMEOUT_MS);
-        pendingRef.current.set(key, { resolve, reject, timer });
-        adapter.sendHostFontChunkRequest(sha256, index);
-      }),
-    [adapter],
-  );
-
-  /**
-   * Has the workstation cut `codepoints` out of `source`. A small cut arrives
-   * with the answer; a large one is pulled in slices like a font file.
-   */
-  const requestSubset = useCallback(
-    (
-      source: HostFontSubsetSource,
-      codepoints: number[],
-      onBytes: (bytes: number, total: number) => void,
-    ) =>
-      new Promise<CachedSubset>((resolve, reject) => {
-        if (!adapter) {
-          reject(new Error('disconnected'));
-          return;
-        }
-        const requestId = Math.random().toString(36).slice(2, 12);
-        const timer = setTimeout(() => {
-          pendingSubsetsRef.current.delete(requestId);
-          reject(new Error('host_font_timeout'));
-        }, CHUNK_TIMEOUT_MS);
-        pendingSubsetsRef.current.set(requestId, {
-          resolve: (subset) => resolve({ ...subset, codepoints }),
-          reject,
-          timer,
-        });
-        subsetProgressRef.current.set(requestId, onBytes);
-        adapter.sendHostFontSubsetRequest(
-          source.sha256,
-          String.fromCodePoint(...codepoints),
-          requestId,
-        );
-      }),
-    [adapter],
-  );
 
   /** Registers cuts, remembers what they cover, and asks the terminal to repaint. */
   const addGlyphs = async (generation: number, alias: string, subsets: CachedSubset[]) => {
@@ -559,76 +385,15 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
 
   useEffect(() => {
     if (!adapter) return undefined;
-    const pending = pendingRef.current;
-    const pendingSubsets = pendingSubsetsRef.current;
     const offFont = adapter.on('terminalFont', (font) => {
       void evaluate(font);
     });
-    const offChunk = adapter.on('hostFontChunk', (message) => {
-      const key = `${message.sha256}:${message.index}`;
-      const waiting = pending.get(key);
-      if (!waiting) return;
-      pending.delete(key);
-      clearTimeout(waiting.timer);
-      try {
-        waiting.resolve(decodeBase64(message.dataBase64));
-      } catch {
-        waiting.reject(new Error('host_font_corrupt'));
-      }
-    });
-    const offSubset = adapter.on('hostFontSubset', (message) => {
-      const waiting = pendingSubsets.get(message.requestId);
-      if (!waiting) return;
-      pendingSubsets.delete(message.requestId);
-      clearTimeout(waiting.timer);
-      const onBytes = subsetProgressRef.current.get(message.requestId) ?? (() => {});
-      subsetProgressRef.current.delete(message.requestId);
-      if (message.dataBase64 !== undefined) {
-        try {
-          const bytes = decodeBase64(message.dataBase64);
-          onBytes(bytes.length, bytes.length);
-          waiting.resolve({
-            subsetSha: message.subsetSha,
-            data: bytes.buffer as ArrayBuffer,
-            codepoints: [],
-          });
-        } catch {
-          waiting.reject(new Error('host_font_corrupt'));
-        }
-        return;
-      }
-      onBytes(0, message.bytes);
-      const face = {
-        style: 'regular' as const,
-        format: 'opentype' as const,
-        bytes: message.bytes,
-        sha256: message.subsetSha,
-      };
-      downloadHostFontFace(face, requestChunk, (bytes) => onBytes(bytes, message.bytes))
-        .then((data) => waiting.resolve({ subsetSha: message.subsetSha, data, codepoints: [] }))
-        .catch((error) =>
-          waiting.reject(error instanceof Error ? error : new Error('host_font_failed')),
-        );
-    });
-    const offError = adapter.on('error', (error) => {
-      if (error.code === 'host_font_unavailable' || error.code === 'host_font_subset_failed') {
-        rejectPending(String(error.code));
-      }
-    });
-    const offState = adapter.on('stateChange', (next) => {
-      if (next !== 'connected') rejectPending('disconnected');
-    });
     return () => {
       offFont();
-      offChunk();
-      offSubset();
-      offError();
-      offState();
-      rejectPending('disconnected');
       if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
       batchTimerRef.current = null;
     };
-  }, [adapter, evaluate, rejectPending, requestChunk]);
+  }, [adapter, evaluate]);
 
   // An answer given in another tab of this browser holds here too, so the
   // same question is not waiting in every window.

@@ -127,7 +127,6 @@
         "packages/relay/web/src/utils/touchMouseAdapter.ts",
         "packages/relay/web/src/protocol/clientAdapter.ts",
         "packages/relay/web/src/utils/terminalSelection.ts",
-        "packages/relay/web/src/utils/useHostFont.ts",
         "scripts/capture-herdr-screens.mjs",
         "packages/relay/web/src/utils/inputField.ts",
         "scripts/e2e-latency-harness.mjs"
