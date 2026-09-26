@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Terminal } from '@xterm/xterm';
 import { PredictionLayer, type OverlayTarget } from '../utils/predictionPaint';
-import type { OverlayItem } from '../utils/predictiveEcho';
+import type { OverlayItem } from '../utils/predictionModel';
 import type { PaintOverlay } from '../render/HerdrRenderer';
 
 const RGB = 0x3000000;

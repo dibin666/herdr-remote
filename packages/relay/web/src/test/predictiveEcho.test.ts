@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  PredictiveEcho,
-  type PredictionTerminal,
-  type PredictionLine,
-  type PredictionCell,
-} from '../utils/predictiveEcho';
+import { PredictiveEcho } from '../utils/predictiveEcho';
+import type { PredictionTerminal, PredictionLine, PredictionCell } from '../utils/predictionModel';
 
 function createMockTerminal(initial?: {
   cols?: number;

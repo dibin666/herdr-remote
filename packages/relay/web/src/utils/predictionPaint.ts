@@ -8,7 +8,7 @@ import {
   type CellStyle,
 } from '../render/cell';
 import type { OverlayCell, PaintOverlay } from '../render/HerdrRenderer';
-import type { OverlayItem } from './predictiveEcho';
+import type { OverlayItem } from './predictionModel';
 
 /** What the layer draws into: the canvas renderer, while it is the one in use. */
 export interface OverlayTarget {
