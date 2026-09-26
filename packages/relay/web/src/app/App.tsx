@@ -317,5 +317,3 @@ export function App() {
     </TerminalProvider>
   );
 }
-
-export default App;

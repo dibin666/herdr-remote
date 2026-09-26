@@ -272,4 +272,4 @@ function subscribeHerdr(
   };
 }
 
-export { REQUEST_TIMEOUT_MS, requestHerdr, subscribeHerdr };
+export { requestHerdr, subscribeHerdr };

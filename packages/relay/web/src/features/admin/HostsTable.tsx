@@ -43,7 +43,7 @@ const STATUS_TONE: Record<HostStatus, 'ok' | 'warn' | 'idle'> = {
  * paired to it, and dropping it from the board would read as "those devices
  * belong to nothing" — so it stays, marked offline.
  */
-export function buildHostRows(hosts: HostInfo[] = [], devices: PairedDeviceInfo[] = []): HostRow[] {
+function buildHostRows(hosts: HostInfo[] = [], devices: PairedDeviceInfo[] = []): HostRow[] {
   const devicesByHost = new Map<string, PairedDeviceInfo[]>();
   for (const device of devices) {
     if (!device?.hostId) continue;

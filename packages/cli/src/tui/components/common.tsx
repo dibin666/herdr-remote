@@ -15,10 +15,6 @@ export function StatusDot({ level }: { level: StatusLevel }) {
   return <Text color={STATUS_COLOR[level]}>{STATUS_GLYPH[level]}</Text>;
 }
 
-export function Hint({ children }: { children: React.ReactNode }) {
-  return <Text color={theme.muted}>{children}</Text>;
-}
-
 // Wide enough for the longest label in either language plus a separating
 // space. Too narrow and Ink wraps the label onto a second line or butts it
 // straight against its value.

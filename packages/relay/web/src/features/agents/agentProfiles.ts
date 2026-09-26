@@ -418,5 +418,4 @@ const PROFILES = {
 
 export const AGENT_PROFILES = PROFILES;
 export type AgentProfileId = keyof typeof PROFILES;
-export type AgentProfilePin = 'auto' | AgentProfileId;
 export const AGENT_PROFILE_IDS = Object.keys(PROFILES) as AgentProfileId[];

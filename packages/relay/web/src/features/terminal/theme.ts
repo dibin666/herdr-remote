@@ -48,7 +48,7 @@ const SYSTEM_MONOSPACE = [
   '"Courier New"',
 ];
 
-export type FontPresetId =
+type FontPresetId =
   | 'host'
   | 'system'
   | 'jetbrains-mono'
@@ -98,10 +98,6 @@ export const FONT_PRESETS: readonly FontPreset[] = [
   },
 ];
 
-export function isFontPresetId(value: unknown): value is FontPresetId {
-  return FONT_PRESETS.some((preset) => preset.id === value);
-}
-
 /** Draw the session in the workstation's own terminal font. */
 export const DEFAULT_TERMINAL_FONT = 'host';
 
@@ -109,7 +105,7 @@ export const DEFAULT_TERMINAL_FONT = 'host';
 export const PREVIOUS_DEFAULT_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace';
 
-export const OLD_SYSTEM_DEFAULT_FONT =
+const OLD_SYSTEM_DEFAULT_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
 export const LEGACY_DEFAULT_FONT = 'JetBrains Mono, Menlo, Monaco, Consolas, monospace';
@@ -149,7 +145,7 @@ const BUNDLED_EQUIVALENTS: Array<[RegExp, string]> = [
   [/^(ibm\s*plex\s*mono|blex\s*mono)/i, '"Herdr IBM Plex Mono"'],
 ];
 
-export function bundledEquivalent(family: string): string | null {
+function bundledEquivalent(family: string): string | null {
   const match = BUNDLED_EQUIVALENTS.find(([pattern]) => pattern.test(family.trim()));
   return match ? match[1] : null;
 }

@@ -17,9 +17,9 @@ export interface ToastItem {
 }
 
 /** How long a notice stays up, counted from its most recent repeat. */
-export const TOAST_DISMISS_MS = 4000;
+const TOAST_DISMISS_MS = 4000;
 /** Distinct notices on screen at once; the oldest is dropped past this. */
-export const MAX_VISIBLE_TOASTS = 3;
+const MAX_VISIBLE_TOASTS = 3;
 
 export function useToastQueue() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);

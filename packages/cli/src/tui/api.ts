@@ -4,15 +4,13 @@
 // shared with the CLI. Funnelling it through one module gives the screens a
 // single surface to call.
 
-import { ACCESS_MODES, OFFICIAL_RELAY_URL, configExists, loadConfig } from '../config.js';
+import { OFFICIAL_RELAY_URL, configExists, loadConfig } from '../config.js';
 import { configPath, stateDir } from '../paths.js';
-import { bindAddress, resolveAdminOrigin, resolvePublicUrl } from '../relay-urls.js';
+import { bindAddress, resolveAdminOrigin } from '../relay-urls.js';
 import { MIN_HERDR_VERSION, herdrVersion } from '../herdr-command.js';
 import { createTranslator, detectLocale } from '../i18n/index.js';
-import { listReachableAddresses, preferredLanAddress } from '../net-interfaces.js';
+import { listReachableAddresses } from '../net-interfaces.js';
 import {
-  FIELDS,
-  SELECTABLE_MODES,
   createDraft,
   fieldsForMode,
   getField,
@@ -22,15 +20,9 @@ import {
   saveDraft,
   selectedMode,
   setField,
-  validateDraft,
 } from '../settings-model.js';
 import { extractPairingCode, requestJson } from '../relay-client.js';
-import {
-  ensureRuntime,
-  readRuntime,
-  regenerateHostIdentity,
-  setRelayPassword,
-} from '../runtime.js';
+import { ensureRuntime, regenerateHostIdentity, setRelayPassword } from '../runtime.js';
 import { pair, readLogTail } from '../service.js';
 import { fullStatus, restartAll, startAll, stopAll } from '../lifecycle.js';
 import * as keepalive from '../keepalive/index.js';
@@ -52,8 +44,6 @@ export type { NetworkAddress } from '../net-interfaces.js';
 export type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 import type { KeepaliveStatus } from '../keepalive/index.js';
-
-export type { KeepaliveStatus };
 
 export type Status = {
   ok: boolean;
@@ -91,14 +81,10 @@ export type Pairing = { code: string; pairUrl: string; expiresAt: number; hostId
 
 export type { UpdateCheck } from '../updater.js';
 
-export type LifecycleResult = { ok?: boolean; managed: boolean; manager?: string };
-
 export {
-  ACCESS_MODES,
   detectLocale,
   listReachableAddresses,
   MIN_HERDR_VERSION,
-  SELECTABLE_MODES,
   OFFICIAL_RELAY_URL,
   isOfficialRelay,
   selectedMode,
@@ -109,7 +95,6 @@ export {
   installKind,
   performUpdate,
   bindAddress,
-  FIELDS,
   configExists,
   configPath,
   createDraft,
@@ -124,14 +109,9 @@ export {
   keepalive,
   loadConfig,
   pair,
-  preferredLanAddress,
   readLogTail,
-  readRuntime,
   regenerateHostIdentity,
-  requestJson,
   requiresRestart,
-  resolveAdminOrigin,
-  resolvePublicUrl,
   restartAll,
   saveDraft,
   setField,
@@ -139,7 +119,6 @@ export {
   startAll,
   stateDir,
   stopAll,
-  validateDraft,
 };
 
 /** The command that starts a matching relay, ready to paste on the server. */

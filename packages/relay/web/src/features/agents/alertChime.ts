@@ -76,8 +76,3 @@ export function playAlertChime(level: AttentionLevel): void {
     // A chime is a nicety; never let it throw into the status pipeline.
   }
 }
-
-/** For tests: forget the audio context. */
-export function resetAlertChime(): void {
-  context = null;
-}

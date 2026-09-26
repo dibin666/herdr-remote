@@ -9,9 +9,9 @@ import { logPath, stateDir } from '../paths.js';
 import { cliEntryPoint, serviceEnvironment } from './environment.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
 
-export const LAUNCHD_LABEL = 'dev.herdr.remote';
+const LAUNCHD_LABEL = 'dev.herdr.remote';
 
-export function launchdPlistPath(): string {
+function launchdPlistPath(): string {
   return path.join(os.homedir(), 'Library', 'LaunchAgents', `${LAUNCHD_LABEL}.plist`);
 }
 

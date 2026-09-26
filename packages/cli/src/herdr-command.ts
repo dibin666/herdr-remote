@@ -31,7 +31,7 @@ export interface HerdrLookup {
 }
 
 /** Where Herdr was found, and how; see `findHerdrCommand`. */
-export interface HerdrCommand {
+interface HerdrCommand {
   command: string;
   source: 'env' | 'path' | 'fallback' | 'unresolved' | 'verified';
   found: boolean;
@@ -264,7 +264,6 @@ function herdrNotFoundMessage({
 }
 
 export {
-  COMMAND_NAME,
   FALLBACK_DIRECTORIES,
   MIN_HERDR_VERSION,
   fallbackDirectories,

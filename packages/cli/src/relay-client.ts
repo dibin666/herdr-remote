@@ -14,7 +14,7 @@ export interface RequestOptions {
 }
 
 /** An HTTP error answer, with its status and parsed body. */
-export type RequestError = Error & { statusCode?: number; body?: Record<string, unknown> };
+type RequestError = Error & { statusCode?: number; body?: Record<string, unknown> };
 
 /**
  * Minimal JSON client. Picks http or https from the URL: a self-hosted relay is

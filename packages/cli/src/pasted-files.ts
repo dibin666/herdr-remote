@@ -134,11 +134,4 @@ function savePastedFile({
   return filePath;
 }
 
-export {
-  MAX_SAVED_FILES,
-  MAX_TOTAL_BYTES,
-  MAX_AGE_MS,
-  getPastedDir,
-  cleanPastedDir,
-  savePastedFile,
-};
+export { cleanPastedDir, savePastedFile };

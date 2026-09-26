@@ -10,7 +10,7 @@ import { logPath, PACKAGE_ROOT, stateDir } from '../paths.js';
 import { cliEntryPoint, serviceEnvironment } from './environment.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
 
-export function fallbackPidPath(): string {
+function fallbackPidPath(): string {
   return path.join(stateDir(), 'supervisor.pid');
 }
 

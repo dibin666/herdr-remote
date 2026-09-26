@@ -67,7 +67,7 @@ export const PANE_DIVIDER_THRESHOLD = 0.6;
 /**
  * Horizontal border characters used in pane split lines (e.g. ─── or ━━━).
  */
-export const HORIZONTAL_BORDER_CHARS = new Set([
+const HORIZONTAL_BORDER_CHARS = new Set([
   '─', // U+2500 Light Horizontal
   '━', // U+2501 Heavy Horizontal
   '═', // U+2550 Double Horizontal
@@ -88,7 +88,7 @@ export const HORIZONTAL_BORDER_CHARS = new Set([
  * sub-band. Within that sub-band, a genuine divider spans nearly every row (>= 80%), whereas
  * incidental vertical glyphs in text do not.
  */
-export const LOCAL_PANE_DIVIDER_THRESHOLD = 0.8;
+const LOCAL_PANE_DIVIDER_THRESHOLD = 0.8;
 
 function isHorizontalRuleRow(
   line: { length: number; getCell(x: number): { getChars(): string } | undefined } | undefined,

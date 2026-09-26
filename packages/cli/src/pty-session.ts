@@ -1,14 +1,14 @@
 import os from 'node:os';
 import pty, { type IPty } from 'node-pty';
 
-export interface PtySessionOptions {
+interface PtySessionOptions {
   command?: string;
   args?: string[];
   cwd?: string;
   socketPath?: string | null;
 }
 
-export interface PtyStartOptions {
+interface PtyStartOptions {
   cols?: number;
   rows?: number;
   onData?: (data: string) => void;

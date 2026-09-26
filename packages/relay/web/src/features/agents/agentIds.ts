@@ -89,12 +89,12 @@ export const AGENT_ID_ALIASES: Record<string, AgentProfileId> = {
   shell: 'shell',
 };
 
-export function normalizeAgentId(agent: string | null | undefined): string {
+function normalizeAgentId(agent: string | null | undefined): string {
   if (!agent) return '';
   return agent.trim().toLowerCase().replace(/\\/g, '/').split('/').at(-1) || '';
 }
 
-export function resolveAgentId(agent: string | null | undefined): AgentProfileId | null {
+function resolveAgentId(agent: string | null | undefined): AgentProfileId | null {
   const normalized = normalizeAgentId(agent);
   if (AGENT_ID_ALIASES[normalized]) return AGENT_ID_ALIASES[normalized];
   if (/^muse-bin-\d/.test(normalized)) return 'muse';

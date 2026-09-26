@@ -30,7 +30,7 @@ export type PlistValue =
   | { [key: string]: PlistValue };
 
 /** A keyed archive with its references resolved; a dangling one reads as undefined. */
-export type UnarchivedValue =
+type UnarchivedValue =
   | Exclude<PlistValue, PlistValue[] | { [key: string]: PlistValue }>
   | undefined
   | UnarchivedValue[]
@@ -176,4 +176,4 @@ function unarchiveKeyed(archive: PlistValue, depth = 6): UnarchivedValue {
   return resolve(rootRef, 0);
 }
 
-export { Uid, parseBinaryPlist, unarchiveKeyed };
+export { parseBinaryPlist, unarchiveKeyed };

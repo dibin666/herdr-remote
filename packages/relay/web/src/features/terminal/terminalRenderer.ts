@@ -49,7 +49,7 @@ import type { Terminal } from '@xterm/xterm';
 import { HerdrRenderer } from './render/HerdrRenderer';
 import { safeGetItem, safeSetItem, STORAGE_KEYS } from '@/shared/lib/browserStorage';
 
-export type TerminalRendererKind = 'dom' | 'canvas';
+type TerminalRendererKind = 'dom' | 'canvas';
 
 export interface AttachRendererOptions {
   /** Called after a fallback swap so the caller can re-measure and repaint. */
@@ -74,11 +74,11 @@ const PROBE_SAMPLE_HEIGHT = 240;
 export const PROBE_STORAGE_SCHEMA_VERSION = 1;
 export const PROBE_FAILURE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-export interface ProbeFailureEntry {
+interface ProbeFailureEntry {
   failedAt: number;
 }
 
-export interface ProbeStoreData {
+interface ProbeStoreData {
   v: number;
   ua: Record<string, ProbeFailureEntry>;
 }
@@ -196,7 +196,7 @@ export function checkCanvasContent(
   }
 }
 
-export function waitForFrames(count = 2): Promise<void> {
+function waitForFrames(count = 2): Promise<void> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame !== 'function') {
       setTimeout(resolve, 32);

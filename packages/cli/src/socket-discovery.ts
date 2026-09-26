@@ -22,7 +22,7 @@ function resolveSocketPath(
   return configuredPath || env.HERDR_SOCKET_PATH || defaultSocketPath(env);
 }
 
-export interface SocketInspection {
+interface SocketInspection {
   ok: boolean;
   path: unknown;
   reason?: string;

@@ -42,7 +42,7 @@ interface HarfBuzz {
 }
 
 /** A font file on disk, and which face in it (for collections). */
-export interface FontSource {
+interface FontSource {
   path: string;
   index?: number;
 }
@@ -133,4 +133,4 @@ class FontSubsetter {
   }
 }
 
-export { FontSubsetter, MAX_CODEPOINTS };
+export { FontSubsetter };

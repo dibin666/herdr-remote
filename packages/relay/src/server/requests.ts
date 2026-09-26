@@ -11,14 +11,14 @@ export type RequestSubject =
   | { kind: 'host'; hostId: string }
   | { kind: 'device'; hostId: string; deviceId: string };
 
-export function bearerToken(req: IncomingMessage): string | null {
+function bearerToken(req: IncomingMessage): string | null {
   const value = req.headers.authorization;
   if (typeof value !== 'string') return null;
   const match = /^Bearer\s+(.+)$/i.exec(value.trim());
   return match ? match[1] : null;
 }
 
-export function tokenMatches(candidate: unknown, expected: unknown): boolean {
+function tokenMatches(candidate: unknown, expected: unknown): boolean {
   if (
     typeof candidate !== 'string' ||
     candidate.length === 0 ||
@@ -67,7 +67,7 @@ export function authorizedHost(relay: RelayContext, req: IncomingMessage): strin
   return relay.auth.authenticateHost(hostId, token) ? hostId : null;
 }
 
-export function authorizedDevice(relay: RelayContext, req: IncomingMessage): DeviceRecord | null {
+function authorizedDevice(relay: RelayContext, req: IncomingMessage): DeviceRecord | null {
   const token = bearerToken(req);
   return token ? relay.auth.authenticateDevice(token) : null;
 }
@@ -118,7 +118,7 @@ function forwardedFor(relay: RelayContext, req: IncomingMessage): string | null 
  * every device in the world into one bucket and let a single attacker lock
  * everyone out.
  */
-export function rateLimitKey(relay: RelayContext, req: IncomingMessage): string {
+function rateLimitKey(relay: RelayContext, req: IncomingMessage): string {
   return forwardedFor(relay, req) || req.socket.remoteAddress || 'unknown';
 }
 
@@ -127,7 +127,7 @@ export function clientAddress(relay: RelayContext, req: IncomingMessage): string
   return forwardedFor(relay, req) || req.socket.remoteAddress || null;
 }
 
-export function allowAttempt(
+function allowAttempt(
   relay: RelayContext,
   store: Map<string, AttemptWindow>,
   req: IncomingMessage,

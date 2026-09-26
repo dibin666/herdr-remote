@@ -88,10 +88,7 @@ const Command: React.FC<{ command: string }> = ({ command }) => {
   );
 };
 
-export const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
-  isOpen,
-  onClose,
-}) => {
+const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { t } = useSettings();
   const { updateStatus, ignoreUpdate, hostname, hostId } = useConnection();
   if (!updateStatus) return null;

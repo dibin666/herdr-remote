@@ -29,7 +29,7 @@ export type AccessMode = (typeof ACCESS_MODES)[number];
 // workstation stays reachable only through its own host token.
 const OFFICIAL_RELAY_URL = 'wss://herdr-remote.564616.xyz';
 const LANGUAGES = ['auto', 'zh', 'en'] as const;
-export type LanguagePreference = (typeof LANGUAGES)[number];
+type LanguagePreference = (typeof LANGUAGES)[number];
 const KEEPALIVE_MANAGERS = ['auto', 'systemd', 'launchd', 'supervisor', 'none'] as const;
 export type KeepaliveManager = (typeof KEEPALIVE_MANAGERS)[number];
 
@@ -60,7 +60,7 @@ export interface Config {
  * A configuration while it is being assembled: the file and the environment
  * may put anything where `validate` expects a number or a list.
  */
-export type ConfigDraft = { [Section in keyof Config]: Record<string, unknown> };
+type ConfigDraft = { [Section in keyof Config]: Record<string, unknown> };
 
 function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
   return (list as readonly unknown[]).includes(value);

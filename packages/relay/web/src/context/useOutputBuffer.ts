@@ -7,7 +7,7 @@ import { useCallback, useRef } from 'react';
 
 /** Ring-buffer bounds for output received while no terminal sink is attached. */
 export const MAX_PENDING_OUTPUT_CHUNKS = 4096;
-export const MAX_PENDING_OUTPUT_BYTES = 8 * 1024 * 1024;
+const MAX_PENDING_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 export type TerminalOutputSink = (data: Uint8Array) => void;
 

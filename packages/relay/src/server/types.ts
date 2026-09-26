@@ -17,7 +17,7 @@ import type { RelayConfig } from '../relay-config.js';
 export type RelaySocket = WebSocket & { isAlive?: boolean };
 
 /** One browser window's PTY stream on its host. */
-export interface ClientSession {
+interface ClientSession {
   streamId: string;
   /** The v2 frame index, when the host negotiated v2 frames and one was free. */
   streamIndex: number | null;

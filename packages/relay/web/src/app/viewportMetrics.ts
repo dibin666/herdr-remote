@@ -39,7 +39,7 @@ export function readViewportMetrics(): ViewportMetrics {
   return { height: layoutHeight, keyboardInset: 0 };
 }
 
-export function applyViewportMetrics(
+function applyViewportMetrics(
   target: HTMLElement,
   metrics: ViewportMetrics = readViewportMetrics(),
 ): ViewportMetrics {

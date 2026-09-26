@@ -1,6 +1,6 @@
 import { ANSI_KEYS, encodeCtrlKey, encodeKeyWithModifiers, type KeyModifiers } from './keyEncoder';
 
-export interface ParsedKeyStep {
+interface ParsedKeyStep {
   /** The terminal bytes for the unmodified key. */
   key: string;
   /** The user's normalized key token, retained for readable captions. */

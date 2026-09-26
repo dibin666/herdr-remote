@@ -2,8 +2,8 @@
  * Terminal Layout & Typography Utilities
  */
 
-export const MIN_DESKTOP_FONT_SIZE = 10;
-export const MAX_DESKTOP_FONT_SIZE = 24;
+const MIN_DESKTOP_FONT_SIZE = 10;
+const MAX_DESKTOP_FONT_SIZE = 24;
 export const DEFAULT_DESKTOP_FONT_SIZE = 15;
 export const DEFAULT_MOBILE_FONT_SIZE = 13;
 

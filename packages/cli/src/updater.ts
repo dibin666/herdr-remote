@@ -24,7 +24,7 @@ const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
  */
 const MIRROR_REGISTRY = 'https://registry.npmmirror.com';
 
-export type InstallKind = 'npm' | 'linked' | 'source';
+type InstallKind = 'npm' | 'linked' | 'source';
 
 type FetchLike = (
   url: string,
@@ -51,7 +51,7 @@ export interface UpdateCheck {
 }
 
 /** What `performUpdate` did. */
-export interface UpdateResult {
+interface UpdateResult {
   ok: boolean;
   errorKey?: string;
   installed?: string | null;
@@ -476,7 +476,6 @@ async function performUpdate({
 }
 
 export {
-  PACKAGE_NAME,
   DEFAULT_REGISTRY,
   MIRROR_REGISTRY,
   canSelfUpdate,
@@ -485,7 +484,6 @@ export {
   currentVersion,
   installKind,
   installedVersionOnDisk,
-  npmErrorSummary,
   performUpdate,
   registryCandidates,
   updateChecksEnabled,

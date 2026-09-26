@@ -14,10 +14,10 @@
     },
     "packages/relay": {
       "entry": ["bin/*.js", "tests/**/*.test.js"],
-      "project": ["bin/**/*.js", "src/**/*.js", "tests/**/*.js"]
+      "project": ["bin/**/*.js", "src/**/*.ts", "tests/**/*.js"]
     },
     "packages/relay/web": {
-      "entry": ["src/main.tsx", "src/**/*.test.{ts,tsx}", "src/test/**/*.ts"],
+      "entry": ["src/**/*.test.{ts,tsx}", "src/test/**/*.ts"],
       "project": ["src/**/*.{ts,tsx}", "!src/**/vendor/**"],
       "ignoreDependencies": ["@xterm/addon-canvas"]
     }

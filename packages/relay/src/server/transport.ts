@@ -84,7 +84,7 @@ export function enqueueDelayedSend(
  * Drain ready frames in FIFO order up to the current timestamp, then schedule the
  * single next timer if items remain. Ensures only one timer runs per socket at a time.
  */
-export function flushSendQueue(relay: RelayContext, socket: RelaySocket, queue: SendQueue): void {
+function flushSendQueue(relay: RelayContext, socket: RelaySocket, queue: SendQueue): void {
   if (queue.timer) {
     relay.activeDelayTimers.delete(queue.timer);
     queue.timer = null;

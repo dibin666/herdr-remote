@@ -24,7 +24,7 @@ import {
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import { preferredLanAddress } from './net-interfaces.js';
 
-export type FieldId =
+type FieldId =
   | 'mode'
   | 'port'
   | 'lanHost'
@@ -36,7 +36,7 @@ export type FieldId =
   | 'language'
   | 'keepaliveManager';
 
-export interface FieldSpec {
+interface FieldSpec {
   id: FieldId;
   kind: 'choice' | 'text' | 'address' | 'toggle';
   labelKey: string;
@@ -45,7 +45,7 @@ export interface FieldSpec {
 }
 
 /** What `setField` did: the new draft, or the old one and why. */
-export interface FieldEdit {
+interface FieldEdit {
   draft: Config;
   errorKey: string | null;
 }
@@ -90,7 +90,7 @@ const EMPTY = '';
  * that merely happens to hold our address.
  */
 const SELECTABLE_MODES = ['local', 'lan', 'official', 'remote'] as const;
-export type SelectableMode = (typeof SELECTABLE_MODES)[number];
+type SelectableMode = (typeof SELECTABLE_MODES)[number];
 
 /** Which of `SELECTABLE_MODES` this draft represents. */
 function selectedMode(draft: Config): SelectableMode {
@@ -361,8 +361,6 @@ function requiresRestart(before: Config, after: Config): boolean {
 }
 
 export {
-  FIELDS,
-  SELECTABLE_MODES,
   createDraft,
   fieldsForMode,
   isOfficialRelay,

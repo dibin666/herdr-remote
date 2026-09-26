@@ -10,7 +10,7 @@ import {
 } from '@/context/TerminalContext';
 import { attentionCounts } from '@/features/agents/agentAttention';
 import { applyDocumentTitle } from '@/features/agents/documentTitle';
-import { isCoarsePointerDevice, MOBILE_BREAKPOINT_PX } from './terminalLayout';
+import { isCoarsePointerDevice } from './terminalLayout';
 import { openTerminalLink } from './terminalLinks';
 import type { AttachedRenderer } from './terminalRenderer';
 import { hostPaletteToTheme } from './theme';
@@ -30,7 +30,6 @@ import { useTerminalFit } from './useTerminalFit';
 import { SelectionOverlay, useTerminalSelection } from './useTerminalSelection';
 import { useXterm, type XtermLive } from './useXterm';
 
-export { MOBILE_BREAKPOINT_PX };
 export {
   PREDICTIVE_ECHO_AUTO_THRESHOLD_MS,
   shouldShowPredictiveEcho,

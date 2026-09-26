@@ -46,7 +46,7 @@ interface PendingHost {
   host?: RelayHost;
 }
 
-export function createHostRecord(
+function createHostRecord(
   message: HostHelloMessage,
   ws: RelaySocket,
   pending: PendingHost,
@@ -202,7 +202,7 @@ export function handleHostConnection(
   ws.on('error', () => {});
 }
 
-export function handleHostMessage(
+function handleHostMessage(
   relay: RelayContext,
   host: RelayHost,
   raw: RawData,

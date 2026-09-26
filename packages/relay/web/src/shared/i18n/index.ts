@@ -3,7 +3,6 @@ import { zh } from './zh';
 
 export type Language = 'en' | 'zh';
 export type { TranslationSchema };
-export { en, zh };
 
 /** Every dotted path to a string in the schema: `'header.appName'`, … */
 type Leaves<T> = {
@@ -17,7 +16,7 @@ export type TranslationParams = Record<string, string | number>;
 /** Look a key up in the current language; checked against the schema at compile time. */
 export type Translate = (key: TranslationKey, params?: TranslationParams) => string;
 
-export const translations: Record<Language, TranslationSchema> = {
+const translations: Record<Language, TranslationSchema> = {
   en,
   zh,
 };

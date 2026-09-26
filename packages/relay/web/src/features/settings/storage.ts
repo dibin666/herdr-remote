@@ -90,7 +90,7 @@ function generateClientId(): string {
   return `client-${randomStr}`;
 }
 
-export function detectDefaultLanguage(): Language {
+function detectDefaultLanguage(): Language {
   if (typeof navigator !== 'undefined' && navigator.language) {
     if (navigator.language.toLowerCase().startsWith('zh')) {
       return 'zh';

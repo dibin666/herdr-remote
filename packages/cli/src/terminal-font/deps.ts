@@ -31,7 +31,7 @@ export interface FontSetting {
 }
 
 /** Terminals size fonts in points; CSS pixels are 1/96 inch. */
-export const PX_PER_PT = 96 / 72;
+const PX_PER_PT = 96 / 72;
 const COMMAND_TIMEOUT_MS = 3000;
 
 /** Names a terminal accepts in place of a real family. */

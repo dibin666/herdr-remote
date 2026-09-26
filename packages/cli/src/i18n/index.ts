@@ -2,8 +2,8 @@ import en from './en.js';
 import zh from './zh.js';
 
 export type Locale = 'en' | 'zh';
-export type Catalogue = Record<string, string>;
-export type Interpolations = Record<string, string | number>;
+type Catalogue = Record<string, string>;
+type Interpolations = Record<string, string | number>;
 
 /** A bound lookup: `t(key, values)`, plus the locale it speaks. */
 export interface Translate {
@@ -67,4 +67,4 @@ function createTranslator(locale: string = DEFAULT_LOCALE): Translate {
   });
 }
 
-export { CATALOGUES, DEFAULT_LOCALE, detectLocale, createTranslator, interpolate };
+export { CATALOGUES, detectLocale, createTranslator, interpolate };

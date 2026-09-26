@@ -4,7 +4,7 @@ import { GLYPH, STATUS_TEXT, StatusDot, type StatusLevel } from './tokens';
 
 /* ------------------------------------------------------------------ button */
 
-export type ButtonVariant = 'default' | 'primary' | 'danger' | 'warn' | 'ghost';
+type ButtonVariant = 'default' | 'primary' | 'danger' | 'warn' | 'ghost';
 
 const BUTTON_TONE: Record<ButtonVariant, string> = {
   default:

@@ -60,7 +60,7 @@ const MAX_PAGES = 6;
  * Chrome and Safari align glyphs best on the ideographic baseline; Firefox
  * truncates with it (xterm issue 3353). Same choice as xterm's renderers.
  */
-export function textBaseline(userAgent: string): CanvasTextBaseline {
+function textBaseline(userAgent: string): CanvasTextBaseline {
   return /Firefox\//.test(userAgent) || /Edge\/\d/.test(userAgent) ? 'bottom' : 'ideographic';
 }
 

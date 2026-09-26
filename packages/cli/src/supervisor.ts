@@ -21,7 +21,7 @@ const MAX_BACKOFF_MS = 30_000;
 const HEALTHY_UPTIME_MS = 30_000;
 
 /** Something the supervisor did, as it reports it. */
-export interface SupervisorEvent {
+interface SupervisorEvent {
   type: string;
   message: string;
   name?: string;
@@ -342,4 +342,4 @@ async function runForeground({ logToFiles = false } = {}): Promise<number> {
   });
 }
 
-export { Supervisor, runForeground, MIN_BACKOFF_MS, MAX_BACKOFF_MS, HEALTHY_UPTIME_MS };
+export { runForeground };

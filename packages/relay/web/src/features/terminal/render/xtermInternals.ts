@@ -12,7 +12,7 @@ export interface Disposable {
   dispose(): void;
 }
 
-export type XtermEvent<T> = (listener: (value: T) => void) => Disposable;
+type XtermEvent<T> = (listener: (value: T) => void) => Disposable;
 
 export interface RenderDimensions {
   css: { canvas: { width: number; height: number }; cell: { width: number; height: number } };

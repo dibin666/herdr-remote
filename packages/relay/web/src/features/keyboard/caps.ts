@@ -42,5 +42,3 @@ export function capSizes(compact: boolean) {
     drawerToggleClass: compact ? 'h-8 px-1.5' : 'h-7 px-1.5',
   };
 }
-
-export type CapSizes = ReturnType<typeof capSizes>;

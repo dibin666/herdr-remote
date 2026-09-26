@@ -51,7 +51,7 @@ const HERDR_START_REPEAT_MS = 3_000;
 /** A window asks its workstation to re-read the terminal font at most this often. */
 const FONT_REFRESH_REPEAT_MS = 2_000;
 
-export function verifyImageMagicBytes(mime: string, dataBase64: unknown): boolean {
+function verifyImageMagicBytes(mime: string, dataBase64: unknown): boolean {
   if (typeof dataBase64 !== 'string' || dataBase64.length === 0) return false;
   let headerBuf: Buffer;
   try {
@@ -204,7 +204,7 @@ export function handleClientConnection(
   ws.on('error', () => {});
 }
 
-export function handleClientMessage(
+function handleClientMessage(
   relay: RelayContext,
   client: RelayClient,
   raw: RawData,

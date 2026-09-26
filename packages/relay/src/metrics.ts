@@ -11,7 +11,7 @@ import type {
 } from './protocol/http.js';
 
 /** Cleanup counters that `recordCleanup` may increment. */
-export type CleanupCounterName = Exclude<keyof CleanupCounters, 'lastCleanupAt'>;
+type CleanupCounterName = Exclude<keyof CleanupCounters, 'lastCleanupAt'>;
 
 interface HostTrafficCounter {
   bytesIn: number;
@@ -39,7 +39,7 @@ interface ClientIdentity {
   deviceId?: string | null;
 }
 
-export interface SnapshotOptions {
+interface SnapshotOptions {
   clients?: ConnectedClientInfo[];
   hosts?: HostInfo[];
   ptys?: PtyInfo[];

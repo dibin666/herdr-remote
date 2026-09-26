@@ -33,7 +33,7 @@ interface Pairing {
   publicUrl: string;
 }
 
-export interface AuthStoreOptions {
+interface AuthStoreOptions {
   stateFile?: string;
   pairingTtlMs?: number;
   deviceTtlMs?: number;
@@ -41,7 +41,7 @@ export interface AuthStoreOptions {
   password?: string | null;
 }
 
-export type RegisterHostResult =
+type RegisterHostResult =
   | { ok: true; hostId: string; firstSeen: boolean }
   | {
       ok: false;
@@ -49,7 +49,7 @@ export type RegisterHostResult =
       message: string;
     };
 
-export interface PairingStart {
+interface PairingStart {
   code: string;
   hostId: string;
   publicUrl: string;
@@ -57,7 +57,7 @@ export interface PairingStart {
   expiresAtIso: string;
 }
 
-export interface PairingResult {
+interface PairingResult {
   deviceId: string;
   hostId: string;
   token: string;
@@ -66,7 +66,7 @@ export interface PairingResult {
   publicUrl: string;
 }
 
-export interface RevokedDevice {
+interface RevokedDevice {
   deviceId: string;
   hostId: string;
   userAgent: string | null;
@@ -375,4 +375,4 @@ class AuthStore {
   }
 }
 
-export { AuthStore, hash, equalHash, nowIso };
+export { AuthStore };

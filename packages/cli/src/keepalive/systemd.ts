@@ -8,9 +8,9 @@ import { ensureDir } from 'herdr-remote-relay/state';
 import { cliEntryPoint, serviceEnvironment } from './environment.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
 
-export const SYSTEMD_UNIT_NAME = 'herdr-remote.service';
+const SYSTEMD_UNIT_NAME = 'herdr-remote.service';
 
-export function systemdUnitPath(): string {
+function systemdUnitPath(): string {
   const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   return path.join(configHome, 'systemd', 'user', SYSTEMD_UNIT_NAME);
 }

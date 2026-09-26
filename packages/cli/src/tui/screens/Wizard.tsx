@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
@@ -30,7 +30,7 @@ export type StepId = 'language' | 'access' | 'address' | 'relayUrl' | 'password'
  * step counter is derived from this list, so it has to agree with the route
  * actually taken or the wizard reports "step 5 of 5" on its third screen.
  */
-export function stepsFor(mode: AccessMode, remoteUrl?: string): StepId[] {
+function stepsFor(mode: AccessMode, remoteUrl?: string): StepId[] {
   const steps: StepId[] = ['language', 'access'];
   if (mode === 'lan') steps.push('address');
   if (mode === 'remote' && remoteUrl !== OFFICIAL_RELAY_URL) steps.push('relayUrl', 'password');

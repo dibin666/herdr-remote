@@ -28,6 +28,7 @@ export enum FgFlags {
   INVERSE = 0x4000000,
   BOLD = 0x8000000,
   UNDERLINE = 0x10000000,
+  /** @public Not drawn: xterm parses it, the renderer does not blink text. */
   BLINK = 0x20000000,
   INVISIBLE = 0x40000000,
   STRIKETHROUGH = 0x80000000,
@@ -37,11 +38,13 @@ export enum BgFlags {
   ITALIC = 0x4000000,
   DIM = 0x8000000,
   HAS_EXTENDED = 0x10000000,
+  /** @public Only affects erasure, which xterm handles. */
   PROTECTED = 0x20000000,
   OVERLINE = 0x40000000,
 }
 
 export enum UnderlineStyle {
+  /** @public */
   NONE = 0,
   SINGLE = 1,
   DOUBLE = 2,
@@ -74,16 +77,6 @@ export interface CellStyle {
 }
 
 export const DEFAULT_STYLE: Readonly<CellStyle> = { fg: 0, bg: 0, ext: 0 };
-
-export function cellWidth(content: number): number {
-  return content >>> Content.WIDTH_SHIFT;
-}
-
-export function cellChars(cell: Pick<RawCell, 'content' | 'combinedData'>): string {
-  if (cell.content & Content.IS_COMBINED_MASK) return cell.combinedData;
-  const code = cell.content & Content.CODEPOINT_MASK;
-  return code ? String.fromCodePoint(code) : '';
-}
 
 /** Extended attributes in effect, 0 unless the bg word flags them. */
 export function cellExt(cell: Pick<RawCell, 'bg' | 'extended'>): number {

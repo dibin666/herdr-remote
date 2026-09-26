@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';

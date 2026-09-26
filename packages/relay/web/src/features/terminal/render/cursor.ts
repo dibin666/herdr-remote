@@ -21,7 +21,7 @@ export interface CursorState {
   shape: CursorShape;
 }
 
-export function shapeOf(style: string): CursorShape {
+function shapeOf(style: string): CursorShape {
   switch (style) {
     case 'bar':
       return CursorShape.BAR;

@@ -19,7 +19,7 @@ export interface ConnectionProfile {
   lastUsedAt: number;
 }
 
-export const MAX_PROFILE_NAME_LENGTH = 64;
+const MAX_PROFILE_NAME_LENGTH = 64;
 export const MAX_PROFILE_TOKEN_LENGTH = 4096;
 
 export function generateProfileId(): string {

@@ -45,7 +45,7 @@ Self-hosting: docs/self-hosted-relay.md
 `;
 
 /** Flags the command line understands; `unknown` is the last one it did not. */
-export interface CliFlags {
+interface CliFlags {
   json?: boolean;
   daemon?: boolean;
   help?: boolean;
@@ -275,4 +275,4 @@ function run() {
   });
 }
 
-export { main, run, parseArgs, describeStatus, USAGE, VERSION };
+export { run, parseArgs, describeStatus };

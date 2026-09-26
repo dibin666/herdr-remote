@@ -258,13 +258,4 @@ async function ensureHerdrServer({
   }
 }
 
-export {
-  PROBE_TIMEOUT_MS,
-  START_TIMEOUT_MS,
-  probeHerdrServer,
-  runningInSystemdService,
-  serverEnv,
-  serverCommand,
-  launchHerdrServer,
-  ensureHerdrServer,
-};
+export { probeHerdrServer, runningInSystemdService, serverEnv, serverCommand, ensureHerdrServer };

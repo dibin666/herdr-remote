@@ -14,7 +14,7 @@ const PLUGIN_ID = 'herdr.remote.web';
 const MANIFEST_NAME = 'herdr-plugin.toml';
 
 /** One line of `herdr plugin list`. */
-export interface PluginListEntry {
+interface PluginListEntry {
   id: string;
   name: string;
   enabled: boolean;
@@ -24,7 +24,7 @@ export interface PluginListEntry {
 }
 
 /** Whether and where this package is linked into Herdr. */
-export interface RegistrationStatus {
+interface RegistrationStatus {
   available: boolean;
   registered: boolean;
   reason?: string;
@@ -148,4 +148,4 @@ function unregister(): { ok: true; output: string } {
   return { ok: true, output: String(result.stdout || '').trim() };
 }
 
-export { PLUGIN_ID, manifestPath, parsePluginList, registrationStatus, register, unregister };
+export { parsePluginList, registrationStatus, register, unregister };

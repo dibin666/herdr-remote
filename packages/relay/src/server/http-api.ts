@@ -44,7 +44,7 @@ interface Route {
   handle: Handler;
 }
 
-export function setResponseHeaders(res: ServerResponse, contentType = 'application/json'): void {
+function setResponseHeaders(res: ServerResponse, contentType = 'application/json'): void {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -56,7 +56,7 @@ export function setResponseHeaders(res: ServerResponse, contentType = 'applicati
   );
 }
 
-export function sendJsonResponse(res: ServerResponse, status: number, payload: unknown): void {
+function sendJsonResponse(res: ServerResponse, status: number, payload: unknown): void {
   setResponseHeaders(res);
   res.writeHead(status);
   res.end(JSON.stringify(payload));

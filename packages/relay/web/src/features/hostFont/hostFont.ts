@@ -224,7 +224,7 @@ export function hostGlyphAlias(source: HostFontSubsetSource | null | undefined):
 }
 
 /** Hanzi, kana, Hangul, bopomofo, CJK punctuation and full-width forms. */
-export function isCjkCodepoint(codepoint: number): boolean {
+function isCjkCodepoint(codepoint: number): boolean {
   return (
     (codepoint >= 0x2e80 && codepoint <= 0x2fdf) ||
     (codepoint >= 0x3000 && codepoint <= 0x33ff) ||
@@ -249,7 +249,7 @@ export function wantsGlyph(scope: HostFontSubsetSource['scope'], codepoint: numb
 }
 
 /** `U+4E00-4E02, U+4E08` for a list of code points. */
-export function toUnicodeRange(codepoints: number[]): string {
+function toUnicodeRange(codepoints: number[]): string {
   const sorted = [...new Set(codepoints)].sort((a, b) => a - b);
   const parts: string[] = [];
   for (let i = 0; i < sorted.length; i += 1) {

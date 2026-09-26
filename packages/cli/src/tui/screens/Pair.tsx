@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import QRCode from 'qrcode';
 import type { AppContext } from '../App.js';

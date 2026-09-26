@@ -115,6 +115,5 @@ export {
   resolvePublicUrl,
   resolveAdminOrigin,
   resolveHostRelayUrl,
-  httpOrigin,
   hostWebSocketUrl,
 };

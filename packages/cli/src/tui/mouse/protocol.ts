@@ -14,7 +14,7 @@ const ESC = String.fromCharCode(27);
 export const ENABLE_MOUSE = `${ESC}[?1000h${ESC}[?1002h${ESC}[?1003h${ESC}[?1006h`;
 export const DISABLE_MOUSE = `${ESC}[?1006l${ESC}[?1003l${ESC}[?1002l${ESC}[?1000l`;
 
-export type MouseButton = 'left' | 'middle' | 'right' | 'wheel-up' | 'wheel-down' | 'none';
+type MouseButton = 'left' | 'middle' | 'right' | 'wheel-up' | 'wheel-down' | 'none';
 
 export type MouseEvent = {
   type: 'press' | 'release' | 'move' | 'wheel';

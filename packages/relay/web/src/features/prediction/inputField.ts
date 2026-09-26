@@ -50,7 +50,7 @@ import {
   TOP_RIGHT,
 } from './fieldScreen';
 
-export type InputFieldKind = 'rule' | 'frame' | 'prompt';
+type InputFieldKind = 'rule' | 'frame' | 'prompt';
 
 export interface InputField {
   kind: InputFieldKind;

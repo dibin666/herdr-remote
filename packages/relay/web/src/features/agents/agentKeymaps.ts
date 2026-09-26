@@ -14,12 +14,12 @@ import {
 export * from './agentIds';
 export * from './agentProfiles';
 
-export interface AgentKeymapActionOverride {
+interface AgentKeymapActionOverride {
   keys?: string;
   hidden?: boolean;
 }
 
-export interface AgentKeymapCustomAction {
+interface AgentKeymapCustomAction {
   id: string;
   label: string;
   keys: string;

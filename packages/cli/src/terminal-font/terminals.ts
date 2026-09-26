@@ -118,11 +118,6 @@ export function processLineage({
   return lineage;
 }
 
-/** Names of this process's ancestors, nearest first. */
-export function processAncestry(options: Parameters<typeof processLineage>[0] = {}): string[] {
-  return processLineage(options).map((entry) => entry.name);
-}
-
 /** The command line of a running process, as its argument list. */
 export function processArguments(pid: number, { platform = process.platform } = {}): string[] {
   if (platform !== 'linux') return [];

@@ -168,4 +168,4 @@ function emptySummary(): AgentSummary {
   return { focusedPaneId: null, focusedAgent: null, counts: emptyCounts(), total: 0, agents: [] };
 }
 
-export { AGENT_STATUSES, MAX_LISTED_AGENTS, emptySummary, sameSummary, summarizeAgents };
+export { AGENT_STATUSES, emptySummary, sameSummary, summarizeAgents };

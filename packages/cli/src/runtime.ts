@@ -6,9 +6,9 @@ import { ensureDir, randomToken, readJson, writeJsonAtomic } from 'herdr-remote-
 import { pidAlive } from './lib/process.js';
 import { configDir, runtimeStatePath, stateDir } from './paths.js';
 
-export const RUNTIME_VERSION = 2;
+const RUNTIME_VERSION = 2;
 
-export interface ManagedPid {
+interface ManagedPid {
   name: string;
   pid: number;
   startedAt: string;

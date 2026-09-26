@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Text } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme, type StatusLevel } from '../theme.js';

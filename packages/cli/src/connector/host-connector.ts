@@ -476,5 +476,3 @@ export class HostConnector {
     });
   }
 }
-
-export { PROTOCOL_VERSION };

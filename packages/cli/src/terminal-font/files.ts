@@ -44,7 +44,7 @@ function escapeFontconfig(value: string): string {
 }
 
 /** `00 01 00 00` / `true` are TrueType, `OTTO` is CFF OpenType. */
-export function sfntFormat(header: Buffer | null | undefined): HostFontFormat | null {
+function sfntFormat(header: Buffer | null | undefined): HostFontFormat | null {
   if (!header || header.length < 4) return null;
   const tag = header.subarray(0, 4).toString('latin1');
   if (tag === '\x00\x01\x00\x00' || tag === 'true') return 'truetype';
@@ -73,7 +73,7 @@ function readHeader(filePath: string, length: number): Buffer | null {
  * The family, subfamily and PostScript names in a TTF/OTF `name` table. Used
  * where fontconfig is absent — a stock macOS — to find a family's files.
  */
-export function readSfntNames(
+function readSfntNames(
   filePath: string,
 ): { family: string | null; subfamily: string; postscript: string | null } | null {
   let fd: number | undefined;

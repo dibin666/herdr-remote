@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useApp, useInput, type DOMElement } from 'ink';
 import { useMouse, useMouseTarget } from './mouse/index.js';
 import { theme } from './theme.js';

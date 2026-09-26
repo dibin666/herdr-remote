@@ -1,7 +1,7 @@
 import { Attributes, FgFlags, BgFlags } from './cell';
 
 /** One colour of xterm's theme: `css` to paint with, `rgba` packed as 0xRRGGBBAA. */
-export interface ThemeColor {
+interface ThemeColor {
   css: string;
   rgba: number;
 }
@@ -30,7 +30,7 @@ export interface ResolvedColors {
 
 const rgbCache = new Map<number, string>();
 
-export function rgbCss(rgb: number): string {
+function rgbCss(rgb: number): string {
   let css = rgbCache.get(rgb);
   if (css === undefined) {
     css = `#${(rgb & Attributes.RGB_MASK).toString(16).padStart(6, '0')}`;

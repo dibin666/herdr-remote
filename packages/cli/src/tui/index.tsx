@@ -1,9 +1,8 @@
-import React from 'react';
 import { render } from 'ink';
 import { App } from './App.js';
 import { MouseProvider, createMouseSource } from './mouse/index.js';
 import { enterFullScreen, restoreTerminal } from './terminal.js';
-import { configExists, type Locale } from './api.js';
+import { configExists } from './api.js';
 
 export { App } from './App.js';
 export { Wizard } from './screens/Wizard.js';

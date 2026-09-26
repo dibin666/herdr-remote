@@ -37,8 +37,8 @@ export const DEFAULT_BASE_FONT_SIZE = 13;
  * the scrollback. Erring slightly high instead costs at most a sub-cell
  * remainder at the bottom.
  */
-export const FALLBACK_CELL_WIDTH_RATIO = 0.602;
-export const FALLBACK_CELL_HEIGHT_RATIO = 1.3;
+const FALLBACK_CELL_WIDTH_RATIO = 0.602;
+const FALLBACK_CELL_HEIGHT_RATIO = 1.3;
 
 export interface GridFitInput {
   /** Available content box, in CSS px. */

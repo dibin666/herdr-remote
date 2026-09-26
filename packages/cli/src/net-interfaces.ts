@@ -19,7 +19,7 @@ function isTailscaleAddress(address: unknown): boolean {
   return first === 100 && second >= 64 && second <= 127;
 }
 
-export type AddressKind = 'tailscale' | 'lan' | 'virtual' | 'loopback';
+type AddressKind = 'tailscale' | 'lan' | 'virtual' | 'loopback';
 
 export interface NetworkAddress {
   name: string;
