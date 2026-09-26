@@ -37,6 +37,13 @@ export interface HerdrRendererOptions {
 
 const DEFAULT_MAX_SYNC_HOLD_MS = 150;
 
+/** Where the user types: part of one row (absolute), in whose cells typed text fades in and out. */
+export interface TypingZone {
+  row: number;
+  startCol: number;
+  endCol: number;
+}
+
 /**
  * Paints the terminal on one canvas, and only the cells that changed.
  *
@@ -78,6 +85,8 @@ export class HerdrRenderer implements XtermRenderer {
   private rows = 0;
 
   private overlayProvider: (() => PaintOverlay | null) | null = null;
+  private typingZoneProvider: (() => TypingZone | null) | null = null;
+  private readonly reducedMotion: MediaQueryList | undefined;
   /** Absolute rows the last painted overlay touched. */
   private paintedOverlayRows = new Set<number>();
   private paintedCursorRow = -1;
@@ -109,6 +118,9 @@ export class HerdrRenderer implements XtermRenderer {
       this.flushHeld(),
     );
     this.isSynchronizing = options.isSynchronizing ?? (() => false);
+    this.reducedMotion = core._coreBrowserService.window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    );
     const document = core._coreBrowserService.mainDocument;
     this.surface = new RenderSurface(document, core.screenElement!);
     this.cells = new CellPainter(this.surface.textContext, document, core, this.dimensions);
@@ -161,6 +173,11 @@ export class HerdrRenderer implements XtermRenderer {
   setOverlayProvider(provider: (() => PaintOverlay | null) | null): void {
     this.overlayProvider = provider;
     this.invalidateOverlay();
+  }
+
+  /** Where the user types, read on every frame; text appearing or clearing there fades. */
+  setTypingZoneProvider(provider: (() => TypingZone | null) | null): void {
+    this.typingZoneProvider = provider;
   }
 
   /** The overlay changed: repaint the rows it touched and touches now. */
@@ -310,8 +327,11 @@ export class HerdrRenderer implements XtermRenderer {
     const ydisp = buffer.ydisp;
     if (ydisp !== this.lastYdisp) {
       this.lastYdisp = ydisp;
+      this.cells.fades.clear();
       this.redrawDecor();
     }
+    const zone = this.reducedMotion?.matches ? null : (this.typingZoneProvider?.() ?? null);
+    const typingY = zone ? zone.row - ydisp : -1;
 
     const overlay = this.overlayProvider?.() ?? null;
     const overlayByRow = overlayCellsByRow(overlay);
@@ -325,11 +345,17 @@ export class HerdrRenderer implements XtermRenderer {
     for (const row of overlayByRow.keys()) addViewportRow(rows, row - ydisp, this.rows);
     if (this.paintedCursorRow >= 0) addViewportRow(rows, this.paintedCursorRow, this.rows);
     if (cursor) addViewportRow(rows, cursor.y, this.rows);
+    for (const y of this.cells.fades.rows(this.cols)) addViewportRow(rows, y, this.rows);
 
     let cells = 0;
     for (const y of rows) {
       this.cells.loadRow(buffer.lines.get(ydisp + y), overlayByRow.get(y + ydisp));
-      cells += this.cells.paintRow(y, cursor);
+      const typing = y === typingY ? { start: zone!.startCol, end: zone!.endCol } : null;
+      cells += this.cells.paintRow(y, cursor, typing, began);
+    }
+    // A fade still running needs the next frame too.
+    if (this.cells.fades.size > 0) {
+      this.requestAbsoluteRows([...this.cells.fades.rows(this.cols)].map((y) => y + ydisp));
     }
 
     this.paintedOverlayRows = new Set(overlayByRow.keys());

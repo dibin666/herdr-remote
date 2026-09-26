@@ -2,7 +2,8 @@
 // only the cells whose words (content, colours, attributes) changed. See
 // HerdrRenderer for why a frame is diffed cell by cell.
 
-import { BgFlags, Content, cellExt, contentFor, createRawCell, FgFlags } from './cell';
+import { BgFlags, Content, cellExt, contentFor, createRawCell, FgFlags, UNPAINTED } from './cell';
+import { CellFades, type FadingCell, META_FADING, paintGone } from './cellFade';
 import {
   isBold,
   isDim,
@@ -17,14 +18,13 @@ import { DIM_OPACITY, GlyphAtlas, isCustomGlyph } from './glyphAtlas';
 import type { OverlayCell } from './paintOverlay';
 import type { BufferLineInternal, RenderDimensions, XtermCore } from './xtermInternals';
 
-const INVALID = 0xffffffff;
-
 /** `meta` word of a painted cell: its width in cells, its cursor shape, or covered by the cell before. */
 const META_COVERED = 0x4;
 const META_CURSOR_SHIFT = 3;
 
 export class CellPainter {
   readonly atlas: GlyphAtlas;
+  readonly fades = new CellFades();
   private cols = 0;
   private rows = 0;
   private painted = {
@@ -57,13 +57,14 @@ export class CellPainter {
   resize(cols: number, rows: number): void {
     this.cols = cols;
     this.rows = rows;
+    this.fades.clear();
     const size = cols * rows;
     this.painted = {
-      content: new Uint32Array(size).fill(INVALID),
+      content: new Uint32Array(size).fill(UNPAINTED),
       fg: new Uint32Array(size),
       bg: new Uint32Array(size),
       ext: new Uint32Array(size),
-      meta: new Uint32Array(size).fill(INVALID),
+      meta: new Uint32Array(size).fill(UNPAINTED),
       combined: new Array<string>(size).fill(''),
     };
     this.row = {
@@ -77,8 +78,9 @@ export class CellPainter {
 
   /** Everything painted is forgotten; the next frame repaints every cell it is asked for. */
   invalidate(): void {
-    this.painted.content.fill(INVALID);
-    this.painted.meta.fill(INVALID);
+    this.painted.content.fill(UNPAINTED);
+    this.painted.meta.fill(UNPAINTED);
+    this.fades.clear();
   }
 
   /**
@@ -97,7 +99,7 @@ export class CellPainter {
       for (let x = 0; x < cols; x++) {
         const i = y * this.cols + x;
         const word = painted.content[i];
-        if (word === INVALID || painted.meta[i] === META_COVERED || isInvisible(painted.fg[i]))
+        if (word === UNPAINTED || painted.meta[i] === META_COVERED || isInvisible(painted.fg[i]))
           continue;
         const code = word & Content.CODEPOINT_MASK;
         if (
@@ -164,12 +166,22 @@ export class CellPainter {
     this.row.combined[x] = '';
   }
 
-  /** Compares one row against what was painted and repaints what differs. Returns cells painted. */
-  paintRow(y: number, cursor: CursorState | null): number {
+  /**
+   * Compares one row against what was painted and repaints what differs.
+   * Characters that appear or clear between the columns of `typing` fade;
+   * see CellFades. Returns cells painted.
+   */
+  paintRow(
+    y: number,
+    cursor: CursorState | null,
+    typing: { start: number; end: number } | null = null,
+    now = 0,
+  ): number {
     const cols = this.cols;
     const { content, fg, bg, ext, combined } = this.row;
     const painted = this.painted;
     const base = y * cols;
+    if (typing) this.fades.begin(y, cols, typing, painted, this.row, now);
     let repainted = 0;
     let fillStart = -1;
     let fillEnd = -1;
@@ -195,7 +207,8 @@ export class CellPainter {
           : CursorShape.NONE;
       const meta = cells | (cursorShape << META_CURSOR_SHIFT);
 
-      let dirty = this.differs(base + x, x, meta);
+      const fade = this.fades.size > 0 ? this.fades.at(base + x, x, this.row, now) : null;
+      let dirty = fade !== null || this.differs(base + x, x, meta);
       for (let c = 1; c < cells; c++) {
         if (this.differs(base + x + c, x + c, META_COVERED)) dirty = true;
       }
@@ -207,11 +220,11 @@ export class CellPainter {
           painted.fg[i] = fg[x + c];
           painted.bg[i] = bg[x + c];
           painted.ext[i] = ext[x + c];
-          painted.meta[i] = c === 0 ? meta : META_COVERED;
+          painted.meta[i] = c === 0 ? (fade ? meta | META_FADING : meta) : META_COVERED;
           painted.combined[i] = combined[x + c];
         }
         repainted += cells;
-        const plain = this.plainFill(x, cursorShape);
+        const plain = fade ? null : this.plainFill(x, cursorShape);
         if (plain !== null) {
           if (fillStart >= 0 && fillEnd === x && fillCss === plain) {
             fillEnd = x + cells;
@@ -223,7 +236,7 @@ export class CellPainter {
           }
         } else {
           flushFill();
-          this.paintCell(x, y, cells, cursorShape);
+          this.paintCell(x, y, cells, cursorShape, fade);
         }
       }
       x += cells;
@@ -301,7 +314,13 @@ export class CellPainter {
     return resolveCellColors(fg[x], bg[x], this.colors(), this.boldBright()).bg;
   }
 
-  private paintCell(x: number, y: number, cells: number, cursorShape: CursorShape): void {
+  private paintCell(
+    x: number,
+    y: number,
+    cells: number,
+    cursorShape: CursorShape,
+    fade: FadingCell | null = null,
+  ): void {
     const ctx = this.ctx;
     const dims = this.dimensions.device;
     const colors = this.colors();
@@ -334,23 +353,39 @@ export class CellPainter {
           bg: bgCss,
           cells,
         });
-    if (slot) {
+    const alpha = fade && !fade.gone ? fade.alpha : 1;
+    if (slot && alpha === 1) {
       ctx.drawImage(slot.source, slot.x, slot.y, slot.width, slot.height, px, py, width, height);
     } else {
       ctx.fillStyle = bgCss;
       ctx.fillRect(px, py, width, height);
-      if (!blank) {
+      if (slot) {
+        // The slot holds the glyph on this very background: fading it over
+        // the fill changes only the glyph.
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(slot.source, slot.x, slot.y, slot.width, slot.height, px, py, width, height);
+        ctx.globalAlpha = 1;
+      } else if (!blank) {
         // No atlas room: draw the glyph directly.
         ctx.save();
         ctx.beginPath();
         ctx.rect(px, py, width, height);
         ctx.clip();
         ctx.fillStyle = fgCss;
-        if (isDim(bgWord)) ctx.globalAlpha = DIM_OPACITY;
+        ctx.globalAlpha = (isDim(bgWord) ? DIM_OPACITY : 1) * alpha;
         ctx.font = this.atlas.fontString(isBold(fgWord), isItalic(bgWord));
         ctx.fillText(chars, px + dims.char.left, py + dims.char.top + dims.char.height);
         ctx.restore();
       }
+    }
+    if (fade?.gone) {
+      // Under a block cursor, or a caret a program paints in reverse, the
+      // character goes in the colour text takes there.
+      const inverted = cursorShape === CursorShape.BLOCK || (fgWord & FgFlags.INVERSE) !== 0;
+      const fg = inverted
+        ? fgCss
+        : resolveCellColors(fade.gone.fg, fade.gone.bg, colors, this.boldBright()).fg;
+      paintGone(ctx, this.atlas, fade, { fg, bg: bgCss }, { px, py, width, height, cells });
     }
 
     if (!invisible && isDecorated(fgWord, bgWord)) {

@@ -9,7 +9,7 @@ import {
 import { PredictiveEcho } from './predictiveEcho';
 import { PredictionLayer } from './predictionPaint';
 import { saveSettings } from '@/features/settings/storage';
-import type { MockTerminalInstance, MockWebSocket } from '@/test/setup';
+import type { MockHerdrRenderer, MockTerminalInstance, MockWebSocket } from '@/test/setup';
 import {
   loadScreenFixture,
   screenFromFixture,
@@ -361,6 +361,17 @@ describe('Predictive Echo Integration & Setting Controls', () => {
           expect.objectContaining({ row: 34, col: 30, kind: 'caret' }),
         ]),
       );
+    });
+
+    it('tells the renderer that typing fades in the input field under the caret, and nowhere else', async () => {
+      const term = await mount();
+      const renderer = (
+        globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] }
+      ).__herdrRenderers.at(-1)!;
+      showScreen(term, 'desktop-claude-empty');
+      expect(renderer.typingZoneProvider?.()).toEqual({ row: 34, startCol: 28, endCol: 120 });
+      showScreen(term, 'desktop-claude-model-menu');
+      expect(renderer.typingZoneProvider?.()).toBeNull();
     });
 
     it('predicts nothing while a menu has the keys', async () => {

@@ -8,6 +8,9 @@
  * mirror xterm's `common/buffer/Constants.ts`.
  */
 
+/** A word no cell holds: what the painter keeps for a cell it has not painted. */
+export const UNPAINTED = 0xffffffff;
+
 export enum Content {
   CODEPOINT_MASK = 0x1fffff,
   IS_COMBINED_MASK = 0x200000,
