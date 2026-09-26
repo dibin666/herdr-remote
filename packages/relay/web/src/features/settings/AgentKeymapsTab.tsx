@@ -215,6 +215,7 @@ export const AgentKeymapsTab: React.FC<{
               count: shownBarCount,
             })}
           </p>
+          {/* biome-ignore lint/a11y/useSemanticElements: toggle buttons, not form fields; a fieldset would bring its min-width quirk to this wrapping row */}
           <div
             role="group"
             aria-label={t('agentKeymaps.barGroup')}

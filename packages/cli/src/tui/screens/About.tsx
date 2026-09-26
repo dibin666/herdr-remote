@@ -97,10 +97,9 @@ export function About({ ctx }: { ctx: AppContext }) {
   };
 
   // The TUI already asked when it opened; start from that answer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new answer from the opening check matters, not each render's applyCheck or phase
   useEffect(() => {
     if (ctx.updateCheck?.ok && update.phase === 'idle') applyCheck(ctx.updateCheck);
-    // Only a new answer from the opening check matters here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.updateCheck]);
 
   const runCheck = async () => {

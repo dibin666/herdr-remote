@@ -53,9 +53,8 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
   };
 
   return (
-    <div
+    <section
       className="z-20 flex flex-col gap-1.5 border-t border-tui-border bg-tui-mantle p-2"
-      role="region"
       aria-label={t('virtualKeyboard.helperTitle')}
     >
       <div className="flex items-center justify-between">
@@ -126,6 +125,6 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
           <span className="hidden sm:inline">{t('virtualKeyboard.sendButton')}</span>
         </Button>
       </form>
-    </div>
+    </section>
   );
 };

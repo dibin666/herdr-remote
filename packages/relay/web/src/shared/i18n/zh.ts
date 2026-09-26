@@ -408,7 +408,6 @@ export const zh: TranslationSchema = {
   mobile: {
     sessionControls: '会话控制',
     closeSessionControls: '关闭会话控制面板',
-    connectionStatusAria: '连接状态',
     terminalControlAria: '终端控制权',
     inputControl: '输入控制权',
     settingsAria: '终端设置',

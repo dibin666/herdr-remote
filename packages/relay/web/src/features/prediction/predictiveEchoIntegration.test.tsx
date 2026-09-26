@@ -212,7 +212,9 @@ describe('Predictive Echo Integration & Setting Controls', () => {
         const { updateSettings } = useTerminal();
         return (
           <div>
-            <button onClick={() => updateSettings({ predictiveEcho: 'off' })}>Turn Off</button>
+            <button type="button" onClick={() => updateSettings({ predictiveEcho: 'off' })}>
+              Turn Off
+            </button>
             <TerminalView isActive={true} />
           </div>
         );

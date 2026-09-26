@@ -155,13 +155,14 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
               <div className="space-y-0.5 text-tui-sm">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-tui-faint">{t('onboarding.step1TuiNote')}</span>
-                  <code
+                  <button
+                    type="button"
                     onClick={() => handleCopyCommand(CONFIG_TUI_COMMAND)}
                     className="shrink-0 cursor-pointer border border-tui-border-dim px-1 text-tui-muted hover:border-tui-accent hover:text-tui-accent"
                     title={t('common.clickToCopy')}
                   >
-                    {CONFIG_TUI_COMMAND}
-                  </code>
+                    <code>{CONFIG_TUI_COMMAND}</code>
+                  </button>
                 </div>
               </div>
             </div>

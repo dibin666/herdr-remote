@@ -418,7 +418,6 @@ export const en = {
   mobile: {
     sessionControls: 'Session controls',
     closeSessionControls: 'Close session controls',
-    connectionStatusAria: 'Connection status',
     terminalControlAria: 'Terminal control',
     inputControl: 'Input control',
     settingsAria: 'Terminal settings',

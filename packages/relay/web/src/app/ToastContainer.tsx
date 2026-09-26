@@ -55,10 +55,7 @@ export const ToastContainer: React.FC = () => {
               {toast.message}
             </div>
             {toast.count > 1 && (
-              <span
-                className="shrink-0 border border-tui-border-dim px-1 text-tui-sm text-tui-muted"
-                aria-label={`×${toast.count}`}
-              >
+              <span className="shrink-0 border border-tui-border-dim px-1 text-tui-sm text-tui-muted">
                 ×{toast.count}
               </span>
             )}

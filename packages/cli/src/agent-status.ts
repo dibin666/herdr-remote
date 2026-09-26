@@ -49,7 +49,6 @@ const MAX_TITLE_LENGTH = 48;
 
 function cleanText(value: unknown, limit = MAX_TITLE_LENGTH): string | null {
   if (typeof value !== 'string') return null;
-  // eslint-disable-next-line no-control-regex
   const collapsed = value
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
     .replace(/\s+/g, ' ')

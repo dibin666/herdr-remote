@@ -63,61 +63,70 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { requestChunk, requestSubset, rejectPending } = useHostFontTransfer(adapter);
 
-  const resolved = () => ({
-    isInstalled: depsRef.current.isInstalled ?? isFontInstalled,
-    readCached: depsRef.current.readCached ?? readCachedFace,
-    writeCached: depsRef.current.writeCached ?? writeCachedFace,
-    register: depsRef.current.register ?? registerHostFontFaces,
-    isRegistered: depsRef.current.isRegistered ?? isHostFontRegistered,
-    readSubsets: depsRef.current.readSubsets ?? readCachedSubsets,
-    writeSubset: depsRef.current.writeSubset ?? writeCachedSubset,
-    registerGlyphs: depsRef.current.registerGlyphs ?? registerGlyphSubset,
-  });
+  const resolved = useCallback(
+    () => ({
+      isInstalled: depsRef.current.isInstalled ?? isFontInstalled,
+      readCached: depsRef.current.readCached ?? readCachedFace,
+      writeCached: depsRef.current.writeCached ?? writeCachedFace,
+      register: depsRef.current.register ?? registerHostFontFaces,
+      isRegistered: depsRef.current.isRegistered ?? isHostFontRegistered,
+      readSubsets: depsRef.current.readSubsets ?? readCachedSubsets,
+      writeSubset: depsRef.current.writeSubset ?? writeCachedSubset,
+      registerGlyphs: depsRef.current.registerGlyphs ?? registerGlyphSubset,
+    }),
+    [],
+  );
 
-  const hostKey = () => adapter?.getHostId() || 'default';
+  const hostKey = useCallback(() => adapter?.getHostId() || 'default', [adapter]);
 
-  const setGlyphs = (generation: number, patch: Partial<HostGlyphState>) => {
+  const setGlyphs = useCallback((generation: number, patch: Partial<HostGlyphState>) => {
     if (generation !== generationRef.current) return;
     setState((previous) => ({ ...previous, glyphs: { ...previous.glyphs, ...patch } }));
-  };
+  }, []);
 
   /** Registers cuts, remembers what they cover, and asks the terminal to repaint. */
-  const addGlyphs = async (generation: number, alias: string, subsets: CachedSubset[]) => {
-    const { registerGlyphs } = resolved();
-    for (const subset of subsets) {
-      await registerGlyphs(alias, subset);
-      if (generation !== generationRef.current) return;
-      for (const codepoint of subset.codepoints) coveredRef.current.add(codepoint);
-    }
-    if (generation !== generationRef.current || !subsets.length) return;
-    setState((previous) => ({
-      ...previous,
-      glyphs: { ...previous.glyphs, alias, covered: coveredRef.current.size },
-      glyphRevision: previous.glyphRevision + 1,
-    }));
-  };
+  const addGlyphs = useCallback(
+    async (generation: number, alias: string, subsets: CachedSubset[]) => {
+      const { registerGlyphs } = resolved();
+      for (const subset of subsets) {
+        await registerGlyphs(alias, subset);
+        if (generation !== generationRef.current) return;
+        for (const codepoint of subset.codepoints) coveredRef.current.add(codepoint);
+      }
+      if (generation !== generationRef.current || !subsets.length) return;
+      setState((previous) => ({
+        ...previous,
+        glyphs: { ...previous.glyphs, alias, covered: coveredRef.current.size },
+        glyphRevision: previous.glyphRevision + 1,
+      }));
+    },
+    [resolved],
+  );
 
   /**
    * Fetches the common characters this device does not hold yet. Everything
    * after this arrives a few characters at a time, as it is drawn.
    */
-  const prefetchGlyphs = async (
-    generation: number,
-    source: HostFontSubsetSource,
-    onBytes: (bytes: number, total: number) => void,
-  ) => {
-    const alias = hostGlyphAlias(source) as string;
-    const common = source.scope === 'all' ? COMMON_LATIN_TEXT + COMMON_CJK_TEXT : COMMON_CJK_TEXT;
-    const missing = codepointsOf(common, source.scope).filter(
-      (codepoint) => !coveredRef.current.has(codepoint),
-    );
-    if (!missing.length) return;
-    for (const codepoint of missing) askedRef.current.add(codepoint);
-    const subset = await requestSubset(source, missing, onBytes);
-    if (generation !== generationRef.current) return;
-    await resolved().writeSubset(source.sha256, subset);
-    await addGlyphs(generation, alias, [subset]);
-  };
+  const prefetchGlyphs = useCallback(
+    async (
+      generation: number,
+      source: HostFontSubsetSource,
+      onBytes: (bytes: number, total: number) => void,
+    ) => {
+      const alias = hostGlyphAlias(source) as string;
+      const common = source.scope === 'all' ? COMMON_LATIN_TEXT + COMMON_CJK_TEXT : COMMON_CJK_TEXT;
+      const missing = codepointsOf(common, source.scope).filter(
+        (codepoint) => !coveredRef.current.has(codepoint),
+      );
+      if (!missing.length) return;
+      for (const codepoint of missing) askedRef.current.add(codepoint);
+      const subset = await requestSubset(source, missing, onBytes);
+      if (generation !== generationRef.current) return;
+      await resolved().writeSubset(source.sha256, subset);
+      await addGlyphs(generation, alias, [subset]);
+    },
+    [requestSubset, resolved, addGlyphs],
+  );
 
   const load = useCallback(
     async (target?: HostTerminalFont | null, { interactive = true } = {}) => {
@@ -209,7 +218,7 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
         }
       }
     },
-    [requestChunk, requestSubset],
+    [requestChunk, prefetchGlyphs, resolved, hostKey, setGlyphs],
   );
 
   /** Decide what to do with a font the workstation reported. */
@@ -313,7 +322,7 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
         glyphs: glyphs === 'needs' ? { ...previous.glyphs, status: answer } : previous.glyphs,
       }));
     },
-    [load, rejectPending],
+    [load, rejectPending, hostKey, setGlyphs, prefetchGlyphs, resolved, addGlyphs],
   );
 
   const decline = useCallback(() => {
@@ -327,7 +336,7 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
         ? { ...previous.glyphs, status: 'declined' }
         : previous.glyphs,
     }));
-  }, []);
+  }, [hostKey]);
 
   /**
    * "Sync host font": have the workstation re-read its terminal settings, and
@@ -380,7 +389,7 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
         });
       }, GLYPH_BATCH_MS);
     },
-    [requestSubset],
+    [requestSubset, resolved, addGlyphs],
   );
 
   useEffect(() => {
@@ -410,7 +419,7 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [load, decline]);
+  }, [load, decline, hostKey]);
 
   return {
     hostFont: state,

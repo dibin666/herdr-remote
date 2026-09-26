@@ -236,7 +236,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     settings.agentAlertBadge,
   ]);
 
-  // Auto-connect on mount if disconnected
+  // Auto-connect on mount if disconnected; later drops are the adapter's to recover.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, on mount
   useEffect(() => {
     if (connectionState === 'disconnected') {
       connect();
@@ -259,6 +260,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
       onContextMenu={suppressBrowserMenu}
       aria-label={t('terminal.windowAriaLabel')}
     >
+      {/* biome-ignore lint/a11y/useSemanticElements: kept a div; xterm and the gesture layer attach to it by id and style */}
       <div
         id="terminal-container"
         ref={containerRef}
@@ -268,6 +270,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
           // nested absolute xterm viewport at a fixed scroll position.
           touchAction: touchInputCapable ? 'none' : 'auto',
         }}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the terminal surface takes focus, like a text field
         tabIndex={0}
         onContextMenu={suppressBrowserMenu}
         aria-label={t('terminal.bufferAriaLabel')}

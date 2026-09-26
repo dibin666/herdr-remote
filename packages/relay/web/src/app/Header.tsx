@@ -74,10 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header
-      role="banner"
-      className="z-30 w-full shrink-0 select-none overflow-hidden border-b border-tui-border bg-tui-mantle px-2 pt-[max(env(safe-area-inset-top,0px),0.125rem)]"
-    >
+    <header className="z-30 w-full shrink-0 select-none overflow-hidden border-b border-tui-border bg-tui-mantle px-2 pt-[max(env(safe-area-inset-top,0px),0.125rem)]">
       {/*
        * One compact tab row, not a web header stacked over a nav bar. Herdr's
        * TUI gives the program name, tabs and right-side commands one terminal

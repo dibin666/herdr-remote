@@ -175,6 +175,7 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                   {editing && (
                     <div className="flex items-center gap-1 px-2 pb-2">
                       <input
+                        // biome-ignore lint/a11y/noAutofocus: the user just asked to rename; the field is what they came for
                         autoFocus
                         value={nameDraft}
                         maxLength={64}

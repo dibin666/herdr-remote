@@ -17,7 +17,6 @@ export const BASE_DOCUMENT_TITLE = 'Herdr Remote';
 const MAX_TITLE_LENGTH = 80;
 
 /** C0, DEL and C1. Escaped rather than literal so the source stays copyable. */
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F]/g;
 
 /**

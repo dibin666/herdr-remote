@@ -47,6 +47,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
   // key added in settings), so every render re-measures; an unchanged answer
   // does not render again.
   useEffect(measureScroll);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the strip only exists while the bar is shown, so it is observed again when it appears
   useEffect(() => {
     const strip = scrollRef.current;
     if (!strip || typeof ResizeObserver !== 'function') return undefined;

@@ -133,7 +133,7 @@ function AppContent() {
       window.removeEventListener('popstate', handleLocationChange);
       window.removeEventListener('hashchange', handleLocationChange);
     };
-  }, []);
+  }, [updateSettings]);
 
   const openPairing = (addNew = false) => {
     setIsPairingAddMode(addNew);
@@ -197,6 +197,7 @@ function AppContent() {
     }) as const;
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: only suppresses the browser menu app-wide; no action of its own
     <div
       data-testid="app-shell"
       style={

@@ -130,8 +130,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Admin is a real TUI screen, not just a clickable dashboard. Number keys
   // select its tabs, `r` refreshes the status line, and Escape returns to the
   // terminal. Ignore those keys while an input/select or a modal owns focus.
-  const tabIds = tabs.map((tab) => tab.id);
+  const tabKey = tabs.map((tab) => tab.id).join('|');
   useEffect(() => {
+    const tabIds = tabKey ? tabKey.split('|') : [];
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey) return;
       const target = event.target as HTMLElement | null;
@@ -166,7 +167,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [fetchStatus, tabIds.join('|')]);
+  }, [fetchStatus, onBackToTerminal, tabKey]);
 
   const version = relayInfo?.version || data?.version || '0.1.0';
 

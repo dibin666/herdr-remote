@@ -34,6 +34,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
       const { addToast } = useTerminal();
       return (
         <button
+          type="button"
           onClick={() => addToast('success', 'Test Success Alert')}
           data-testid="trigger-toast"
         >

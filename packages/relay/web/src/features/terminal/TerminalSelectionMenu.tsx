@@ -76,6 +76,7 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
     }
   }, [vibrateOnKeyPress]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the menu's items follow these, so its size is measured again when they change
   useLayoutEffect(() => {
     const el = menuRef.current;
     if (!el?.parentElement) return;

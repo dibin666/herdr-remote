@@ -43,7 +43,6 @@ describe('Per-window terminal grid', () => {
     });
 
     // Stand in for a live socket so sendResize has somewhere to write.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (adapter as any).ws = {
       readyState: 1,
       send: (frame: string) => sent.push(frame),
@@ -92,13 +91,9 @@ describe('Per-window terminal grid', () => {
 
     // Older relays might still broadcast shared_resize; ensure processing it is a safe no-op.
     expect(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (adapter as any).handleServerMessage({ type: 'shared_resize', cols: 40, rows: 20 });
     }).not.toThrow();
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((adapter as any).terminalCols).toBe(120);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((adapter as any).terminalRows).toBe(40);
   });
 });

@@ -107,10 +107,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         tone={status.level === 'ok' ? 'ok' : status.level === 'bad' ? 'bad' : 'warn'}
         bodyClassName="space-y-1.5"
       >
-        <div
-          className="flex items-center justify-between gap-2"
-          aria-label={t('mobile.connectionStatusAria')}
-        >
+        <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <StatusDot level={status.level} />
             <span className="truncate text-tui uppercase text-tui-text">{status.label}</span>

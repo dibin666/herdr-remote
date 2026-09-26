@@ -49,24 +49,13 @@
       },
       "suspicious": {
         "noControlCharactersInRegex": "off",
-        "noFocusedTests": "off",
-        "noArrayIndexKey": "warn",
-        "noAssignInExpressions": "warn",
-        "useIterableCallbackReturn": "warn"
-      },
-      "correctness": {
-        "useExhaustiveDependencies": "warn"
+        "noFocusedTests": "off"
       },
       "a11y": {
-        "noAutofocus": "warn",
-        "noInteractiveElementToNoninteractiveRole": "warn",
-        "noLabelWithoutControl": "warn",
-        "noNoninteractiveTabindex": "warn",
-        "noStaticElementInteractions": "warn",
-        "useAriaPropsSupportedByRole": "warn",
-        "useButtonType": "warn",
-        "useKeyWithClickEvents": "warn",
-        "useSemanticElements": "warn"
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": { "inputComponents": ["Input", "Select"] }
+        }
       }
     }
   },

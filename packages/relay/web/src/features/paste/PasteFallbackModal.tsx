@@ -162,6 +162,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
             id="paste-fallback-input"
             data-testid="paste-fallback-input"
             rows={4}
+            // biome-ignore lint/a11y/noAutofocus: the dialog exists only to receive a paste
             autoFocus
             placeholder={t('clipboard.pasteHint')}
             value={textValue}

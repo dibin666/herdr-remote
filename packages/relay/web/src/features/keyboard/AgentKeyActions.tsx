@@ -58,6 +58,7 @@ export function AgentKeyActions({
   // Kept even with every shortcut hidden, so there is always a way back to them.
   if (actions.length === 0 && !onCustomize) return null;
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a group of keys in a toolbar, not a form fieldset
     <div
       data-testid="agent-key-actions"
       role="group"
