@@ -14,10 +14,14 @@ packages/cli/dist/
 packages/relay/web/dist/
 **/*.tsbuildinfo
 
-# Tests and docs are not part of the runtime image.
+# Tests and docs are not part of the runtime image. Web tests sit next to the
+# source they cover, and the web build type-checks everything it is given, so
+# they must go together with the src/test/ setup they depend on.
 docs/
 **/tests/
 **/src/test/
+**/*.test.ts
+**/*.test.tsx
 
 .env
 .state/
