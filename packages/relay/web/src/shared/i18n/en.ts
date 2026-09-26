@@ -140,7 +140,7 @@ export const en = {
     step1TuiNote: 'Interactive TUI config:',
     step2Title: 'Enter 6-character Pairing Code',
     step2Placeholder: 'e.g. 7X9K2A',
-    step2Note: 'Pairing code expires in 5 minutes; credentials are saved automatically.',
+    step2Note: 'Pairing code expires in 10 minutes; credentials are saved automatically.',
     connectAndPair: 'Connect & Pair',
     connectingAndPairing: 'Pairing with Relay...',
     advancedTitle: 'Advanced Options',

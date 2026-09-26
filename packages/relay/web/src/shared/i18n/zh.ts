@@ -130,7 +130,7 @@ export const zh: TranslationSchema = {
     step1TuiNote: '交互式 TUI 配置：',
     step2Title: '输入 6 位配对码',
     step2Placeholder: '例如：7X9K2A',
-    step2Note: '配对码 5 分钟内有效，连接后自动保存凭据。',
+    step2Note: '配对码 10 分钟内有效，连接后自动保存凭据。',
     connectAndPair: '连接并完成配对',
     connectingAndPairing: '配对中...',
     advancedTitle: '高级选项',

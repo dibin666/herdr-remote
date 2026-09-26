@@ -36,6 +36,20 @@ describe('UI Components', () => {
     expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
   });
 
+  it('tells a new device the commands and code lifetime that really apply', () => {
+    render(
+      <TerminalProvider>
+        <OnboardingView />
+      </TerminalProvider>,
+    );
+
+    // The TUI is `herdr-remote`; `node bin/config-tui.js` exists nowhere.
+    expect(screen.getByText('herdr-remote', { selector: 'code' })).toBeInTheDocument();
+    expect(screen.queryByText(/config-tui/)).toBeNull();
+    // The relay's pairing codes live for 10 minutes, as the TUI says.
+    expect(screen.getByText(/expires in 10 minutes/i)).toBeInTheDocument();
+  });
+
   it('renders StatusBanner when token is set and disconnected', () => {
     saveSettings({ token: 'existing-saved-token' });
 

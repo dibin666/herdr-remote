@@ -5,7 +5,7 @@ import { cn } from '@/shared/lib/cn';
 import { useCopyFeedback } from '@/context/useCopyFeedback';
 import { Button, FieldLabel, GLYPH, Input, Notice, Panel, Rule, Spinner } from '@/shared/ui';
 import { WS_CLIENT_PATH } from '@protocol/messages';
-import { PAIR_COMMAND } from './pairCommand';
+import { PAIR_COMMAND, TUI_COMMAND } from './pairCommand';
 
 interface OnboardingViewProps {
   onPairedSuccess?: () => void;
@@ -33,8 +33,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
   const [wsUrl, setWsUrl] = useState(settings.wsUrl || WS_CLIENT_PATH);
   const [token, setToken] = useState(settings.token || '');
   const [clientId, setClientId] = useState(settings.clientId || '');
-
-  const CONFIG_TUI_COMMAND = 'node bin/config-tui.js';
 
   const handleCopyCommand = (cmd: string) => copy(cmd, t('toasts.commandCopied'));
 
@@ -157,11 +155,11 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
                   <span className="truncate text-tui-faint">{t('onboarding.step1TuiNote')}</span>
                   <button
                     type="button"
-                    onClick={() => handleCopyCommand(CONFIG_TUI_COMMAND)}
+                    onClick={() => handleCopyCommand(TUI_COMMAND)}
                     className="shrink-0 cursor-pointer border border-tui-border-dim px-1 text-tui-muted hover:border-tui-accent hover:text-tui-accent"
                     title={t('common.clickToCopy')}
                   >
-                    <code>{CONFIG_TUI_COMMAND}</code>
+                    <code>{TUI_COMMAND}</code>
                   </button>
                 </div>
               </div>
