@@ -267,7 +267,8 @@ async function main() {
       let frame;
       try {
         frame = unpackStreamFrame(raw);
-      } catch (err) {
+      } catch {
+        // Not a stream frame; nothing for the fake shell.
         return;
       }
 
@@ -350,20 +351,20 @@ async function main() {
       ? `${devLatencyMs} ms (RTT, ~${Math.round(devLatencyMs / 2)} ms one-way)`
       : '0 ms (disabled, real-time)';
 
-  process.stdout.write('\n' + '='.repeat(64) + '\n');
+  process.stdout.write(`\n${'='.repeat(64)}\n`);
   process.stdout.write('  Herdr Remote E2E Latency Harness\n');
-  process.stdout.write('='.repeat(64) + '\n');
+  process.stdout.write(`${'='.repeat(64)}\n`);
   process.stdout.write(`  Relay Address:   http://127.0.0.1:${boundPort}\n`);
   process.stdout.write(`  Pairing URL:     ${pairing.pairUrl}\n`);
   process.stdout.write(`  Pairing Code:    ${pairing.code}\n`);
   process.stdout.write(`  Latency Switch:  ${latencyDisplay}\n`);
-  process.stdout.write('='.repeat(64) + '\n');
+  process.stdout.write(`${'='.repeat(64)}\n`);
   process.stdout.write('  Instructions:\n');
   process.stdout.write('  1. Open the Pairing URL above in your browser.\n');
   process.stdout.write('  2. Type characters to verify predictive echo and latency.\n');
   process.stdout.write('  3. Type "flood" and press Enter to test 2000-line burst.\n');
   process.stdout.write('  4. Press Ctrl+C in this terminal to stop and clean up.\n');
-  process.stdout.write('='.repeat(64) + '\n\n');
+  process.stdout.write(`${'='.repeat(64)}\n\n`);
 }
 
 main().catch(async (err) => {

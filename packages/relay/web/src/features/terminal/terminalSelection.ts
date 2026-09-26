@@ -58,7 +58,7 @@ export function pointToCell(
   screenEl?: HTMLElement | null,
   scale: number = 1.0,
 ): TerminalCellCoords | null {
-  if (!term || !term.buffer?.active || term.cols <= 0 || term.rows <= 0) {
+  if (!term?.buffer?.active || term.cols <= 0 || term.rows <= 0) {
     return null;
   }
 
@@ -128,7 +128,7 @@ export function wordRangeAt(
   col: number,
   bufferRow: number,
 ): TerminalColumnRange | null {
-  if (!term || !term.buffer?.active || col < 0 || col >= term.cols) {
+  if (!term?.buffer?.active || col < 0 || col >= term.cols) {
     return null;
   }
 
@@ -223,7 +223,7 @@ export function wordRangeAt(
  * Returns the column range covering the entire line at `bufferRow`.
  */
 export function lineRangeAt(term: Terminal, bufferRow: number): TerminalColumnRange | null {
-  if (!term || !term.buffer?.active) {
+  if (!term?.buffer?.active) {
     return null;
   }
 
@@ -243,7 +243,7 @@ export function lineRangeAt(term: Terminal, bufferRow: number): TerminalColumnRa
  * Trims trailing empty rows to avoid copying large blocks of blank terminal space.
  */
 export function screenText(term: Terminal): string {
-  if (!term || !term.buffer?.active) {
+  if (!term?.buffer?.active) {
     return '';
   }
 
@@ -269,7 +269,7 @@ export function screenText(term: Terminal): string {
  * Trims trailing empty rows.
  */
 export function scrollbackText(term: Terminal): string {
-  if (!term || !term.buffer?.active) {
+  if (!term?.buffer?.active) {
     return '';
   }
 

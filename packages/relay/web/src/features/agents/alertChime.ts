@@ -55,7 +55,7 @@ const NOTES: Record<AttentionLevel, [number, number]> = {
 };
 
 export function playAlertChime(level: AttentionLevel): void {
-  if (!context || context.state !== 'running') return;
+  if (context?.state !== 'running') return;
   try {
     const start = context.currentTime;
     NOTES[level].forEach((frequency, index) => {

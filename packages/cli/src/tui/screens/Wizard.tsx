@@ -47,7 +47,7 @@ function stepsFor(mode: AccessMode, remoteUrl?: string): StepId[] {
  * phone or wider than the user expected.
  */
 export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void }) {
-  const { t, draft, editingId } = ctx;
+  const { t, draft } = ctx;
   const [step, setStep] = useState<StepId>('language');
   const [password, setPassword] = useState(ctx.runtime.relayPassword || '');
   const [startNow, setStartNow] = useState(true);

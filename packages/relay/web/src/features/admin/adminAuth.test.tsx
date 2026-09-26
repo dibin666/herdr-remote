@@ -99,7 +99,7 @@ describe('AdminDashboard Authentication & Status Fetch', () => {
     });
 
     expect(capturedHeaders).toBeDefined();
-    expect(capturedHeaders?.['Authorization']).toBe('Bearer test-auth-token-123');
+    expect(capturedHeaders?.Authorization).toBe('Bearer test-auth-token-123');
 
     fireEvent.click(screen.getByLabelText('Clients (1)'));
     expect(screen.getAllByText('client-alice').length).toBeGreaterThan(0);

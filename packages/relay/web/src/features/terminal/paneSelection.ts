@@ -135,7 +135,7 @@ function isHorizontalRuleRow(
  * - If no dividers exist anywhere, the band covers the entire line width `[0, cols - 1]`.
  */
 export function paneColumnBand(term: Terminal, col: number, bufferRow?: number): PaneColumnBand {
-  if (!term || !term.buffer?.active || term.cols <= 0) {
+  if (!term?.buffer?.active || term.cols <= 0) {
     return { startCol: 0, endCol: 0 };
   }
 
@@ -350,7 +350,7 @@ export function clampRectToBand(
  * Each line is stripped of trailing whitespace and lines are joined with '\n'.
  */
 export function rectText(term: Terminal, rect: TerminalSelectionRect): string {
-  if (!term || !term.buffer?.active || term.cols <= 0) {
+  if (!term?.buffer?.active || term.cols <= 0) {
     return '';
   }
 

@@ -810,7 +810,7 @@ function drawBoxDrawingChar(
   ctx.strokeStyle = ctx.fillStyle;
   for (const [fontWeight, instructions] of Object.entries(charDefinition)) {
     ctx.beginPath();
-    ctx.lineWidth = devicePixelRatio * Number.parseInt(fontWeight);
+    ctx.lineWidth = devicePixelRatio * Number.parseInt(fontWeight, 10);
     let actualInstructions: string;
     if (typeof instructions === 'function') {
       const xp = 0.15;
@@ -924,7 +924,7 @@ function translateArgs(
   leftPadding: number = 0,
   rightPadding: number = 0,
 ): number[] {
-  const result = args.map((e) => parseFloat(e) || parseInt(e));
+  const result = args.map((e) => parseFloat(e) || parseInt(e, 10));
 
   if (result.length < 2) {
     throw new Error('Too few arguments for instruction');

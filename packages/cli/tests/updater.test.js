@@ -186,7 +186,7 @@ test('a total failure names every registry it tried', async () => {
  */
 function fakeNpm(runs) {
   const calls = [];
-  const spawnImpl = (command, args) => {
+  const spawnImpl = (_command, args) => {
     calls.push(args);
     const run = runs[Math.min(calls.length, runs.length) - 1];
     const child = new EventEmitter();

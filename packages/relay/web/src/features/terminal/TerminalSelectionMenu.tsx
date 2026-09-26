@@ -78,7 +78,7 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
 
   useLayoutEffect(() => {
     const el = menuRef.current;
-    if (!el || !el.parentElement) return;
+    if (!el?.parentElement) return;
 
     const parentRect = el.parentElement.getBoundingClientRect();
     const menuRect = el.getBoundingClientRect();

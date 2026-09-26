@@ -334,7 +334,7 @@ describe('terminalSelection utils', () => {
       const line = buildTerminalLine('port:8080', 80);
       const term = {
         cols: 80,
-        options: { wordSeparator: DEFAULT_WORD_SEPARATORS + ':' },
+        options: { wordSeparator: `${DEFAULT_WORD_SEPARATORS}:` },
         buffer: {
           active: {
             getLine: (y: number) => (y === 0 ? line : undefined),

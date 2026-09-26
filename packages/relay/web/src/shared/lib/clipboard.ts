@@ -132,7 +132,7 @@ export async function copyText(text: string): Promise<ClipboardCopyResult> {
     } catch {
       // execCommand is unsupported or blocked by host policy.
     } finally {
-      if (textarea && textarea.parentNode) {
+      if (textarea?.parentNode) {
         textarea.parentNode.removeChild(textarea);
       }
       // Restore previous document selection if one existed.
@@ -268,7 +268,7 @@ export function extractImageFromClipboardEvent(event: {
   if (data.files && data.files.length > 0) {
     for (let i = 0; i < data.files.length; i++) {
       const file = data.files[i];
-      if (file && file.type.startsWith('image/')) {
+      if (file?.type.startsWith('image/')) {
         return file;
       }
     }
@@ -278,7 +278,7 @@ export function extractImageFromClipboardEvent(event: {
   if (data.items && data.items.length > 0) {
     for (let i = 0; i < data.items.length; i++) {
       const item = data.items[i];
-      if (item && item.type.startsWith('image/')) {
+      if (item?.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file) return file;
       }

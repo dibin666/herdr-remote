@@ -184,8 +184,8 @@ export const KeyHints: React.FC<{ hints: KeyHint[]; className?: string }> = ({
       className,
     )}
   >
-    {hints.map((hint, index) => (
-      <span key={`${hint.keys}-${index}`} className="flex items-center gap-1">
+    {hints.map((hint) => (
+      <span key={`${hint.keys} ${hint.action}`} className="flex items-center gap-1">
         <kbd className="border border-tui-border-dim px-1 not-italic text-tui-muted">
           {hint.keys}
         </kbd>

@@ -246,7 +246,7 @@ export function loadSettings(): StoredSettings {
     const seededSession: Partial<StoredSettings> = {};
     for (const key of SESSION_KEYS) {
       if (localData[key] !== undefined) {
-        (seededSession as any)[key] = localData[key];
+        (seededSession as Record<string, unknown>)[key] = localData[key];
       }
     }
     sessionData = seededSession;
@@ -444,7 +444,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
 
   // 1. Save global keys and normalized profiles to localStorage
   const rawLocal = safeGetItem('local', STORAGE_KEYS.settings);
-  let localObj: Record<string, any> = {};
+  let localObj: Record<string, unknown> = {};
   if (rawLocal) {
     try {
       localObj = JSON.parse(rawLocal);
@@ -464,7 +464,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
 
   // 2. Save session-specific view keys to sessionStorage
   const rawSession = safeGetItem('session', STORAGE_KEYS.sessionView);
-  let sessionObj: Record<string, any> = {};
+  let sessionObj: Record<string, unknown> = {};
   if (rawSession) {
     try {
       sessionObj = JSON.parse(rawSession);

@@ -26,7 +26,7 @@ function writeConfig(contents) {
 
 /** Mount a screen. The mouse layer degrades to keyboard-only without a provider. */
 async function mount(element) {
-  const [{ render }, React] = await Promise.all([import('ink-testing-library'), import('react')]);
+  const { render } = await import('ink-testing-library');
   const instance = render(element);
   // Let the first effects (status fetch, Herdr version probe) settle.
   await new Promise((resolve) => setTimeout(resolve, 60));

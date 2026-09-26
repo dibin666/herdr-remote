@@ -19,11 +19,9 @@ import type { BufferLineInternal, RenderDimensions, XtermCore } from './xtermInt
 
 const INVALID = 0xffffffff;
 
-enum Meta {
-  CELLS_MASK = 0x3,
-  COVERED = 0x4,
-  CURSOR_SHIFT = 3,
-}
+/** `meta` word of a painted cell: its width in cells, its cursor shape, or covered by the cell before. */
+const META_COVERED = 0x4;
+const META_CURSOR_SHIFT = 3;
 
 export class CellPainter {
   readonly atlas: GlyphAtlas;
@@ -99,7 +97,7 @@ export class CellPainter {
       for (let x = 0; x < cols; x++) {
         const i = y * this.cols + x;
         const word = painted.content[i];
-        if (word === INVALID || painted.meta[i] === Meta.COVERED || isInvisible(painted.fg[i]))
+        if (word === INVALID || painted.meta[i] === META_COVERED || isInvisible(painted.fg[i]))
           continue;
         const code = word & Content.CODEPOINT_MASK;
         if (
@@ -195,11 +193,11 @@ export class CellPainter {
         cursor && cursor.y === y && cursor.x >= x && cursor.x < x + cells
           ? cursor.shape
           : CursorShape.NONE;
-      const meta = cells | (cursorShape << Meta.CURSOR_SHIFT);
+      const meta = cells | (cursorShape << META_CURSOR_SHIFT);
 
       let dirty = this.differs(base + x, x, meta);
       for (let c = 1; c < cells; c++) {
-        if (this.differs(base + x + c, x + c, Meta.COVERED)) dirty = true;
+        if (this.differs(base + x + c, x + c, META_COVERED)) dirty = true;
       }
 
       if (dirty) {
@@ -209,7 +207,7 @@ export class CellPainter {
           painted.fg[i] = fg[x + c];
           painted.bg[i] = bg[x + c];
           painted.ext[i] = ext[x + c];
-          painted.meta[i] = c === 0 ? meta : Meta.COVERED;
+          painted.meta[i] = c === 0 ? meta : META_COVERED;
           painted.combined[i] = combined[x + c];
         }
         repainted += cells;

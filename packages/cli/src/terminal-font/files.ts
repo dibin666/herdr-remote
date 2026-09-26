@@ -344,14 +344,14 @@ export function resolveSubsetSources(
   };
 
   const self = locateFont(`${escapeFontconfig(family)}${FACE_PATTERNS.regular}`, resolved);
-  const selfInstalled = self && self.families.some((name) => name.toLowerCase() === wanted);
+  const selfInstalled = self?.families.some((name) => name.toLowerCase() === wanted);
   if (selfInstalled && !faces.some((face) => face.style === 'regular')) add(self, 'all', family);
 
   const cjk = locateFont(
     `${escapeFontconfig(family)}:charset=4e00${FACE_PATTERNS.regular}`,
     resolved,
   );
-  const coveredBySelf = cjk && cjk.families.some((name) => name.toLowerCase() === wanted);
+  const coveredBySelf = cjk?.families.some((name) => name.toLowerCase() === wanted);
   if (cjk && !coveredBySelf && cjk.families[0]) add(cjk, 'cjk', cjk.families[0]);
   return sources;
 }

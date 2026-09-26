@@ -203,9 +203,16 @@ describe('detectInputField edge cases', () => {
     screen.write(4, 0, '─'.repeat(60));
     screen.write(5, 0, '❯ typing ahead');
     screen.write(6, 0, '─'.repeat(60));
-    ['[Opus]', '✓ Bash ×20', 'Context 42%', '1 CLAUDE.md', '✓ agent: done', '~file.ts(+1)'].forEach(
-      (text, i) => screen.write(7 + i, 2, text),
-    );
+    for (const [i, text] of [
+      '[Opus]',
+      '✓ Bash ×20',
+      'Context 42%',
+      '1 CLAUDE.md',
+      '✓ agent: done',
+      '~file.ts(+1)',
+    ].entries()) {
+      screen.write(7 + i, 2, text);
+    }
     screen.write(13, 2, '-- INSERT -- ⏵⏵ bypass permissions on');
     expect(detectInputField(screen, { row: 5, col: 14, hidden: true })).toMatchObject({
       kind: 'rule',

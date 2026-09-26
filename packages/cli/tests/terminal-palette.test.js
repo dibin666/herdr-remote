@@ -270,7 +270,7 @@ test('a terminal that reports its ANSI ramp but not its default colors still yie
   // Exactly what a multiplexer between this process and the emulator did:
   // it answered every OSC 4 query and ignored OSC 10, 11 and 12.
   const answered = [];
-  const palette = collectPalette((query, prefix) => {
+  const palette = collectPalette((_query, prefix) => {
     answered.push(prefix);
     const slot = /^\x1b\]4;(\d+)$/.exec(prefix);
     if (!slot) return null;

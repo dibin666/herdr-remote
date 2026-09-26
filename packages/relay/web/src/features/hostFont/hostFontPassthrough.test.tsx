@@ -41,8 +41,9 @@ function fakeAdapter(
   serve: (sha256: string, index: number) => { dataBase64?: string; error?: string },
 ) {
   const listeners = new Map<string, Set<Listener>>();
-  const emit = (event: string, ...args: unknown[]) =>
-    listeners.get(event)?.forEach((fn) => fn(...args));
+  const emit = (event: string, ...args: unknown[]) => {
+    for (const fn of listeners.get(event) ?? []) fn(...args);
+  };
   const requests: Array<[string, number]> = [];
   let refreshes = 0;
   const adapter = {

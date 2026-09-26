@@ -83,7 +83,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
       }
       if (url === '/api/status') {
         statusCalled = true;
-        authHeader = (init?.headers as Record<string, string>)?.[`Authorization`] || '';
+        authHeader = (init?.headers as Record<string, string>)?.Authorization || '';
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -299,7 +299,7 @@ describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
       expect(requestedUrl).toBe('https://relay.example.com/api/admin/status');
       // Assert: only X-Relay-Admin-Token is sent, never Bearer device token
       expect(requestedHeaders['X-Relay-Admin-Token']).toBe('secret-admin-pass');
-      expect(requestedHeaders['Authorization']).toBeUndefined();
+      expect(requestedHeaders.Authorization).toBeUndefined();
       expect(screen.getByText('Active Users')).toBeInTheDocument();
     });
 

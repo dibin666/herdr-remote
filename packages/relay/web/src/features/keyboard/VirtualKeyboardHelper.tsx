@@ -37,7 +37,7 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
     }
 
     if (text.length > 0) {
-      sendKey(text + '\r');
+      sendKey(`${text}\r`);
       setText('');
     } else {
       sendKey('\r');
@@ -49,7 +49,7 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
       warnViewerMode();
       return;
     }
-    sendKey(snippet + '\r');
+    sendKey(`${snippet}\r`);
   };
 
   return (

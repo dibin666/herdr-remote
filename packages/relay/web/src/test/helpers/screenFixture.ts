@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { FieldCell, FieldLine, FieldScreen } from '@/features/prediction/fieldScreen';
 import { predictableWidth } from '@/features/prediction/wideChars';
 

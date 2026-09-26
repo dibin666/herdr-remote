@@ -388,10 +388,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     for (const file of sourceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
-      let match: RegExpExecArray | null;
-      while ((match = keyRegex.exec(content)) !== null) {
-        foundKeys.add(match[1]);
-      }
+      for (const match of content.matchAll(keyRegex)) foundKeys.add(match[1]);
     }
 
     expect(foundKeys.size).toBeGreaterThan(50);

@@ -148,7 +148,9 @@ function setup(cols = 20, rows = 6, dpr = 1) {
     screenElement,
     redraws,
     mainContext,
-    changeColors: () => colorListeners.forEach((listener) => listener()),
+    changeColors: () => {
+      for (const listener of colorListeners) listener();
+    },
     write: (data: string) => new Promise<void>((resolve) => term.write(data, resolve)),
     frame: () => renderer.renderRows(0, rows - 1),
     set synchronizing(value: boolean) {

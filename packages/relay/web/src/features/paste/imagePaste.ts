@@ -265,7 +265,7 @@ export async function compressAndPrepareImage(
         continue;
       }
 
-      if (!dataUrl || !dataUrl.startsWith('data:')) {
+      if (!dataUrl?.startsWith('data:')) {
         continue;
       }
 

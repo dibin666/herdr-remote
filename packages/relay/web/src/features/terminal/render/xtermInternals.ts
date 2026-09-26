@@ -130,8 +130,7 @@ export interface LinkEvent {
 export function xtermCore(terminal: Terminal): XtermCore | null {
   const core = (terminal as unknown as { _core?: Partial<XtermCore> })._core;
   if (
-    !core ||
-    !core.screenElement ||
+    !core?.screenElement ||
     !core.coreService ||
     !core.optionsService?.rawOptions ||
     !core._bufferService?.buffer ||

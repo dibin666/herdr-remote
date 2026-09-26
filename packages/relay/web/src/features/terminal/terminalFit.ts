@@ -131,7 +131,7 @@ export function measureCellDimensions(
       )._core;
 
       const cssCell = core?._renderService?.dimensions?.css?.cell;
-      if (cssCell && cssCell.width && cssCell.width > 0 && cssCell.height && cssCell.height > 0) {
+      if (cssCell?.width && cssCell.width > 0 && cssCell.height && cssCell.height > 0) {
         return { cellWidth: cssCell.width, cellHeight: cssCell.height, measured: true };
       }
     } catch {

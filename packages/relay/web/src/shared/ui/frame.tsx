@@ -20,6 +20,7 @@ export const Segments: React.FC<{
   return (
     <span className={cn('flex min-w-0 items-center gap-1.5', className)}>
       {visible.map((item, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the items are an ordered list of nodes with no identity of their own
         <React.Fragment key={index}>
           {index > 0 ? <Sep className="shrink-0" /> : null}
           {item}

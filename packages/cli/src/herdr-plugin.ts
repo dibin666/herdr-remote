@@ -71,11 +71,10 @@ function parsePluginList(output: unknown): PluginListEntry[] {
       name,
       enabled: state === 'enabled',
       source,
-      warnings:
-        rawSource && rawSource.includes(';')
-          ? rawSource.slice(rawSource.indexOf(';') + 1).trim()
-          : null,
-      localPath: source && source.startsWith('local:') ? source.slice('local:'.length) : null,
+      warnings: rawSource?.includes(';')
+        ? rawSource.slice(rawSource.indexOf(';') + 1).trim()
+        : null,
+      localPath: source?.startsWith('local:') ? source.slice('local:'.length) : null,
     });
   }
   return plugins;

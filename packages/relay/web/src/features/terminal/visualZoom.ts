@@ -24,8 +24,7 @@ export function getVisualZoomSnapshot(
       ? win.devicePixelRatio
       : 1;
   const scale =
-    win &&
-    win.visualViewport &&
+    win?.visualViewport &&
     typeof win.visualViewport.scale === 'number' &&
     win.visualViewport.scale > 0
       ? win.visualViewport.scale

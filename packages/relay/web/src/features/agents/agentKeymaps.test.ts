@@ -174,6 +174,6 @@ describe('Herdr agent keymaps', () => {
         keys: 'ctrl+x',
       },
     ]);
-    expect(settings.agentKeymaps['__proto__']).toBeUndefined();
+    expect(Object.hasOwn(settings.agentKeymaps, '__proto__')).toBe(false);
   });
 });

@@ -311,7 +311,7 @@ test('font files are served a slice at a time, and a changed file is refused', (
   const size = TERMINAL_FONT_CHUNK_BYTES * 2 + 5;
   const file = fontFile(directory, 'Big.ttf', 'true', size);
   const run = fakeRun({
-    [`fc-match -f %{file}\n%{family}\n%{index}\n Big:weight=regular:slant=roman`]: `${file}\nBig\n0\n`,
+    'fc-match -f %{file}\n%{family}\n%{index}\n Big:weight=regular:slant=roman': `${file}\nBig\n0\n`,
   });
   const record = { family: 'Big', faces: resolveFontFaces('Big', { ...base, run }) };
   const { sha256 } = record.faces[0];
@@ -370,7 +370,7 @@ test('the connector serves slices and re-reads the font for a window that asks',
   const file = fontFile(directory, 'Mono.ttf', 'true', 10);
   // "Mono" alone is a generic name, which is never resolved to files.
   const run = fakeRun({
-    [`fc-match -f %{file}\n%{family}\n%{index}\n Tiny Mono:weight=regular:slant=roman`]: `${file}\nTiny Mono\n0\n`,
+    'fc-match -f %{file}\n%{family}\n%{index}\n Tiny Mono:weight=regular:slant=roman': `${file}\nTiny Mono\n0\n`,
   });
   const record = {
     family: 'Tiny Mono',
@@ -655,7 +655,7 @@ test('the connector answers a cut inline when small, and in slices when large', 
     terminalPalette: null,
     terminalFont: { family: 'Tiny Mono', faces: [], subsets: [source] },
     fontSubsetter: {
-      subset(from, codepoints) {
+      subset(_from, codepoints) {
         asked.push(codepoints);
         return Buffer.alloc(codepoints.length > 2 ? TERMINAL_FONT_CHUNK_BYTES + 5 : 7, 1);
       },

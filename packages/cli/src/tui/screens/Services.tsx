@@ -125,9 +125,7 @@ function LogBlock({
         <Text color={theme.muted}>{emptyText}</Text>
       ) : (
         lines.map((line, index) => (
-          // Log lines are positional and may repeat, so the index is the only
-          // stable identity available here.
-          // eslint-disable-next-line react/no-array-index-key
+          // biome-ignore lint/suspicious/noArrayIndexKey: log lines are positional and may repeat
           <Text key={index} color={theme.muted} wrap="truncate-end">
             {line}
           </Text>

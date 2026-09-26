@@ -20,6 +20,7 @@ export enum Attributes {
   CM_DEFAULT = 0,
   CM_P16 = 0x1000000,
   CM_P256 = 0x2000000,
+  // biome-ignore lint/suspicious/noDuplicateEnumValues: xterm's layout, where RGB mode sets both mode bits
   CM_RGB = 0x3000000,
   RGB_MASK = 0xffffff,
 }

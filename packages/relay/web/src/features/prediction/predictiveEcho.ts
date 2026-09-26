@@ -75,7 +75,7 @@ export class PredictiveEcho extends PredictionState {
     // is as trustworthy as it was.
     if (isLoneEscape(text)) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
-      this.freeze('escape', { demote: !field || field.modal !== false });
+      this.freeze('escape', { demote: field?.modal !== false });
       return;
     }
 
