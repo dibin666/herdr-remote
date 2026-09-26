@@ -10,9 +10,8 @@ import {
   PROBE_FAILURE_TTL_MS,
   isCanvasProbeFailed,
   recordCanvasProbeFailure,
-  clearProbeMemoryStore,
 } from '../utils/terminalRenderer';
-import { STORAGE_KEYS } from '../utils/browserStorage';
+import { clearMemoryStorage, STORAGE_KEYS } from '../utils/browserStorage';
 
 const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] })
   .__herdrRenderers;
@@ -58,7 +57,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    clearProbeMemoryStore();
+    clearMemoryStorage();
     herdrRenderers.length = 0;
     RendererStub.failNext = null;
     RendererStub.unavailableNext = false;
@@ -66,7 +65,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
 
   afterEach(() => {
     localStorage.clear();
-    clearProbeMemoryStore();
+    clearMemoryStorage();
     Object.defineProperty(navigator, 'userAgent', {
       value: originalUserAgent,
       writable: true,

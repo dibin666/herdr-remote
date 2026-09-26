@@ -4,7 +4,7 @@ import type {
   HostFontSubsetSource,
   HostTerminalFont,
 } from '@protocol/terminal';
-import { STORAGE_KEYS } from './browserStorage';
+import { safeGetItem, safeSetItem, STORAGE_KEYS } from './browserStorage';
 
 /**
  * Bringing the workstation's terminal font to this browser.
@@ -352,7 +352,7 @@ export type HostFontDecision = 'accepted' | 'declined';
 
 function readDecisions(): Record<string, { fingerprint: string; decision: HostFontDecision }> {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.hostFontConsent) || '{}');
+    const parsed = JSON.parse(safeGetItem('local', STORAGE_KEYS.hostFontConsent) || '{}');
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
@@ -376,11 +376,9 @@ export function saveHostFontDecision(
   fingerprint: string,
   decision: HostFontDecision,
 ): void {
-  try {
-    const decisions = readDecisions();
-    decisions[hostKey] = { fingerprint, decision };
-    localStorage.setItem(STORAGE_KEYS.hostFontConsent, JSON.stringify(decisions));
-  } catch {
-    // Storage full or blocked: the question may be asked again, nothing worse.
-  }
+  // Storage full or blocked: the answer holds for this page, and the question
+  // may be asked again next visit, nothing worse.
+  const decisions = readDecisions();
+  decisions[hostKey] = { fingerprint, decision };
+  safeSetItem('local', STORAGE_KEYS.hostFontConsent, JSON.stringify(decisions));
 }

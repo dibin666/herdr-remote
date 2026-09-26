@@ -47,7 +47,7 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { HerdrRenderer } from '../render/HerdrRenderer';
-import { STORAGE_KEYS } from './browserStorage';
+import { safeGetItem, safeSetItem, STORAGE_KEYS } from './browserStorage';
 
 export type TerminalRendererKind = 'dom' | 'canvas';
 
@@ -83,26 +83,8 @@ export interface ProbeStoreData {
   ua: Record<string, ProbeFailureEntry>;
 }
 
-// In-memory fallback if localStorage is disabled or throws (safe for non-secure HTTP contexts)
-const memoryProbeStore: Record<string, string> = {};
-
-export function clearProbeMemoryStore(): void {
-  for (const key of Object.keys(memoryProbeStore)) {
-    delete memoryProbeStore[key];
-  }
-}
-
 function safeGetProbeStore(): ProbeStoreData {
-  let raw: string | null = null;
-  if (typeof window === 'undefined') {
-    raw = memoryProbeStore[STORAGE_KEYS.rendererProbe] || null;
-  } else {
-    try {
-      raw = window.localStorage ? window.localStorage.getItem(STORAGE_KEYS.rendererProbe) : null;
-    } catch {
-      raw = memoryProbeStore[STORAGE_KEYS.rendererProbe] || null;
-    }
-  }
+  const raw = safeGetItem('local', STORAGE_KEYS.rendererProbe);
   if (!raw) return { v: PROBE_STORAGE_SCHEMA_VERSION, ua: {} };
   try {
     const data = JSON.parse(raw);
@@ -124,15 +106,7 @@ function safeGetProbeStore(): ProbeStoreData {
 function safeSetProbeFailed(ua: string, failedAt = Date.now()): void {
   const store = safeGetProbeStore();
   store.ua[ua] = { failedAt };
-  const serialized = JSON.stringify(store);
-  memoryProbeStore[STORAGE_KEYS.rendererProbe] = serialized;
-  if (typeof window !== 'undefined') {
-    try {
-      window.localStorage?.setItem(STORAGE_KEYS.rendererProbe, serialized);
-    } catch (err) {
-      console.warn('Failed to write renderer probe result to localStorage:', err);
-    }
-  }
+  safeSetItem('local', STORAGE_KEYS.rendererProbe, JSON.stringify(store));
 }
 
 export function isCanvasProbeFailed(ua?: string, now = Date.now()): boolean {
