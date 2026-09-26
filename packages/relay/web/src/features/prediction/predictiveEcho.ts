@@ -111,6 +111,7 @@ export class PredictiveEcho extends PredictionKeys {
       // Backspace: 0x08 (BS) or 0x7f (DEL)
       if (codePoint === 0x08 || codePoint === 0x7f) {
         if (!this.handleBackspace(terminal)) {
+          if (index < chars.length - 1) this.inFlightUnknown = true;
           return;
         }
         continue;
@@ -173,7 +174,7 @@ export class PredictiveEcho extends PredictionKeys {
     if (this.getFieldOption) {
       const current = this.getFieldOption();
       if (!current || current.key !== field?.key) {
-        if (this.predictions.every((p) => p.frozenFrom || p.echoed)) {
+        if (this.predictions.every((p) => p.frozenFrom || p.echoed || p.cancelled)) {
           // The key sent after them took the caret elsewhere, and their echo
           // was drawn before that; nothing was mispredicted.
           this.predictions = [];
@@ -195,25 +196,56 @@ export class PredictiveEcho extends PredictionKeys {
       }
     }
 
-    const remaining: PendingPrediction[] = [];
+    let remaining: PendingPrediction[] = [];
+    // A character taken back is still on its way, and the keys typed after it
+    // are behind it: until it has landed, where the caret is says nothing.
+    let blocked = false;
 
     for (const p of this.predictions) {
+      if (p.cancelled) {
+        // Only the first one still on its way can be read off the caret:
+        // several may share a cell, and the caret passes it once for each.
+        if (!blocked) {
+          const past = caret.row > p.row || (caret.row === p.row && caret.col >= p.col + p.width);
+          if (!past) p.behindCaret = undefined;
+          // Drawn, then the caret came back: its backspace has landed too.
+          if (p.passed && !past) continue;
+          if (past && !p.behindCaret) p.passed = true;
+        }
+        remaining.push(p);
+        blocked = true;
+        continue;
+      }
       const cell = terminal.buffer.active.getLine(p.row)?.getCell(p.col);
       const actual = normalizeBlank(cell ? cell.getChars() : '');
       const matches =
         p.kind === 'char'
           ? actual === p.char && (p.width === 1 || (cell?.getWidth?.() ?? 2) === 2)
           : actual === ' ';
+      const unchanged = p.before.includes(actual);
+      if (p.behindCaret && (caret.row < p.row || (caret.row === p.row && caret.col <= p.col))) {
+        p.behindCaret = undefined;
+      }
       // The server has processed a keystroke once its caret has moved past
       // the cell that keystroke affects.
       const settled =
         p.kind === 'char'
-          ? caret.row > p.row || (caret.row === p.row && caret.col >= p.col + p.width)
+          ? (caret.row > p.row || (caret.row === p.row && caret.col >= p.col + p.width)) &&
+            !(p.behindCaret && unchanged)
           : caret.row < p.row || (caret.row === p.row && caret.col <= p.col);
-      const unchanged = p.before.includes(actual);
       // The character arrived, one cell wide where two were predicted (or
       // the reverse): that is a verdict, whether or not the caret has passed.
       const wrongWidth = p.kind === 'char' && actual === p.char && !matches;
+
+      if (blocked && !p.frozenFrom) {
+        if (!matches || unchanged) {
+          remaining.push(p);
+          continue;
+        }
+        // It landed, so every key typed before it has too.
+        remaining = remaining.filter((q) => !q.cancelled);
+        blocked = false;
+      }
 
       if (p.echoed && !matches) {
         // The server drew it, then drew something else before its caret
@@ -234,7 +266,10 @@ export class PredictiveEcho extends PredictionKeys {
         // the freeze. Once its caret has gone back (Ctrl+U, Home), to another
         // row (Enter), or past without echoing this, it simply goes.
         const from = p.frozenFrom;
-        if (!settled && caret.row === from.row && caret.col >= from.col) {
+        // Backspaces landing take the caret back, towards an erase and away
+        // from where it was frozen.
+        const onTrack = p.kind === 'erase' || caret.col >= from.col;
+        if (!settled && caret.row === from.row && onTrack) {
           remaining.push(p);
         } else if (settled && p.probation) {
           // Placed after a guessed width that was wrong: the caret the frozen
@@ -271,6 +306,8 @@ export class PredictiveEcho extends PredictionKeys {
     this.predictions = remaining;
     if (remaining.length === 0) {
       this.predictedCursor = null;
+      // The run ended unproven: what it was placed after is still unaccounted for.
+      if (this.probationRun) this.inFlightUnknown = true;
     }
   }
 
@@ -282,7 +319,7 @@ export class PredictiveEcho extends PredictionKeys {
     this.pruneExpired();
 
     return this.visiblePredictions()
-      .filter((p) => !p.echoed)
+      .filter((p) => !p.echoed && !p.cancelled)
       .map((p) => ({
         row: p.row,
         col: p.col,

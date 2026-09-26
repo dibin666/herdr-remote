@@ -200,6 +200,9 @@ export abstract class PredictionState {
         }
       : null;
     const shown = this.getState() === 'confident';
+    // What follows this key cannot be modelled, so neither can the cell a
+    // character taken back leaves: whatever lands there next is drawn as is.
+    this.predictions = this.predictions.filter((p) => !p.cancelled);
     for (const p of this.predictions) {
       if (!p.frozenFrom) {
         p.frozenFrom = caret ?? { row: p.row, col: p.col };
@@ -212,8 +215,13 @@ export abstract class PredictionState {
     // Keys sent before this one without a prediction may still be landing, and
     // nothing says where: whatever is predicted next is a guess until proven.
     // (A guessed width before the last prediction is checked as that
-    // prediction lands; see `settle`.)
-    const untracked = this.inFlight.length > 0 || this.inFlightUnknown || this.lastSentUndrawn;
+    // prediction lands; see `settle`.) So is a run placed after such keys
+    // when nothing typed in it is left to prove where they landed.
+    const untracked =
+      this.inFlight.length > 0 ||
+      this.inFlightUnknown ||
+      this.lastSentUndrawn ||
+      (this.probationRun && this.runSent.length === 0);
     this.predictedCursor = null;
     this.note(`freeze: ${reason}${options.demote ? ' (demote)' : ''}`);
 
@@ -277,9 +285,18 @@ export abstract class PredictionState {
     return width === 0 || width === 1 || width === 2 ? width : 1;
   }
 
+  /**
+   * The cell is spoken for by the current run: an echo the server has drawn,
+   * or a cell a backspace still on its way will clear. A held backspace needs
+   * the second: each one is typed before the server has cleared the last.
+   */
   protected coveredByPrediction(row: number, col: number): boolean {
     return this.predictions.some(
-      (p) => p.echoed && p.row === row && p.col <= col && col < p.col + p.width,
+      (p) =>
+        (p.echoed || p.cancelled || (p.kind === 'erase' && !p.frozenFrom)) &&
+        p.row === row &&
+        p.col <= col &&
+        col < p.col + p.width,
     );
   }
 
@@ -333,7 +350,10 @@ export abstract class PredictionState {
     if (field && !p.frozenFrom) {
       this.markConfident(field.key);
     }
-    if (p.probation) {
+    // A cleared cell looks the same whichever backspace cleared it, and one
+    // still on its way from before the run may have: only a character proves
+    // where the run is.
+    if (p.probation && p.kind === 'char') {
       // The guess was right: the run is where the server's caret is.
       for (const q of this.predictions) q.probation = undefined;
       this.probationRun = false;

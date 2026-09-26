@@ -25,7 +25,7 @@ export abstract class PredictionKeys extends PredictionState {
 
     const cursor = this.predictedCursor;
     const atFieldStart =
-      this.predictions.every((p) => p.frozenFrom) && cursor.col === field.caretCol;
+      this.predictions.every((p) => p.frozenFrom || p.cancelled) && cursor.col === field.caretCol;
     if (field.agentLike && field.empty && atFieldStart && MODE_SWITCH_FIRST_KEYS.includes(char)) {
       this.freeze('agent mode switch');
       return false;
@@ -43,19 +43,23 @@ export abstract class PredictionKeys extends PredictionState {
     const before = [normalizeBlank(cell ? cell.getChars() : '')];
 
     // Retyping a cell that a pending backspace is clearing: the server may
-    // still show the old character, the cleared cell, or the new one.
-    const last = this.predictions[this.predictions.length - 1];
+    // still show the old character, the cleared cell, or the new one. The
+    // same goes for a character taken back before its echo.
+    const erasing = this.predictions.findIndex(
+      (p) => p.kind === 'erase' && !p.frozenFrom && p.row === cursor.row && p.col === cursor.col,
+    );
     let replaces: PendingPrediction | undefined;
-    if (
-      last &&
-      last.kind === 'erase' &&
-      !last.frozenFrom &&
-      last.row === cursor.row &&
-      last.col === cursor.col
-    ) {
-      replaces = this.predictions.pop();
-      before.push(...last.before, ' ');
+    if (erasing >= 0) {
+      [replaces] = this.predictions.splice(erasing, 1);
+      before.push(...replaces.before, ' ');
     }
+    for (const p of this.predictions) {
+      if (p.cancelled && p.row === cursor.row && p.col === cursor.col) before.push(p.char);
+    }
+    const active = terminal.buffer.active;
+    const serverRow = active.baseY + active.cursorY;
+    const behindCaret =
+      serverRow > cursor.row || (serverRow === cursor.row && active.cursorX > cursor.col);
 
     this.predictions.push({
       row: cursor.row,
@@ -67,6 +71,7 @@ export abstract class PredictionKeys extends PredictionState {
       sentAt: this.now(),
       replaces,
       probation: this.probationRun || undefined,
+      behindCaret: behindCaret || undefined,
     });
     if (this.probationRun) this.runSent.push(char);
     this.lastSentUndrawn = false;
@@ -113,7 +118,10 @@ export abstract class PredictionKeys extends PredictionState {
   /** Returns false when the backspace could not be predicted. */
   protected handleBackspace(terminal: PredictionTerminal): boolean {
     // If we have unconfirmed predictions on this line, we know what was typed and can safely undo it.
-    const last = this.predictions[this.predictions.length - 1];
+    let last: PendingPrediction | undefined;
+    for (let i = this.predictions.length - 1; i >= 0 && !last; i--) {
+      if (!this.predictions[i].cancelled) last = this.predictions[i];
+    }
     if (
       this.predictedCursor &&
       last &&
@@ -123,12 +131,14 @@ export abstract class PredictionKeys extends PredictionState {
       last.row === this.predictedCursor.row &&
       last.col + last.width === this.predictedCursor.col
     ) {
-      this.predictions.pop();
+      // Both keys are on their way; see `cancelled`.
+      last.cancelled = true;
       if (last.probation) this.runSent.pop();
       this.predictedCursor.col = last.col;
       if (last.replaces) {
-        // The erase it was typed over still stands.
-        this.predictions.push(last.replaces);
+        // The erase it was typed over still stands, and was typed before it.
+        this.predictions.splice(this.predictions.indexOf(last), 0, last.replaces);
+        last.replaces = undefined;
       }
       return true;
     }
