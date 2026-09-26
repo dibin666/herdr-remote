@@ -55,7 +55,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 
 - 修 bug 时，先加一个修复前会失败的测试。
 - 三个包都用 vitest。cli、relay 的测试放在各包的 `tests/`，断言用 `node:assert/strict`，清理逻辑写在 `t.onTestFinished` 里；用依赖注入和 `HERDR_REMOTE_CONFIG_DIR`、`HERDR_REMOTE_STATE_DIR` 做隔离，不要碰真实的 home 目录。
-- web：用 Testing Library。`src/test/setup.ts` 全局 mock 了 WebSocket 和 xterm。`fixtures/screens/*.json` 由 `scripts/capture-herdr-screens.mjs` 生成，不要手改。
+- web：用 Testing Library，测试文件 `*.test.ts(x)` 和被测代码放在同一目录；`src/test/` 只放 setup、helpers 和 fixtures。`src/test/setup.ts` 全局 mock 了 WebSocket、xterm 和 canvas 渲染器。`fixtures/screens/*.json` 由 `scripts/capture-herdr-screens.mjs` 生成，不要手改。
 
 ## 提交与 PR
 
