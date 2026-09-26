@@ -282,6 +282,9 @@ const scenarios = [
       await probe.send('hello codex', 80);
       await capture('codex-typed');
       await clearInput(probe, CODEX_EMPTY);
+      await probe.send('the quick brown fox jumps over the lazy dog '.repeat(3), 5);
+      await capture('codex-wrapped');
+      await clearInput(probe, CODEX_EMPTY);
       await quitAgent(probe);
       await shell(probe, 'clear');
     },

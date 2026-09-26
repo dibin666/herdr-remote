@@ -44,6 +44,8 @@ const EXPECTED: Record<string, Expected> = {
   'desktop-claude-trust': null,
   'desktop-codex-empty': { kind: 'prompt', startCol: 28, endCol: 119 },
   'desktop-codex-typed': { kind: 'prompt', startCol: 28, endCol: 119 },
+  // Codex wraps its text onto rows indented under it.
+  'desktop-codex-wrapped': { kind: 'prompt', startCol: 28, endCol: 119 },
   'desktop-codex-trust': null,
   'desktop-fish-empty': { kind: 'prompt', startCol: 73, endCol: 120 },
   'desktop-fish-typed': { kind: 'prompt', startCol: 73, endCol: 120 },
@@ -76,6 +78,7 @@ const EXPECTED: Record<string, Expected> = {
   'mobile-claude-model-menu': null,
   'mobile-codex-empty': { kind: 'prompt', startCol: 2, endCol: 48 },
   'mobile-codex-typed': { kind: 'prompt', startCol: 2, endCol: 48 },
+  'mobile-codex-wrapped': { kind: 'prompt', startCol: 2, endCol: 48 },
   // fish's prompt fills a phone-width row; the command starts on the next one.
   'mobile-fish-empty': { kind: 'prompt', startCol: 0, endCol: 48 },
   'mobile-fish-typed': { kind: 'prompt', startCol: 0, endCol: 48 },
@@ -162,6 +165,31 @@ describe('detectInputField on captured Herdr screens', () => {
     expect(detectFixture('desktop-claude-typed')!.empty).toBe(false);
     expect(detectFixture('desktop-codex-empty')!.empty).toBe(true);
     expect(detectFixture('desktop-pi-empty')!.empty).toBe(true);
+  });
+
+  it('reads the rows Codex wraps its prompt onto as the same field', () => {
+    for (const layout of ['desktop', 'mobile']) {
+      const typed = detectFixture(`${layout}-codex-typed`)!;
+      const wrapped = detectFixture(`${layout}-codex-wrapped`)!;
+      expect(wrapped.key).toBe(typed.key);
+      expect(wrapped.layout).toBe(typed.layout);
+      expect(wrapped.agentLike).toBe(true);
+      // The caret follows a space: the next key starts a word of its own.
+      expect(wrapped.midWord).toBe(false);
+    }
+  });
+
+  it('marks a caret that a word ending at the edge of the row above runs on into', () => {
+    const screen = screenFromFixture(loadScreenFixture('mobile-codex-wrapped'));
+    // The caret is at the start of row 20; a word now reaches Codex's last cell.
+    screen.write(19, 2, `${'x '.repeat(21)}abc`);
+    expect(new InputFieldTracker().detect(screen, screen.cursor)!.midWord).toBe(true);
+  });
+
+  it('does not read indented text as a wrapped prompt across a blank row', () => {
+    const screen = screenFromFixture(loadScreenFixture('mobile-codex-wrapped'));
+    screen.write(18, 0, ' '.repeat(48));
+    expect(detectInputField(screen, screen.cursor)).toBeNull();
   });
 
   it('treats a glyph-only prompt as an agent and a shell prompt as a shell', () => {

@@ -55,6 +55,8 @@ export interface PredictionField {
    * leaves insert mode and the keys after it are commands.
    */
   modal?: boolean;
+  /** The caret starts a row the word above runs on into; the next key may move that word down. */
+  midWord?: boolean;
 }
 
 export interface PredictiveEchoOptions {

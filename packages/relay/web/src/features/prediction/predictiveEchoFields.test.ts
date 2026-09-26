@@ -375,6 +375,38 @@ describe("PredictiveEcho in Claude Code's input box", () => {
   });
 });
 
+describe("PredictiveEcho in Codex's prompt", () => {
+  it('keeps predicting on the rows the prompt wraps onto', () => {
+    const t = setup('desktop-codex-typed');
+    type(t.echo, 'x');
+    t.remoteEcho('x');
+    expect(t.echo.getState()).toBe('confident');
+
+    t.show('desktop-codex-wrapped'); // caret on the second row, after "dog "
+    type(t.echo, 'y');
+    expect(t.echo.getVisiblePredictions()).toEqual([{ row: 12, col: 72, char: 'y' }]);
+  });
+
+  it('waits for Codex to move a word that ran into the edge before predicting after it', () => {
+    const t = setup('mobile-codex-typed');
+    type(t.echo, 'x');
+    t.remoteEcho('x');
+    t.show('mobile-codex-wrapped');
+    t.screen.write(19, 2, `${'x '.repeat(21)}abc`); // "abc" ends in Codex's last cell
+    type(t.echo, 'd');
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+
+    // Codex moves the word down, "d" and all.
+    t.screen.write(19, 44, '   ');
+    t.screen.write(20, 2, 'abcd');
+    t.screen.setCursor(6, 20);
+    t.echo.onServerOutput();
+    type(t.echo, 'e');
+    expect(t.echo.getVisiblePredictions()).toEqual([{ row: 20, col: 6, char: 'e' }]);
+    expect(t.echo.getMismatchCount()).toBe(0);
+  });
+});
+
 describe('PredictiveEcho outside input fields', () => {
   it.each([
     'desktop-claude-model-menu',
