@@ -6,7 +6,8 @@ import { KeyToolbar } from '../components/KeyToolbar';
 import { SettingsModal } from '../components/SettingsModal';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { TerminalView } from '../components/TerminalView';
-import { LOCAL_STORAGE_KEY, loadSettings, saveSettings } from '../utils/storage';
+import { loadSettings, saveSettings } from '../utils/storage';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
@@ -110,7 +111,7 @@ describe('Agent keymap settings', () => {
 
     expect(screen.getByTestId('agent-setting-row-details')).toHaveTextContent('^E');
     expect(
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').agentKeymaps.claude.actions
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}').agentKeymaps.claude.actions
         .details.keys,
     ).toBe('ctrl+e');
     sessionStorage.clear();
@@ -119,7 +120,7 @@ describe('Agent keymap settings', () => {
     fireEvent.change(details, { target: { value: 'ctrl+unknown' } });
     expect(details).toHaveAttribute('aria-invalid', 'true');
     expect(
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').agentKeymaps.claude.actions
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}').agentKeymaps.claude.actions
         .details.keys,
     ).toBe('ctrl+e');
     expect(
@@ -133,7 +134,7 @@ describe('Agent keymap settings', () => {
   });
 
   it('shows typed combo errors in Chinese', () => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ language: 'zh' }));
+    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify({ language: 'zh' }));
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />

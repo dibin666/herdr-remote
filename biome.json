@@ -126,7 +126,6 @@
         "packages/relay/web/src/utils/predictiveEcho.ts",
         "packages/relay/web/src/utils/touchMouseAdapter.ts",
         "packages/relay/web/src/protocol/clientAdapter.ts",
-        "packages/relay/web/src/utils/storage.ts",
         "packages/relay/web/src/components/KeyToolbar.tsx",
         "packages/relay/web/src/utils/terminalSelection.ts",
         "packages/relay/web/src/utils/useHostFont.ts",

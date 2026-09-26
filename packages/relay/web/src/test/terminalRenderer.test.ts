@@ -6,13 +6,13 @@ import {
   attachTerminalRenderer,
   isUniformColor,
   checkCanvasContent,
-  RENDERER_PROBE_STORAGE_KEY,
   PROBE_STORAGE_SCHEMA_VERSION,
   PROBE_FAILURE_TTL_MS,
   isCanvasProbeFailed,
   recordCanvasProbeFailure,
   clearProbeMemoryStore,
 } from '../utils/terminalRenderer';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 
 const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] })
   .__herdrRenderers;
@@ -189,7 +189,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(onRendererSwapped).toHaveBeenCalledWith('dom');
       expect(isCanvasProbeFailed()).toBe(true);
 
-      const raw = localStorage.getItem(RENDERER_PROBE_STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEYS.rendererProbe);
       expect(raw).toBeTruthy();
       const parsed = JSON.parse(raw!);
       expect(parsed.v).toBe(PROBE_STORAGE_SCHEMA_VERSION);
@@ -210,7 +210,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(herdrRenderers[0].uninstalled).toBe(false);
       expect(onRendererSwapped).not.toHaveBeenCalled();
       expect(isCanvasProbeFailed()).toBe(false);
-      expect(localStorage.getItem(RENDERER_PROBE_STORAGE_KEY)).toBeNull();
+      expect(localStorage.getItem(STORAGE_KEYS.rendererProbe)).toBeNull();
     });
 
     it('retains canvas and does NOT record failure when probe is inconclusive (missing text layer or exception)', async () => {
@@ -229,7 +229,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(renderer1.kind).toBe('canvas');
       expect(onRendererSwapped1).not.toHaveBeenCalled();
       expect(isCanvasProbeFailed()).toBe(false);
-      expect(localStorage.getItem(RENDERER_PROBE_STORAGE_KEY)).toBeNull();
+      expect(localStorage.getItem(STORAGE_KEYS.rendererProbe)).toBeNull();
 
       // Case 2: getImageData throws exception
       const { term: termWithThrowingCanvas } = createMockTerminal();
@@ -248,7 +248,7 @@ describe('terminalRenderer mobile canvas probe and fallback', () => {
       expect(renderer2.kind).toBe('canvas');
       expect(onRendererSwapped2).not.toHaveBeenCalled();
       expect(isCanvasProbeFailed()).toBe(false);
-      expect(localStorage.getItem(RENDERER_PROBE_STORAGE_KEY)).toBeNull();
+      expect(localStorage.getItem(STORAGE_KEYS.rendererProbe)).toBeNull();
     });
 
     it('ignores expired (> 30 days) probe failures and re-probes with canvas', async () => {

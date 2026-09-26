@@ -3,12 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { TerminalProvider } from '../context/TerminalContext';
 import { SettingsModal } from '../components/SettingsModal';
 import { applyDocumentTheme, HERDR_DARK_BACKGROUND } from '../utils/theme';
-import {
-  loadSettings,
-  saveSettings,
-  LOCAL_STORAGE_KEY,
-  SESSION_STORAGE_KEY,
-} from '../utils/storage';
+import { loadSettings, saveSettings } from '../utils/storage';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 
 describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
   beforeEach(() => {
@@ -48,7 +44,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
 
   it('drops legacy theme / colorMode values from storage instead of honoring them', () => {
     sessionStorage.setItem(
-      SESSION_STORAGE_KEY,
+      STORAGE_KEYS.sessionView,
       JSON.stringify({ theme: 'claude', colorMode: 'light', fontSize: 17 }),
     );
 
@@ -57,7 +53,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
     expect('theme' in settings).toBe(false);
     expect('colorMode' in settings).toBe(false);
 
-    const stored = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) || '{}');
+    const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.sessionView) || '{}');
     expect(stored.theme).toBeUndefined();
     expect(stored.colorMode).toBeUndefined();
     expect(stored.fontSize).toBe(17);
@@ -65,7 +61,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
 
   it('drops legacy theme / colorMode from localStorage and never writes them back', () => {
     localStorage.setItem(
-      LOCAL_STORAGE_KEY,
+      STORAGE_KEYS.settings,
       JSON.stringify({ token: 'legacy-token', theme: 'matrix', colorMode: 'light' }),
     );
 
@@ -74,12 +70,12 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
     expect('theme' in settings).toBe(false);
     expect('colorMode' in settings).toBe(false);
 
-    const storedAfterLoad = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+    const storedAfterLoad = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
     expect(storedAfterLoad.theme).toBeUndefined();
     expect(storedAfterLoad.colorMode).toBeUndefined();
 
     saveSettings({ fontSize: 16 });
-    const storedAfterSave = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+    const storedAfterSave = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
     expect(storedAfterSave.theme).toBeUndefined();
     expect(storedAfterSave.colorMode).toBeUndefined();
     expect(storedAfterSave.token).toBe('legacy-token');

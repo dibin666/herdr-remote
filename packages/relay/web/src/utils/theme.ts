@@ -102,6 +102,39 @@ export function isFontPresetId(value: unknown): value is FontPresetId {
   return FONT_PRESETS.some((preset) => preset.id === value);
 }
 
+/** Draw the session in the workstation's own terminal font. */
+export const DEFAULT_TERMINAL_FONT = 'host';
+
+/** Earlier builds stored whole CSS stacks; these were their defaults. */
+export const PREVIOUS_DEFAULT_FONT =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace';
+
+export const OLD_SYSTEM_DEFAULT_FONT =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+
+export const LEGACY_DEFAULT_FONT = 'JetBrains Mono, Menlo, Monaco, Consolas, monospace';
+
+/**
+ * What an older build's font value becomes. A default follows the host now;
+ * a platform stack somebody picked becomes the system stack it was a slice
+ * of; Fira Code is still offered. Any other custom stack is kept as it is.
+ */
+const MIGRATED_FONTS: Record<string, string> = {
+  [PREVIOUS_DEFAULT_FONT]: 'host',
+  [OLD_SYSTEM_DEFAULT_FONT]: 'host',
+  [LEGACY_DEFAULT_FONT]: 'host',
+  'SFMono-Regular, Menlo, Monaco, "Symbols Nerd Font Mono", monospace': 'system',
+  'Consolas, "Lucida Console", "Symbols Nerd Font Mono", monospace': 'system',
+  '"Liberation Mono", "DejaVu Sans Mono", "Symbols Nerd Font Mono", monospace': 'system',
+  '"Courier New", Courier, "Symbols Nerd Font Mono", monospace': 'system',
+  '"Fira Code", "Symbols Nerd Font Mono", monospace': 'fira-code',
+};
+
+export function migrateFontFamily(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return DEFAULT_TERMINAL_FONT;
+  return MIGRATED_FONTS[value] ?? value;
+}
+
 /**
  * The bundled face drawn the same way as a host family, Nerd Font patches
  * included (Caskaydia is Cascadia, Blex is IBM Plex, Sauce is Source). Used

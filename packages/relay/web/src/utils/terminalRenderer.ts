@@ -47,6 +47,7 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { HerdrRenderer } from '../render/HerdrRenderer';
+import { STORAGE_KEYS } from './browserStorage';
 
 export type TerminalRendererKind = 'dom' | 'canvas';
 
@@ -65,7 +66,6 @@ export interface AttachedRenderer {
   verify: () => Promise<void>;
 }
 
-export const RENDERER_PROBE_STORAGE_KEY = 'herdr_remote_renderer_probe_v3';
 /** How long the probe waits for the renderer to paint before sampling anyway. */
 const MAX_PAINT_WAIT_FRAMES = 30;
 /** The top-left corner the probe samples, in device pixels. */
@@ -95,12 +95,12 @@ export function clearProbeMemoryStore(): void {
 function safeGetProbeStore(): ProbeStoreData {
   let raw: string | null = null;
   if (typeof window === 'undefined') {
-    raw = memoryProbeStore[RENDERER_PROBE_STORAGE_KEY] || null;
+    raw = memoryProbeStore[STORAGE_KEYS.rendererProbe] || null;
   } else {
     try {
-      raw = window.localStorage ? window.localStorage.getItem(RENDERER_PROBE_STORAGE_KEY) : null;
+      raw = window.localStorage ? window.localStorage.getItem(STORAGE_KEYS.rendererProbe) : null;
     } catch {
-      raw = memoryProbeStore[RENDERER_PROBE_STORAGE_KEY] || null;
+      raw = memoryProbeStore[STORAGE_KEYS.rendererProbe] || null;
     }
   }
   if (!raw) return { v: PROBE_STORAGE_SCHEMA_VERSION, ua: {} };
@@ -125,10 +125,10 @@ function safeSetProbeFailed(ua: string, failedAt = Date.now()): void {
   const store = safeGetProbeStore();
   store.ua[ua] = { failedAt };
   const serialized = JSON.stringify(store);
-  memoryProbeStore[RENDERER_PROBE_STORAGE_KEY] = serialized;
+  memoryProbeStore[STORAGE_KEYS.rendererProbe] = serialized;
   if (typeof window !== 'undefined') {
     try {
-      window.localStorage?.setItem(RENDERER_PROBE_STORAGE_KEY, serialized);
+      window.localStorage?.setItem(STORAGE_KEYS.rendererProbe, serialized);
     } catch (err) {
       console.warn('Failed to write renderer probe result to localStorage:', err);
     }

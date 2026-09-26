@@ -3,7 +3,6 @@ import type { HerdrClientAdapter } from '../protocol/clientAdapter';
 import type { HostFontSubsetSource, HostTerminalFont } from '@protocol/terminal';
 import { COMMON_CJK_TEXT } from './commonCjk';
 import {
-  HOST_FONT_CONSENT_KEY,
   type CachedSubset,
   decodeBase64,
   downloadHostFontFace,
@@ -23,6 +22,7 @@ import {
   writeCachedFace,
   writeCachedSubset,
 } from './hostFont';
+import { STORAGE_KEYS } from './browserStorage';
 
 /**
  * Where the workstation's font stands in this window:
@@ -634,7 +634,7 @@ export function useHostFont(adapter: HerdrClientAdapter | null, deps: HostFontDe
   // same question is not waiting in every window.
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== HOST_FONT_CONSENT_KEY) return;
+      if (event.key !== STORAGE_KEYS.hostFontConsent) return;
       const current = stateRef.current;
       const fingerprint = hostFontFingerprint(current.font);
       const asking = current.status === 'available' || current.glyphs.status === 'available';

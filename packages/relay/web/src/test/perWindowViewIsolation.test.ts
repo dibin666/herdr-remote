@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  createConnectionProfile,
-  loadSettings,
-  profileKey,
-  saveSettings,
-  LOCAL_STORAGE_KEY,
-} from '../utils/storage';
+import { loadSettings, saveSettings } from '../utils/storage';
+import { createConnectionProfile, profileKey } from '../utils/connectionProfiles';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 
 /**
  * Creates a mock Storage implementation to simulate independent window sessionStorage instances
@@ -171,7 +167,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
 
     saveSettings({ adminToken: 'operator-secret-123456789', fontSize: 20 });
 
-    const persisted = sharedLocalStorage.getItem(LOCAL_STORAGE_KEY) || '';
+    const persisted = sharedLocalStorage.getItem(STORAGE_KEYS.settings) || '';
     expect(persisted).toContain('20');
     expect(persisted).not.toContain('operator-secret-123456789');
 
@@ -182,7 +178,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   it('ensures sessionData strictly overrides legacy localStorage view settings once session is initialized', () => {
     // 1. Suppose legacy localStorage contains old font size 18
     localStorage.setItem(
-      LOCAL_STORAGE_KEY,
+      STORAGE_KEYS.settings,
       JSON.stringify({
         token: 'legacy-token',
         fontSize: 18,
@@ -201,9 +197,9 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     expect(loadSettings().toolbarVisible).toBe(true);
 
     // 4. Even if another legacy process or tab rewrites localStorage fontSize:
-    const localRaw = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+    const localRaw = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
     localRaw.fontSize = 22;
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localRaw));
+    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(localRaw));
 
     // 5. This window's loadSettings MUST honor this session's own 12px (sessionData > localData)
     const current = loadSettings();
@@ -213,7 +209,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
 
   it('migrates a legacy HTTP relay URL without dropping its token', () => {
     localStorage.setItem(
-      LOCAL_STORAGE_KEY,
+      STORAGE_KEYS.settings,
       JSON.stringify({
         wsUrl: 'https://legacy.example/ws/client',
         token: 'legacy-token-123456789',
@@ -261,7 +257,9 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
     expect(loaded.wsUrl).toBe(second.wsUrl);
     expect(loaded.token).toBe(second.token);
     expect(loaded.profiles.find((profile) => profile.id === first.id)?.displayName).toBe('Office');
-    expect(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}').profiles).toHaveLength(2);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}').profiles).toHaveLength(
+      2,
+    );
   });
 
   it('sessionStorage failure gracefully falls back to memory storage per session', () => {
@@ -287,7 +285,7 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   it('loads predictiveEcho as "auto" for legacy data without the field and supports all three modes', () => {
     // Simulate legacy persisted data without predictiveEcho
     localStorage.setItem(
-      LOCAL_STORAGE_KEY,
+      STORAGE_KEYS.settings,
       JSON.stringify({
         wsUrl: '/ws/client',
         fontSize: 14,

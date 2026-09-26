@@ -1,4 +1,4 @@
-// Process entry for the host connector; service.js spawns this file.
+// Process entry for the host connector; service.ts spawns this file.
 
 import { EXIT_REPLACED } from '../exit-codes.js';
 import { HostConnector } from './host-connector.js';

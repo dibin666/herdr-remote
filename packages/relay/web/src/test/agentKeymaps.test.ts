@@ -13,7 +13,8 @@ import {
   resolveProfile,
   type AgentProfileDef,
 } from '../utils/agentKeymaps';
-import { LOCAL_STORAGE_KEY, loadSettings, saveSettings } from '../utils/storage';
+import { loadSettings, saveSettings } from '../utils/storage';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 
 describe('Herdr agent keymaps', () => {
   beforeEach(() => {
@@ -130,7 +131,7 @@ describe('Herdr agent keymaps', () => {
         },
       },
     });
-    const global = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+    const global = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
     expect(global.agentKeymaps.claude.actions.details.keys).toBe('ctrl+e');
     expect(
       JSON.parse(sessionStorage.getItem('herdr_remote_session_view_v1') || '{}').agentKeymaps,

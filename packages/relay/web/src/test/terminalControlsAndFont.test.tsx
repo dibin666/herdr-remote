@@ -3,13 +3,8 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { RoleControlBadge } from '../components/RoleControlBadge';
 import { SettingsModal } from '../components/SettingsModal';
-import {
-  DEFAULT_TERMINAL_FONT,
-  LEGACY_DEFAULT_FONT,
-  PREVIOUS_DEFAULT_FONT,
-  getDefaultSettings,
-  loadSettings,
-} from '../utils/storage';
+import { getDefaultSettings, loadSettings } from '../utils/storage';
+import { DEFAULT_TERMINAL_FONT, LEGACY_DEFAULT_FONT, PREVIOUS_DEFAULT_FONT } from '../utils/theme';
 import { FONT_PRESETS, SYSTEM_FONT_STACK, resolveTerminalFontFamily } from '../utils/theme';
 
 // Helper component to control terminal context from within tests

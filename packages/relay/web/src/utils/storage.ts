@@ -1,61 +1,21 @@
+import { WS_CLIENT_PATH } from '@protocol/messages';
+import type { Language } from '../i18n';
+import { type AgentKeymapsSettings, sanitizeAgentKeymaps } from './agentKeymaps';
+import { safeGetItem, safeSetItem, STORAGE_KEYS } from './browserStorage';
+import {
+  type ConnectionProfile,
+  cleanProfile,
+  generateProfileId,
+  MAX_PROFILE_TOKEN_LENGTH,
+  normalizeProfiles,
+} from './connectionProfiles';
 import {
   clampFontSize,
   DEFAULT_DESKTOP_FONT_SIZE,
   DEFAULT_MOBILE_FONT_SIZE,
 } from './terminalLayout';
-import type { Language } from '../i18n';
-import { type ToolbarKeyDef, getDefaultVirtualKeys, sanitizeVirtualKeys } from './virtualKeys';
-import type { AgentKeymapsSettings } from './agentKeymaps';
-import { parseKeyCombo } from '../protocol/keyCombo';
-import { WS_CLIENT_PATH } from '@protocol/messages';
-
-/** Draw the session in the workstation's own terminal font. */
-export const DEFAULT_TERMINAL_FONT = 'host';
-
-/** Earlier builds stored whole CSS stacks; these were their defaults. */
-export const PREVIOUS_DEFAULT_FONT =
-  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Symbols Nerd Font Mono", monospace';
-
-export const OLD_SYSTEM_DEFAULT_FONT =
-  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-
-export const LEGACY_DEFAULT_FONT = 'JetBrains Mono, Menlo, Monaco, Consolas, monospace';
-
-/**
- * What an older build's font value becomes. A default follows the host now;
- * a platform stack somebody picked becomes the system stack it was a slice
- * of; Fira Code is still offered. Any other custom stack is kept as it is.
- */
-const MIGRATED_FONTS: Record<string, string> = {
-  [PREVIOUS_DEFAULT_FONT]: 'host',
-  [OLD_SYSTEM_DEFAULT_FONT]: 'host',
-  [LEGACY_DEFAULT_FONT]: 'host',
-  'SFMono-Regular, Menlo, Monaco, "Symbols Nerd Font Mono", monospace': 'system',
-  'Consolas, "Lucida Console", "Symbols Nerd Font Mono", monospace': 'system',
-  '"Liberation Mono", "DejaVu Sans Mono", "Symbols Nerd Font Mono", monospace': 'system',
-  '"Courier New", Courier, "Symbols Nerd Font Mono", monospace': 'system',
-  '"Fira Code", "Symbols Nerd Font Mono", monospace': 'fira-code',
-};
-
-function migrateFontFamily(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) return DEFAULT_TERMINAL_FONT;
-  return MIGRATED_FONTS[value] ?? value;
-}
-
-export interface ConnectionProfile {
-  /** Browser-local identity for one relay + host pairing. */
-  id: string;
-  displayName: string;
-  wsUrl: string;
-  token: string;
-  pairCode?: string;
-  hostId?: string;
-  hostname?: string;
-  deviceId?: string;
-  autoReconnect: boolean;
-  createdAt: number;
-  lastUsedAt: number;
-}
+import { DEFAULT_TERMINAL_FONT, migrateFontFamily } from './theme';
+import { getDefaultVirtualKeys, sanitizeVirtualKeys, type ToolbarKeyDef } from './virtualKeys';
 
 export interface StoredSettings {
   // The active connection projection is kept for compatibility with existing
@@ -99,144 +59,18 @@ export interface StoredSettings {
   adminTokens?: Record<string, string>;
 }
 
-export const LOCAL_STORAGE_KEY = 'herdr_remote_settings_v1';
-export const SESSION_STORAGE_KEY = 'herdr_remote_session_view_v1';
-export const MAX_PROFILE_NAME_LENGTH = 64;
-export const MAX_PROFILE_TOKEN_LENGTH = 4096;
-
-// In-memory fallback if sessionStorage / localStorage are unavailable
-const memoryStorage: {
-  local: Record<string, string>;
-  session: Record<string, string>;
-} = {
-  local: {},
-  session: {},
-};
-
-function safeGetItem(type: 'local' | 'session', key: string): string | null {
-  if (typeof window === 'undefined') return memoryStorage[type][key] || null;
-  try {
-    const storage = type === 'local' ? window.localStorage : window.sessionStorage;
-    return storage.getItem(key);
-  } catch {
-    return memoryStorage[type][key] || null;
-  }
-}
-
-function safeSetItem(type: 'local' | 'session', key: string, value: string): void {
-  memoryStorage[type][key] = value;
-  if (typeof window === 'undefined') return;
-  try {
-    const storage = type === 'local' ? window.localStorage : window.sessionStorage;
-    storage.setItem(key, value);
-  } catch (err) {
-    console.warn(`Failed to write to ${type}Storage:`, err);
-  }
-}
-
-const IGNORED_UPDATE_KEY = 'herdr-remote.ignoredUpdate';
-
 /** The herdr-remote release the user chose not to hear about again, if any. */
 export function loadIgnoredUpdate(): string | null {
-  return safeGetItem('local', IGNORED_UPDATE_KEY);
+  return safeGetItem('local', STORAGE_KEYS.ignoredUpdate);
 }
 
 export function saveIgnoredUpdate(version: string): void {
-  safeSetItem('local', IGNORED_UPDATE_KEY, version);
-}
-
-export function clearMemoryStorage(): void {
-  memoryStorage.local = {};
-  memoryStorage.session = {};
+  safeSetItem('local', STORAGE_KEYS.ignoredUpdate, version);
 }
 
 function generateClientId(): string {
   const randomStr = Math.random().toString(36).substring(2, 8);
   return `client-${randomStr}`;
-}
-
-function generateProfileId(): string {
-  const randomStr = Math.random().toString(36).substring(2, 10);
-  return `profile-${Date.now().toString(36)}-${randomStr}`;
-}
-
-function cleanProfileName(value: unknown, fallback: string): string {
-  const name = typeof value === 'string' ? value.trim().slice(0, MAX_PROFILE_NAME_LENGTH) : '';
-  return name || fallback;
-}
-
-function cleanProfile(value: unknown, index: number): ConnectionProfile | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const source = value as Partial<ConnectionProfile>;
-  const wsUrl = typeof source.wsUrl === 'string' ? source.wsUrl.trim().slice(0, 2048) : '';
-  const token =
-    typeof source.token === 'string' ? source.token.slice(0, MAX_PROFILE_TOKEN_LENGTH) : '';
-  const pairCode =
-    typeof source.pairCode === 'string' ? source.pairCode.trim().toUpperCase().slice(0, 32) : '';
-  if (
-    !wsUrl ||
-    (!wsUrl.startsWith('/') && !/^(?:wss?|https?):\/\//i.test(wsUrl)) ||
-    (!token && !pairCode)
-  )
-    return null;
-  const now = Date.now();
-  const id =
-    typeof source.id === 'string' && source.id.length > 0
-      ? source.id.slice(0, 128)
-      : generateProfileId();
-  const fallback =
-    typeof source.hostname === 'string' && source.hostname.trim()
-      ? source.hostname.trim().slice(0, MAX_PROFILE_NAME_LENGTH)
-      : `Herdr ${index + 1}`;
-  return {
-    id,
-    displayName: cleanProfileName(source.displayName, fallback),
-    wsUrl,
-    token,
-    ...(pairCode ? { pairCode } : {}),
-    ...(typeof source.hostId === 'string' && source.hostId.trim()
-      ? { hostId: source.hostId.trim().slice(0, 128) }
-      : {}),
-    ...(typeof source.hostname === 'string' && source.hostname.trim()
-      ? { hostname: source.hostname.trim().slice(0, 128) }
-      : {}),
-    ...(typeof source.deviceId === 'string' && source.deviceId.trim()
-      ? { deviceId: source.deviceId.trim().slice(0, 128) }
-      : {}),
-    autoReconnect: source.autoReconnect !== false,
-    createdAt: Number.isFinite(source.createdAt) ? Number(source.createdAt) : now,
-    lastUsedAt: Number.isFinite(source.lastUsedAt) ? Number(source.lastUsedAt) : now,
-  };
-}
-
-export function createConnectionProfile(
-  partial: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>,
-  index = 0,
-): ConnectionProfile {
-  const normalized = cleanProfile({ ...partial, id: partial.id || generateProfileId() }, index);
-  if (!normalized)
-    throw new Error('a connection profile requires a relay URL and token or pairing code');
-  return normalized;
-}
-
-export function profileKey(profile: Pick<ConnectionProfile, 'wsUrl' | 'hostId'>): string {
-  let relay = profile.wsUrl
-    .replace(/\/ws\/client\/?$/, '')
-    .replace(/\/+$/, '')
-    .toLowerCase();
-  if (typeof window !== 'undefined') {
-    try {
-      const url = new URL(profile.wsUrl, window.location.origin);
-      url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
-      url.pathname = url.pathname.replace(/\/ws\/client\/?$/, '').replace(/\/+$/, '') || '/';
-      url.search = '';
-      url.hash = '';
-      relay = url.toString().replace(/\/$/, '').toLowerCase();
-    } catch {
-      // Keep the bounded string fallback for malformed legacy values.
-    }
-  }
-  return `${relay}::${profile.hostId || ''}`;
 }
 
 export function detectDefaultLanguage(): Language {
@@ -350,140 +184,6 @@ function sanitizeAdminTokens(value: unknown): Record<string, string> {
   return output;
 }
 
-/** Bound agent shortcut preferences before they reach localStorage or a key bar. */
-export function sanitizeAgentKeymaps(value: unknown): AgentKeymapsSettings {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const result: AgentKeymapsSettings = Object.create(null);
-  for (const [profileId, rawProfile] of Object.entries(value as Record<string, unknown>).slice(
-    0,
-    32,
-  )) {
-    if (
-      !/^[a-z][a-z0-9_-]{0,31}$/i.test(profileId) ||
-      ['__proto__', 'constructor', 'prototype'].includes(profileId)
-    )
-      continue;
-    if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) continue;
-    const source = rawProfile as Record<string, unknown>;
-    const profile: AgentKeymapsSettings[string] = {};
-
-    if (Array.isArray(source.order)) {
-      profile.order = [
-        ...new Set(
-          source.order.filter(
-            (id): id is string => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(id),
-          ),
-        ),
-      ].slice(0, 256);
-    }
-
-    if (source.actions && typeof source.actions === 'object' && !Array.isArray(source.actions)) {
-      const actions: NonNullable<AgentKeymapsSettings[string]['actions']> = Object.create(null);
-      for (const [id, rawAction] of Object.entries(source.actions as Record<string, unknown>).slice(
-        0,
-        256,
-      )) {
-        if (
-          !/^[a-zA-Z0-9_-]{1,64}$/.test(id) ||
-          !rawAction ||
-          typeof rawAction !== 'object' ||
-          Array.isArray(rawAction)
-        )
-          continue;
-        const action = rawAction as Record<string, unknown>;
-        const cleaned: NonNullable<AgentKeymapsSettings[string]['actions']>[string] = {};
-        if (typeof action.keys === 'string' && action.keys.trim()) {
-          const keys = action.keys.trim().slice(0, 80);
-          try {
-            parseKeyCombo(keys);
-            cleaned.keys = keys;
-          } catch {
-            // An unfinished or invalid field must never disable the live cap.
-          }
-        }
-        if (typeof action.hidden === 'boolean') cleaned.hidden = action.hidden;
-        if (Object.keys(cleaned).length > 0) actions[id] = cleaned;
-      }
-      profile.actions = actions;
-    }
-
-    if (Array.isArray(source.custom)) {
-      const seen = new Set<string>();
-      profile.custom = source.custom.slice(0, 64).flatMap((rawAction) => {
-        if (!rawAction || typeof rawAction !== 'object' || Array.isArray(rawAction)) return [];
-        const custom = rawAction as Record<string, unknown>;
-        if (
-          typeof custom.id !== 'string' ||
-          !/^[a-zA-Z0-9_-]{1,64}$/.test(custom.id) ||
-          ['__proto__', 'constructor', 'prototype'].includes(custom.id) ||
-          seen.has(custom.id)
-        )
-          return [];
-        if (
-          typeof custom.label !== 'string' ||
-          !custom.label.trim() ||
-          typeof custom.keys !== 'string' ||
-          !custom.keys.trim()
-        )
-          return [];
-        const keys = custom.keys.trim().slice(0, 80);
-        try {
-          parseKeyCombo(keys);
-        } catch {
-          return [];
-        }
-        seen.add(custom.id);
-        return [{ id: custom.id, label: custom.label.trim().slice(0, 64), keys }];
-      });
-    }
-    result[profileId] = profile;
-  }
-  return result;
-}
-
-function normalizeProfiles(localData: Partial<StoredSettings>): {
-  profiles: ConnectionProfile[];
-  activeProfileId: string;
-} {
-  const profiles: ConnectionProfile[] = [];
-  const rawProfiles = Array.isArray(localData.profiles) ? localData.profiles.slice(0, 64) : [];
-  rawProfiles.forEach((profile, index) => {
-    const cleaned = cleanProfile(profile, index);
-    if (cleaned && !profiles.some((item) => item.id === cleaned.id)) profiles.push(cleaned);
-  });
-
-  // Migrate the v1 singleton connection without making an empty onboarding
-  // page look like it contains a profile. A pending legacy pairCode is kept so
-  // an interrupted pairing can still be resumed once.
-  if (
-    profiles.length === 0 &&
-    ((typeof localData.token === 'string' && localData.token) ||
-      (typeof localData.pairCode === 'string' && localData.pairCode))
-  ) {
-    const migrated = cleanProfile(
-      {
-        id: 'profile-migrated',
-        displayName: 'Herdr 1',
-        wsUrl:
-          typeof localData.wsUrl === 'string' && localData.wsUrl.trim()
-            ? localData.wsUrl
-            : WS_CLIENT_PATH,
-        token: localData.token || '',
-        pairCode: localData.pairCode || '',
-        autoReconnect: localData.autoReconnect !== false,
-      },
-      0,
-    );
-    if (migrated) profiles.push(migrated);
-  }
-
-  const requested = typeof localData.activeProfileId === 'string' ? localData.activeProfileId : '';
-  const activeProfileId = profiles.some((profile) => profile.id === requested)
-    ? requested
-    : profiles[0]?.id || '';
-  return { profiles, activeProfileId };
-}
-
 /**
  * Load merged settings:
  * 1. Global credentials come from localStorage
@@ -497,7 +197,7 @@ export function loadSettings(): StoredSettings {
 
   // 1. Read global credentials from localStorage
   let localData: Partial<StoredSettings> = {};
-  const rawLocal = safeGetItem('local', LOCAL_STORAGE_KEY);
+  const rawLocal = safeGetItem('local', STORAGE_KEYS.settings);
   if (rawLocal) {
     try {
       localData = JSON.parse(rawLocal);
@@ -509,12 +209,12 @@ export function loadSettings(): StoredSettings {
   const strippedLocal = stripLegacyColorFields(localData);
   if (strippedLocal.changed) {
     localData = strippedLocal.data;
-    safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localData));
+    safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localData));
   }
 
   // 2. Read per-window view settings from sessionStorage
   let sessionData: Partial<StoredSettings> | null = null;
-  const rawSession = safeGetItem('session', SESSION_STORAGE_KEY);
+  const rawSession = safeGetItem('session', STORAGE_KEYS.sessionView);
   if (rawSession) {
     try {
       sessionData = JSON.parse(rawSession);
@@ -533,7 +233,7 @@ export function loadSettings(): StoredSettings {
       }
     }
     sessionData = seededSession;
-    safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+    safeSetItem('session', STORAGE_KEYS.sessionView, JSON.stringify(sessionData));
   }
 
   // Stacks stored by older builds become the preset that replaced them.
@@ -571,7 +271,7 @@ export function loadSettings(): StoredSettings {
   const strippedSession = stripLegacyColorFields(sessionData);
   if (strippedSession.changed) {
     sessionData = strippedSession.data;
-    safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+    safeSetItem('session', STORAGE_KEYS.sessionView, JSON.stringify(sessionData));
   }
 
   const toolbarVisible =
@@ -641,7 +341,7 @@ export function loadSettings(): StoredSettings {
     migrateFontFamily(localData.fontFamily) !== localData.fontFamily
   ) {
     localData.fontFamily = migrateFontFamily(localData.fontFamily);
-    safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localData));
+    safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localData));
   }
 
   return result;
@@ -726,7 +426,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   next.autoReconnect = activeProfile?.autoReconnect ?? next.autoReconnect;
 
   // 1. Save global keys and normalized profiles to localStorage
-  const rawLocal = safeGetItem('local', LOCAL_STORAGE_KEY);
+  const rawLocal = safeGetItem('local', STORAGE_KEYS.settings);
   let localObj: Record<string, any> = {};
   if (rawLocal) {
     try {
@@ -741,10 +441,10 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   }
   localObj.profiles = profiles;
   localObj.activeProfileId = activeProfileId;
-  safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localObj));
+  safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localObj));
 
   // 2. Save session-specific view keys to sessionStorage
-  const rawSession = safeGetItem('session', SESSION_STORAGE_KEY);
+  const rawSession = safeGetItem('session', STORAGE_KEYS.sessionView);
   let sessionObj: Record<string, any> = {};
   if (rawSession) {
     try {
@@ -756,7 +456,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
       sessionObj[k] = next[k];
     }
   }
-  safeSetItem('session', SESSION_STORAGE_KEY, JSON.stringify(sessionObj));
+  safeSetItem('session', STORAGE_KEYS.sessionView, JSON.stringify(sessionObj));
 
   // 3. Mirror the view settings into localStorage as the browser-wide baseline.
   //
@@ -773,7 +473,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
       localObj[k] = next[k];
     }
   }
-  safeSetItem('local', LOCAL_STORAGE_KEY, JSON.stringify(localObj));
+  safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localObj));
 
   return next;
 }

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { vi, beforeEach } from 'vitest';
-import { clearMemoryStorage } from '../utils/storage';
+import { clearMemoryStorage } from '../utils/browserStorage';
 
 beforeEach(() => {
   try {

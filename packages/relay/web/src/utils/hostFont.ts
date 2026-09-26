@@ -4,12 +4,13 @@ import type {
   HostFontSubsetSource,
   HostTerminalFont,
 } from '@protocol/terminal';
+import { STORAGE_KEYS } from './browserStorage';
 
 /**
  * Bringing the workstation's terminal font to this browser.
  *
  * The host reports a family and, when it can, the files behind it (see
- * `packages/cli/src/terminal-font.js`). A device that already has the family
+ * `packages/cli/src/terminal-font/`). A device that already has the family
  * uses it by name. One that does not — a phone, nearly always — fetches the
  * files once, with the user's consent, and keeps them in IndexedDB; they are
  * then registered as FontFaces under an alias derived from their hash.
@@ -347,12 +348,11 @@ export async function downloadHostFontFace(
 
 /* ---------------------------------------------------------------- consent */
 
-const CONSENT_KEY = 'herdr_remote_host_font_consent_v1';
 export type HostFontDecision = 'accepted' | 'declined';
 
 function readDecisions(): Record<string, { fingerprint: string; decision: HostFontDecision }> {
   try {
-    const parsed = JSON.parse(localStorage.getItem(CONSENT_KEY) || '{}');
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.hostFontConsent) || '{}');
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
@@ -379,10 +379,8 @@ export function saveHostFontDecision(
   try {
     const decisions = readDecisions();
     decisions[hostKey] = { fingerprint, decision };
-    localStorage.setItem(CONSENT_KEY, JSON.stringify(decisions));
+    localStorage.setItem(STORAGE_KEYS.hostFontConsent, JSON.stringify(decisions));
   } catch {
     // Storage full or blocked: the question may be asked again, nothing worse.
   }
 }
-
-export const HOST_FONT_CONSENT_KEY = CONSENT_KEY;

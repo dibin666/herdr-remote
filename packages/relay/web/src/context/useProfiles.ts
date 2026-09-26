@@ -4,14 +4,12 @@
 
 import { WS_CLIENT_PATH } from '@protocol/messages';
 import { useCallback, useRef, useState } from 'react';
+import { loadSettings, type StoredSettings, saveSettings } from '../utils/storage';
 import {
   type ConnectionProfile,
   createConnectionProfile,
-  loadSettings,
   profileKey,
-  type StoredSettings,
-  saveSettings,
-} from '../utils/storage';
+} from '../utils/connectionProfiles';
 
 export interface PairingResult {
   token: string;

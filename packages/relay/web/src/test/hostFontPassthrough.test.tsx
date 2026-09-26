@@ -6,7 +6,8 @@ import { HostFontPrompt } from '../components/HostFontPrompt';
 import { SettingsModal } from '../components/SettingsModal';
 import { useHostFont, type HostFontDeps } from '../utils/useHostFont';
 import { HOST_FONT_CHUNK_BYTES, hostFontAlias } from '../utils/hostFont';
-import { SESSION_STORAGE_KEY, loadSettings } from '../utils/storage';
+import { loadSettings } from '../utils/storage';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 import { resolveTerminalFontFamily } from '../utils/theme';
 import { COMMON_CJK_TEXT } from '../utils/commonCjk';
 import type { HerdrClientAdapter } from '../protocol/clientAdapter';
@@ -290,7 +291,7 @@ describe('Host terminal font in the window', () => {
   });
 
   it('does not ask while another font is chosen', async () => {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ fontFamily: 'fira-code' }));
+    sessionStorage.setItem(STORAGE_KEYS.sessionView, JSON.stringify({ fontFamily: 'fira-code' }));
     render(
       <TerminalProvider>
         <CaptureContext />

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react';
 import { App } from '../App';
-import { saveSettings, createConnectionProfile } from '../utils/storage';
+import { saveSettings } from '../utils/storage';
+import { createConnectionProfile } from '../utils/connectionProfiles';
 import { isMobileShellViewport, MOBILE_SHELL_MAX_WIDTH_PX } from '../utils/mobileShell';
 import {
   computeContainerGridFit,
