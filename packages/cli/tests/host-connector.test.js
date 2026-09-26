@@ -28,6 +28,9 @@ function makeConnector(lockPath, overrides = {}) {
     herdrCommand: process.execPath,
     terminalPalette: null,
     terminalFont: null,
+    // A new window re-reads the remembered font; without this the test reads
+    // the font of whatever machine it runs on and sends it as an extra message.
+    loadTerminalFont: () => null,
     config: {
       herdr: { args: [], cwd: process.cwd(), socketPath: null },
       cleanup: { heartbeatIntervalMs: 10 },
