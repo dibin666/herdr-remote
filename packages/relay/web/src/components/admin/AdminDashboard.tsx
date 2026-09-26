@@ -265,8 +265,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {/* A remote relay reached through a profile on another origin: say where
-
-      {/* A remote relay reached through a profile on another origin: say where
           its own dashboard is, or sign in to it from here. */}
       {showRemoteGuide && (
         <RemoteRelayGuide
