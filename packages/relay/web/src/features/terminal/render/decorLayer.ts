@@ -1,7 +1,9 @@
 // The layer above the text: the selection highlight and the underline of a
 // hovered link. It is redrawn whole, and only when either changes.
 
+import type { SlidingCaret } from './caretGlide';
 import type { ThemeColors } from './colors';
+import { CursorShape, paintCursorShape } from './cursor';
 import type { LinkEvent, RenderDimensions } from './xtermInternals';
 
 export interface SelectionRange {
@@ -18,6 +20,9 @@ export interface DecorView {
   colors: ThemeColors;
   focused: boolean;
   dpr: number;
+  cursorWidth: number;
+  /** A caret sliding between cells; see CaretGlide. */
+  caret?: SlidingCaret | null;
 }
 
 export class DecorLayer {
@@ -48,7 +53,7 @@ export class DecorLayer {
         : null;
   }
 
-  paint({ dims, rows, cols, ydisp, colors, focused, dpr }: DecorView): void {
+  paint({ dims, rows, cols, ydisp, colors, focused, dpr, cursorWidth, caret }: DecorView): void {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     if (!dims.cell.width || !rows) return;
@@ -111,6 +116,21 @@ export class DecorLayer {
         underline(link.x1, link.y1, link.cols - link.x1);
         for (let y = link.y1 + 1; y < link.y2; y++) underline(0, y, link.cols);
         underline(0, link.y2, link.x2);
+      }
+    }
+
+    if (caret) {
+      const px = Math.round(caret.x * dims.cell.width);
+      const py = caret.y * dims.cell.height;
+      if (caret.shape === CursorShape.BLOCK) {
+        ctx.fillStyle = caret.css;
+        ctx.fillRect(px, py, dims.cell.width, dims.cell.height);
+      } else {
+        paintCursorShape(ctx, dims, px, py, dims.cell.width, caret.shape, {
+          css: caret.css,
+          dpr,
+          cursorWidth,
+        });
       }
     }
   }

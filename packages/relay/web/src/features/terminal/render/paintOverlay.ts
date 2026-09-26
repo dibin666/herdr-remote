@@ -24,6 +24,18 @@ export interface PaintOverlay {
    * (absolute row); `null` hides it. Absent, the buffer's cursor is drawn.
    */
   cursor?: { row: number; col: number } | null;
+  /**
+   * A caret the program paints into a cell itself, the terminal cursor
+   * hidden (Claude's), so the renderer can slide it like the cursor.
+   */
+  paintedCaret?: {
+    row: number;
+    col: number;
+    /** The caret's cell as the program paints it. */
+    style: CellStyle;
+    /** That cell without the caret. */
+    plain: OverlayCell;
+  };
 }
 
 /** Absolute rows an overlay touches, its cursor included. */
