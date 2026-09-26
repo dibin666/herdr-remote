@@ -62,7 +62,7 @@ export const SettingRow: React.FC<{
       )}
       {hint ? <span className="block text-tui-sm leading-snug text-tui-faint">{hint}</span> : null}
     </div>
-    <div className="w-full shrink-0 sm:w-[18rem]">{control}</div>
+    <div className="w-full shrink-0 sm:w-[20rem]">{control}</div>
   </div>
 );
 
@@ -82,7 +82,9 @@ const SEGMENT_IDLE = 'text-tui-muted hover:bg-tui-selection hover:text-tui-text'
  * Every cell is a native radio underneath, so the group keeps arrow-key
  * navigation and each choice keeps its accessible name; only the paint is
  * custom. The cells split the control's width evenly, which is what lets a
- * two-way and a three-way choice sit in the same column at the same size.
+ * two-way and a three-way choice sit in the same column at the same size. A
+ * cell never gets narrower than its words, though: "Always On" split three
+ * ways came out as "Always …".
  */
 export function Segmented<T extends string>({
   name,
@@ -106,7 +108,7 @@ export function Segmented<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn('grid w-full border border-tui-border bg-tui-mantle', CONTROL_H, className)}
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(max-content, 1fr))` }}
     >
       {options.map((option, index) => {
         const checked = option.value === value;
@@ -127,7 +129,7 @@ export function Segmented<T extends string>({
               checked={checked}
               onChange={() => onChange(option.value)}
             />
-            <span className="truncate">{option.label}</span>
+            <span className="whitespace-nowrap">{option.label}</span>
           </label>
         );
       })}

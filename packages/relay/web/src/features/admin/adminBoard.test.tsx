@@ -308,6 +308,11 @@ describe('HostsTable', () => {
     expect(screen.getByText('2 windows open')).toBeInTheDocument();
     // A device with no connection says when it was last seen, not a timestamp.
     expect(screen.getByText('3d ago')).toBeInTheDocument();
+
+    // The count is 14 characters; a 12ch column cut it to "2 windows o…".
+    const count = screen.getByText('2 windows open');
+    expect(count.className).not.toContain('truncate');
+    expect(count.closest('li')?.className).not.toContain('_12ch]');
   });
 
   it('says so plainly when the relay carries nothing at all', () => {

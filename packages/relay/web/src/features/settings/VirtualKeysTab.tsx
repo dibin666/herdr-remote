@@ -92,7 +92,7 @@ export const VirtualKeysTab: React.FC = () => {
               </KeyCap>
               <span
                 className={cn(
-                  'min-w-0 flex-1 truncate text-tui',
+                  'min-w-0 flex-1 break-words text-tui',
                   keyItem.enabled ? 'text-tui-text' : 'text-tui-faint',
                 )}
               >

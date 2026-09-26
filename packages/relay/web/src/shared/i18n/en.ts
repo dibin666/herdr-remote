@@ -657,7 +657,7 @@ export const en = {
     no_session: 'Terminal session is not ready.',
   },
   fontPresets: {
-    host: 'Workstation terminal font (default)',
+    host: 'Workstation font (default)',
     system: 'System monospace',
   },
   hostFont: {

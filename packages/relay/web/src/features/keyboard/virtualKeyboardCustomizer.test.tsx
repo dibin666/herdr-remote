@@ -139,6 +139,19 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     }
   });
 
+  it('names every key in the layout in full, wrapping on a narrow screen', () => {
+    saveSettings({ language: 'en' });
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} initialTab="virtualKeys" />
+      </TerminalProvider>,
+    );
+
+    // A phone showed "Function Keys (F1-…".
+    const name = screen.getByText('Function Keys (F1-F12)');
+    expect(name.className).not.toContain('truncate');
+  });
+
   it('adds keys from available catalog into the active layout', async () => {
     render(
       <TerminalProvider>

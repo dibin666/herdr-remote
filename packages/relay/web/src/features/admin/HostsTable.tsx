@@ -163,7 +163,7 @@ export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients 
                   return (
                     <li
                       key={device.deviceId}
-                      className="grid grid-cols-[1ch_minmax(0,1fr)_auto] items-baseline gap-x-2 px-2 py-0.5 text-tui sm:grid-cols-[1ch_minmax(0,18ch)_minmax(0,1fr)_16ch_12ch]"
+                      className="grid grid-cols-[1ch_minmax(0,1fr)_auto] items-baseline gap-x-2 px-2 py-0.5 text-tui sm:grid-cols-[1ch_minmax(0,18ch)_minmax(0,1fr)_16ch_16ch]"
                     >
                       <StatusDot level={open ? 'ok' : 'idle'} />
                       <span className="truncate text-tui-text" title={described.raw}>
@@ -177,7 +177,8 @@ export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients 
                       </span>
                       <span
                         className={cn(
-                          'truncate text-right text-tui-sm',
+                          // The 16ch column holds "12 windows open" whole.
+                          'whitespace-nowrap text-right text-tui-sm',
                           open ? 'text-tui-ok' : 'text-tui-faint',
                         )}
                         title={formatTimestamp(device.lastSeenAt)}

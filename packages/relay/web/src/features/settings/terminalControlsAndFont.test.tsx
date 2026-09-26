@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import { RoleControlBadge } from '@/features/status/RoleControlBadge';
 import { SettingsModal } from './SettingsModal';
-import { getDefaultSettings, loadSettings } from './storage';
+import { getDefaultSettings, loadSettings, saveSettings } from './storage';
 import {
   DEFAULT_TERMINAL_FONT,
   LEGACY_DEFAULT_FONT,
@@ -137,6 +137,28 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(loadSettings().fontFamily).toBe('cascadia-code');
   });
 
+  it('names every font short enough for the dropdown to show it whole', () => {
+    // The 20rem select has room for 26 cells of 13px monospace beside its
+    // arrow; "Workstation terminal font (default)" was clipped after "(de".
+    const cells = (words: string) =>
+      Array.from(words).reduce((sum, ch) => sum + ((ch.codePointAt(0) ?? 0) >= 0x2e80 ? 2 : 1), 0);
+    for (const language of ['en', 'zh'] as const) {
+      localStorage.clear();
+      sessionStorage.clear();
+      saveSettings({ language });
+      const { unmount } = render(
+        <TerminalProvider>
+          <SettingsModal isOpen={true} onClose={() => {}} />
+        </TerminalProvider>,
+      );
+      const fontSelect = screen.getByLabelText(/Monospace Font|等宽字体/i) as HTMLSelectElement;
+      for (const option of Array.from(fontSelect.options)) {
+        expect(cells(option.textContent || ''), option.textContent || '').toBeLessThanOrEqual(26);
+      }
+      unmount();
+    }
+  });
+
   it('SettingsModal says the text size belongs to this window alone', () => {
     let terminalCtx: ReturnType<typeof useTerminal> | undefined;
     render(
@@ -241,6 +263,22 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     const resetButton = screen.getByRole('button', { name: /Reset to Defaults/i });
     fireEvent.click(resetButton);
     expect(loadSettings().predictiveEcho).toBe('auto');
+  });
+
+  it('never cuts a choice short: a cell is at least as wide as its words', () => {
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} />
+      </TerminalProvider>,
+    );
+
+    // "Always On" used to render as "Always …" in an evenly split cell.
+    const always = screen.getByRole('radio', { name: /Always On/i });
+    const group = always.closest('[role="radiogroup"]') as HTMLElement;
+    expect(group.style.gridTemplateColumns).toContain('max-content');
+    const words = always.nextElementSibling as HTMLElement;
+    expect(words.textContent).toBe('Always On');
+    expect(words.className).not.toContain('truncate');
   });
 
   describe('resolveTerminalFontFamily & Symbols Nerd Font Fallback', () => {
