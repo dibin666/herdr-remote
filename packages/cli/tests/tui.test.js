@@ -51,6 +51,44 @@ test('the overview renders the service picture in English', async (t) => {
   assert.match(output, /http:\/\/127\.0\.0\.1:8787/);
 });
 
+test('the overview leaves out counts the relay no longer reports', async (t) => {
+  const [{ Overview }, { createTranslator }, React] = await Promise.all([
+    import('../src/tui/screens/Overview.tsx'),
+    import('../src/i18n/index.js'),
+    import('react'),
+  ]);
+  const status = (health) => ({
+    mode: 'local',
+    publicUrl: 'http://127.0.0.1:8787',
+    relay: { local: true, alive: true, bind: '127.0.0.1', port: 8787, pid: 1, health },
+    host: { alive: true, pid: 1, socketPath: '/tmp/herdr.sock', socketExists: true },
+    keepalive: { manager: 'systemd', installed: true, active: true },
+  });
+  const ctx = (health) => ({
+    t: createTranslator('en'),
+    status: status(health),
+    config: { relay: { mode: 'local' } },
+  });
+
+  // /healthz stopped counting hosts and browsers so it cannot tell an
+  // unauthenticated caller who else is on the relay; a 0 here was a lie.
+  const bare = await mount(
+    React.createElement(Overview, { ctx: ctx({ ok: true, uptimeSeconds: 42 }) }),
+  );
+  t.onTestFinished(() => bare.unmount());
+  assert.equal(/Workstations|Browsers/.test(bare.lastFrame()), false);
+  assert.match(bare.lastFrame(), /Relay uptime/);
+
+  const counted = await mount(
+    React.createElement(Overview, {
+      ctx: ctx({ ok: true, uptimeSeconds: 42, hosts: 2, clients: 3 }),
+    }),
+  );
+  t.onTestFinished(() => counted.unmount());
+  assert.match(counted.lastFrame(), /Workstations\s+2/);
+  assert.match(counted.lastFrame(), /Browsers\s+3/);
+});
+
 test('the interface switches to Chinese from the saved preference', async (t) => {
   isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local', port: 8787 } });

@@ -97,12 +97,18 @@ export function Overview({ ctx }: { ctx: AppContext }) {
       <Box marginTop={1} flexDirection="column">
         {relayReachable ? (
           <>
-            <Row label={t('overview.hosts')}>
-              <Text>{health.hosts ?? 0}</Text>
-            </Row>
-            <Row label={t('overview.devices')}>
-              <Text>{health.clients ?? 0}</Text>
-            </Row>
+            {/* Current relays keep these out of /healthz, which anyone may
+                read; a 0 for a count nobody sent would be a false reading. */}
+            {typeof health.hosts === 'number' ? (
+              <Row label={t('overview.hosts')}>
+                <Text>{health.hosts}</Text>
+              </Row>
+            ) : null}
+            {typeof health.clients === 'number' ? (
+              <Row label={t('overview.devices')}>
+                <Text>{health.clients}</Text>
+              </Row>
+            ) : null}
             <Row label={t('overview.uptime')}>
               <Text color={theme.muted}>{formatUptime(health.uptimeSeconds, t)}</Text>
             </Row>
