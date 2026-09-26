@@ -119,16 +119,6 @@
           }
         }
       }
-    },
-    {
-      "includes": ["scripts/capture-herdr-screens.mjs", "scripts/e2e-latency-harness.mjs"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noExcessiveLinesPerFile": "off"
-          }
-        }
-      }
     }
   ]
 }
