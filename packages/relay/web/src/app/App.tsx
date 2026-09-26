@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { WS_CLIENT_PATH } from '@protocol/messages';
 import { TerminalProvider, useSettings, useConnection } from '@/context/TerminalContext';
 import { useAgentAlerts } from '@/features/agents/useAgentAlerts';
 import { Header } from './Header';
@@ -9,6 +10,7 @@ import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { VirtualKeyboardHelper } from '@/features/keyboard/VirtualKeyboardHelper';
 import { PairingModal } from '@/features/pairing/PairingModal';
 import { SettingsModal, type SettingsTab } from '@/features/settings/SettingsModal';
+import { loadSettings } from '@/features/settings/storage';
 import { ToastContainer } from './ToastContainer';
 import { SessionStatusLine } from '@/features/status/SessionStatusLine';
 import { AdminDashboard } from '@/features/admin/AdminDashboard';
@@ -32,7 +34,7 @@ function AppContent() {
   };
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
-  const { updateSettings, settings } = useSettings();
+  const { updateSettings, addProfileAndConnect, settings } = useSettings();
 
   const { connectionState, stateDetail, stateCode, lastPairedAt } = useConnection();
   useAgentAlerts();
@@ -92,21 +94,19 @@ function AppContent() {
     window.addEventListener('popstate', handleLocationChange);
     window.addEventListener('hashchange', handleLocationChange);
 
-    // Parse URL query params (?token=..., ?pairCode=..., ?ws=...)
+    // Only a pairing code is taken from a link. A relay address (?ws=) or a
+    // device token (?token=) would let whoever wrote the link send this
+    // browser's saved token to their own server, or swap in their own device.
     try {
       const currentUrl = new URL(window.location.href);
-      const token = currentUrl.searchParams.get('token');
-      const pairCode = currentUrl.searchParams.get('pairCode');
-      const wsUrl = currentUrl.searchParams.get('ws') || currentUrl.searchParams.get('wsUrl');
-
-      const updates: Partial<typeof settings> = {};
-      if (token) updates.token = token;
-      if (pairCode) updates.pairCode = pairCode.toUpperCase();
-      if (wsUrl) updates.wsUrl = wsUrl;
-
-      if (Object.keys(updates).length > 0) {
-        updateSettings(updates);
-      }
+      const pairCode = currentUrl.searchParams.get('pairCode')?.toUpperCase();
+      // A browser that is already paired keeps that pairing: the code gets a
+      // profile of its own on the relay serving this page, instead of being
+      // sent beside the saved token and replacing it with whichever
+      // workstation the code belongs to.
+      if (pairCode && loadSettings().token)
+        addProfileAndConnect({ wsUrl: WS_CLIENT_PATH, pairCode });
+      else if (pairCode) updateSettings({ pairCode });
 
       // Remove sensitive secrets (token & pairCode) from the address bar
       let urlChanged = false;
@@ -133,7 +133,7 @@ function AppContent() {
       window.removeEventListener('popstate', handleLocationChange);
       window.removeEventListener('hashchange', handleLocationChange);
     };
-  }, [updateSettings]);
+  }, [updateSettings, addProfileAndConnect]);
 
   const openPairing = (addNew = false) => {
     setIsPairingAddMode(addNew);
