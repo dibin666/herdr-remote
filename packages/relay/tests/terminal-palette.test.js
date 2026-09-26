@@ -1,12 +1,10 @@
-'use strict';
-
 // A palette crosses the wire from a workstation into a browser's renderer, so
 // the relay treats it as untrusted input: only plain hex colors in the exact
 // shape xterm understands may pass.
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { sanitizeTerminalPalette, ANSI_PALETTE_KEYS } = require('../src/stream-frame');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import { sanitizeTerminalPalette, ANSI_PALETTE_KEYS } from '../src/protocol';
 
 const FULL_ANSI = {
   black: '#2e3436',

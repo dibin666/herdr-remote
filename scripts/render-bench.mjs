@@ -43,7 +43,10 @@ const CONFIGS = [
 ];
 
 async function loadPlaywright() {
-  const candidates = ['playwright', path.join(execFileSync('npm', ['root', '-g']).toString().trim(), 'playwright')];
+  const candidates = [
+    'playwright',
+    path.join(execFileSync('npm', ['root', '-g']).toString().trim(), 'playwright'),
+  ];
   for (const candidate of candidates) {
     try {
       return require(candidate);
@@ -51,7 +54,9 @@ async function loadPlaywright() {
       // next
     }
   }
-  process.stderr.write('render-bench: Playwright is not installed. Run: npm install -g playwright\n');
+  process.stderr.write(
+    'render-bench: Playwright is not installed. Run: npm install -g playwright\n',
+  );
   process.exit(1);
 }
 
@@ -59,7 +64,7 @@ const PAGE = `
 import { Terminal } from '@xterm/xterm';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { HerdrRenderer } from ${JSON.stringify(path.join(WEB, 'src/render/HerdrRenderer.ts'))};
+import { HerdrRenderer } from ${JSON.stringify(path.join(WEB, 'src/features/terminal/render/HerdrRenderer.ts'))};
 
 // Emulated device scales report CSS pixels as the device-pixel box; both
 // renderers would then draw into a canvas of the wrong size. Without the
@@ -179,7 +184,10 @@ async function main() {
       nodePaths: [path.join(WEB, 'node_modules'), path.join(REPO, 'node_modules')],
       tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } },
     });
-    fs.copyFileSync(require.resolve('@xterm/xterm/css/xterm.css', { paths: [WEB] }), path.join(dir, 'xterm.css'));
+    fs.copyFileSync(
+      require.resolve('@xterm/xterm/css/xterm.css', { paths: [WEB] }),
+      path.join(dir, 'xterm.css'),
+    );
     fs.writeFileSync(
       path.join(dir, 'index.html'),
       '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="xterm.css">' +
@@ -189,15 +197,25 @@ async function main() {
 
     const browser = await chromium.launch();
     const format = (ms) => `${ms.toFixed(2).padStart(6)} ms`;
-    process.stdout.write(`${FRAMES} frames per run; main-thread time in the renderer per frame (mean / p95)\n\n`);
+    process.stdout.write(
+      `${FRAMES} frames per run; main-thread time in the renderer per frame (mean / p95)\n\n`,
+    );
     for (const scenario of SCENARIOS) {
       process.stdout.write(`${scenario}\n`);
       for (const config of CONFIGS) {
         const results = {};
         for (const kind of ['canvas', 'herdr']) {
-          const page = await browser.newPage({ viewport: { width: config.width, height: config.height }, deviceScaleFactor: config.dpr });
+          const page = await browser.newPage({
+            viewport: { width: config.width, height: config.height },
+            deviceScaleFactor: config.dpr,
+          });
           const url = new URL(pathToFileURL(path.join(dir, 'index.html')));
-          url.search = new URLSearchParams({ kind, scenario, cols: config.cols, rows: config.rows }).toString();
+          url.search = new URLSearchParams({
+            kind,
+            scenario,
+            cols: config.cols,
+            rows: config.rows,
+          }).toString();
           await page.goto(url.href);
           await page.waitForFunction(() => window.ready);
           results[kind] = await page.evaluate((frames) => window.run(frames), FRAMES);

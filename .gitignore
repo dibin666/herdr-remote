@@ -6,6 +6,7 @@ node_modules/
 # Build artifacts. Both are produced by `npm run build` and shipped in the npm
 # tarballs, so they are published but not committed.
 packages/cli/dist/
+packages/relay/dist/
 packages/relay/web/dist/
 
 .env
@@ -18,4 +19,3 @@ packages/relay/web/dist/
 
 # Local agent tooling caches (skill packs), not project sources.
 .agents/
-AGENTS.md

@@ -1,14 +1,13 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
-const { loadRelayConfig } = require('../src/relay-config');
-const {
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
+import { allocateStreamIndex } from '../src/server/sessions';
+import { loadRelayConfig } from '../src/relay-config';
+import {
   FRAME_V2_MAGIC,
   FRAME_TYPE_OUTPUT,
   FRAME_TYPE_INPUT,
@@ -16,43 +15,36 @@ const {
   unpackStreamFrame,
   packStreamFrameV2,
   unpackStreamFrameV2,
-} = require('../src/stream-frame');
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 2000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      let value = data;
-      if (!isBinary) {
-        try { value = JSON.parse(data.toString()); } catch {}
-      }
-      if (!predicate(value, isBinary)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve({ value, isBinary });
-    };
-    ws.on('message', onMessage);
-  });
-}
+} from '../src/protocol';
+import { nextMessage, openWebSocket } from './helpers.js';
 
 test('v2 round-trip: packStreamFrameV2 and unpackStreamFrameV2 preserve payload byte-for-byte', () => {
   const testCases = [
-    { type: FRAME_TYPE_OUTPUT, typeStr: 'output', index: 0, payload: Buffer.from('hello world', 'utf8') },
-    { type: FRAME_TYPE_INPUT, typeStr: 'input', index: 1, payload: Buffer.from('\x1b[31mRed Alert\x1b[0m', 'utf8') },
-    { type: FRAME_TYPE_OUTPUT, typeStr: 'output', index: 65535, payload: Buffer.from([0x00, 0xff, 0xfe, 0x42]) },
+    {
+      type: FRAME_TYPE_OUTPUT,
+      typeStr: 'output',
+      index: 0,
+      payload: Buffer.from('hello world', 'utf8'),
+    },
+    {
+      type: FRAME_TYPE_INPUT,
+      typeStr: 'input',
+      index: 1,
+      payload: Buffer.from('\x1b[31mRed Alert\x1b[0m', 'utf8'),
+    },
+    {
+      type: FRAME_TYPE_OUTPUT,
+      typeStr: 'output',
+      index: 65535,
+      payload: Buffer.from([0x00, 0xff, 0xfe, 0x42]),
+    },
     { type: 'input', typeStr: 'input', index: 42, payload: Buffer.alloc(0) }, // empty payload
-    { type: 'output', typeStr: 'output', index: 12345, payload: Buffer.from('large payload '.repeat(200), 'utf8') },
+    {
+      type: 'output',
+      typeStr: 'output',
+      index: 12345,
+      payload: Buffer.from('large payload '.repeat(200), 'utf8'),
+    },
   ];
 
   for (const tc of testCases) {
@@ -104,7 +96,10 @@ test('malformed v2 frames are safely rejected without throwing unhandled excepti
   assert.throws(() => unpackStreamFrameV2(Buffer.from([0xfe, 0x00, 0x00, 0x01])), /magic byte/);
 
   // Unknown frame type
-  assert.throws(() => unpackStreamFrameV2(Buffer.from([0xff, 0x05, 0x00, 0x01])), /unknown v2 stream frame type/);
+  assert.throws(
+    () => unpackStreamFrameV2(Buffer.from([0xff, 0x05, 0x00, 0x01])),
+    /unknown v2 stream frame type/,
+  );
 
   // packStreamFrameV2 validation: invalid type or out-of-range streamIndex
   assert.throws(() => packStreamFrameV2('invalid-type', 1), /FRAME_TYPE_OUTPUT/);
@@ -115,16 +110,14 @@ test('malformed v2 frames are safely rejected without throwing unhandled excepti
 });
 
 test('streamIndex allocation: unique sequence, wraps cleanly, and recycles on session exit', () => {
-  const { config } = loadRelayConfig({ env: { RELAY_PORT: '0', RELAY_HOST: '127.0.0.1' } });
-  const relay = new RelayServer(config);
   const host = { streamIndices: new Map(), nextStreamIndex: 0 };
 
   // 1. Unique consecutive allocation
-  const idx0 = relay.allocateStreamIndex(host);
+  const idx0 = allocateStreamIndex(host);
   host.streamIndices.set(idx0, 'client-0');
-  const idx1 = relay.allocateStreamIndex(host);
+  const idx1 = allocateStreamIndex(host);
   host.streamIndices.set(idx1, 'client-1');
-  const idx2 = relay.allocateStreamIndex(host);
+  const idx2 = allocateStreamIndex(host);
   host.streamIndices.set(idx2, 'client-2');
 
   assert.equal(idx0, 0);
@@ -135,12 +128,12 @@ test('streamIndex allocation: unique sequence, wraps cleanly, and recycles on se
   host.streamIndices.delete(idx1); // client-1 disconnects
   // Advance to near wrap around
   host.nextStreamIndex = 65535;
-  const idxWrap1 = relay.allocateStreamIndex(host);
+  const idxWrap1 = allocateStreamIndex(host);
   host.streamIndices.set(idxWrap1, 'client-wrap');
   assert.equal(idxWrap1, 65535);
 
   // After 65535, wraps to 0; 0 is taken (client-0), so it probes 1 (freed client-1)
-  const idxWrap2 = relay.allocateStreamIndex(host);
+  const idxWrap2 = allocateStreamIndex(host);
   assert.equal(idxWrap2, 1);
 });
 
@@ -152,7 +145,7 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const httpBase = `http://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -161,28 +154,42 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
   {
     const hostV2Auth = { 'X-Herdr-Host-Id': 'host-v2', 'X-Herdr-Host-Token': 'v2-token-123456789' };
     const hostV2Ws = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostV2Ws.close());
+    t.onTestFinished(() => hostV2Ws.close());
 
     const hostReadyPromise = nextMessage(hostV2Ws, (m) => m.type === 'host_ready');
-    hostV2Ws.send(JSON.stringify({
-      type: 'host_hello',
-      protocol: 1,
-      hostId: 'host-v2',
-      token: 'v2-token-123456789',
-      capabilities: ['host_handoff', 'binary_frame_v2'],
-    }));
+    hostV2Ws.send(
+      JSON.stringify({
+        type: 'host_hello',
+        protocol: 1,
+        hostId: 'host-v2',
+        token: 'v2-token-123456789',
+        capabilities: ['host_handoff', 'binary_frame_v2'],
+      }),
+    );
     await hostReadyPromise;
 
     // Start pairing client
-    const pairRes = await fetch(`${httpBase}/api/pair/start`, { method: 'POST', headers: hostV2Auth });
+    const pairRes = await fetch(`${httpBase}/api/pair/start`, {
+      method: 'POST',
+      headers: hostV2Auth,
+    });
     const { code: pairCode } = await pairRes.json();
 
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostV2Ws, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
-    clientWs.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode, clientId: 'client-v2', cols: 80, rows: 24 }));
+    clientWs.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode,
+        clientId: 'client-v2',
+        cols: 80,
+        rows: 24,
+      }),
+    );
 
     const sessionStartMsg = (await sessionStartPromise).value;
     await clientReadyPromise;
@@ -198,7 +205,11 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
 
     const hostReceived = await hostBinaryPromise;
     assert.equal(hostReceived.isBinary, true);
-    assert.equal(hostReceived.value[0], FRAME_V2_MAGIC, 'relay must send v2 frame (magic 0xFF) to v2-capable host');
+    assert.equal(
+      hostReceived.value[0],
+      FRAME_V2_MAGIC,
+      'relay must send v2 frame (magic 0xFF) to v2-capable host',
+    );
 
     const unpackedHostFrame = unpackStreamFrame(hostReceived.value);
     assert.equal(unpackedHostFrame.version, 2);
@@ -217,30 +228,47 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
 
   // --- Sub-test 2: Legacy Host (no binary_frame_v2 capability) ---
   {
-    const hostLegacyAuth = { 'X-Herdr-Host-Id': 'host-legacy', 'X-Herdr-Host-Token': 'legacy-token-123456789' };
+    const hostLegacyAuth = {
+      'X-Herdr-Host-Id': 'host-legacy',
+      'X-Herdr-Host-Token': 'legacy-token-123456789',
+    };
     const hostLegacyWs = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostLegacyWs.close());
+    t.onTestFinished(() => hostLegacyWs.close());
 
     const hostReadyPromise = nextMessage(hostLegacyWs, (m) => m.type === 'host_ready');
-    hostLegacyWs.send(JSON.stringify({
-      type: 'host_hello',
-      protocol: 1,
-      hostId: 'host-legacy',
-      token: 'legacy-token-123456789',
-      capabilities: ['host_handoff'], // No binary_frame_v2!
-    }));
+    hostLegacyWs.send(
+      JSON.stringify({
+        type: 'host_hello',
+        protocol: 1,
+        hostId: 'host-legacy',
+        token: 'legacy-token-123456789',
+        capabilities: ['host_handoff'], // No binary_frame_v2!
+      }),
+    );
     await hostReadyPromise;
 
     // Start pairing client
-    const pairRes = await fetch(`${httpBase}/api/pair/start`, { method: 'POST', headers: hostLegacyAuth });
+    const pairRes = await fetch(`${httpBase}/api/pair/start`, {
+      method: 'POST',
+      headers: hostLegacyAuth,
+    });
     const { code: pairCode } = await pairRes.json();
 
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostLegacyWs, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
-    clientWs.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode, clientId: 'client-legacy', cols: 80, rows: 24 }));
+    clientWs.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode,
+        clientId: 'client-legacy',
+        cols: 80,
+        rows: 24,
+      }),
+    );
 
     const sessionStartMsg = (await sessionStartPromise).value;
     await clientReadyPromise;
@@ -257,7 +285,11 @@ test('negotiation: host with binary_frame_v2 receives v2 frames; host without ca
 
     const hostReceived = await hostBinaryPromise;
     assert.equal(hostReceived.isBinary, true);
-    assert.equal(hostReceived.value[0], 0x00, 'relay must send v1 frame (first byte 0x00) to legacy host');
+    assert.equal(
+      hostReceived.value[0],
+      0x00,
+      'relay must send v1 frame (first byte 0x00) to legacy host',
+    );
 
     const unpackedHostFrame = unpackStreamFrame(hostReceived.value);
     assert.equal(unpackedHostFrame.version, 1);
@@ -283,7 +315,7 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const httpBase = `http://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -291,28 +323,45 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
   // Case 1: Host declared binary_frame_v2 sends v1 frame (e.g. index exhaustion fallback)
   // Relay must route via streamId and NOT drop the host connection.
   {
-    const hostAuth = { 'X-Herdr-Host-Id': 'host-v2-fallback', 'X-Herdr-Host-Token': 'v2-token-123456789' };
+    const hostAuth = {
+      'X-Herdr-Host-Id': 'host-v2-fallback',
+      'X-Herdr-Host-Token': 'v2-token-123456789',
+    };
     const hostWs = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostWs.close());
+    t.onTestFinished(() => hostWs.close());
 
     const hostReadyPromise = nextMessage(hostWs, (m) => m.type === 'host_ready');
-    hostWs.send(JSON.stringify({
-      type: 'host_hello',
-      protocol: 1,
-      hostId: 'host-v2-fallback',
-      token: 'v2-token-123456789',
-      capabilities: ['host_handoff', 'binary_frame_v2'],
-    }));
+    hostWs.send(
+      JSON.stringify({
+        type: 'host_hello',
+        protocol: 1,
+        hostId: 'host-v2-fallback',
+        token: 'v2-token-123456789',
+        capabilities: ['host_handoff', 'binary_frame_v2'],
+      }),
+    );
     await hostReadyPromise;
 
-    const pairRes = await fetch(`${httpBase}/api/pair/start`, { method: 'POST', headers: hostAuth });
+    const pairRes = await fetch(`${httpBase}/api/pair/start`, {
+      method: 'POST',
+      headers: hostAuth,
+    });
     const { code: pairCode } = await pairRes.json();
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostWs, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
-    clientWs.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode, clientId: 'client-fallback', cols: 80, rows: 24 }));
+    clientWs.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode,
+        clientId: 'client-fallback',
+        cols: 80,
+        rows: 24,
+      }),
+    );
     const sessionStartMsg = (await sessionStartPromise).value;
     await clientReadyPromise;
 
@@ -332,36 +381,59 @@ test("Postel's law: relay accepts v1 frames from v2 hosts, and ignores unrouted 
 
   // Case 2: Legacy host (no binary_frame_v2) sends a v2 frame -> relay safely ignores/drops it without severing connection
   {
-    const hostAuth = { 'X-Herdr-Host-Id': 'host-legacy-v2send', 'X-Herdr-Host-Token': 'legacy-token-123456789' };
+    const hostAuth = {
+      'X-Herdr-Host-Id': 'host-legacy-v2send',
+      'X-Herdr-Host-Token': 'legacy-token-123456789',
+    };
     const hostWs = await openWebSocket(`${wsBase}/ws/host`);
-    t.after(() => hostWs.close());
+    t.onTestFinished(() => hostWs.close());
 
     const hostReadyPromise = nextMessage(hostWs, (m) => m.type === 'host_ready');
-    hostWs.send(JSON.stringify({
-      type: 'host_hello',
-      protocol: 1,
-      hostId: 'host-legacy-v2send',
-      token: 'legacy-token-123456789',
-      capabilities: ['host_handoff'],
-    }));
+    hostWs.send(
+      JSON.stringify({
+        type: 'host_hello',
+        protocol: 1,
+        hostId: 'host-legacy-v2send',
+        token: 'legacy-token-123456789',
+        capabilities: ['host_handoff'],
+      }),
+    );
     await hostReadyPromise;
 
-    const pairRes = await fetch(`${httpBase}/api/pair/start`, { method: 'POST', headers: hostAuth });
+    const pairRes = await fetch(`${httpBase}/api/pair/start`, {
+      method: 'POST',
+      headers: hostAuth,
+    });
     const { code: pairCode } = await pairRes.json();
     const clientWs = await openWebSocket(`${wsBase}/ws/client`);
-    t.after(() => clientWs.close());
+    t.onTestFinished(() => clientWs.close());
 
     const sessionStartPromise = nextMessage(hostWs, (m) => m.type === 'session_start');
     const clientReadyPromise = nextMessage(clientWs, (m) => m.type === 'ready');
-    clientWs.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode, clientId: 'client-leg-send', cols: 80, rows: 24 }));
+    clientWs.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode,
+        clientId: 'client-leg-send',
+        cols: 80,
+        rows: 24,
+      }),
+    );
     const sessionStartMsg = (await sessionStartPromise).value;
     await clientReadyPromise;
     const streamId = sessionStartMsg.streamId;
 
     // Legacy host sends an unrouted v2 frame -> relay drops it without disconnecting
-    hostWs.send(packStreamFrameV2(FRAME_TYPE_OUTPUT, 99, Buffer.from('unrouted v2 from legacy host')));
+    hostWs.send(
+      packStreamFrameV2(FRAME_TYPE_OUTPUT, 99, Buffer.from('unrouted v2 from legacy host')),
+    );
     await new Promise((resolve) => setTimeout(resolve, 30));
-    assert.equal(hostWs.readyState, WebSocket.OPEN, 'legacy host must NOT be disconnected for sending v2 frame');
+    assert.equal(
+      hostWs.readyState,
+      WebSocket.OPEN,
+      'legacy host must NOT be disconnected for sending v2 frame',
+    );
 
     // Follow up with a valid v1 frame to prove host connection is fully intact
     const clientBinaryPromise = nextMessage(clientWs, (_m, isBinary) => isBinary);
@@ -379,23 +451,27 @@ test('relay safely disconnects host on truly malformed truncated binary frames w
   const address = await relay.listen(0, '127.0.0.1');
   const wsBase = `ws://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
   const hostWs = await openWebSocket(`${wsBase}/ws/host`);
   const readyPromise = nextMessage(hostWs, (m) => m.type === 'host_ready');
-  hostWs.send(JSON.stringify({
-    type: 'host_hello',
-    protocol: 1,
-    hostId: 'v2-host-malformed',
-    token: 'v2-token-123456789',
-    capabilities: ['binary_frame_v2'],
-  }));
+  hostWs.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'v2-host-malformed',
+      token: 'v2-token-123456789',
+      capabilities: ['binary_frame_v2'],
+    }),
+  );
   await readyPromise;
 
-  const closePromise = new Promise((resolve) => hostWs.once('close', (code, reason) => resolve({ code, reason: reason.toString() })));
+  const closePromise = new Promise((resolve) =>
+    hostWs.once('close', (code, reason) => resolve({ code, reason: reason.toString() })),
+  );
   // Send truncated frame with v2 magic byte (only 2 bytes) - unpacking throws Error
   hostWs.send(Buffer.from([0xff, 0x00]));
   const { code } = await closePromise;

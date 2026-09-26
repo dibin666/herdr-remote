@@ -1,23 +1,19 @@
-'use strict';
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-
-const {
+import { loadConfig, migrateLegacyConfig, validate } from '../src/config.js';
+import { configPath } from '../src/paths.js';
+import {
   advertisedHost,
   bindAddress,
-  configPath,
-  loadConfig,
-  migrateLegacyConfig,
   resolveAdminOrigin,
   resolveHostRelayUrl,
   resolvePublicUrl,
   runsLocalRelay,
-  validate,
-} = require('../src/config');
+} from '../src/relay-urls.js';
 
 function withEnvironment(overrides, run) {
   const previous = {};
@@ -39,7 +35,12 @@ function withEnvironment(overrides, run) {
 function withConfig(contents, run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-config-'));
   return withEnvironment(
-    { HERDR_REMOTE_CONFIG_DIR: directory, HERDR_SOCKET_PATH: undefined, RELAY_PORT: undefined, HERDR_REMOTE_MODE: undefined },
+    {
+      HERDR_REMOTE_CONFIG_DIR: directory,
+      HERDR_SOCKET_PATH: undefined,
+      RELAY_PORT: undefined,
+      HERDR_REMOTE_MODE: undefined,
+    },
     () => {
       try {
         if (contents !== null) {
@@ -97,7 +98,10 @@ test('a stale loopback LAN browser address is cleared and replaced by a real int
     const config = loadConfig();
     assert.equal(config.relay.lanHost, '');
     assert.equal(resolvePublicUrl(config, '192.168.6.144'), 'http://192.168.6.144:8787');
-    assert.equal(advertisedHost({ relay: { mode: 'lan', lanHost: '127.0.0.1' } }, '192.168.6.144'), '192.168.6.144');
+    assert.equal(
+      advertisedHost({ relay: { mode: 'lan', lanHost: '127.0.0.1' } }, '192.168.6.144'),
+      '192.168.6.144',
+    );
   });
 });
 
@@ -130,12 +134,21 @@ test('a non-loopback bind address is honoured rather than rewritten', () => {
 });
 
 test('0.1 configs are read without losing their meaning', () => {
-  withConfig({ relay: { local: false, url: 'ws://relay.example.com:8787', publicUrl: 'https://relay.example.com' } }, () => {
-    const config = loadConfig();
-    assert.equal(config.relay.mode, 'remote');
-    assert.equal(config.relay.remoteUrl, 'ws://relay.example.com:8787');
-    assert.equal(resolvePublicUrl(config), 'https://relay.example.com');
-  });
+  withConfig(
+    {
+      relay: {
+        local: false,
+        url: 'ws://relay.example.com:8787',
+        publicUrl: 'https://relay.example.com',
+      },
+    },
+    () => {
+      const config = loadConfig();
+      assert.equal(config.relay.mode, 'remote');
+      assert.equal(config.relay.remoteUrl, 'ws://relay.example.com:8787');
+      assert.equal(resolvePublicUrl(config), 'https://relay.example.com');
+    },
+  );
 
   withConfig({ relay: { local: true, host: '0.0.0.0', port: 8787 } }, () => {
     assert.equal(loadConfig().relay.mode, 'lan');
@@ -143,34 +156,43 @@ test('0.1 configs are read without losing their meaning', () => {
 
   // The old default publicUrl was the loopback URL; keeping it would pin the
   // address and defeat derivation after a mode change.
-  withConfig({ relay: { local: true, host: '127.0.0.1', publicUrl: 'http://127.0.0.1:8787' } }, () => {
-    const config = loadConfig();
-    assert.equal(config.relay.publicUrl, '');
-    assert.equal(config.relay.mode, 'local');
-  });
+  withConfig(
+    { relay: { local: true, host: '127.0.0.1', publicUrl: 'http://127.0.0.1:8787' } },
+    () => {
+      const config = loadConfig();
+      assert.equal(config.relay.publicUrl, '');
+      assert.equal(config.relay.mode, 'local');
+    },
+  );
 });
 
 test('the plugin-scoped config from an older install is imported once', () => {
   const legacyDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-legacy-'));
   const targetDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-target-'));
-  fs.writeFileSync(path.join(legacyDirectory, 'config.json'), JSON.stringify({ relay: { port: 9999 } }));
+  fs.writeFileSync(
+    path.join(legacyDirectory, 'config.json'),
+    JSON.stringify({ relay: { port: 9999 } }),
+  );
 
-  withEnvironment({ HERDR_REMOTE_CONFIG_DIR: targetDirectory, HERDR_PLUGIN_CONFIG_DIR: legacyDirectory }, () => {
-    try {
-      const first = migrateLegacyConfig();
-      assert.equal(first.migrated, true);
-      assert.equal(loadConfig().relay.port, 9999);
+  withEnvironment(
+    { HERDR_REMOTE_CONFIG_DIR: targetDirectory, HERDR_PLUGIN_CONFIG_DIR: legacyDirectory },
+    () => {
+      try {
+        const first = migrateLegacyConfig();
+        assert.equal(first.migrated, true);
+        assert.equal(loadConfig().relay.port, 9999);
 
-      // Running again must not clobber edits made since the import.
-      fs.writeFileSync(configPath(), JSON.stringify({ relay: { port: 7777 } }));
-      const second = migrateLegacyConfig();
-      assert.equal(second.migrated, false);
-      assert.equal(loadConfig().relay.port, 7777);
-    } finally {
-      fs.rmSync(legacyDirectory, { recursive: true, force: true });
-      fs.rmSync(targetDirectory, { recursive: true, force: true });
-    }
-  });
+        // Running again must not clobber edits made since the import.
+        fs.writeFileSync(configPath(), JSON.stringify({ relay: { port: 7777 } }));
+        const second = migrateLegacyConfig();
+        assert.equal(second.migrated, false);
+        assert.equal(loadConfig().relay.port, 7777);
+      } finally {
+        fs.rmSync(legacyDirectory, { recursive: true, force: true });
+        fs.rmSync(targetDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 test('the config directory ignores the Herdr plugin variable', () => {

@@ -1,31 +1,39 @@
-'use strict';
-
 // `herdr-remote start` under a keep-alive manager.
 //
 // Herdr runs `herdr-remote start` from the plugin's startup hook every time a
 // Herdr server starts. Restarting a service that is already up there dropped
 // every browser attached to the workstation, so start only starts.
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { test, vi } from 'vitest';
+import * as lifecycle from '../src/lifecycle.js';
 
-const keepalive = require('../src/keepalive');
+// Should the keep-alive mock below ever stop applying, lifecycle falls through
+// to the real service layer; keep it out of the real home directory.
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-lifecycle-'));
+process.env.HERDR_REMOTE_CONFIG_DIR = path.join(home, 'config');
+process.env.HERDR_REMOTE_STATE_DIR = path.join(home, 'state');
+
+// The keep-alive manager as lifecycle sees it: a status to report, and a
+// restart that is only counted.
+const manager = vi.hoisted(() => ({ status: null, restarts: [] }));
+
+vi.mock('../src/keepalive/index.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  status: () => manager.status,
+  restart: () => {
+    manager.restarts.push(true);
+    return { ok: true };
+  },
+}));
 
 function withKeepalive(status, run) {
-  const saved = { status: keepalive.status, restart: keepalive.restart };
-  const restarts = [];
-  keepalive.status = () => status;
-  keepalive.restart = () => { restarts.push(true); return { ok: true }; };
-  // lifecycle binds keepalive's exports at call time through the module object.
-  delete require.cache[require.resolve('../src/lifecycle')];
-  const lifecycle = require('../src/lifecycle');
-  try {
-    return run(lifecycle, restarts);
-  } finally {
-    keepalive.status = saved.status;
-    keepalive.restart = saved.restart;
-    delete require.cache[require.resolve('../src/lifecycle')];
-  }
+  manager.status = status;
+  manager.restarts = [];
+  return run(lifecycle, manager.restarts);
 }
 
 const config = { keepalive: { manager: 'auto' } };

@@ -3,6 +3,7 @@
   "version": "0.3.12",
   "description": "Standalone relay server and web terminal for Herdr Remote",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dibin666/herdr-remote.git",
@@ -25,28 +26,51 @@
   "bin": {
     "herdr-remote-relay": "./bin/herdr-remote-relay.js"
   },
-  "main": "./src/relay-server.js",
+  "main": "./dist/relay-server.js",
+  "types": "./dist/relay-server.d.ts",
   "exports": {
-    ".": "./src/relay-server.js",
-    "./protocol": "./src/stream-frame.js",
-    "./config": "./src/relay-config.js",
+    ".": {
+      "types": "./dist/relay-server.d.ts",
+      "default": "./dist/relay-server.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "default": "./dist/protocol/index.js"
+    },
+    "./config": {
+      "types": "./dist/relay-config.d.ts",
+      "default": "./dist/relay-config.js"
+    },
+    "./state": {
+      "types": "./dist/state.d.ts",
+      "default": "./dist/state.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "bin",
-    "src",
+    "dist",
     "web/dist",
     "deploy",
     "config.example.json",
     "README.zh-CN.md"
   ],
   "scripts": {
-    "build": "npm --prefix web run build",
+    "build": "npm run build:server && npm --prefix web run build",
+    "build:server": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "prepack": "npm run build",
     "start": "node bin/herdr-remote-relay.js",
-    "test": "node --test tests/*.test.js"
+    "pretest": "npm run build:server",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/ws": "^8.18.1",
+    "typescript": "~5.7.3",
+    "vitest": "^3.2.7"
   }
 }

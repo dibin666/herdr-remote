@@ -1,17 +1,21 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const net = require('node:net');
-const { defaultSocketPath, inspectSocket, resolveSocketPath } = require('../src/socket-discovery');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import { defaultSocketPath, inspectSocket, resolveSocketPath } from '../src/socket-discovery.js';
 
 test('socket discovery prefers explicit and injected paths', () => {
-  assert.equal(resolveSocketPath('/explicit.sock', { HERDR_SOCKET_PATH: '/env.sock' }), '/explicit.sock');
+  assert.equal(
+    resolveSocketPath('/explicit.sock', { HERDR_SOCKET_PATH: '/env.sock' }),
+    '/explicit.sock',
+  );
   assert.equal(resolveSocketPath(null, { HERDR_SOCKET_PATH: '/env.sock' }), '/env.sock');
-  assert.equal(defaultSocketPath({ XDG_CONFIG_HOME: '/tmp/config' }, 'linux'), '/tmp/config/herdr/herdr.sock');
+  assert.equal(
+    defaultSocketPath({ XDG_CONFIG_HOME: '/tmp/config' }, 'linux'),
+    '/tmp/config/herdr/herdr.sock',
+  );
 });
 
 test('socket inspection distinguishes regular files from Unix sockets', async (t) => {
@@ -22,7 +26,7 @@ test('socket inspection distinguishes regular files from Unix sockets', async (t
 
   const socketPath = path.join(directory, 'herdr.sock');
   const server = net.createServer();
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   await new Promise((resolve) => server.listen(socketPath, resolve));
   assert.equal(inspectSocket(socketPath).ok, true);
 });

@@ -1,0 +1,204 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/package-lock.json",
+      "!**/test/fixtures/screens",
+      "!**/public/fonts",
+      "!**/vendor"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "css": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noControlCharactersInRegex": "off",
+        "noFocusedTests": "off"
+      },
+      "a11y": {
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": {
+            "inputComponents": ["Input", "Select"]
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.*", "**/test/**", "**/tests/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noFocusedTests": "error",
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          },
+          "suspicious": {
+            "noDuplicateProperties": "off",
+            "noUnknownAtRules": {
+              "level": "error",
+              "options": {
+                "ignore": ["tailwind"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/**",
+        "scripts/**",
+        "!**/tests/**",
+        "!**/test/**",
+        "!**/*.test.*",
+        "!**/i18n/en.*",
+        "!**/i18n/zh.*",
+        "!**/vendor/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 500
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/relay/web/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste and http."
+                },
+                "patterns": [
+                  {
+                    "group": ["../*", "../**"],
+                    "message": "Import from outside this folder through @/\u2026, as AGENTS.md says."
+                  },
+                  {
+                    "group": ["herdr-remote-relay", "herdr-remote-relay/*"],
+                    "message": "The web client reaches the protocol through @protocol/*."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/relay/web/src/shared/**", "!**/*.test.*"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste and http."
+                },
+                "patterns": [
+                  {
+                    "group": ["../*", "../**"],
+                    "message": "Import from outside this folder through @/\u2026, as AGENTS.md says."
+                  },
+                  {
+                    "group": ["herdr-remote-relay", "herdr-remote-relay/*"],
+                    "message": "The web client reaches the protocol through @protocol/*."
+                  },
+                  {
+                    "group": [
+                      "@/features/*",
+                      "@/features/**",
+                      "@/context/*",
+                      "@/app/*",
+                      "@/connection/*"
+                    ],
+                    "message": "shared/ is used by every feature and must not depend on one."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/relay/src/**", "packages/relay/bin/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["herdr-remote", "herdr-remote/*", "**/cli/src/**"],
+                    "message": "The relay must not depend on the cli package."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

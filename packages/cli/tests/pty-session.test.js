@@ -1,8 +1,6 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { PtySession } = require('../src/pty-session');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import { PtySession } from '../src/pty-session.js';
 
 test('PTY sessions run a real terminal child with plugin context removed', async (t) => {
   const output = [];
@@ -12,7 +10,7 @@ test('PTY sessions run a real terminal child with plugin context removed', async
     cwd: process.cwd(),
     socketPath: '/tmp/herdr-test.sock',
   });
-  t.after(() => session.kill());
+  t.onTestFinished(() => session.kill());
   const exited = new Promise((resolve) => {
     session.start({
       cols: 40,

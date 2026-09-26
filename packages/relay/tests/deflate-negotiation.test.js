@@ -1,42 +1,13 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
-const { loadRelayConfig } = require('../src/relay-config');
-const { packStreamFrame, unpackStreamFrame } = require('../src/stream-frame');
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 2000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      let value = data;
-      if (!isBinary) {
-        try { value = JSON.parse(data.toString()); } catch {}
-      }
-      if (!predicate(value, isBinary)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve({ value, isBinary });
-    };
-    ws.on('message', onMessage);
-  });
-}
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
+import { loadRelayConfig } from '../src/relay-config';
+import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
+import { nextMessage, openWebSocket } from './helpers.js';
 
 test('relay negotiates permessage-deflate and preserves large compressed payload integrity', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-deflate-test-'));
@@ -46,25 +17,27 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const httpBase = `http://127.0.0.1:${address.port}`;
 
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
   const hostAuth = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  t.after(() => host.close());
+  t.onTestFinished(() => host.close());
 
   const hostReadyPromise = nextMessage(host, (m) => m.type === 'host_ready');
-  host.send(JSON.stringify({
-    type: 'host_hello',
-    protocol: 1,
-    hostId: 'host-1',
-    token: 'host-token-123456789',
-    hostname: 'test-host',
-    platform: 'linux',
-    arch: 'x64',
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+      hostname: 'test-host',
+      platform: 'linux',
+      arch: 'x64',
+    }),
+  );
   await hostReadyPromise;
 
   const pairRes = await fetch(`${httpBase}/api/pair/start`, { method: 'POST', headers: hostAuth });
@@ -79,7 +52,7 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
     client.once('open', resolve);
     client.once('error', reject);
   });
-  t.after(() => client.close());
+  t.onTestFinished(() => client.close());
 
   // 1. Assert permessage-deflate negotiation:
   // - ws exposes negotiated extension name via `ws.extensions` getter (Object.keys(this._extensions).join())
@@ -87,16 +60,31 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
   // - HTTP upgrade handshake includes `sec-websocket-extensions: permessage-deflate`
   assert.equal(client.extensions, 'permessage-deflate');
   assert.match(clientUpgradeHeader || '', /permessage-deflate/);
-  assert.ok(client._extensions && client._extensions['permessage-deflate'], 'permessage-deflate extension should be active on client socket');
+  assert.ok(
+    client._extensions?.['permessage-deflate'],
+    'permessage-deflate extension should be active on client socket',
+  );
 
   // Also assert on the host socket
   assert.equal(host.extensions, 'permessage-deflate');
-  assert.ok(host._extensions && host._extensions['permessage-deflate'], 'permessage-deflate extension should be active on host socket');
+  assert.ok(
+    host._extensions?.['permessage-deflate'],
+    'permessage-deflate extension should be active on host socket',
+  );
 
   // Pair client to establish session stream
   const clientReadyPromise = nextMessage(client, (m) => m.type === 'ready');
   const sessionStartPromise = nextMessage(host, (m) => m.type === 'session_start');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode, clientId: 'client-1', cols: 80, rows: 24 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode,
+      clientId: 'client-1',
+      cols: 80,
+      rows: 24,
+    }),
+  );
 
   const sessionStartMsg = (await sessionStartPromise).value;
   await clientReadyPromise;
@@ -107,9 +95,13 @@ test('relay negotiates permessage-deflate and preserves large compressed payload
 
   // 2. Assert large repetitive payload (> 1024 bytes) transmission and data integrity
   // Create repetitive ANSI escape sequence content (2960 bytes, well above the 1024-byte compression threshold)
-  const repetitiveText = '\x1b[38;2;255;100;50mHighly repetitive ANSI redraw line buffer test data\x1b[0m\n'.repeat(40);
+  const repetitiveText =
+    '\x1b[38;2;255;100;50mHighly repetitive ANSI redraw line buffer test data\x1b[0m\n'.repeat(40);
   const largePayload = Buffer.from(repetitiveText, 'utf8');
-  assert.ok(largePayload.length > 1024, `Payload size (${largePayload.length}) must exceed 1024 bytes`);
+  assert.ok(
+    largePayload.length > 1024,
+    `Payload size (${largePayload.length}) must exceed 1024 bytes`,
+  );
 
   // Host -> Relay -> Client (output frame)
   const clientOutputPromise = nextMessage(client, (_msg, isBinary) => isBinary);

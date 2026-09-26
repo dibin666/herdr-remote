@@ -1,27 +1,27 @@
-'use strict';
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-
-const { createDraft, fieldsForMode, getField, requiresRestart, saveDraft, setField, validateDraft } = require('../src/settings-model');
-const { DEFAULTS, configPath, loadConfig, resolvePublicUrl, resolveHostRelayUrl, runsLocalRelay, bindAddress } = require('../src/config');
-const { readJson } = require('../src/state');
-
-function withTempConfig(run) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-settings-'));
-  const previous = process.env.HERDR_REMOTE_CONFIG_DIR;
-  process.env.HERDR_REMOTE_CONFIG_DIR = directory;
-  try {
-    return run(directory);
-  } finally {
-    if (previous === undefined) delete process.env.HERDR_REMOTE_CONFIG_DIR;
-    else process.env.HERDR_REMOTE_CONFIG_DIR = previous;
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-}
+import {
+  createDraft,
+  fieldsForMode,
+  getField,
+  requiresRestart,
+  saveDraft,
+  setField,
+  validateDraft,
+} from '../src/settings-model.js';
+import { DEFAULTS, loadConfig } from '../src/config.js';
+import { configPath } from '../src/paths.js';
+import {
+  resolvePublicUrl,
+  resolveHostRelayUrl,
+  runsLocalRelay,
+  bindAddress,
+} from '../src/relay-urls.js';
+import { readJson } from 'herdr-remote-relay/state';
+import { isolateState } from './helpers.js';
 
 function baseDraft() {
   return createDraft(JSON.parse(JSON.stringify(DEFAULTS)));
@@ -90,50 +90,51 @@ test('remote mode requires a relay URL before it can be saved', () => {
   assert.deepEqual(validateDraft(complete), []);
 });
 
-test('saving writes the file atomically and drops superseded 0.1 keys', () => {
-  withTempConfig(() => {
-    fs.mkdirSync(path.dirname(configPath()), { recursive: true });
-    fs.writeFileSync(configPath(), JSON.stringify({
+test('saving writes the file atomically and drops superseded 0.1 keys', (t) => {
+  isolateState(t);
+  fs.mkdirSync(path.dirname(configPath()), { recursive: true });
+  fs.writeFileSync(
+    configPath(),
+    JSON.stringify({
       relay: { local: true, host: '127.0.0.1', url: 'ws://127.0.0.1:8787', port: 8787 },
       unknownSection: { keepMe: true },
-    }));
+    }),
+  );
 
-    let draft = createDraft(loadConfig());
-    draft = setField(draft, 'port', '8888').draft;
-    draft = setField(draft, 'mode', 'lan').draft;
-    draft = setField(draft, 'lanHost', '100.101.102.103').draft;
-    saveDraft(draft);
+  let draft = createDraft(loadConfig());
+  draft = setField(draft, 'port', '8888').draft;
+  draft = setField(draft, 'mode', 'lan').draft;
+  draft = setField(draft, 'lanHost', '100.101.102.103').draft;
+  saveDraft(draft);
 
-    const saved = readJson(configPath(), {});
-    assert.equal(saved.relay.port, 8888);
-    assert.equal(saved.relay.mode, 'lan');
-    assert.equal(saved.relay.lanHost, '100.101.102.103');
-    // Legacy keys would keep re-triggering the migration path on every load.
-    assert.equal('local' in saved.relay, false);
-    assert.equal('host' in saved.relay, false);
-    assert.equal('url' in saved.relay, false);
-    // Unknown sections survive a round trip through an older client.
-    assert.deepEqual(saved.unknownSection, { keepMe: true });
+  const saved = readJson(configPath(), {});
+  assert.equal(saved.relay.port, 8888);
+  assert.equal(saved.relay.mode, 'lan');
+  assert.equal(saved.relay.lanHost, '100.101.102.103');
+  // Legacy keys would keep re-triggering the migration path on every load.
+  assert.equal('local' in saved.relay, false);
+  assert.equal('host' in saved.relay, false);
+  assert.equal('url' in saved.relay, false);
+  // Unknown sections survive a round trip through an older client.
+  assert.deepEqual(saved.unknownSection, { keepMe: true });
 
-    const reloaded = loadConfig();
-    assert.equal(reloaded.relay.mode, 'lan');
-    assert.equal(resolvePublicUrl(reloaded), 'http://100.101.102.103:8888');
-    assert.equal(bindAddress(reloaded), '0.0.0.0');
-  });
+  const reloaded = loadConfig();
+  assert.equal(reloaded.relay.mode, 'lan');
+  assert.equal(resolvePublicUrl(reloaded), 'http://100.101.102.103:8888');
+  assert.equal(bindAddress(reloaded), '0.0.0.0');
 });
 
-test('a remote relay drives the public URL and the host connector target', () => {
-  withTempConfig(() => {
-    let draft = createDraft(JSON.parse(JSON.stringify(DEFAULTS)));
-    draft = setField(draft, 'mode', 'remote').draft;
-    draft = setField(draft, 'remoteUrl', 'wss://herdr.example.com').draft;
-    saveDraft(draft);
+test('a remote relay drives the public URL and the host connector target', (t) => {
+  isolateState(t);
+  let draft = createDraft(JSON.parse(JSON.stringify(DEFAULTS)));
+  draft = setField(draft, 'mode', 'remote').draft;
+  draft = setField(draft, 'remoteUrl', 'wss://herdr.example.com').draft;
+  saveDraft(draft);
 
-    const config = loadConfig();
-    assert.equal(runsLocalRelay(config), false);
-    assert.equal(resolvePublicUrl(config), 'https://herdr.example.com');
-    assert.equal(resolveHostRelayUrl(config), 'wss://herdr.example.com/ws/host');
-  });
+  const config = loadConfig();
+  assert.equal(runsLocalRelay(config), false);
+  assert.equal(resolvePublicUrl(config), 'https://herdr.example.com');
+  assert.equal(resolveHostRelayUrl(config), 'wss://herdr.example.com/ws/host');
 });
 
 test('only settings the services read require a restart', () => {
@@ -159,7 +160,11 @@ test('fields are limited to the modes where they apply', () => {
   assert.ok(remoteIds.includes('remoteUrl'));
   assert.equal(remoteIds.includes('port'), false);
 
-  assert.ok(fieldsForMode('lan').map((field) => field.id).includes('lanHost'));
+  assert.ok(
+    fieldsForMode('lan')
+      .map((field) => field.id)
+      .includes('lanHost'),
+  );
 });
 
 test('setting herdrArgs with --no-session is rejected and leaves the draft untouched', () => {
@@ -177,32 +182,30 @@ test('valid herdr arguments are accepted and written to the draft', () => {
   assert.equal(getField(result.draft, 'herdrArgs'), '--foo --bar');
 });
 
-test('Herdr does not start with herdr-remote unless the user turns it on, and the choice is saved', () => {
-  withTempConfig(() => {
-    assert.equal(loadConfig().herdr.autoStart, false);
+test('Herdr does not start with herdr-remote unless the user turns it on, and the choice is saved', (t) => {
+  isolateState(t);
+  assert.equal(loadConfig().herdr.autoStart, false);
 
-    let draft = createDraft(loadConfig());
-    assert.equal(getField(draft, 'herdrAutoStart'), 'off');
-    draft = setField(draft, 'herdrAutoStart', 'on').draft;
-    assert.equal(draft.herdr.autoStart, true);
-    // Only the next start reads it; nothing running has to restart.
-    assert.equal(requiresRestart(loadConfig(), draft), false);
+  let draft = createDraft(loadConfig());
+  assert.equal(getField(draft, 'herdrAutoStart'), 'off');
+  draft = setField(draft, 'herdrAutoStart', 'on').draft;
+  assert.equal(draft.herdr.autoStart, true);
+  // Only the next start reads it; nothing running has to restart.
+  assert.equal(requiresRestart(loadConfig(), draft), false);
 
-    saveDraft(draft);
-    assert.equal(readJson(configPath()).herdr.autoStart, true);
-    assert.equal(loadConfig().herdr.autoStart, true);
+  saveDraft(draft);
+  assert.equal(readJson(configPath()).herdr.autoStart, true);
+  assert.equal(loadConfig().herdr.autoStart, true);
 
-    draft = setField(createDraft(loadConfig()), 'herdrAutoStart', 'off').draft;
-    saveDraft(draft);
-    assert.equal(loadConfig().herdr.autoStart, false);
+  draft = setField(createDraft(loadConfig()), 'herdrAutoStart', 'off').draft;
+  saveDraft(draft);
+  assert.equal(loadConfig().herdr.autoStart, false);
 
-    assert.equal(setField(draft, 'herdrAutoStart', 'maybe').errorKey, 'error.unknownField');
-  });
+  assert.equal(setField(draft, 'herdrAutoStart', 'maybe').errorKey, 'error.unknownField');
 });
 
-test('a hand-written autoStart that is not literally true stays off', () => {
-  withTempConfig(() => {
-    fs.writeFileSync(configPath(), JSON.stringify({ herdr: { autoStart: 'yes' } }));
-    assert.equal(loadConfig().herdr.autoStart, false);
-  });
+test('a hand-written autoStart that is not literally true stays off', (t) => {
+  isolateState(t);
+  fs.writeFileSync(configPath(), JSON.stringify({ herdr: { autoStart: 'yes' } }));
+  assert.equal(loadConfig().herdr.autoStart, false);
 });

@@ -1,23 +1,22 @@
-'use strict';
-
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const net = require('node:net');
-const { WebSocket } = require('ws');
-const { HostConnector } = require('../src/host-connector');
-const {
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import { WebSocket } from 'ws';
+import { HostConnector } from '../src/connector/host-connector.js';
+import { FAST_FAILURE_LIMIT } from '../src/connector/sessions.js';
+import {
   packStreamFrameV2,
   unpackStreamFrame,
   FRAME_TYPE_INPUT,
   FRAME_TYPE_OUTPUT,
   FRAME_V2_MAGIC,
-} = require('herdr-remote-relay/protocol');
+} from 'herdr-remote-relay/protocol';
 
 function makeConnector(lockPath, overrides = {}) {
   return new HostConnector({
@@ -42,7 +41,9 @@ function captureSocket(connector) {
   const sent = [];
   connector.ws = {
     readyState: WebSocket.OPEN,
-    send(payload) { sent.push(JSON.parse(payload)); },
+    send(payload) {
+      sent.push(JSON.parse(payload));
+    },
     close() {},
   };
   return sent;
@@ -55,7 +56,10 @@ test('host connector uses a stale-safe single-instance lock', () => {
   const second = makeConnector(lockPath);
   try {
     first.acquireLock();
-    assert.throws(() => second.acquireLock(), (error) => error.code === 'HOST_ALREADY_RUNNING');
+    assert.throws(
+      () => second.acquireLock(),
+      (error) => error.code === 'HOST_ALREADY_RUNNING',
+    );
     first.releaseLock();
     second.acquireLock();
   } finally {
@@ -98,26 +102,34 @@ test('agent focus events trigger a debounced snapshot read and stop with the wat
         { type: 'pane.agent_detected' },
       ]);
       onEvent = callback;
-      return { close() { closeCount += 1; } };
+      return {
+        close() {
+          closeCount += 1;
+        },
+      };
     },
     async requestHerdr() {
       reads += 1;
       const paneId = `w1:p${reads}`;
       const agent = reads === 1 ? 'pi' : 'claude';
-      return { snapshot: {
-        focused_pane_id: paneId,
-        panes: [{ pane_id: paneId, agent }],
-        agents: [{
-          pane_id: paneId,
-          workspace_id: 'w1',
-          agent,
-          agent_status: 'working',
-          focused: true,
-        }],
-      } };
+      return {
+        snapshot: {
+          focused_pane_id: paneId,
+          panes: [{ pane_id: paneId, agent }],
+          agents: [
+            {
+              pane_id: paneId,
+              workspace_id: 'w1',
+              agent,
+              agent_status: 'working',
+              focused: true,
+            },
+          ],
+        },
+      };
     },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -133,10 +145,12 @@ test('agent focus events trigger a debounced snapshot read and stop with the wat
   assert.equal(reads, 2, 'a focus event refreshes the snapshot after the debounce');
 
   assert.deepEqual(
-    sent.filter((message) => message.type === 'agent_status').map((message) => message.focusedAgent),
+    sent
+      .filter((message) => message.type === 'agent_status')
+      .map((message) => message.focusedAgent),
     ['pi', 'claude'],
   );
-  connector.stopAgentStatus();
+  connector.agents.stop();
   assert.equal(closeCount, 1, 'stopping the watcher closes its subscription');
   onEvent({ event: 'pane_focused', data: { pane_id: 'w1:p2' } });
   await new Promise((resolve) => setTimeout(resolve, 200));
@@ -152,15 +166,17 @@ test('a missing Herdr is reported as an error instead of a session that exits', 
     herdrCommand: path.join(directory, 'nowhere', 'herdr'),
     herdrLookup: { env: { PATH: '' }, home: directory, directories: [] },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
   const sent = captureSocket(connector);
 
-  connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
 
-  assert.equal(connector.sessions.size, 0);
+  assert.equal(connector.sessions.byStream.size, 0);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].type, 'error');
   assert.equal(sent[0].code, 'herdr_not_found');
@@ -168,7 +184,10 @@ test('a missing Herdr is reported as an error instead of a session that exits', 
   assert.match(sent[0].message, /HERDR_BIN_PATH/);
   // No session_exit: the relay never learns of an exit, so it never drops the
   // browser, so the browser never reconnects into the same broken start.
-  assert.equal(sent.some((message) => message.type === 'session_exit'), false);
+  assert.equal(
+    sent.some((message) => message.type === 'session_exit'),
+    false,
+  );
 });
 
 test('a Herdr installed after the connector started is picked up without a restart', (t) => {
@@ -178,32 +197,36 @@ test('a Herdr installed after the connector started is picked up without a resta
     herdrCommand: 'herdr',
     herdrLookup: { env: { PATH: '' }, home: directory, directories: [bin] },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
-  assert.match(connector.ensureHerdrCommand() || '', /was not found/);
+  assert.match(connector.sessions.ensureHerdrCommand() || '', /was not found/);
 
   fs.mkdirSync(bin, { recursive: true });
   fs.writeFileSync(path.join(bin, 'herdr'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
 
-  assert.equal(connector.ensureHerdrCommand(), null);
-  assert.equal(connector.herdrCommand, path.join(bin, 'herdr'));
+  assert.equal(connector.sessions.ensureHerdrCommand(), null);
+  assert.equal(connector.sessions.herdrCommand, path.join(bin, 'herdr'));
 });
 
 test('starts that keep dying immediately stop being reported as exits', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-fastfail-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
   const sent = captureSocket(connector);
-  const brokenStart = () => connector.reportSessionExit({ id: 'session-1', startedAtMs: Date.now() }, 1);
+  const brokenStart = () =>
+    connector.sessions.reportExit({ id: 'session-1', startedAtMs: Date.now() }, 1);
 
-  for (let attempt = 0; attempt < HostConnector.FAST_FAILURE_LIMIT - 1; attempt += 1) brokenStart();
-  assert.deepEqual(sent.map((message) => message.type), ['session_exit', 'session_exit']);
+  for (let attempt = 0; attempt < FAST_FAILURE_LIMIT - 1; attempt += 1) brokenStart();
+  assert.deepEqual(
+    sent.map((message) => message.type),
+    ['session_exit', 'session_exit'],
+  );
 
   brokenStart();
   assert.equal(sent.at(-1).type, 'error');
@@ -211,36 +234,36 @@ test('starts that keep dying immediately stop being reported as exits', (t) => {
   assert.equal(sent.at(-1).clientId, 'session-1');
 
   // A session the user actually used clears the streak.
-  connector.reportSessionExit({ id: 'session-2', startedAtMs: Date.now() - 60_000 }, 1);
+  connector.sessions.reportExit({ id: 'session-2', startedAtMs: Date.now() - 60_000 }, 1);
   assert.equal(sent.at(-1).type, 'session_exit');
-  assert.equal(connector.fastFailures, 0);
+  assert.equal(connector.sessions.fastFailures, 0);
 });
 
 test('a quick clean exit is a finished session, not a broken start', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-quickexit-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
   const sent = captureSocket(connector);
 
-  for (let attempt = 0; attempt < HostConnector.FAST_FAILURE_LIMIT + 2; attempt += 1) {
-    connector.reportSessionExit({ id: `session-${attempt}`, startedAtMs: Date.now() }, 0);
+  for (let attempt = 0; attempt < FAST_FAILURE_LIMIT + 2; attempt += 1) {
+    connector.sessions.reportExit({ id: `session-${attempt}`, startedAtMs: Date.now() }, 0);
   }
 
   assert.deepEqual(new Set(sent.map((message) => message.type)), new Set(['session_exit']));
-  assert.equal(connector.fastFailures, 0);
+  assert.equal(connector.sessions.fastFailures, 0);
 });
 
 test('two sessions run side by side and are resized and stopped independently', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-multisession-'));
   const lockPath = path.join(directory, 'connector.lock');
   const connector = makeConnector(lockPath);
-  connector.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
+  connector.sessions.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
   const socketServer = net.createServer();
   await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
-  t.after(() => {
+  t.onTestFinished(() => {
     socketServer.close();
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -248,38 +271,44 @@ test('two sessions run side by side and are resized and stopped independently', 
 
   captureSocket(connector);
 
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }),
+  );
 
-  assert.equal(connector.sessions.size, 2);
-  assert.ok(connector.sessions.has('session-1'));
-  assert.ok(connector.sessions.has('session-2'));
-  assert.equal(connector.sessions.get('session-1').cols, 80);
-  assert.equal(connector.sessions.get('session-1').rows, 24);
-  assert.equal(connector.sessions.get('session-2').cols, 120);
-  assert.equal(connector.sessions.get('session-2').rows, 40);
+  assert.equal(connector.sessions.byStream.size, 2);
+  assert.ok(connector.sessions.byStream.has('session-1'));
+  assert.ok(connector.sessions.byStream.has('session-2'));
+  assert.equal(connector.sessions.byStream.get('session-1').cols, 80);
+  assert.equal(connector.sessions.byStream.get('session-1').rows, 24);
+  assert.equal(connector.sessions.byStream.get('session-2').cols, 120);
+  assert.equal(connector.sessions.byStream.get('session-2').rows, 40);
 
   // Resize session-1 only
-  connector.handleMessage(JSON.stringify({ type: 'resize', streamId: 'session-1', cols: 90, rows: 30 }));
-  assert.equal(connector.sessions.get('session-1').cols, 90);
-  assert.equal(connector.sessions.get('session-1').rows, 30);
-  assert.equal(connector.sessions.get('session-2').cols, 120);
-  assert.equal(connector.sessions.get('session-2').rows, 40);
+  connector.handleMessage(
+    JSON.stringify({ type: 'resize', streamId: 'session-1', cols: 90, rows: 30 }),
+  );
+  assert.equal(connector.sessions.byStream.get('session-1').cols, 90);
+  assert.equal(connector.sessions.byStream.get('session-1').rows, 30);
+  assert.equal(connector.sessions.byStream.get('session-2').cols, 120);
+  assert.equal(connector.sessions.byStream.get('session-2').rows, 40);
 
   // Stop session-1 only
   connector.handleMessage(JSON.stringify({ type: 'session_stop', streamId: 'session-1' }));
-  assert.equal(connector.sessions.has('session-1'), false);
-  assert.equal(connector.sessions.has('session-2'), true);
-  assert.equal(connector.sessions.size, 1);
+  assert.equal(connector.sessions.byStream.has('session-1'), false);
+  assert.equal(connector.sessions.byStream.has('session-2'), true);
+  assert.equal(connector.sessions.byStream.size, 1);
 });
 
 test('host connector handles v2 binary frames and negotiation', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-v2-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  connector.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
+  connector.sessions.herdrArgs = ['-e', 'setInterval(() => {}, 60_000)'];
   const socketServer = net.createServer();
   await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
-  t.after(() => {
+  t.onTestFinished(() => {
     socketServer.close();
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -295,20 +324,24 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
   };
 
   // Start session with streamIndex: 7
-  await connector.handleMessage(JSON.stringify({
-    type: 'session_start',
-    streamId: 'v2-stream',
-    streamIndex: 7,
-    cols: 80,
-    rows: 24,
-  }));
+  await connector.handleMessage(
+    JSON.stringify({
+      type: 'session_start',
+      streamId: 'v2-stream',
+      streamIndex: 7,
+      cols: 80,
+      rows: 24,
+    }),
+  );
 
-  assert.equal(connector.sessions.size, 1);
-  assert.equal(connector.streamIndexToId.get(7), 'v2-stream');
+  assert.equal(connector.sessions.byStream.size, 1);
+  assert.equal(connector.sessions.streamIndexToId.get(7), 'v2-stream');
 
-  const session = connector.sessions.get('v2-stream');
+  const session = connector.sessions.byStream.get('v2-stream');
   let writtenInput = null;
-  session.pty.write = (data) => { writtenInput = data; };
+  session.pty.write = (data) => {
+    writtenInput = data;
+  };
 
   // Relay sends v2 input frame with streamIndex 7
   const inputPayload = Buffer.from('hello-v2-input', 'utf8');
@@ -324,9 +357,10 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
       if (session.pendingOutput.length > 0) {
         const payload = Buffer.concat(session.pendingOutput);
         session.pendingOutput = [];
-        const frame = typeof session.streamIndex === 'number'
-          ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
-          : packStreamFrame('output', session.id, payload);
+        const frame =
+          typeof session.streamIndex === 'number'
+            ? packStreamFrameV2(FRAME_TYPE_OUTPUT, session.streamIndex, payload)
+            : packStreamFrame('output', session.id, payload);
         connector.ws.send(frame);
       }
       resolve();
@@ -341,15 +375,15 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
   assert.deepEqual(unpacked.payload, Buffer.from('hello-v2-output', 'utf8'));
 
   // Stop session cleans up streamIndex mapping
-  connector.stopSession('v2-stream');
-  assert.equal(connector.sessions.size, 0);
-  assert.equal(connector.streamIndexToId.has(7), false);
+  connector.sessions.stop('v2-stream');
+  assert.equal(connector.sessions.byStream.size, 0);
+  assert.equal(connector.sessions.streamIndexToId.has(7), false);
 });
 
 test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-keepalive-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -358,15 +392,23 @@ test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {
   let pingCount = 0;
   connector.ws = {
     readyState: WebSocket.OPEN,
-    send(payload) { sent.push(JSON.parse(payload)); },
-    ping() { pingCount += 1; },
+    send(payload) {
+      sent.push(JSON.parse(payload));
+    },
+    ping() {
+      pingCount += 1;
+    },
     close() {},
     terminate() {},
   };
 
   connector.handleMessage(JSON.stringify({ type: 'host_ready', clientCount: 0 }));
   assert.ok(connector.keepaliveTimer, 'keepaliveTimer should be active');
-  assert.equal(connector.heartbeatTimer, null, 'heartbeatTimer should be null when clientCount is 0');
+  assert.equal(
+    connector.heartbeatTimer,
+    null,
+    'heartbeatTimer should be null when clientCount is 0',
+  );
 
   // Trigger keepalive tick
   connector.tickKeepalive();
@@ -383,13 +425,17 @@ test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {
   connector.ws.isAlive = true;
   connector.tickKeepalive();
   assert.equal(pingCount, 2, 'ping should be sent on keepalive tick');
-  assert.equal(sent.length, sentCountBefore, 'no duplicate heartbeat from keepalive tick when active');
+  assert.equal(
+    sent.length,
+    sentCountBefore,
+    'no duplicate heartbeat from keepalive tick when active',
+  );
 });
 
 test('keepalive timer lifecycle: start, stop, close, and replacement isolation', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-timer-lifecycle-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -432,7 +478,7 @@ test('keepalive timer lifecycle: start, stop, close, and replacement isolation',
 test('watchdog terminates socket and schedules reconnect when pong is missed', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-watchdog-'));
   const connector = makeConnector(path.join(directory, 'connector.lock'));
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -505,7 +551,7 @@ function herdrLessConnector(t, overrides = {}) {
     herdrArgs: ['--session', 'work'],
     ...overrides,
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -515,12 +561,14 @@ function herdrLessConnector(t, overrides = {}) {
 test('a window waits for a Herdr that is not running instead of starting one itself', async (t) => {
   const { connector, started, sent } = herdrLessConnector(t);
 
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
 
   // No client was launched: a `herdr` client with no server starts a server of
   // its own, inside this service, without anyone having agreed to it.
   assert.deepEqual(started, []);
-  assert.equal(connector.waitingForHerdr.has('session-1'), true);
+  assert.equal(connector.sessions.waitingForHerdr.has('session-1'), true);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].type, 'error');
   assert.equal(sent[0].code, 'herdr_not_running');
@@ -533,56 +581,88 @@ test('a socket file with nothing behind it counts as a stopped Herdr', async (t)
   });
   const socketServer = net.createServer();
   await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
-  t.after(() => socketServer.close());
+  t.onTestFinished(() => socketServer.close());
 
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
 
   assert.deepEqual(started, []);
   assert.equal(sent.at(-1).code, 'herdr_not_running');
 });
 
-test('starting Herdr uses this workstation\'s own settings and then opens every waiting window', async (t) => {
+test("starting Herdr uses this workstation's own settings and then opens every waiting window", async (t) => {
   const calls = [];
   const { connector, started, sent } = herdrLessConnector(t, {
-    ensureHerdr: async (options) => { calls.push(options); return { started: true }; },
+    ensureHerdr: async (options) => {
+      calls.push(options);
+      return { started: true };
+    },
   });
 
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 120, rows: 40 }),
+  );
   // A window resized while it waited opens at its latest size.
-  connector.handleMessage(JSON.stringify({ type: 'resize', streamId: 'session-1', cols: 100, rows: 30 }));
+  connector.handleMessage(
+    JSON.stringify({ type: 'resize', streamId: 'session-1', cols: 100, rows: 30 }),
+  );
 
   // Whatever the message claims about hosts or sockets is not an input.
-  await connector.handleMessage(JSON.stringify({
-    type: 'herdr_start',
-    streamId: 'session-1',
-    hostId: 'somebody-else',
-    socketPath: '/home/somebody-else/.config/herdr/herdr.sock',
-  }));
+  await connector.handleMessage(
+    JSON.stringify({
+      type: 'herdr_start',
+      streamId: 'session-1',
+      hostId: 'somebody-else',
+      socketPath: '/home/somebody-else/.config/herdr/herdr.sock',
+    }),
+  );
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].socketPath, connector.socketPath);
   assert.deepEqual(calls[0].args, ['--session', 'work']);
-  assert.equal(calls[0].command, connector.herdrCommand);
+  assert.equal(calls[0].command, connector.sessions.herdrCommand);
   assert.deepEqual(
     started.map(({ cols, rows }) => ({ cols, rows })),
-    [{ cols: 100, rows: 30 }, { cols: 120, rows: 40 }],
+    [
+      { cols: 100, rows: 30 },
+      { cols: 120, rows: 40 },
+    ],
   );
-  assert.equal(connector.waitingForHerdr.size, 0);
-  assert.deepEqual(sent.filter((message) => message.type === 'session_ready').map((message) => message.clientId), ['session-1', 'session-2']);
+  assert.equal(connector.sessions.waitingForHerdr.size, 0);
+  assert.deepEqual(
+    sent.filter((message) => message.type === 'session_ready').map((message) => message.clientId),
+    ['session-1', 'session-2'],
+  );
 });
 
 test('windows asking at the same time share one Herdr start', async (t) => {
   let calls = 0;
   let release;
   const { connector, started } = herdrLessConnector(t, {
-    ensureHerdr: () => { calls += 1; return new Promise((resolve) => { release = () => resolve({ started: true }); }); },
+    ensureHerdr: () => {
+      calls += 1;
+      return new Promise((resolve) => {
+        release = () => resolve({ started: true });
+      });
+    },
   });
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 80, rows: 24 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 80, rows: 24 }),
+  );
 
-  const first = connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-1' }));
-  const second = connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-2' }));
+  const first = connector.handleMessage(
+    JSON.stringify({ type: 'herdr_start', streamId: 'session-1' }),
+  );
+  const second = connector.handleMessage(
+    JSON.stringify({ type: 'herdr_start', streamId: 'session-2' }),
+  );
   await new Promise((resolve) => setImmediate(resolve));
   release();
   await Promise.all([first, second]);
@@ -593,9 +673,13 @@ test('windows asking at the same time share one Herdr start', async (t) => {
 
 test('a Herdr that fails to start is reported to the window that asked', async (t) => {
   const { connector, started, sent } = herdrLessConnector(t, {
-    ensureHerdr: async () => { throw new Error('Herdr server exited (code 1) before opening the socket.'); },
+    ensureHerdr: async () => {
+      throw new Error('Herdr server exited (code 1) before opening the socket.');
+    },
   });
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
 
   await connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-1' }));
 
@@ -604,28 +688,35 @@ test('a Herdr that fails to start is reported to the window that asked', async (
   assert.equal(sent.at(-1).clientId, 'session-1');
   assert.match(sent.at(-1).message, /exited \(code 1\)/);
   // Still waiting: the window can ask again.
-  assert.equal(connector.waitingForHerdr.has('session-1'), true);
+  assert.equal(connector.sessions.waitingForHerdr.has('session-1'), true);
 });
 
 test('a window closed while it waited is not opened when Herdr starts', async (t) => {
   const { connector, started } = herdrLessConnector(t, {
     ensureHerdr: async () => ({ started: true }),
   });
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 80, rows: 24 }));
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-2', cols: 80, rows: 24 }),
+  );
   connector.handleMessage(JSON.stringify({ type: 'session_stop', streamId: 'session-1' }));
 
   await connector.handleMessage(JSON.stringify({ type: 'herdr_start', streamId: 'session-2' }));
 
   assert.equal(started.length, 1);
-  assert.deepEqual([...connector.sessions.keys()], ['session-2']);
+  assert.deepEqual([...connector.sessions.byStream.keys()], ['session-2']);
 });
 
 test('Herdr starts with the connector only when the user switched that on', async (t) => {
   for (const autoStart of [false, true]) {
     let calls = 0;
     const { connector } = herdrLessConnector(t, {
-      ensureHerdr: async () => { calls += 1; return { started: true }; },
+      ensureHerdr: async () => {
+        calls += 1;
+        return { started: true };
+      },
       config: {
         herdr: { args: [], cwd: process.cwd(), socketPath: null, autoStart },
         cleanup: { heartbeatIntervalMs: 10 },
@@ -645,9 +736,12 @@ function updateConnector(t, { latest = '0.3.0', installed = '0.2.16', ok = true 
     PtySession: recordingPty([]),
     runningVersion: '0.2.16',
     readInstalledVersion: () => installed,
-    checkUpdate: async () => { checks += 1; return ok ? { ok: true, latest } : { ok: false }; },
+    checkUpdate: async () => {
+      checks += 1;
+      return ok ? { ok: true, latest } : { ok: false };
+    },
   });
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -657,8 +751,10 @@ function updateConnector(t, { latest = '0.3.0', installed = '0.2.16', ok = true 
 test('opening a window tells every window whether a newer herdr-remote is out', async (t) => {
   const { connector, sent } = updateConnector(t);
 
-  await connector.handleMessage(JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }));
-  await connector.updateCheck;
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
+  await connector.updates.pending;
 
   const status = sent.find((message) => message.type === 'update_status');
   assert.deepEqual(status, {
@@ -675,7 +771,7 @@ test('opening a window tells every window whether a newer herdr-remote is out', 
 
 test('an update installed on disk but not restarted into says so', async (t) => {
   const { connector, sent } = updateConnector(t, { installed: '0.3.0' });
-  await connector.reportUpdateStatus();
+  await connector.updates.report();
   const status = sent.find((message) => message.type === 'update_status');
   assert.equal(status.updateAvailable, true);
   assert.equal(status.restartPending, true);
@@ -684,15 +780,18 @@ test('an update installed on disk but not restarted into says so', async (t) => 
 test('windows opening together ask npm once, and again a minute later', async (t) => {
   const { connector, checks } = updateConnector(t);
   const now = Date.now();
-  await connector.reportUpdateStatus({ now });
-  await connector.reportUpdateStatus({ now: now + 1_000 });
+  await connector.updates.report({ now });
+  await connector.updates.report({ now: now + 1_000 });
   assert.equal(checks(), 1);
-  await connector.reportUpdateStatus({ now: now + 61_000 });
+  await connector.updates.report({ now: now + 61_000 });
   assert.equal(checks(), 2);
 });
 
 test('a check that fails says nothing', async (t) => {
   const { connector, sent } = updateConnector(t, { ok: false });
-  await connector.reportUpdateStatus();
-  assert.equal(sent.some((message) => message.type === 'update_status'), false);
+  await connector.updates.report();
+  assert.equal(
+    sent.some((message) => message.type === 'update_status'),
+    false,
+  );
 });

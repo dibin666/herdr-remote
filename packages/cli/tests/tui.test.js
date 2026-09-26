@@ -1,62 +1,21 @@
-'use strict';
-
 // Render tests for the Ink interface.
 //
-// The TUI is TypeScript/JSX, so each run bundles it into a temporary file with
-// the same esbuild settings as the shipped build and imports that. Testing the
-// artifact rather than the sources means a build-level mistake (a bad banner, a
-// dependency that cannot resolve at runtime) fails here too.
+// vitest compiles the TypeScript/JSX sources directly.
 
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { readRuntime, setRelayPassword } from '../src/runtime.js';
+import { loadConfig } from '../src/config.js';
+import { bindAddress } from '../src/relay-urls.js';
+import { isolateState } from './helpers.js';
 
-const PACKAGE_ROOT = path.join(__dirname, '..');
-
-let bundlePromise = null;
-
-async function loadTui() {
-  if (!bundlePromise) {
-    bundlePromise = (async () => {
-      const { build } = await import('esbuild');
-      const { cjsBanner } = await import('../scripts/cjs-banner.mjs');
-      // Inside the package tree, not the system temp directory: the bundle
-      // leaves ink and react external, so Node must be able to resolve them
-      // from the importing file's location. node_modules/.cache is never
-      // published, so nothing leaks into the tarball.
-      const directory = path.join(PACKAGE_ROOT, 'node_modules', '.cache', 'herdr-remote-tui-test');
-      fs.mkdirSync(directory, { recursive: true });
-      const outfile = path.join(directory, 'tui.mjs');
-      await build({
-        entryPoints: [path.join(PACKAGE_ROOT, 'tui', 'src', 'index.tsx')],
-        outfile,
-        bundle: true,
-        format: 'esm',
-        platform: 'node',
-        target: 'node22',
-        packages: 'external',
-        jsx: 'automatic',
-        logLevel: 'silent',
-        banner: { js: cjsBanner },
-        define: { __APP_VERSION__: JSON.stringify('test') },
-      });
-      return import(pathToFileURL(outfile).href);
-    })();
-  }
-  return bundlePromise;
-}
-
-function withTemporaryHome() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-tui-home-'));
-  process.env.HERDR_REMOTE_CONFIG_DIR = path.join(directory, 'config');
-  process.env.HERDR_REMOTE_STATE_DIR = path.join(directory, 'state');
-  return () => fs.rmSync(directory, { recursive: true, force: true });
+function loadTui() {
+  return import('../src/tui/index.tsx');
 }
 
 function writeConfig(contents) {
@@ -67,10 +26,7 @@ function writeConfig(contents) {
 
 /** Mount a screen. The mouse layer degrades to keyboard-only without a provider. */
 async function mount(element) {
-  const [{ render }, React] = await Promise.all([
-    import('ink-testing-library'),
-    import('react'),
-  ]);
+  const { render } = await import('ink-testing-library');
   const instance = render(element);
   // Let the first effects (status fetch, Herdr version probe) settle.
   await new Promise((resolve) => setTimeout(resolve, 60));
@@ -78,13 +34,14 @@ async function mount(element) {
 }
 
 test('the overview renders the service picture in English', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const output = instance.lastFrame();
   assert.match(output, /Herdr Remote/);
@@ -95,13 +52,14 @@ test('the overview renders the service picture in English', async (t) => {
 });
 
 test('the interface switches to Chinese from the saved preference', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: null, needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: null, needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const output = instance.lastFrame();
   assert.match(output, /概览/);
@@ -111,38 +69,49 @@ test('the interface switches to Chinese from the saved preference', async (t) =>
 });
 
 test('an explicit language flag overrides the saved preference', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   assert.match(instance.lastFrame(), /Access mode/);
 });
 
 test('every tab is reachable and titled', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
-  for (const label of ['Overview', 'Pair a device', 'Services', 'Relay', 'Keep-alive', 'Herdr', 'Language & about']) {
+  for (const label of [
+    'Overview',
+    'Pair a device',
+    'Services',
+    'Relay',
+    'Keep-alive',
+    'Herdr',
+    'Language & about',
+  ]) {
     assert.match(instance.lastFrame(), new RegExp(label.replace(/[&]/g, '\\&')));
   }
 });
 
 test('the first-run wizard opens on the language step', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const output = instance.lastFrame();
   assert.match(output, /First-time setup/);
@@ -153,12 +122,13 @@ test('the first-run wizard opens on the language step', async (t) => {
 });
 
 test('the wizard walks language, access mode and finish', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 
@@ -177,12 +147,13 @@ test('the wizard walks language, access mode and finish', async (t) => {
 });
 
 test('choosing the self-hosted relay adds the URL and credential steps', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 
@@ -202,8 +173,7 @@ test('choosing the self-hosted relay adds the URL and credential steps', async (
 });
 
 test('the Herdr screen shows the installed version and offers no plugin registration', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   // A stand-in herdr that answers --version, old enough to draw the warning.
@@ -211,14 +181,16 @@ test('the Herdr screen shows the installed version and offers no plugin registra
   fs.writeFileSync(fake, '#!/bin/sh\necho "herdr 0.8.2"\n', { mode: 0o755 });
   const previous = process.env.HERDR_BIN_PATH;
   process.env.HERDR_BIN_PATH = fake;
-  t.after(() => {
+  t.onTestFinished(() => {
     if (previous === undefined) delete process.env.HERDR_BIN_PATH;
     else process.env.HERDR_BIN_PATH = previous;
   });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   instance.stdin.write('6'); // Herdr tab
   await new Promise((resolve) => setTimeout(resolve, 60));
@@ -233,13 +205,14 @@ test('the Herdr screen shows the installed version and offers no plugin registra
 });
 
 test('the Herdr screen switches starting Herdr with herdr-remote, off by default', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'zh', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'zh', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
   instance.stdin.write('6'); // Herdr tab
@@ -260,13 +233,17 @@ test('the Herdr screen switches starting Herdr with herdr-remote, off by default
 });
 
 test('the relay screen offers a password only for a self-hosted relay', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
-  writeConfig({ ui: { language: 'en' }, relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' } });
+  isolateState(t);
+  writeConfig({
+    ui: { language: 'en' },
+    relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
+  });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   instance.stdin.write('4'); // jump to the Relay tab
   await new Promise((resolve) => setTimeout(resolve, 40));
@@ -276,19 +253,19 @@ test('the relay screen offers a password only for a self-hosted relay', async (t
   assert.match(output, /Relay password/);
   assert.match(output, /not set \(public\)/);
   // The host token is a credential and is never rendered.
-  const { readRuntime } = require('../src/service');
   const runtime = readRuntime();
   if (runtime.hostToken) assert.equal(output.includes(runtime.hostToken), false);
 });
 
 test('a local relay needs no password, so the field is not offered', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   instance.stdin.write('4');
   await new Promise((resolve) => setTimeout(resolve, 40));
@@ -305,16 +282,16 @@ test('the relay screen commits an access-mode change to disk from its own row', 
   // restarted, but the relay kept binding loopback — every field here only
   // edits an in-memory draft, and the sole way to commit one was an
   // undocumented `s`, so the restart read the untouched file.
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
-  const { bindAddress, loadConfig } = require('../src/config');
 
   instance.stdin.write('4'); // Relay tab
   await settle();
@@ -347,13 +324,14 @@ test('the relay screen commits an access-mode change to disk from its own row', 
 });
 
 test('the services screen refuses to restart onto a stale configuration', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -374,12 +352,13 @@ test('the services screen refuses to restart onto a stale configuration', async 
 // The official relay answers the "which relay" question by itself, so setup
 // must not go on to ask for a URL: picking it lands straight on the last step.
 test('the official relay is offered during setup and needs no further answers', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: true }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: true }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 
@@ -413,13 +392,14 @@ test('the official relay is offered during setup and needs no further answers', 
 // beginning of the render, the second committed the stale copy back over the
 // first: the URL landed but the access mode silently stayed put.
 test('choosing the official relay sets both the mode and the URL', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -437,7 +417,6 @@ test('choosing the official relay sets both the mode and the URL', async (t) => 
   instance.stdin.write('s'); // save
   await settle();
 
-  const { loadConfig } = require('../src/config');
   const saved = loadConfig();
   assert.equal(saved.relay.mode, 'remote', 'the access mode must survive the second field write');
   assert.equal(saved.relay.remoteUrl, 'wss://herdr-remote.564616.xyz');
@@ -448,16 +427,17 @@ test('choosing the official relay sets both the mode and the URL', async (t) => 
 // "Self-hosted relay", the URL sat in an editable box, and a password field
 // invited a credential the official relay does not take.
 test('the official relay is shown as itself, with a fixed address and no password', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://herdr-remote.564616.xyz' },
   });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -467,22 +447,27 @@ test('the official relay is shown as itself, with a fixed address and no passwor
   const frame = instance.lastFrame();
   assert.match(frame, /Official relay/, 'the mode names the relay that is actually in use');
   assert.doesNotMatch(frame, /Self-hosted relay/);
-  assert.match(frame, /wss:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/, 'the address is stated, not offered for editing');
+  assert.match(
+    frame,
+    /wss:\/\/herdr-remote\.564616\.xyz\s+\(fixed\)/,
+    'the address is stated, not offered for editing',
+  );
   assert.doesNotMatch(frame, /Relay password/, 'the official relay takes no password');
   assert.match(frame, /no password is needed/);
 });
 
 test('switching from the official relay to a self-hosted one clears the address', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://herdr-remote.564616.xyz' },
   });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -508,20 +493,20 @@ test('switching from the official relay to a self-hosted one clears the address'
 // official one, which takes none, used to leave the old self-hosted password in
 // the runtime file — where the next connection would have sent it.
 test('choosing the official relay drops the password typed for a self-hosted one', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
   });
 
-  const { setRelayPassword, readRuntime } = require('../src/service');
   setRelayPassword('self-hosted-secret');
   assert.equal(readRuntime().relayPassword, 'self-hosted-secret');
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -544,8 +529,7 @@ test('choosing the official relay drops the password typed for a self-hosted one
 });
 
 test('opening the TUI checks for a newer release and says so where it opens', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   let checks = 0;
@@ -562,8 +546,10 @@ test('opening the TUI checks for a newer release and says so where it opens', as
     };
   };
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'zh', needsWizard: false, updateChecker }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'zh', needsWizard: false, updateChecker }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   assert.equal(checks, 1);
   assert.match(instance.lastFrame(), /herdr-remote 0\.3\.0 已发布（当前 0\.2\.16）/);
@@ -572,18 +558,27 @@ test('opening the TUI checks for a newer release and says so where it opens', as
   instance.stdin.write('7');
   await new Promise((resolve) => setTimeout(resolve, 60));
   assert.match(instance.lastFrame(), /新版本 0\.3\.0 可用（按 Enter 安装）/);
-  assert.match(instance.lastFrame(), /registry\.npmmirror\.com 0\.2\.16 仍是旧版本，将从 registry\.npmjs\.org 安装/);
+  assert.match(
+    instance.lastFrame(),
+    /registry\.npmmirror\.com 0\.2\.16 仍是旧版本，将从 registry\.npmjs\.org 安装/,
+  );
 });
 
 test('a TUI that is up to date says nothing about updates', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.after(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
-  const updateChecker = async () => ({ ok: true, current: '0.3.0', latest: '0.3.0', updateAvailable: false });
+  const updateChecker = async () => ({
+    ok: true,
+    current: '0.3.0',
+    latest: '0.3.0',
+    updateAvailable: false,
+  });
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(React.createElement(App, { initialLanguage: 'en', needsWizard: false, updateChecker }));
-  t.after(() => instance.unmount());
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: 'en', needsWizard: false, updateChecker }),
+  );
+  t.onTestFinished(() => instance.unmount());
 
   assert.doesNotMatch(instance.lastFrame(), /is out \(running/);
 });

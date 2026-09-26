@@ -13,10 +13,11 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58,
-                 U+E000-E00A, U+E0A0-E0A3, U+E0B0-E0D7, U+E200-E2A9, U+E300-E3E3,
-                 U+E5FA-E6B8, U+E700-E8EF, U+EA60-EC1E, U+ED00-EFCE, U+F000-F533,
-                 U+F0001-F1AF0;
+  unicode-range:
+    U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58,
+    U+E000-E00A, U+E0A0-E0A3, U+E0B0-E0D7, U+E200-E2A9, U+E300-E3E3,
+    U+E5FA-E6B8, U+E700-E8EF, U+EA60-EC1E, U+ED00-EFCE, U+F000-F533,
+    U+F0001-F1AF0;
 }
 /*
  * Herdr's own theme, as CSS variables.
@@ -54,7 +55,8 @@
      character lands on a face whose advance is a whole number of Latin cells.
      Reaching a proportional CJK face instead is what made mixed lines look
      like two type sizes. */
-  --tui-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  --tui-font:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', 'Symbols Nerd Font Mono', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC',
     'Noto Sans Mono CJK TC', 'Microsoft YaHei Mono', 'PingFang SC', monospace;
 }
@@ -69,7 +71,8 @@ html.dark {
    viewport units where supported, and finally the visualViewport-driven
    variable — the only one that shrinks for the iOS soft keyboard, which is what
    keeps the key toolbar above it instead of behind it. */
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -177,8 +180,14 @@ fieldset.tui-panel {
 }
 
 @keyframes tui-caret-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict';
 
 // Standalone entry point for the Herdr Remote relay.
 //
@@ -7,10 +6,10 @@
 // and run on its own host (`npm i -g herdr-remote-relay`) with nothing but
 // environment variables for configuration.
 
-const fs = require('node:fs');
-const path = require('node:path');
-const { loadRelayConfig, PACKAGE_ROOT } = require('../src/relay-config');
-const { RelayServer, VERSION, PROTOCOL_VERSION } = require('../src/relay-server');
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadRelayConfig, PACKAGE_ROOT } from '../dist/relay-config.js';
+import { RelayServer, VERSION, PROTOCOL_VERSION } from '../dist/relay-server.js';
 
 const USAGE = `herdr-remote-relay ${VERSION} — standalone relay for Herdr Remote
 
@@ -73,11 +72,12 @@ async function main(argv = process.argv.slice(2)) {
   try {
     address = await server.listen(config.relay.port, config.relay.host);
   } catch (error) {
-    const hint = error.code === 'EADDRINUSE'
-      ? ` (port ${config.relay.port} is already in use)`
-      : error.code === 'EACCES'
-        ? ` (no permission to bind port ${config.relay.port})`
-        : '';
+    const hint =
+      error.code === 'EADDRINUSE'
+        ? ` (port ${config.relay.port} is already in use)`
+        : error.code === 'EACCES'
+          ? ` (no permission to bind port ${config.relay.port})`
+          : '';
     process.stderr.write(`herdr-remote-relay: failed to listen${hint}: ${error.message}\n`);
     process.exitCode = 1;
     return;
@@ -86,8 +86,12 @@ async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`herdr-remote-relay ${VERSION} (protocol ${PROTOCOL_VERSION})\n`);
   process.stdout.write(`  listening   http://${config.relay.host}:${address.port}\n`);
   process.stdout.write(`  public url  ${config.relay.publicUrl}\n`);
-  process.stdout.write(`  password    ${config.auth.password ? 'set' : 'not set (public relay)'}\n`);
-  process.stdout.write(`  admin       ${config.auth.adminToken ? 'set (/admin)' : 'not configured'}\n`);
+  process.stdout.write(
+    `  password    ${config.auth.password ? 'set' : 'not set (public relay)'}\n`,
+  );
+  process.stdout.write(
+    `  admin       ${config.auth.adminToken ? 'set (/admin)' : 'not configured'}\n`,
+  );
   process.stdout.write(`  state file  ${server.stateFile}\n`);
   if (configFile) process.stdout.write(`  config file ${configFile}\n`);
   if (!webUiBuilt()) {
@@ -106,11 +110,7 @@ async function main(argv = process.argv.slice(2)) {
   process.on('SIGTERM', () => stop('SIGTERM'));
 }
 
-if (require.main === module) {
-  main().catch((error) => {
-    process.stderr.write(`herdr-remote-relay: ${error.stack || error.message}\n`);
-    process.exitCode = 1;
-  });
-}
-
-module.exports = { main, USAGE };
+main().catch((error) => {
+  process.stderr.write(`herdr-remote-relay: ${error.stack || error.message}\n`);
+  process.exitCode = 1;
+});

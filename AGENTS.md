@@ -1,0 +1,63 @@
+# AGENTS.md
+
+Herdr Remote：在浏览器（含手机）里操作 Herdr 工作区。npm workspaces 单仓，Node ≥ 22。
+
+## 结构与数据流
+
+```
+Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay ──WS /ws/client── 浏览器 (web)
+```
+
+| 目录 | 包 | 职责 |
+|---|---|---|
+| `packages/cli` | `herdr-remote`（npm） | `src/cli.ts` 命令行；`src/connector/` host connector（relay 连接、PTY 会话、字体、agent 状态）；`src/tui/` Ink 配置界面；`src/` 其余是服务层；`herdr-plugin.toml` 插件清单 |
+| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`src/server/` 按职责拆开的服务端模块，都接收 `RelayContext`，`relay-server.ts` 只负责组装 |
+| `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布；`src/features/<功能>/` 放该功能的组件、hook 和逻辑；`src/shared/` 放与功能无关的 UI 原语、i18n、按键编码和工具；`src/context/` 是全局状态；`src/connection/` 是到 relay 的连接；`src/app/` 是外壳 |
+
+cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编译到 `dist/`。`bin/` 只是启动器，运行时加载的都是 `dist/`。
+
+协议细节见 `docs/protocol.md`。
+
+## 命令（仓库根目录）
+
+- `npm ci`：安装（node-pty 需要编译工具链）
+- `npm run build`：构建全部产物。本地运行 cli 或 relay 之前要先构建；`npm test` 会自动构建
+- `npm run check`：Biome（格式、lint、import 边界）+ 类型检查 + knip（未使用的文件、导出和依赖），提交前必跑
+- `npm test`：用 vitest 跑三个包的全部测试
+  - 跑单个文件：`npx vitest run packages/relay/tests/x.test.js`
+- `npm run format`：自动格式化，并应用可自动修复的 lint
+- `npm run dev -w herdr-remote-web`：前端开发服务器，代理到 127.0.0.1:8787 的 relay
+
+## 不变量
+
+- 线协议（消息类型、常量、校验）只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`），不能引用 `frames`。
+- Herdr socket 路径和 host token 只存在于 host connector，绝不能发给浏览器。
+- 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli；web 的 `shared/` 不依赖 `features/`、`context/`、`app/`、`connection/`。这些由 `biome.json` 的 `noRestrictedImports` 检查。
+- push master 会自动发布 npm 和镜像，所以只通过 PR 合并。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。
+- `node bin/herdr-remote.js` 及其子命令是插件的对外接口，不能改名。
+- 新增文案要同时加 en 和 zh（cli 在 `src/i18n/`，web 在 `src/shared/i18n/`）；README 和 docs 的中英文版本要一起改。web 的文案结构以 `en.ts` 为准，`t()` 的 key 由编译器检查；动态拼出的 key 只有在查不到时另有回退的地方才能 `as TranslationKey`。
+- `dist/` 是构建产物，不提交。
+- `vendor/` 目录里是原样引入的第三方代码（文件头写明来源和版本），不改写、不拆分，升级时整体替换。
+
+## 写代码
+
+- 格式和 lint 以 Biome 为准；写 `biome-ignore` 时必须注明原因。
+- 源文件上限 500 行，Biome 会检查（测试、i18n 文案、`vendor/` 除外）。超了就按职责拆开，不要加豁免。
+- 不新建 `utils` 之类的杂物文件，代码放进它所属的功能目录。
+- web 的 import：同一目录及其子目录用 `./`，其余一律用 `@/`，不写 `../`。
+- 写 helper 前先搜有没有现成的实现；只用一次的逻辑不要抽成函数。
+- 常量名带单位后缀（`_MS`、`_BYTES`），数字字面量写成 `30_000` 这种形式。
+- 不写空的 `catch`；确实要忽略错误时，注释说明原因。
+- 注释只写"为什么"，保持简短；不复述代码，也不写修改历史。
+
+## 测试
+
+- 修 bug 时，先加一个修复前会失败的测试。
+- 三个包都用 vitest。cli、relay 的测试放在各包的 `tests/`，断言用 `node:assert/strict`，清理逻辑写在 `t.onTestFinished` 里；用依赖注入和 `HERDR_REMOTE_CONFIG_DIR`、`HERDR_REMOTE_STATE_DIR` 做隔离，不要碰真实的 home 目录。公用的 helper 在各包的 `tests/helpers.js`（cli 的 `isolateState`、`tempDir`，relay 的 WebSocket 和 HTTP 客户端），不要再在测试文件里另写一份。
+- web：用 Testing Library，测试文件 `*.test.ts(x)` 和被测代码放在同一目录；`src/test/` 只放 setup、helpers 和 fixtures。`src/test/setup.ts` 全局 mock 了 WebSocket、xterm 和 canvas 渲染器。`fixtures/screens/*.json` 由 `scripts/capture-herdr-screens.mjs` 生成，不要手改。
+
+## 提交与 PR
+
+- 提交信息用英文祈使句，首字母大写，描述用户能看到的结果，不加前缀和句号；正文写原因。
+- 一个 PR 只做一件事，控制在 800 行以内；重构和行为改动分开提交。
+- 用 merge commit 合并 PR（不要 squash），这样 `.git-blame-ignore-revs` 里记录的提交才能在 master 上保留。

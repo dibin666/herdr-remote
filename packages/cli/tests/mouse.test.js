@@ -1,43 +1,12 @@
-'use strict';
+// The mouse layer is TypeScript; vitest compiles it directly.
 
-// The mouse layer is bundled TypeScript, so these tests exercise it through a
-// build the same way the render tests do.
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
-
-const PACKAGE_ROOT = path.join(__dirname, '..');
 const ESC = String.fromCharCode(27);
 
-let modulePromise = null;
-
-async function loadMouse() {
-  if (!modulePromise) {
-    modulePromise = (async () => {
-      const { build } = await import('esbuild');
-      const { cjsBanner } = await import('../scripts/cjs-banner.mjs');
-      const directory = path.join(PACKAGE_ROOT, 'node_modules', '.cache', 'herdr-remote-mouse-test');
-      fs.mkdirSync(directory, { recursive: true });
-      const outfile = path.join(directory, 'mouse.mjs');
-      await build({
-        entryPoints: [path.join(PACKAGE_ROOT, 'tui', 'src', 'mouse', 'index.tsx')],
-        outfile,
-        bundle: true,
-        format: 'esm',
-        platform: 'node',
-        target: 'node22',
-        packages: 'external',
-        jsx: 'automatic',
-        logLevel: 'silent',
-        banner: { js: cjsBanner },
-      });
-      return import(pathToFileURL(outfile).href);
-    })();
-  }
-  return modulePromise;
+function loadMouse() {
+  return import('../src/tui/mouse/index.tsx');
 }
 
 test('SGR press, release and motion reports are decoded', async () => {
@@ -46,7 +15,12 @@ test('SGR press, release and motion reports are decoded', async () => {
   const press = splitMouseInput(`${ESC}[<0;12;5M`);
   assert.equal(press.events.length, 1);
   assert.deepEqual(
-    { type: press.events[0].type, button: press.events[0].button, x: press.events[0].x, y: press.events[0].y },
+    {
+      type: press.events[0].type,
+      button: press.events[0].button,
+      x: press.events[0].x,
+      y: press.events[0].y,
+    },
     { type: 'press', button: 'left', x: 12, y: 5 },
   );
 
@@ -62,7 +36,10 @@ test('SGR press, release and motion reports are decoded', async () => {
   const wheel = splitMouseInput(`${ESC}[<64;1;1M`);
   assert.equal(wheel.events[0].type, 'wheel');
   assert.equal(wheel.events[0].button, 'wheel-up');
-  assert.equal((await loadMouse()).splitMouseInput(`${ESC}[<65;1;1M`).events[0].button, 'wheel-down');
+  assert.equal(
+    (await loadMouse()).splitMouseInput(`${ESC}[<65;1;1M`).events[0].button,
+    'wheel-down',
+  );
 });
 
 test('modifier bits are reported', async () => {

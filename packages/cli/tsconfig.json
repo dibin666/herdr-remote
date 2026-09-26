@@ -1,20 +1,9 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "allowJs": true,
-    "checkJs": false,
-    "types": ["node"]
+    "rootDir": "src",
+    "outDir": "dist",
+    "jsx": "react-jsx"
   },
-  "include": ["tui/src/**/*.ts", "tui/src/**/*.tsx"]
+  "include": ["src"]
 }

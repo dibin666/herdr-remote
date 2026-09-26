@@ -1,5 +1,3 @@
-'use strict';
-
 // The whole point of splitting the relay into its own package is that it can be
 // deployed on a server that has none of the workstation-side code: no plugin,
 // no Herdr, and above all no node-pty, whose native build is the reason the old
@@ -9,20 +7,25 @@
 // Relay test files are held to the same boundary as production code so that
 // test runs never require native compilation tools.
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { test } from 'vitest';
+import manifest from '../package.json';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
-const manifest = require('../package.json');
+
+/** Matches a static import, a dynamic import or a require of `specifier`. */
+const importOf = (specifier) =>
+  new RegExp(`(?:\\brequire\\(|\\bimport\\(|\\bfrom\\s+)['"]${specifier}['"]`);
 
 function sourceFiles(directory) {
   const entries = fs.readdirSync(directory, { withFileTypes: true });
   return entries.flatMap((entry) => {
     const full = path.join(directory, entry.name);
     if (entry.isDirectory()) return sourceFiles(full);
-    return entry.isFile() && full.endsWith('.js') ? [full] : [];
+    return entry.isFile() && /\.(?:[cm]?js|tsx?)$/.test(full) ? [full] : [];
   });
 }
 
@@ -44,13 +47,18 @@ test('the relay depends on nothing but ws', () => {
 });
 
 test('no relay source imports the workstation package', () => {
-  const forbidden = [/require\(['"]herdr-remote['"]/, /require\(['"][^'"]*packages\/cli/, /require\(['"]node-pty['"]/];
+  const forbidden = [
+    importOf('herdr-remote'),
+    importOf(`[^'"]*packages/cli[^'"]*`),
+    importOf('node-pty'),
+  ];
   const offenders = [];
 
   for (const file of scannedFiles()) {
     const contents = fs.readFileSync(file, 'utf8');
     for (const pattern of forbidden) {
-      if (pattern.test(contents)) offenders.push(`${path.relative(PACKAGE_ROOT, file)} matches ${pattern}`);
+      if (pattern.test(contents))
+        offenders.push(`${path.relative(PACKAGE_ROOT, file)} matches ${pattern}`);
     }
   }
 
@@ -58,14 +66,15 @@ test('no relay source imports the workstation package', () => {
 });
 
 test('no relay source reaches outside the package', () => {
-  // A require that climbs above the package root would resolve during local
+  // An import that climbs above the package root would resolve during local
   // development and break in the published tarball.
+  const relative = importOf(`(\\.\\.?/[^'"]+)`);
   const offenders = [];
   for (const file of scannedFiles()) {
     const contents = fs.readFileSync(file, 'utf8');
-    const matches = contents.match(/require\(['"](\.\.?\/[^'"]+)['"]\)/g) || [];
+    const matches = contents.match(new RegExp(relative.source, 'g')) || [];
     for (const match of matches) {
-      const specifier = /require\(['"](.+)['"]\)/.exec(match)[1];
+      const specifier = relative.exec(match)[1];
       const resolved = path.resolve(path.dirname(file), specifier);
       if (!resolved.startsWith(PACKAGE_ROOT + path.sep)) {
         offenders.push(`${path.relative(PACKAGE_ROOT, file)} -> ${specifier}`);
@@ -76,30 +85,46 @@ test('no relay source reaches outside the package', () => {
 });
 
 test('the relay loads and serves without any workstation module present', () => {
-  // Requiring the entry points is the cheapest proof that the dependency graph
-  // really is self-contained.
-  const { RelayServer } = require('../src/relay-server');
-  const { loadRelayConfig } = require('../src/relay-config');
-  assert.equal(typeof RelayServer, 'function');
-  assert.equal(typeof loadRelayConfig, 'function');
-  assert.equal(require.cache[require.resolve('../src/relay-server')] !== undefined, true);
-
-  const loadedNodePty = Object.keys(require.cache).some((key) => key.includes(`${path.sep}node-pty${path.sep}`));
-  assert.equal(loadedNodePty, false, 'the relay must not pull in node-pty');
+  // Loading the published entry points is the cheapest proof that the
+  // dependency graph really is self-contained. A fresh process, so nothing
+  // this test runner loaded counts; `pretest` builds dist/.
+  const probe = `
+    import { createRequire } from 'node:module';
+    const { RelayServer } = await import('./dist/relay-server.js');
+    const { loadRelayConfig } = await import('./dist/relay-config.js');
+    const loaded = Object.keys(createRequire(import.meta.url).cache);
+    console.log(JSON.stringify({
+      server: typeof RelayServer,
+      config: typeof loadRelayConfig,
+      nodePty: loaded.some((key) => key.includes('/node-pty/')),
+    }));
+  `;
+  const output = execFileSync(process.execPath, ['--input-type=module', '-e', probe], {
+    cwd: PACKAGE_ROOT,
+    encoding: 'utf8',
+  });
+  const result = JSON.parse(output);
+  assert.equal(result.server, 'function');
+  assert.equal(result.config, 'function');
+  assert.equal(result.nodePty, false, 'the relay must not pull in node-pty');
 });
 
-test('the published file list carries the built web UI and nothing extra', () => {
+test('the published file list carries the built server and web UI and nothing extra', () => {
+  assert.ok(manifest.files.includes('dist'));
   assert.ok(manifest.files.includes('web/dist'));
+  assert.equal(manifest.files.includes('src'), false);
   assert.equal(manifest.files.includes('web/src'), false);
-  assert.equal(manifest.exports['./protocol'], './src/stream-frame.js');
+  assert.equal(manifest.exports['./protocol'].default, './dist/protocol/index.js');
 });
 
-// Listing `web/dist` is not the same as shipping it. `web/dist` is gitignored,
-// so on a clean checkout it does not exist, and npm drops a listed path that is
-// missing rather than failing — which is how the relay was published with no
-// web UI at all. `prepack` is what makes the directory exist before npm reads
-// the file list.
-test('the tarball is built before it is packed, so web/dist is not silently dropped', () => {
+// Listing `dist` and `web/dist` is not the same as shipping them. Both are
+// gitignored, so on a clean checkout they do not exist, and npm drops a listed
+// path that is missing rather than failing — which is how the relay was once
+// published with no web UI at all. `prepack` is what makes both directories
+// exist before npm reads the file list.
+test('the tarball is built before it is packed, so dist and web/dist are not silently dropped', () => {
   assert.equal(manifest.scripts.prepack, 'npm run build');
-  assert.equal(manifest.scripts.build, 'npm --prefix web run build');
+  assert.match(manifest.scripts.build, /npm run build:server/);
+  assert.match(manifest.scripts.build, /npm --prefix web run build/);
+  assert.match(manifest.scripts['build:server'], /tsc -p tsconfig\.json/);
 });

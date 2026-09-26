@@ -18,19 +18,12 @@
  *   node scripts/capture-herdr-screens.mjs [--layout desktop|mobile|both]
  *        [--only name,name] [--explore]
  */
-import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { cleanupSession, Probe, probeSessionExists, sleep } from './lib/herdr-probe.mjs';
 
-const require = createRequire(import.meta.url);
-const pty = require('node-pty');
-const { Terminal } = require('@xterm/headless');
-const { Unicode11Addon } = require('@xterm/addon-unicode11');
-
-const SESSION = 'hr-probe';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(REPO, 'packages/relay/web/src/test/fixtures/screens');
 const LAYOUTS = { desktop: [120, 40], mobile: [48, 30] };
@@ -48,201 +41,6 @@ const option = (name, fallback) => {
   return index >= 0 && argv[index + 1] ? argv[index + 1] : fallback;
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * This script is normally launched from inside a Herdr pane running Claude
- * Code. Both leave markers in the environment that would make the probe
- * attach to the wrong server or refuse to start a nested agent.
- */
-function childEnv() {
-  const env = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith('HERDR_') || key.startsWith('CLAUDE_') || key === 'CLAUDECODE') continue;
-    env[key] = value;
-  }
-  return { ...env, TERM: 'xterm-256color', COLORTERM: 'truecolor', SHELL: '/usr/bin/fish' };
-}
-
-function herdrCli(args) {
-  try {
-    return execFileSync('herdr', args, { env: childEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (error) {
-    return String(error.stdout || '') + String(error.stderr || '');
-  }
-}
-
-function probeSessionExists() {
-  try {
-    return (JSON.parse(herdrCli(['session', 'list', '--json'])).sessions || []).some((s) => s.name === SESSION);
-  } catch {
-    return false;
-  }
-}
-
-function cleanupSession() {
-  herdrCli(['session', 'stop', SESSION]);
-  herdrCli(['session', 'delete', SESSION]);
-}
-
-const herdrVersion = herdrCli(['--version']).trim();
-
-class Probe {
-  constructor(cols, rows, cwd, layout) {
-    this.cols = cols;
-    this.rows = rows;
-    this.cwd = cwd;
-    this.layout = layout;
-    this.seqs = { begins: 0, ends: 0, open: false, keyboard: new Set() };
-    this.lastOutputAt = Date.now();
-  }
-
-  start() {
-    const term = new Terminal({ cols: this.cols, rows: this.rows, scrollback: 5000, convertEol: true, allowProposedApi: true });
-    term.loadAddon(new Unicode11Addon());
-    term.unicode.activeVersion = '11';
-    this.term = term;
-
-    const seqs = this.seqs;
-    const flat = (params) => params.flatMap((p) => (Array.isArray(p) ? p : [p]));
-    const onMode = (set) => (params) => {
-      if (flat(params).includes(2026)) {
-        if (set) seqs.begins++;
-        else seqs.ends++;
-        seqs.open = set;
-      }
-      return false;
-    };
-    term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, onMode(true));
-    term.parser.registerCsiHandler({ prefix: '?', final: 'l' }, onMode(false));
-    for (const prefix of ['>', '<', '=']) {
-      term.parser.registerCsiHandler({ prefix, final: 'u' }, (params) => {
-        seqs.keyboard.add(`${prefix}${flat(params).join(';')}u`);
-        return false;
-      });
-    }
-
-    this.proc = pty.spawn('herdr', ['--session', SESSION], {
-      name: 'xterm-256color',
-      cols: this.cols,
-      rows: this.rows,
-      cwd: this.cwd,
-      env: childEnv(),
-    });
-    this.proc.onData((data) => {
-      this.lastOutputAt = Date.now();
-      term.write(data);
-    });
-    // Replies (DA, CPR, OSC colour queries) must reach Herdr exactly as the
-    // browser would send them, or it waits for answers that never come.
-    term.onData((data) => this.proc.write(data));
-  }
-
-  flush() {
-    return new Promise((resolve) => this.term.write('', resolve));
-  }
-
-  async settle(quietMs = 600, maxMs = 8000) {
-    const started = Date.now();
-    await sleep(Math.min(quietMs, 100));
-    while (Date.now() - started < maxMs && Date.now() - this.lastOutputAt < quietMs) {
-      await sleep(50);
-    }
-    await this.flush();
-  }
-
-  async send(text, perCharMs = 0) {
-    if (!perCharMs) {
-      this.proc.write(text);
-      return;
-    }
-    for (const ch of text) {
-      this.proc.write(ch);
-      await sleep(perCharMs);
-    }
-  }
-
-  lines() {
-    const buffer = this.term.buffer.active;
-    return Array.from({ length: this.rows }, (_, y) => buffer.getLine(buffer.baseY + y)?.translateToString(false) ?? '');
-  }
-
-  cursor() {
-    const buffer = this.term.buffer.active;
-    return { x: buffer.cursorX, y: buffer.cursorY, hidden: Boolean(this.term._core?.coreService?.isCursorHidden) };
-  }
-
-  async waitFor(pattern, timeoutMs = 15000) {
-    const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      await this.flush();
-      if (pattern.test(this.lines().join('\n'))) return true;
-      await sleep(100);
-    }
-    return false;
-  }
-
-  /** First column of the focused pane: the cell after the nearest `│` left of the cursor. */
-  paneStart() {
-    const { x, y } = this.cursor();
-    return this.lines()[y].lastIndexOf('│', x - 1) + 1;
-  }
-
-  /** What sits between the pane's left edge and the cursor on the cursor row. */
-  beforeCursor() {
-    const { x, y } = this.cursor();
-    return [...this.lines()[y]].slice(this.paneStart(), x).join('');
-  }
-
-  snapshot(name) {
-    const buffer = this.term.buffer.active;
-    const cell = buffer.getNullCell();
-    const attrs = [];
-    const wide = [];
-    for (let y = 0; y < this.rows; y++) {
-      const line = buffer.getLine(buffer.baseY + y);
-      let run = null;
-      for (let x = 0; line && x < this.cols; x++) {
-        line.getCell(x, cell);
-        if (cell.getWidth() === 2) wide.push([y, x]);
-        const inverse = cell.isInverse() ? 1 : 0;
-        const dim = cell.isDim() ? 1 : 0;
-        const bg = cell.isBgDefault() ? null : cell.getBgColor();
-        if (!inverse && !dim && bg === null) {
-          run = null;
-          continue;
-        }
-        if (run && run.inverse === inverse && run.dim === dim && run.bg === bg && run.col + run.len === x) {
-          run.len++;
-        } else {
-          run = { row: y, col: x, len: 1, inverse, dim, bg };
-          attrs.push(run);
-        }
-      }
-    }
-    return {
-      schema: 1,
-      name,
-      source: { herdr: herdrVersion, layout: this.layout, cols: this.cols, rows: this.rows },
-      cursor: { ...this.cursor(), style: this.term.options.cursorStyle ?? 'block' },
-      lines: this.lines(),
-      wide,
-      attrs,
-      sync: { begins: this.seqs.begins, ends: this.seqs.ends, openAtSnapshot: this.seqs.open },
-      keyboard: [...this.seqs.keyboard],
-    };
-  }
-
-  stop() {
-    try {
-      this.proc?.kill();
-    } catch {
-      // already gone
-    }
-    this.term?.dispose();
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Helpers shared by the scenarios
 
@@ -259,7 +57,10 @@ async function shell(probe, command) {
 async function ensureShell(probe) {
   for (let i = 0; i < 4; i++) {
     const { y, hidden } = probe.cursor();
-    const nearby = probe.lines().slice(Math.max(0, y - 1), y + 1).join('\n');
+    const nearby = probe
+      .lines()
+      .slice(Math.max(0, y - 1), y + 1)
+      .join('\n');
     if (!hidden && /hr-probe-\w+(?: \[\d+\])?>\s*($|\n)/.test(nearby)) return true;
     await probe.send(i < 2 ? ESC : CTRL_C);
     await probe.settle(800, 4000);
@@ -269,7 +70,8 @@ async function ensureShell(probe) {
 
 async function startClaude(probe, capture) {
   await probe.send('claude\r');
-  if (!(await probe.waitFor(/trust this folder|-- INSERT --/i, 40000))) throw new Error('claude did not start');
+  if (!(await probe.waitFor(/trust this folder|-- INSERT --/i, 40000)))
+    throw new Error('claude did not start');
   await probe.settle(1500, 10000);
   if (/trust this folder/i.test(probe.lines().join('\n'))) {
     if (capture) await capture('claude-trust');
@@ -279,7 +81,8 @@ async function startClaude(probe, capture) {
       await probe.send(`${ESC}[B`);
       await probe.settle(400);
     }
-    if (!/❯\s*Yes/.test(probe.lines().join('\n'))) throw new Error('could not select the trust option');
+    if (!/❯\s*Yes/.test(probe.lines().join('\n')))
+      throw new Error('could not select the trust option');
     await probe.send('\r');
   }
   if (!(await probe.waitFor(/-- INSERT --/, 40000))) throw new Error('claude input never appeared');
@@ -461,7 +264,8 @@ const scenarios = [
       await probe.settle(2000, 15000);
       if (/Trust this folder/.test(probe.lines().join('\n'))) {
         await capture('codex-trust');
-        if (!/› 1\. Trust and continue/.test(probe.lines().join('\n'))) throw new Error('unexpected codex trust menu');
+        if (!/› 1\. Trust and continue/.test(probe.lines().join('\n')))
+          throw new Error('unexpected codex trust menu');
         await probe.send('\r');
         await probe.settle(3000, 20000);
       }
@@ -494,9 +298,12 @@ const scenarios = [
 
 function printScreen(fixture) {
   const { cursor } = fixture;
-  process.stdout.write(`\n=== ${fixture.name} cursor=${cursor.x},${cursor.y} hidden=${cursor.hidden} sync=${fixture.sync.begins}/${fixture.sync.ends}\n`);
+  process.stdout.write(
+    `\n=== ${fixture.name} cursor=${cursor.x},${cursor.y} hidden=${cursor.hidden} sync=${fixture.sync.begins}/${fixture.sync.ends}\n`,
+  );
   fixture.lines.forEach((line, y) => {
-    if (Math.abs(y - cursor.y) <= 5) process.stdout.write(`${y === cursor.y ? '>' : ' '}${String(y).padStart(2)}|${line}|\n`);
+    if (Math.abs(y - cursor.y) <= 5)
+      process.stdout.write(`${y === cursor.y ? '>' : ' '}${String(y).padStart(2)}|${line}|\n`);
   });
 }
 
@@ -506,7 +313,10 @@ async function main() {
   const layouts = layoutArg === 'both' ? ['desktop', 'mobile'] : [layoutArg];
   const only = option('only', '').split(',').filter(Boolean);
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'hr-probe-'));
-  fs.writeFileSync(path.join(workdir, 'notes.txt'), Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join('\n'));
+  fs.writeFileSync(
+    path.join(workdir, 'notes.txt'),
+    Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join('\n'),
+  );
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   try {
@@ -518,7 +328,10 @@ async function main() {
         await probe.settle(settleMs);
         const fixture = probe.snapshot(name);
         if (flag('explore')) printScreen(fixture);
-        fs.writeFileSync(path.join(OUT_DIR, `${layout}-${name}.json`), `${JSON.stringify(fixture)}\n`);
+        fs.writeFileSync(
+          path.join(OUT_DIR, `${layout}-${name}.json`),
+          `${JSON.stringify(fixture)}\n`,
+        );
       };
       try {
         await probe.settle(1500, 15000);
@@ -531,7 +344,9 @@ async function main() {
             await scenario.run({ probe, capture, layout });
           } catch (error) {
             // One broken scenario must not cost the rest of the run.
-            process.stderr.write(`[capture] ${layout}: ${scenario.name} failed: ${error.message}\n`);
+            process.stderr.write(
+              `[capture] ${layout}: ${scenario.name} failed: ${error.message}\n`,
+            );
             await quitAgent(probe);
           }
         }

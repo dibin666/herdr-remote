@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import path from 'node:path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -9,6 +9,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // The wire protocol lives in the relay package, the one definition both
+      // ends build against. Only its browser-safe modules may be imported here.
+      '@protocol': path.resolve(__dirname, '../src/protocol'),
     },
   },
   server: {
@@ -31,10 +34,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-xterm': [
-            '@xterm/xterm',
-            '@xterm/addon-unicode11',
-          ],
+          'vendor-xterm': ['@xterm/xterm', '@xterm/addon-unicode11'],
         },
       },
     },

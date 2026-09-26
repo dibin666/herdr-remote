@@ -1,29 +1,31 @@
-'use strict';
-
 // The browser cannot know what a Herdr session looks like on the workstation:
 // the PTY carries color indices, and whoever renders them decides what they
 // mean. These tests cover the path that closes that gap — asking the host's own
 // terminal, and refusing to invent an answer when there is nothing to ask.
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+import { test, vi } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-const {
+import {
   ANSI_KEYS,
+  captureTerminalPalette,
+  collectPalette,
+  rememberTerminalPalette,
+  rememberedTerminalPalette,
+  takeOscColorReply,
   parseXColor,
   parseOscColorReply,
   paletteFromEnvironment,
   probeTerminalPalette,
   resolveHostPalette,
-} = require('../src/terminal-palette');
+} from '../src/terminal-palette.js';
 
-const FULL_ANSI = Object.fromEntries(ANSI_KEYS.map((key, index) => [
-  key,
-  `#${index.toString(16).repeat(6)}`,
-]));
+const FULL_ANSI = Object.fromEntries(
+  ANSI_KEYS.map((key, index) => [key, `#${index.toString(16).repeat(6)}`]),
+);
 
 test('X11 color replies become plain hex, at any channel width', () => {
   assert.equal(parseXColor('rgb:2222/2222/2626'), '#222226');
@@ -62,7 +64,13 @@ test('a palette captured by a parent process is inherited, not re-probed', () =>
   assert.deepEqual(Object.keys(inherited.ansi), ANSI_KEYS);
 
   let probed = false;
-  const resolved = resolveHostPalette({ env, probe: () => { probed = true; return null; } });
+  const resolved = resolveHostPalette({
+    env,
+    probe: () => {
+      probed = true;
+      return null;
+    },
+  });
   assert.equal(resolved.background, '#222226');
   assert.equal(probed, false, 'an inherited palette must not trigger a terminal probe');
 });
@@ -101,7 +109,7 @@ test('a silent terminal ends the probe quickly instead of stalling the start', (
  * legitimate source, so a test that says "no palette" has to run somewhere the
  * developer's own remembered palette cannot leak in.
  */
-function planHostSpec(paletteJson) {
+async function planHostSpec(paletteJson) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-palette-spec-'));
   const previous = {
     palette: process.env.HERDR_TERM_PALETTE_JSON,
@@ -113,11 +121,12 @@ function planHostSpec(paletteJson) {
   if (paletteJson === null) delete process.env.HERDR_TERM_PALETTE_JSON;
   else process.env.HERDR_TERM_PALETTE_JSON = paletteJson;
   // Required: the module caches the first palette it resolves.
-  delete require.cache[require.resolve('../src/service')];
+  vi.resetModules();
   try {
-    const { serviceSpecs } = require('../src/service');
+    const { serviceSpecs } = await import('../src/service.js');
+    const { DEFAULTS } = await import('../src/config.js');
     const state = { hostId: 'host-test', hostToken: 'a'.repeat(32) };
-    const config = JSON.parse(JSON.stringify(require('../src/config').DEFAULTS));
+    const config = JSON.parse(JSON.stringify(DEFAULTS));
     return serviceSpecs(config, state).find((spec) => spec.name === 'host');
   } finally {
     for (const [key, value] of [
@@ -128,29 +137,28 @@ function planHostSpec(paletteJson) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    delete require.cache[require.resolve('../src/service')];
     fs.rmSync(directory, { recursive: true, force: true });
   }
 }
 
-test('a start hands the captured palette to the host connector', () => {
+test('a start hands the captured palette to the host connector', async () => {
   // `serviceSpecs` runs where a terminal may still be attached; the connector
   // itself is usually detached and has nothing to ask.
-  const host = planHostSpec(JSON.stringify({ background: '#222226', ansi: FULL_ANSI }));
+  const host = await planHostSpec(JSON.stringify({ background: '#222226', ansi: FULL_ANSI }));
 
   const forwarded = JSON.parse(host.env.HERDR_TERM_PALETTE_JSON);
   assert.equal(forwarded.background, '#222226');
   assert.deepEqual(Object.keys(forwarded.ansi), ANSI_KEYS);
 });
 
-test('a start with no palette adds no palette variable at all', () => {
+test('a start with no palette adds no palette variable at all', async () => {
   // No terminal in a test runner and no remembered palette in a fresh state
   // directory, so nothing may be claimed about the host's colors.
-  const host = planHostSpec(null);
+  const host = await planHostSpec(null);
   assert.equal(host.env.HERDR_TERM_PALETTE_JSON, undefined);
 });
 
-test('a start with no terminal reuses the palette an earlier start remembered', () => {
+test('a start with no terminal reuses the palette an earlier start remembered', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-palette-state-'));
   const previous = {
     palette: process.env.HERDR_TERM_PALETTE_JSON,
@@ -160,10 +168,10 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
   delete process.env.HERDR_TERM_PALETTE_JSON;
   process.env.HERDR_REMOTE_CONFIG_DIR = path.join(directory, 'config');
   process.env.HERDR_REMOTE_STATE_DIR = path.join(directory, 'state');
-  delete require.cache[require.resolve('../src/service')];
+  vi.resetModules();
   try {
-    const { runtimeStatePath } = require('../src/config');
-    const { ensureDir, writeJsonAtomic, readJson } = require('../src/state');
+    const { runtimeStatePath } = await import('../src/paths.js');
+    const { ensureDir, writeJsonAtomic, readJson } = await import('herdr-remote-relay/state');
     ensureDir(path.join(directory, 'state'));
     writeJsonAtomic(runtimeStatePath(), {
       ...readJson(runtimeStatePath(), {}),
@@ -172,7 +180,7 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
 
     // A service manager start has no terminal to ask, but the workstation has
     // not changed color since the start that did.
-    const { hostTerminalPalette } = require('../src/service');
+    const { hostTerminalPalette } = await import('../src/terminal-palette.js');
     assert.equal(hostTerminalPalette().background, '#222226');
   } finally {
     for (const [key, value] of [
@@ -183,13 +191,11 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    delete require.cache[require.resolve('../src/service')];
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
 test('the entry point captures once, before the TUI owns the screen', () => {
-  const { captureTerminalPalette } = require('../src/terminal-palette');
   const probed = { background: '#222226', ansi: FULL_ANSI };
 
   // An answer already in the environment is reused; no second probe.
@@ -197,7 +203,10 @@ test('the entry point captures once, before the TUI owns the screen', () => {
   const inheritedEnv = { HERDR_TERM_PALETTE_JSON: JSON.stringify(probed) };
   const inherited = captureTerminalPalette({
     env: inheritedEnv,
-    probe: () => { probes += 1; return probed; },
+    probe: () => {
+      probes += 1;
+      return probed;
+    },
   });
   assert.equal(inherited.background, '#222226');
   assert.equal(probes, 0);
@@ -228,13 +237,7 @@ test('a palette captured at the entry point survives a start handed to a service
   delete process.env.HERDR_TERM_PALETTE_JSON;
   process.env.HERDR_REMOTE_CONFIG_DIR = path.join(directory, 'config');
   process.env.HERDR_REMOTE_STATE_DIR = path.join(directory, 'state');
-  delete require.cache[require.resolve('../src/terminal-palette')];
   try {
-    const {
-      rememberTerminalPalette,
-      rememberedTerminalPalette,
-    } = require('../src/terminal-palette');
-
     assert.equal(rememberedTerminalPalette(), null);
     rememberTerminalPalette({ background: '#222226', foreground: '#ffffff', ansi: FULL_ANSI });
 
@@ -254,12 +257,9 @@ test('a palette captured at the entry point survives a start handed to a service
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    delete require.cache[require.resolve('../src/terminal-palette')];
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
-
-const { collectPalette, takeOscColorReply } = require('../src/terminal-palette');
 
 /** Formats a hex color the way a terminal answers: `rgb:RRRR/GGGG/BBBB`. */
 function asXColor(hex) {
@@ -270,7 +270,7 @@ test('a terminal that reports its ANSI ramp but not its default colors still yie
   // Exactly what a multiplexer between this process and the emulator did:
   // it answered every OSC 4 query and ignored OSC 10, 11 and 12.
   const answered = [];
-  const palette = collectPalette((query, prefix) => {
+  const palette = collectPalette((_query, prefix) => {
     answered.push(prefix);
     const slot = /^\x1b\]4;(\d+)$/.exec(prefix);
     if (!slot) return null;
@@ -289,7 +289,10 @@ test('a terminal that reports its ANSI ramp but not its default colors still yie
 
 test('a terminal that answers nothing is dropped after four questions', () => {
   let asked = 0;
-  const palette = collectPalette(() => { asked += 1; return null; });
+  const palette = collectPalette(() => {
+    asked += 1;
+    return null;
+  });
   assert.equal(palette, null);
   // Three defaults and the first ANSI slot. Every further query would only add
   // its own timeout to a start that already knows the answer is "nothing".
@@ -298,7 +301,8 @@ test('a terminal that answers nothing is dropped after four questions', () => {
 
 test('several replies in one read are consumed one at a time', () => {
   const state = {
-    pending: '\x1b]4;0;rgb:2e2e/3434/3636\x1b\\\x1b]4;1;rgb:cccc/0000/0000\x07\x1b]11;rgb:2222/2222/2626\x1b\\',
+    pending:
+      '\x1b]4;0;rgb:2e2e/3434/3636\x1b\\\x1b]4;1;rgb:cccc/0000/0000\x07\x1b]11;rgb:2222/2222/2626\x1b\\',
   };
 
   assert.equal(takeOscColorReply(state, '\x1b]4;0'), '#2e3436');

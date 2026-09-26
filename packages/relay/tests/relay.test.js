@@ -1,99 +1,54 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { WebSocket } = require('ws');
-const { RelayServer } = require('../src/relay-server');
-const { packStreamFrame, unpackStreamFrame } = require('../src/stream-frame');
-const { loadRelayConfig } = require('../src/relay-config');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { WebSocket } from 'ws';
+import { RelayServer } from '../src/relay-server';
+import { heartbeat, sweep } from '../src/server/maintenance';
+import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
+import { loadRelayConfig } from '../src/relay-config';
+import manifest from '../package.json';
+import { nextMessage, openWebSocket, postJson, relayConfig as config } from './helpers.js';
 
 // Headers proving we are the workstation that owns `host-1`.
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
 
-function config() {
-  return {
-    relay: {
-      local: true,
-      url: 'ws://127.0.0.1:0',
-      publicUrl: 'http://127.0.0.1:0',
-      host: '127.0.0.1',
-      port: 0,
-      maxPayloadBytes: 1024 * 1024,
-      maxClientsPerHost: 8,
-      maxHosts: 8,
-      maxBufferedBytesPerClient: 1024,
-      hostReconnectGraceMs: 500,
-    },
-    auth: { pairingTtlMs: 60_000, deviceTtlMs: 60_000, maxDevices: 8 },
-    cleanup: { intervalMs: 60_000, heartbeatIntervalMs: 60_000, staleAfterMs: 180_000 },
-  };
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 1500) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      let value = data;
-      if (!isBinary) {
-        try { value = JSON.parse(data.toString()); } catch {}
-      }
-      if (!predicate(value, isBinary)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve({ value, isBinary });
-    };
-    ws.on('message', onMessage);
-  });
-}
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function postJson(urlString, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const request = http.request(urlString, { method: 'POST', headers }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => {
-        let body;
-        try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (error) { return reject(error); }
-        if (response.statusCode >= 400) return reject(new Error(body.message || `HTTP ${response.statusCode}`));
-        resolve(body);
-      });
-    });
-    request.on('error', reject);
-    request.end();
-  });
-}
-
 test('relay admin token can be configured from environment, file options, or CLI', () => {
-  assert.equal(loadRelayConfig({ env: { RELAY_ADMIN_TOKEN: 'env-admin-token' } }).config.auth.adminToken, 'env-admin-token');
-  assert.equal(loadRelayConfig({ argv: ['--admin-token', 'cli-admin-token'], env: {} }).config.auth.adminToken, 'cli-admin-token');
-  assert.equal(loadRelayConfig({ env: { RELAY_DEPLOYMENT_MODE: 'local' } }).config.relay.mode, 'local');
-  assert.equal(loadRelayConfig({ argv: ['--deployment-mode', 'local'], env: {} }).config.relay.mode, 'local');
-  assert.equal(loadRelayConfig({ env: {
-    RELAY_MAX_HOSTS: '12',
-    RELAY_MAX_PENDING_HANDSHAKES: '34',
-    RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: '65536',
-    RELAY_HOST_RECONNECT_GRACE_MS: '5000',
-  } }).config.relay.maxHosts, 12);
-  const tuned = loadRelayConfig({ env: {
-    RELAY_MAX_PENDING_HANDSHAKES: '34',
-    RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: '65536',
-    RELAY_HOST_RECONNECT_GRACE_MS: '5000',
-  } }).config.relay;
+  assert.equal(
+    loadRelayConfig({ env: { RELAY_ADMIN_TOKEN: 'env-admin-token' } }).config.auth.adminToken,
+    'env-admin-token',
+  );
+  assert.equal(
+    loadRelayConfig({ argv: ['--admin-token', 'cli-admin-token'], env: {} }).config.auth.adminToken,
+    'cli-admin-token',
+  );
+  assert.equal(
+    loadRelayConfig({ env: { RELAY_DEPLOYMENT_MODE: 'local' } }).config.relay.mode,
+    'local',
+  );
+  assert.equal(
+    loadRelayConfig({ argv: ['--deployment-mode', 'local'], env: {} }).config.relay.mode,
+    'local',
+  );
+  assert.equal(
+    loadRelayConfig({
+      env: {
+        RELAY_MAX_HOSTS: '12',
+        RELAY_MAX_PENDING_HANDSHAKES: '34',
+        RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: '65536',
+        RELAY_HOST_RECONNECT_GRACE_MS: '5000',
+      },
+    }).config.relay.maxHosts,
+    12,
+  );
+  const tuned = loadRelayConfig({
+    env: {
+      RELAY_MAX_PENDING_HANDSHAKES: '34',
+      RELAY_MAX_BUFFERED_BYTES_PER_CLIENT: '65536',
+      RELAY_HOST_RECONNECT_GRACE_MS: '5000',
+    },
+  }).config.relay;
   assert.equal(tuned.maxPendingHandshakes, 34);
   assert.equal(tuned.maxBufferedBytesPerClient, 65536);
   assert.equal(tuned.hostReconnectGraceMs, 5000);
@@ -106,14 +61,14 @@ test('relay info identifies local and operator-facing deployments without creden
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`${base}/api/info`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
     // Read from the manifest so a release does not have to touch this test.
-    version: require('../package.json').version,
+    version: manifest.version,
     protocol: 1,
     relayMode: 'local',
     isRemoteRelay: false,
@@ -131,12 +86,26 @@ test('scoped status and public health never expose another host', async (t) => {
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const hostA = await openWebSocket(`${wsBase}/ws/host`);
   const hostB = await openWebSocket(`${wsBase}/ws/host`);
-  hostA.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-a', token: 'host-a-token-123456789' }));
-  hostB.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-b', token: 'host-b-token-123456789' }));
+  hostA.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-a',
+      token: 'host-a-token-123456789',
+    }),
+  );
+  hostB.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-b',
+      token: 'host-b-token-123456789',
+    }),
+  );
   await Promise.all([
     nextMessage(hostA, (message) => message.type === 'host_ready'),
     nextMessage(hostB, (message) => message.type === 'host_ready'),
@@ -146,17 +115,34 @@ test('scoped status and public health never expose another host', async (t) => {
   assert.equal(Object.hasOwn(health, 'hosts'), false);
   assert.equal(Object.hasOwn(health, 'clients'), false);
 
-  const statusA = await (await fetch(`${base}/api/status`, { headers: {
-    'X-Herdr-Host-Id': 'host-a',
-    'X-Herdr-Host-Token': 'host-a-token-123456789',
-  } })).json();
-  const statusB = await (await fetch(`${base}/api/status`, { headers: {
-    'X-Herdr-Host-Id': 'host-b',
-    'X-Herdr-Host-Token': 'host-b-token-123456789',
-  } })).json();
-  assert.deepEqual(statusA.hosts.map((host) => host.id), ['host-a']);
-  assert.deepEqual(statusB.hosts.map((host) => host.id), ['host-b']);
-  assert.equal(statusA.hosts.some((host) => host.id === 'host-b'), false);
+  const statusA = await (
+    await fetch(`${base}/api/status`, {
+      headers: {
+        'X-Herdr-Host-Id': 'host-a',
+        'X-Herdr-Host-Token': 'host-a-token-123456789',
+      },
+    })
+  ).json();
+  const statusB = await (
+    await fetch(`${base}/api/status`, {
+      headers: {
+        'X-Herdr-Host-Id': 'host-b',
+        'X-Herdr-Host-Token': 'host-b-token-123456789',
+      },
+    })
+  ).json();
+  assert.deepEqual(
+    statusA.hosts.map((host) => host.id),
+    ['host-a'],
+  );
+  assert.deepEqual(
+    statusB.hosts.map((host) => host.id),
+    ['host-b'],
+  );
+  assert.equal(
+    statusA.hosts.some((host) => host.id === 'host-b'),
+    false,
+  );
   assert.equal(Object.hasOwn(statusA.clients[0] || {}, 'hostId'), false);
 
   // Device credentials are tenant scoped in exactly the same way as host
@@ -175,27 +161,60 @@ test('scoped status and public health never expose another host', async (t) => {
   const pairedB = nextMessage(clientB, (message) => message.type === 'paired');
   const readyA = nextMessage(clientA, (message) => message.type === 'ready');
   const readyB = nextMessage(clientB, (message) => message.type === 'ready');
-  clientA.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingA.code, clientId: 'device-a', cols: 80, rows: 24 }));
-  clientB.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingB.code, clientId: 'device-b', cols: 80, rows: 24 }));
+  clientA.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairingA.code,
+      clientId: 'device-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
+  clientB.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairingB.code,
+      clientId: 'device-b',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   const [pairedAMessage, pairedBMessage] = await Promise.all([pairedA, pairedB]);
   await Promise.all([readyA, readyB]);
   const tokenA = pairedAMessage.value.token;
   const tokenB = pairedBMessage.value.token;
-  const deviceStatusA = await (await fetch(`${base}/api/status`, {
-    headers: { Authorization: `Bearer ${tokenA}` },
-  })).json();
-  const deviceStatusB = await (await fetch(`${base}/api/status`, {
-    headers: { Authorization: `Bearer ${tokenB}` },
-  })).json();
-  assert.deepEqual(deviceStatusA.hosts.map((host) => host.id), ['host-a']);
-  assert.deepEqual(deviceStatusB.hosts.map((host) => host.id), ['host-b']);
-  assert.equal(deviceStatusA.hosts.some((host) => host.id === 'host-b'), false);
+  const deviceStatusA = await (
+    await fetch(`${base}/api/status`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+    })
+  ).json();
+  const deviceStatusB = await (
+    await fetch(`${base}/api/status`, {
+      headers: { Authorization: `Bearer ${tokenB}` },
+    })
+  ).json();
+  assert.deepEqual(
+    deviceStatusA.hosts.map((host) => host.id),
+    ['host-a'],
+  );
+  assert.deepEqual(
+    deviceStatusB.hosts.map((host) => host.id),
+    ['host-b'],
+  );
+  assert.equal(
+    deviceStatusA.hosts.some((host) => host.id === 'host-b'),
+    false,
+  );
 
-  const mixed = await fetch(`${base}/api/status`, { headers: {
-    'X-Herdr-Host-Id': 'host-a',
-    'X-Herdr-Host-Token': 'host-a-token-123456789',
-    Authorization: 'Bearer no-device-token-for-host-b',
-  } });
+  const mixed = await fetch(`${base}/api/status`, {
+    headers: {
+      'X-Herdr-Host-Id': 'host-a',
+      'X-Herdr-Host-Token': 'host-a-token-123456789',
+      Authorization: 'Bearer no-device-token-for-host-b',
+    },
+  });
   assert.equal(mixed.status, 401);
   clientA.close();
   clientB.close();
@@ -209,7 +228,7 @@ test('the content security policy lets the page draw its own data: icons', async
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-csp-'));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`http://127.0.0.1:${address.port}/api/info`);
   const policy = response.headers.get('content-security-policy') || '';
@@ -224,9 +243,11 @@ test('CORS echoes only an explicitly allowed origin', async (t) => {
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
-  const allowed = await fetch(`${base}/api/info`, { headers: { Origin: 'https://console.example' } });
+  const allowed = await fetch(`${base}/api/info`, {
+    headers: { Origin: 'https://console.example' },
+  });
   assert.equal(allowed.status, 200);
   assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://console.example');
   const denied = await fetch(`${base}/api/info`, { headers: { Origin: 'https://evil.example' } });
@@ -239,21 +260,39 @@ test('relay pairs a client and preserves output/input streams', async (t) => {
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789', hostname: 'test-host', platform: 'linux', arch: 'x64' }));
-  assert.equal((await nextMessage(host, (message) => message.type === 'host_ready')).value.hostId, 'host-1');
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+      hostname: 'test-host',
+      platform: 'linux',
+      arch: 'x64',
+    }),
+  );
+  assert.equal(
+    (await nextMessage(host, (message) => message.type === 'host_ready')).value.hostId,
+    'host-1',
+  );
   assert.equal((await fetch(`${base}/api/status`)).status, 401);
   assert.equal((await fetch(`${base}/api/status`, { headers: HOST_AUTH })).status, 200);
 
   // A pairing code can only be minted by whoever holds that workstation's own
   // host token, which is what keeps a shared relay safe.
   assert.equal((await fetch(`${base}/api/pair/start`, { method: 'POST' })).status, 401);
-  assert.equal((await fetch(`${base}/api/pair/start`, {
-    method: 'POST',
-    headers: { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'wrong-token-000000000' },
-  })).status, 401);
+  assert.equal(
+    (
+      await fetch(`${base}/api/pair/start`, {
+        method: 'POST',
+        headers: { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'wrong-token-000000000' },
+      })
+    ).status,
+    401,
+  );
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   assert.match(pairing.pairUrl, /pairCode=/);
@@ -261,7 +300,16 @@ test('relay pairs a client and preserves output/input streams', async (t) => {
   const clientReady = nextMessage(client, (message) => message.type === 'ready');
   const paired = nextMessage(client, (message) => message.type === 'paired');
   const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'phone-1', cols: 80, rows: 24 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'phone-1',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   const pairedMessage = (await paired).value;
   const readyMessage = (await clientReady).value;
   const sessionMessage = (await sessionStart).value;
@@ -275,10 +323,12 @@ test('relay pairs a client and preserves output/input streams', async (t) => {
   const streamId = sessionMessage.streamId;
 
   const sessionReady = nextMessage(client, (message) => message.type === 'session_ready');
-  host.send(JSON.stringify({
-    type: 'session_ready',
-    clientId: streamId,
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'session_ready',
+      clientId: streamId,
+    }),
+  );
   assert.equal((await sessionReady).value.clientId, readyMessage.clientId);
 
   const output = Buffer.from('\x1b[31mherdr\x1b[0m\r\n', 'utf8');
@@ -308,12 +358,17 @@ test('relay operator dashboard requires its separate admin token', async (t) => 
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   assert.equal((await fetch(`${base}/api/admin/status`)).status, 401);
-  assert.equal((await fetch(`${base}/api/admin/status`, {
-    headers: { 'X-Relay-Admin-Token': 'wrong-token' },
-  })).status, 401);
+  assert.equal(
+    (
+      await fetch(`${base}/api/admin/status`, {
+        headers: { 'X-Relay-Admin-Token': 'wrong-token' },
+      })
+    ).status,
+    401,
+  );
   const response = await fetch(`${base}/api/admin/status`, {
     headers: { 'X-Relay-Admin-Token': 'operator-secret-123456789' },
   });
@@ -329,7 +384,7 @@ test('relay operator dashboard reports when administration is not configured', a
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`${base}/api/admin/status`);
   assert.equal(response.status, 503);
@@ -343,7 +398,7 @@ test('workstation status remains scoped away from the operator token', async (t)
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const response = await fetch(`${base}/api/status`, {
     headers: { 'X-Relay-Admin-Token': 'operator-secret-123456789' },
@@ -355,21 +410,37 @@ test('workstation status remains scoped away from the operator token', async (t)
 // PTY stream and its own geometry, without being constrained by other windows.
 test('every paired window gets its own terminal and all of them may type', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-dedicated-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
   const pairing1 = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const first = await openWebSocket(`${wsBase}/ws/client`);
   const firstPair = nextMessage(first, (message) => message.type === 'paired');
   const firstReady = nextMessage(first, (message) => message.type === 'ready');
   const firstSession = nextMessage(host, (message) => message.type === 'session_start');
-  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing1.code, clientId: 'first', cols: 80, rows: 24 }));
+  first.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing1.code,
+      clientId: 'first',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   const firstReadyValue = (await firstReady).value;
   const firstStreamId = (await firstSession).value.streamId;
   const tokenMessage = (await firstPair).value;
@@ -377,7 +448,16 @@ test('every paired window gets its own terminal and all of them may type', async
   const second = await openWebSocket(`${wsBase}/ws/client`);
   const secondReady = nextMessage(second, (message) => message.type === 'ready');
   const secondSession = nextMessage(host, (message) => message.type === 'session_start');
-  second.send(JSON.stringify({ type: 'hello', protocol: 1, token: tokenMessage.token, clientId: 'second', cols: 80, rows: 24 }));
+  second.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      token: tokenMessage.token,
+      clientId: 'second',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   const secondReadyValue = (await secondReady).value;
   const secondStreamId = (await secondSession).value.streamId;
 
@@ -399,11 +479,18 @@ test('every paired window gets its own terminal and all of them may type', async
 
   await new Promise((resolve) => setTimeout(resolve, 50));
   second.off('message', onSecondMessage);
-  assert.equal(secondReceivedOutput, false, 'second window must not receive output meant for first window');
+  assert.equal(
+    secondReceivedOutput,
+    false,
+    'second window must not receive output meant for first window',
+  );
 
   // Both windows type into their own terminals, stamped with their own stream ids.
   const nextInputFrame = () =>
-    nextMessage(host, (message, isBinary) => isBinary && unpackStreamFrame(message).type === 'input');
+    nextMessage(
+      host,
+      (message, isBinary) => isBinary && unpackStreamFrame(message).type === 'input',
+    );
 
   const arrival1 = nextInputFrame();
   first.send(Buffer.from('a', 'binary'));
@@ -426,43 +513,73 @@ test('every paired window gets its own terminal and all of them may type', async
 // workstation, so it goes to every window watching it.
 test('agent status reaches every window, clamped on the way through', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-agents-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const first = await openWebSocket(`${wsBase}/ws/client`);
   const firstPair = nextMessage(first, (message) => message.type === 'paired');
   const firstSession = nextMessage(host, (message) => message.type === 'session_start');
-  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  first.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'first',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await firstSession;
   const { token } = (await firstPair).value;
 
   const second = await openWebSocket(`${wsBase}/ws/client`);
   const secondReady = nextMessage(second, (message) => message.type === 'ready');
-  second.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'second', cols: 80, rows: 24 }));
+  second.send(
+    JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'second', cols: 80, rows: 24 }),
+  );
   await secondReady;
 
   const firstStatus = nextMessage(first, (message) => message.type === 'agent_status');
   const secondStatus = nextMessage(second, (message) => message.type === 'agent_status');
-  host.send(JSON.stringify({
-    type: 'agent_status',
-    focusedPaneId: 'p'.repeat(100),
-    focusedAgent: 'a'.repeat(40),
-    counts: { blocked: 1, working: 2, nonsense: 'lots' },
-    total: 3,
-    agents: [
-      { paneId: 'wM:p4', workspaceId: 'wM', agent: 'claude', title: 'x'.repeat(200), status: 'blocked', focused: true },
-      ...Array.from({ length: 40 }, (_unused, index) => ({ paneId: `p${index}`, status: 'working' })),
-    ],
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'agent_status',
+      focusedPaneId: 'p'.repeat(100),
+      focusedAgent: 'a'.repeat(40),
+      counts: { blocked: 1, working: 2, nonsense: 'lots' },
+      total: 3,
+      agents: [
+        {
+          paneId: 'wM:p4',
+          workspaceId: 'wM',
+          agent: 'claude',
+          title: 'x'.repeat(200),
+          status: 'blocked',
+          focused: true,
+        },
+        ...Array.from({ length: 40 }, (_unused, index) => ({
+          paneId: `p${index}`,
+          status: 'working',
+        })),
+      ],
+    }),
+  );
 
   const delivered = (await firstStatus).value;
   assert.equal((await secondStatus).value.total, 3);
@@ -481,7 +598,9 @@ test('agent status reaches every window, clamped on the way through', async (t) 
   const thirdReady = nextMessage(third, (message) => message.type === 'ready');
   const thirdStatus = nextMessage(third, (message) => message.type === 'agent_status');
   const thirdSession = nextMessage(host, (message) => message.type === 'session_start');
-  third.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'third', cols: 80, rows: 24 }));
+  third.send(
+    JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'third', cols: 80, rows: 24 }),
+  );
   await Promise.all([thirdReady, thirdSession]);
   const replayed = (await thirdStatus).value;
   assert.equal(replayed.focusedPaneId, 'p'.repeat(64));
@@ -496,15 +615,22 @@ test('agent status reaches every window, clamped on the way through', async (t) 
 
 test('each window drives its own grid without shrinking the others', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-resize-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
@@ -512,7 +638,16 @@ test('each window drives its own grid without shrinking the others', async (t) =
   const laptopPair = nextMessage(laptop, (message) => message.type === 'paired');
   const laptopReady = nextMessage(laptop, (message) => message.type === 'ready');
   const laptopSession = nextMessage(host, (message) => message.type === 'session_start');
-  laptop.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'laptop', cols: 80, rows: 24 }));
+  laptop.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'laptop',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await laptopReady;
   const laptopStreamId = (await laptopSession).value.streamId;
   const token = (await laptopPair).value.token;
@@ -520,7 +655,9 @@ test('each window drives its own grid without shrinking the others', async (t) =
   const phone = await openWebSocket(`${wsBase}/ws/client`);
   const phoneReady = nextMessage(phone, (message) => message.type === 'ready');
   const phoneSession = nextMessage(host, (message) => message.type === 'session_start');
-  phone.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'phone', cols: 80, rows: 24 }));
+  phone.send(
+    JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'phone', cols: 80, rows: 24 }),
+  );
   await phoneReady;
   const phoneStreamId = (await phoneSession).value.streamId;
 
@@ -530,19 +667,27 @@ test('each window drives its own grid without shrinking the others', async (t) =
       try {
         const msg = JSON.parse(data.toString());
         if (msg.type === 'resize') resizes.push(msg);
-      } catch {}
+      } catch {
+        // Only JSON control messages matter here.
+      }
     }
   };
   host.on('message', onHostMessage);
 
-  const laptopResized = nextMessage(host, (msg) => msg.type === 'resize' && msg.streamId === laptopStreamId);
+  const laptopResized = nextMessage(
+    host,
+    (msg) => msg.type === 'resize' && msg.streamId === laptopStreamId,
+  );
   laptop.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
   const laptopMsg = (await laptopResized).value;
   assert.equal(laptopMsg.streamId, laptopStreamId);
   assert.equal(laptopMsg.cols, 120);
   assert.equal(laptopMsg.rows, 40);
 
-  const phoneResized = nextMessage(host, (msg) => msg.type === 'resize' && msg.streamId === phoneStreamId);
+  const phoneResized = nextMessage(
+    host,
+    (msg) => msg.type === 'resize' && msg.streamId === phoneStreamId,
+  );
   phone.send(JSON.stringify({ type: 'resize', cols: 40, rows: 20 }));
   const phoneMsg = (await phoneResized).value;
   assert.equal(phoneMsg.streamId, phoneStreamId);
@@ -563,21 +708,37 @@ test('each window drives its own grid without shrinking the others', async (t) =
 
 test('a window opening a session gets its own stream id and geometry', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-session-grid-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const client = await openWebSocket(`${wsBase}/ws/client`);
   const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'only', cols: 100, rows: 30 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'only',
+      cols: 100,
+      rows: 30,
+    }),
+  );
   const started = (await sessionStart).value;
   assert.ok(typeof started.streamId === 'string' && started.streamId.startsWith('session-'));
   assert.equal(started.cols, 100);
@@ -589,15 +750,22 @@ test('a window opening a session gets its own stream id and geometry', async (t)
 
 test('a window joining late starts its own session instead of replaying another window', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-replay-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
@@ -605,7 +773,16 @@ test('a window joining late starts its own session instead of replaying another 
   const firstPair = nextMessage(first, (message) => message.type === 'paired');
   const firstReady = nextMessage(first, (message) => message.type === 'ready');
   const sessionStartA = nextMessage(host, (message) => message.type === 'session_start');
-  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  first.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'first',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await firstReady;
   const streamIdA = (await sessionStartA).value.streamId;
   const token = (await firstPair).value.token;
@@ -625,7 +802,9 @@ test('a window joining late starts its own session instead of replaying another 
 
   const sessionStartB = nextMessage(host, (message) => message.type === 'session_start');
   const lateReady = nextMessage(late, (message) => message.type === 'ready');
-  late.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'late', cols: 80, rows: 24 }));
+  late.send(
+    JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'late', cols: 80, rows: 24 }),
+  );
   await lateReady;
   const streamIdB = (await sessionStartB).value.streamId;
 
@@ -641,15 +820,22 @@ test('a window joining late starts its own session instead of replaying another 
 
 test('input from one window never reaches another window stream', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-stream-isolation-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
@@ -657,7 +843,16 @@ test('input from one window never reaches another window stream', async (t) => {
   const firstPair = nextMessage(first, (message) => message.type === 'paired');
   const firstReady = nextMessage(first, (message) => message.type === 'ready');
   const sessionStart1 = nextMessage(host, (message) => message.type === 'session_start');
-  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  first.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'first',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await firstReady;
   const streamId1 = (await sessionStart1).value.streamId;
   const token = (await firstPair).value.token;
@@ -665,13 +860,18 @@ test('input from one window never reaches another window stream', async (t) => {
   const second = await openWebSocket(`${wsBase}/ws/client`);
   const secondReady = nextMessage(second, (message) => message.type === 'ready');
   const sessionStart2 = nextMessage(host, (message) => message.type === 'session_start');
-  second.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'second', cols: 80, rows: 24 }));
+  second.send(
+    JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'second', cols: 80, rows: 24 }),
+  );
   await secondReady;
   const streamId2 = (await sessionStart2).value.streamId;
   assert.notEqual(streamId1, streamId2);
 
   const nextInputFrame = () =>
-    nextMessage(host, (message, isBinary) => isBinary && unpackStreamFrame(message).type === 'input');
+    nextMessage(
+      host,
+      (message, isBinary) => isBinary && unpackStreamFrame(message).type === 'input',
+    );
 
   const arrival1 = nextInputFrame();
   first.send(Buffer.from('keystroke-1', 'utf8'));
@@ -698,21 +898,37 @@ test('input from one window never reaches another window stream', async (t) => {
 
 test('a session is never started below the minimum usable grid', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-min-grid-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const client = await openWebSocket(`${wsBase}/ws/client`);
   const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'tiny', cols: 5, rows: 3 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'tiny',
+      cols: 5,
+      rows: 3,
+    }),
+  );
   const started = (await sessionStart).value;
   assert.equal(started.cols, 20);
   assert.equal(started.rows, 6);
@@ -727,12 +943,12 @@ test('the workstation palette reaches the browser with ready, before any output'
   // the first message a client gets — before the first PTY byte, or the
   // terminal would repaint mid-session.
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-palette-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const ansi = {
     black: '#2e3436',
@@ -754,26 +970,37 @@ test('the workstation palette reaches the browser with ready, before any output'
   };
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({
-    type: 'host_hello',
-    protocol: 1,
-    hostId: 'host-1',
-    token: 'host-token-123456789',
-    terminalPalette: {
-      background: '#222226',
-      foreground: '#ffffff',
-      cursor: '#ffffff',
-      // A hostile or buggy workstation cannot smuggle anything else through.
-      injected: 'url(javascript:alert(1))',
-      ansi,
-    },
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+      terminalPalette: {
+        background: '#222226',
+        foreground: '#ffffff',
+        cursor: '#ffffff',
+        // A hostile or buggy workstation cannot smuggle anything else through.
+        injected: 'url(javascript:alert(1))',
+        ansi,
+      },
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const client = await openWebSocket(`${wsBase}/ws/client`);
   const ready = nextMessage(client, (message) => message.type === 'ready');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'phone', cols: 80, rows: 24 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'phone',
+      cols: 80,
+      rows: 24,
+    }),
+  );
 
   const palette = (await ready).value.terminalPalette;
   assert.equal(palette.background, '#222226');
@@ -788,27 +1015,38 @@ test('the workstation palette reaches the browser with ready, before any output'
 
 test('a host with no terminal to ask leaves the browser on its own defaults', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-no-palette-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({
-    type: 'host_hello',
-    protocol: 1,
-    hostId: 'host-1',
-    token: 'host-token-123456789',
-    terminalPalette: null,
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+      terminalPalette: null,
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const client = await openWebSocket(`${wsBase}/ws/client`);
   const ready = nextMessage(client, (message) => message.type === 'ready');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'phone', cols: 80, rows: 24 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'phone',
+      cols: 80,
+      rows: 24,
+    }),
+  );
 
   assert.equal((await ready).value.terminalPalette, null);
 
@@ -827,17 +1065,33 @@ test('two windows of one browser both stay attached instead of evicting each oth
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const firstTab = await openWebSocket(`${wsBase}/ws/client`);
   const firstPaired = nextMessage(firstTab, (message) => message.type === 'paired');
   const firstReady = nextMessage(firstTab, (message) => message.type === 'ready');
-  firstTab.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'browser-a', cols: 80, rows: 24 }));
+  firstTab.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   assert.equal((await firstReady).value.role, 'controller');
   const { token } = (await firstPaired).value;
 
@@ -845,7 +1099,16 @@ test('two windows of one browser both stay attached instead of evicting each oth
   const secondTab = await openWebSocket(`${wsBase}/ws/client`);
   const secondReady = nextMessage(secondTab, (message) => message.type === 'ready');
   const firstTabClosed = new Promise((resolve) => firstTab.once('close', resolve));
-  secondTab.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-a', cols: 80, rows: 24 }));
+  secondTab.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      token,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   assert.equal((await secondReady).value.role, 'controller');
 
   // The first tab is untouched: nothing closed it, so nothing makes it
@@ -862,7 +1125,16 @@ test('two windows of one browser both stay attached instead of evicting each oth
   // terminal on the same terms.
   const other = await openWebSocket(`${wsBase}/ws/client`);
   const otherReady = nextMessage(other, (message) => message.type === 'ready');
-  other.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-b', cols: 80, rows: 24 }));
+  other.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      token,
+      clientId: 'browser-b',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   assert.equal((await otherReady).value.role, 'controller');
   assert.equal(relay.clients.size, 3);
 });
@@ -875,8 +1147,14 @@ test('a capable host reconnects without dropping its authorized browser', async 
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
-  const hello = { type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789', capabilities: ['host_handoff', 'idle_heartbeat'] };
+  t.onTestFinished(async () => relay.close());
+  const hello = {
+    type: 'host_hello',
+    protocol: 1,
+    hostId: 'host-1',
+    token: 'host-token-123456789',
+    capabilities: ['host_handoff', 'idle_heartbeat'],
+  };
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
   host.send(JSON.stringify(hello));
@@ -886,15 +1164,17 @@ test('a capable host reconnects without dropping its authorized browser', async 
   const paired = nextMessage(client, (message) => message.type === 'paired');
   const ready = nextMessage(client, (message) => message.type === 'ready');
   const firstSession = nextMessage(host, (message) => message.type === 'session_start');
-  client.send(JSON.stringify({
-    type: 'hello',
-    protocol: 1,
-    pairCode: pairing.code,
-    clientId: 'browser-a',
-    cols: 80,
-    rows: 24,
-    capabilities: ['host_handoff'],
-  }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+      capabilities: ['host_handoff'],
+    }),
+  );
   await ready;
   await paired;
   await firstSession;
@@ -906,7 +1186,10 @@ test('a capable host reconnects without dropping its authorized browser', async 
 
   const replacement = await openWebSocket(`${wsBase}/ws/host`);
   const replacementReady = nextMessage(replacement, (message) => message.type === 'host_ready');
-  const replacementSession = nextMessage(replacement, (message) => message.type === 'session_start');
+  const replacementSession = nextMessage(
+    replacement,
+    (message) => message.type === 'session_start',
+  );
   const restarted = nextMessage(client, (message) => message.type === 'session_restarted');
   replacement.send(JSON.stringify(hello));
   await replacementReady;
@@ -931,33 +1214,58 @@ test('an operator can list paired devices and revoke one', async (t) => {
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
   const admin = { 'X-Relay-Admin-Token': 'operator-secret-123456789' };
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const client = await openWebSocket(`${wsBase}/ws/client`);
   const paired = nextMessage(client, (message) => message.type === 'paired');
   const ready = nextMessage(client, (message) => message.type === 'ready');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'browser-a', cols: 80, rows: 24 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await ready;
   const { deviceId, token } = (await paired).value;
 
   // The roster is operator-only: a paired device may read /api/status, and that
   // response must not enumerate everyone else's hardware.
-  const deviceStatus = await fetch(`${base}/api/status`, { headers: { Authorization: `Bearer ${token}` } });
+  const deviceStatus = await fetch(`${base}/api/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   assert.equal(deviceStatus.status, 200);
   assert.equal(Object.hasOwn(await deviceStatus.json(), 'devices'), false);
 
   const listed = await (await fetch(`${base}/api/admin/status`, { headers: admin })).json();
   const entry = listed.devices.find((device) => device.deviceId === deviceId);
   assert.ok(entry, 'the paired device should appear in the operator roster');
-  assert.equal(Object.hasOwn(entry, 'tokenHash'), false, 'token hashes must never leave the process');
+  assert.equal(
+    Object.hasOwn(entry, 'tokenHash'),
+    false,
+    'token hashes must never leave the process',
+  );
 
   const closed = new Promise((resolve) => client.once('close', resolve));
-  const revoked = await fetch(`${base}/api/admin/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE', headers: admin });
+  const revoked = await fetch(`${base}/api/admin/devices/${encodeURIComponent(deviceId)}`, {
+    method: 'DELETE',
+    headers: admin,
+  });
   assert.equal(revoked.status, 200);
   assert.equal((await revoked.json()).disconnected, 1);
 
@@ -968,10 +1276,23 @@ test('an operator can list paired devices and revoke one', async (t) => {
   // And the token it was derived from is dead.
   const rejected = await openWebSocket(`${wsBase}/ws/client`);
   const refusal = nextMessage(rejected, (message) => message.type === 'error');
-  rejected.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'browser-a', cols: 80, rows: 24 }));
+  rejected.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      token,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   assert.equal((await refusal).value.code, 'auth_required');
 
-  assert.equal((await fetch(`${base}/api/admin/devices/device-nope`, { method: 'DELETE', headers: admin })).status, 404);
+  assert.equal(
+    (await fetch(`${base}/api/admin/devices/device-nope`, { method: 'DELETE', headers: admin }))
+      .status,
+    404,
+  );
 });
 
 test('the status board counts devices and their hosts, not open sockets', async (t) => {
@@ -985,12 +1306,26 @@ test('the status board counts devices and their hosts, not open sockets', async 
   const admin = { 'X-Relay-Admin-Token': 'operator-secret-123456789' };
   const hostAAuth = { 'X-Herdr-Host-Id': 'host-a', 'X-Herdr-Host-Token': 'host-a-token-123456789' };
   const hostBAuth = { 'X-Herdr-Host-Id': 'host-b', 'X-Herdr-Host-Token': 'host-b-token-123456789' };
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const hostA = await openWebSocket(`${wsBase}/ws/host`);
   const hostB = await openWebSocket(`${wsBase}/ws/host`);
-  hostA.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-a', token: 'host-a-token-123456789' }));
-  hostB.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-b', token: 'host-b-token-123456789' }));
+  hostA.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-a',
+      token: 'host-a-token-123456789',
+    }),
+  );
+  hostB.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-b',
+      token: 'host-b-token-123456789',
+    }),
+  );
   await Promise.all([
     nextMessage(hostA, (message) => message.type === 'host_ready'),
     nextMessage(hostB, (message) => message.type === 'host_ready'),
@@ -1001,20 +1336,47 @@ test('the status board counts devices and their hosts, not open sockets', async 
   const windowOne = await openWebSocket(`${wsBase}/ws/client`);
   const pairedOne = nextMessage(windowOne, (message) => message.type === 'paired');
   const readyOne = nextMessage(windowOne, (message) => message.type === 'ready');
-  windowOne.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingA.code, clientId: 'browser-a', cols: 80, rows: 24 }));
+  windowOne.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairingA.code,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await readyOne;
   const deviceToken = (await pairedOne).value.token;
 
   const windowTwo = await openWebSocket(`${wsBase}/ws/client`);
   const readyTwo = nextMessage(windowTwo, (message) => message.type === 'ready');
-  windowTwo.send(JSON.stringify({ type: 'hello', protocol: 1, token: deviceToken, clientId: 'browser-a', cols: 80, rows: 24 }));
+  windowTwo.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      token: deviceToken,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await readyTwo;
 
   // ...and a second, separate device on host-b.
   const pairingB = await postJson(`${base}/api/pair/start`, hostBAuth);
   const otherDevice = await openWebSocket(`${wsBase}/ws/client`);
   const readyOther = nextMessage(otherDevice, (message) => message.type === 'ready');
-  otherDevice.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairingB.code, clientId: 'browser-b', cols: 80, rows: 24 }));
+  otherDevice.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairingB.code,
+      clientId: 'browser-b',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await readyOther;
 
   const board = await (await fetch(`${base}/api/admin/status`, { headers: admin })).json();
@@ -1029,12 +1391,17 @@ test('the status board counts devices and their hosts, not open sockets', async 
   assert.equal(hostRow('host-b').pairedDeviceCount, 1);
 
   // The counts are public; the roster they are derived from is not.
-  const scoped = await (await fetch(`${base}/api/status`, {
-    headers: { Authorization: `Bearer ${deviceToken}` },
-  })).json();
+  const scoped = await (
+    await fetch(`${base}/api/status`, {
+      headers: { Authorization: `Bearer ${deviceToken}` },
+    })
+  ).json();
   assert.equal(Object.hasOwn(scoped, 'devices'), false);
   assert.equal(Object.hasOwn(scoped.clients[0] || {}, 'deviceId'), false);
-  assert.deepEqual(scoped.hosts.map((host) => host.id), ['host-a']);
+  assert.deepEqual(
+    scoped.hosts.map((host) => host.id),
+    ['host-a'],
+  );
   assert.equal(scoped.hosts[0].pairedDeviceCount, 1);
   // Two windows of one browser stay one user even on the scoped response,
   // where the rows themselves no longer say which device they belong to.
@@ -1054,16 +1421,18 @@ test('idle heartbeat refreshes host lastSeenAt on relay', async (t) => {
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({
-    type: 'host_hello',
-    protocol: 1,
-    hostId: 'host-idle-test',
-    token: 'host-token-123456789',
-    capabilities: ['host_handoff', 'idle_heartbeat'],
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-idle-test',
+      token: 'host-token-123456789',
+      capabilities: ['host_handoff', 'idle_heartbeat'],
+    }),
+  );
   await nextMessage(host, (m) => m.type === 'host_ready');
 
   const hostRecord = relay.hosts.get('host-idle-test');
@@ -1074,14 +1443,19 @@ test('idle heartbeat refreshes host lastSeenAt on relay', async (t) => {
   const oldLastSeen = hostRecord.lastSeenAt;
 
   // Send idle heartbeat
-  host.send(JSON.stringify({
-    type: 'heartbeat',
-    load: {},
-    ptys: [],
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'heartbeat',
+      load: {},
+      ptys: [],
+    }),
+  );
 
   await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.ok(hostRecord.lastSeenAt > oldLastSeen, 'host lastSeenAt should be refreshed by idle heartbeat');
+  assert.ok(
+    hostRecord.lastSeenAt > oldLastSeen,
+    'host lastSeenAt should be refreshed by idle heartbeat',
+  );
   host.close();
 });
 
@@ -1092,16 +1466,18 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const hostWs = await openWebSocket(`${wsBase}/ws/host`);
-  hostWs.send(JSON.stringify({
-    type: 'host_hello',
-    protocol: 1,
-    hostId: 'host-term-test',
-    token: 'host-token-123456789',
-    capabilities: ['host_handoff', 'idle_heartbeat'],
-  }));
+  hostWs.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-term-test',
+      token: 'host-token-123456789',
+      capabilities: ['host_handoff', 'idle_heartbeat'],
+    }),
+  );
   await nextMessage(hostWs, (m) => m.type === 'host_ready');
 
   const hostRecord = relay.hosts.get('host-term-test');
@@ -1117,7 +1493,7 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   };
   serverWs.isAlive = false;
 
-  relay.heartbeat();
+  heartbeat(relay);
   assert.ok(terminated, 'heartbeat() should terminate inactive socket instead of only closing it');
 
   // 2. CLOSING socket in heartbeat: terminated immediately
@@ -1125,10 +1501,16 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   const mockClosingSocket = {
     readyState: WebSocket.CLOSING,
     isAlive: true,
-    terminate() { closingTerminated = true; },
+    terminate() {
+      closingTerminated = true;
+    },
   };
-  relay.hosts.set('mock-closing', { id: 'mock-closing', ws: mockClosingSocket, clients: new Set() });
-  relay.heartbeat();
+  relay.hosts.set('mock-closing', {
+    id: 'mock-closing',
+    ws: mockClosingSocket,
+    clients: new Set(),
+  });
+  heartbeat(relay);
   assert.ok(closingTerminated, 'heartbeat() should terminate socket stuck in CLOSING');
   relay.hosts.delete('mock-closing');
 
@@ -1137,7 +1519,9 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   const mockStaleSocket = {
     readyState: WebSocket.OPEN,
     isAlive: true,
-    terminate() { staleTerminated = true; },
+    terminate() {
+      staleTerminated = true;
+    },
     close() {},
   };
   relay.hosts.set('mock-stale', {
@@ -1147,7 +1531,7 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
     reconnecting: false,
     lastSeenAt: Date.now() - 10_000,
   });
-  relay.sweep();
+  sweep(relay);
   assert.ok(staleTerminated, 'sweep() should terminate stale host socket');
   assert.equal(relay.hosts.has('mock-stale'), false, 'stale host should be detached');
 
@@ -1160,7 +1544,7 @@ test('a request to start Herdr reaches only the workstation the window is paired
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => {
+  t.onTestFinished(async () => {
     await relay.close();
     fs.rmSync(directory, { recursive: true, force: true });
   });
@@ -1168,10 +1552,28 @@ test('a request to start Herdr reaches only the workstation the window is paired
   const hostA = await openWebSocket(`${wsBase}/ws/host`);
   const hostB = await openWebSocket(`${wsBase}/ws/host`);
   const toHost = { 'host-a': [], 'host-b': [] };
-  hostA.on('message', (data, isBinary) => { if (!isBinary) toHost['host-a'].push(JSON.parse(data.toString())); });
-  hostB.on('message', (data, isBinary) => { if (!isBinary) toHost['host-b'].push(JSON.parse(data.toString())); });
-  hostA.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-a', token: 'host-a-token-123456789' }));
-  hostB.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-b', token: 'host-b-token-123456789' }));
+  hostA.on('message', (data, isBinary) => {
+    if (!isBinary) toHost['host-a'].push(JSON.parse(data.toString()));
+  });
+  hostB.on('message', (data, isBinary) => {
+    if (!isBinary) toHost['host-b'].push(JSON.parse(data.toString()));
+  });
+  hostA.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-a',
+      token: 'host-a-token-123456789',
+    }),
+  );
+  hostB.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-b',
+      token: 'host-b-token-123456789',
+    }),
+  );
   await Promise.all([
     nextMessage(hostA, (message) => message.type === 'host_ready'),
     nextMessage(hostB, (message) => message.type === 'host_ready'),
@@ -1184,13 +1586,24 @@ test('a request to start Herdr reaches only the workstation the window is paired
   const sessionStart = nextMessage(hostA, (message) => message.type === 'session_start');
   const client = await openWebSocket(`${wsBase}/ws/client`);
   const ready = nextMessage(client, (message) => message.type === 'ready');
-  client.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'device-a', cols: 80, rows: 24 }));
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'device-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await ready;
   const { value: started } = await sessionStart;
 
   // The window names another workstation; the relay does not listen.
   const forwarded = nextMessage(hostA, (message) => message.type === 'herdr_start');
-  client.send(JSON.stringify({ type: 'herdr_start', hostId: 'host-b', streamId: 'someone-elses-stream' }));
+  client.send(
+    JSON.stringify({ type: 'herdr_start', hostId: 'host-b', streamId: 'someone-elses-stream' }),
+  );
   const { value } = await forwarded;
   assert.equal(value.streamId, started.streamId);
   assert.equal(value.clientId, started.streamId);
@@ -1200,7 +1613,10 @@ test('a request to start Herdr reaches only the workstation the window is paired
   client.send(JSON.stringify({ type: 'herdr_start' }));
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(toHost['host-a'].filter((message) => message.type === 'herdr_start').length, 1);
-  assert.equal(toHost['host-b'].some((message) => message.type === 'herdr_start'), false);
+  assert.equal(
+    toHost['host-b'].some((message) => message.type === 'herdr_start'),
+    false,
+  );
 
   client.close();
   hostA.close();
@@ -1209,37 +1625,62 @@ test('a request to start Herdr reaches only the workstation the window is paired
 
 test('a newer herdr-remote is announced to every window, versions only, and replayed to late ones', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-update-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
   const address = await relay.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
-  t.after(async () => relay.close());
+  t.onTestFinished(async () => relay.close());
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
-  host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId: 'host-1', token: 'host-token-123456789' }));
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+    }),
+  );
   await nextMessage(host, (message) => message.type === 'host_ready');
 
   const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
   const first = await openWebSocket(`${wsBase}/ws/client`);
   const firstPair = nextMessage(first, (message) => message.type === 'paired');
   const firstSession = nextMessage(host, (message) => message.type === 'session_start');
-  first.send(JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, clientId: 'first', cols: 80, rows: 24 }));
+  first.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'first',
+      cols: 80,
+      rows: 24,
+    }),
+  );
   await firstSession;
   const { token } = (await firstPair).value;
 
   // Not a version: dropped whole rather than shown as text in a browser.
-  host.send(JSON.stringify({ type: 'update_status', current: '0.2.16', latest: '<img src=x>', updateAvailable: true }));
+  host.send(
+    JSON.stringify({
+      type: 'update_status',
+      current: '0.2.16',
+      latest: '<img src=x>',
+      updateAvailable: true,
+    }),
+  );
   const announced = nextMessage(first, (message) => message.type === 'update_status');
-  host.send(JSON.stringify({
-    type: 'update_status',
-    current: '0.2.16',
-    installed: 'not a version',
-    latest: '0.3.0',
-    updateAvailable: true,
-    restartPending: 'yes',
-    extra: 'dropped',
-  }));
+  host.send(
+    JSON.stringify({
+      type: 'update_status',
+      current: '0.2.16',
+      installed: 'not a version',
+      latest: '0.3.0',
+      updateAvailable: true,
+      restartPending: 'yes',
+      extra: 'dropped',
+    }),
+  );
   assert.deepEqual((await announced).value, {
     type: 'update_status',
     current: '0.2.16',
@@ -1251,7 +1692,9 @@ test('a newer herdr-remote is announced to every window, versions only, and repl
 
   const late = await openWebSocket(`${wsBase}/ws/client`);
   const replayed = nextMessage(late, (message) => message.type === 'update_status');
-  late.send(JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'late', cols: 80, rows: 24 }));
+  late.send(
+    JSON.stringify({ type: 'hello', protocol: 1, token, clientId: 'late', cols: 80, rows: 24 }),
+  );
   assert.equal((await replayed).value.latest, '0.3.0');
 
   first.close();

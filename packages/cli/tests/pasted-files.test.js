@@ -1,16 +1,10 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
-  savePastedFile,
-  cleanPastedDir,
-  MIME_CONFIG,
-  MAX_PASTE_BYTES,
-} = require('../src/pasted-files');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { savePastedFile, cleanPastedDir } from '../src/pasted-files.js';
+import { PASTE_MAX_BYTES, PASTE_IMAGE_EXTENSIONS } from 'herdr-remote-relay/protocol';
 
 // Valid magic byte fixtures for each supported image type
 const FIXTURES = {
@@ -18,16 +12,28 @@ const FIXTURES = {
   'image/jpeg': Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]),
   'image/gif': Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00]),
   'image/webp': Buffer.from([
-    0x52, 0x49, 0x46, 0x46, // 'RIFF'
-    0x20, 0x00, 0x00, 0x00, // size
-    0x57, 0x45, 0x42, 0x50, // 'WEBP'
-    0x56, 0x50, 0x38, 0x20, // 'VP8 '
+    0x52,
+    0x49,
+    0x46,
+    0x46, // 'RIFF'
+    0x20,
+    0x00,
+    0x00,
+    0x00, // size
+    0x57,
+    0x45,
+    0x42,
+    0x50, // 'WEBP'
+    0x56,
+    0x50,
+    0x38,
+    0x20, // 'VP8 '
   ]),
 };
 
 test('savePastedFile generates unpredictable filename ignoring client inputs, with extension derived from MIME', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // Client attempts directory traversal / malicious naming
   const clientPayload = {
@@ -57,7 +63,7 @@ test('savePastedFile generates unpredictable filename ignoring client inputs, wi
 
 test('savePastedFile derives appropriate extension for all supported MIME types', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   for (const [mime, fixture] of Object.entries(FIXTURES)) {
     const savedPath = savePastedFile({
@@ -65,53 +71,69 @@ test('savePastedFile derives appropriate extension for all supported MIME types'
       dataBase64: fixture.toString('base64'),
       dir: tmpDir,
     });
-    const ext = MIME_CONFIG[mime].ext;
+    const ext = PASTE_IMAGE_EXTENSIONS[mime];
     assert.ok(savedPath.endsWith(ext), `expected ${savedPath} to end with ${ext}`);
   }
 });
 
 test('savePastedFile rejects file when magic bytes do not match declared MIME (sniffing)', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // 1. ELF executable binary spoofed as image/png
   const fakePngElf = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00]);
   assert.throws(
-    () => savePastedFile({ mime: 'image/png', dataBase64: fakePngElf.toString('base64'), dir: tmpDir }),
-    /magic bytes do not match/i
+    () =>
+      savePastedFile({ mime: 'image/png', dataBase64: fakePngElf.toString('base64'), dir: tmpDir }),
+    /magic bytes do not match/i,
   );
 
   // 2. Plain text spoofed as image/jpeg
   const fakeJpgText = Buffer.from('Hello world this is not a JPEG');
   assert.throws(
-    () => savePastedFile({ mime: 'image/jpeg', dataBase64: fakeJpgText.toString('base64'), dir: tmpDir }),
-    /magic bytes do not match/i
+    () =>
+      savePastedFile({
+        mime: 'image/jpeg',
+        dataBase64: fakeJpgText.toString('base64'),
+        dir: tmpDir,
+      }),
+    /magic bytes do not match/i,
   );
 
   // 3. PNG magic bytes passed with declared image/webp
   assert.throws(
-    () => savePastedFile({ mime: 'image/webp', dataBase64: FIXTURES['image/png'].toString('base64'), dir: tmpDir }),
-    /magic bytes do not match/i
+    () =>
+      savePastedFile({
+        mime: 'image/webp',
+        dataBase64: FIXTURES['image/png'].toString('base64'),
+        dir: tmpDir,
+      }),
+    /magic bytes do not match/i,
   );
 });
 
 test('savePastedFile re-checks size limit on host independently of relay', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // Create oversized PNG buffer (> 3 MB)
-  const oversizedBuf = Buffer.alloc(MAX_PASTE_BYTES + 1024);
+  const oversizedBuf = Buffer.alloc(PASTE_MAX_BYTES + 1024);
   FIXTURES['image/png'].copy(oversizedBuf, 0);
 
   assert.throws(
-    () => savePastedFile({ mime: 'image/png', dataBase64: oversizedBuf.toString('base64'), dir: tmpDir }),
-    /exceeds maximum limit of 3 MB/i
+    () =>
+      savePastedFile({
+        mime: 'image/png',
+        dataBase64: oversizedBuf.toString('base64'),
+        dir: tmpDir,
+      }),
+    /exceeds maximum limit of 3 MB/i,
   );
 });
 
 test('savePastedFile writes file with mode 0o600', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const savedPath = savePastedFile({
     mime: 'image/png',
@@ -128,7 +150,7 @@ test('savePastedFile writes file with mode 0o600', (t) => {
 
 test('cleanPastedDir purges oldest files when count or byte limit is exceeded', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const baseTime = 1700000000000;
 
@@ -155,7 +177,7 @@ test('cleanPastedDir purges oldest files when count or byte limit is exceeded', 
 
 test('cleanPastedDir purges stale files older than 24 hours', (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
-  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const now = Date.now();
   const freshPath = path.join(tmpDir, 'fresh.png');

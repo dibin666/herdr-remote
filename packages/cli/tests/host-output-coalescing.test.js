@@ -1,17 +1,15 @@
-'use strict';
-
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const net = require('node:net');
-const { WebSocket } = require('ws');
-const { unpackStreamFrame } = require('herdr-remote-relay/protocol');
-const { HostConnector } = require('../src/host-connector');
+import { test } from 'vitest';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import { WebSocket } from 'ws';
+import { unpackStreamFrame } from 'herdr-remote-relay/protocol';
+import { HostConnector } from '../src/connector/host-connector.js';
 
 test('host connector coalesces multiple onData chunks emitted in the same tick into one frame', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-coalesce-'));
@@ -49,7 +47,7 @@ test('host connector coalesces multiple onData chunks emitted in the same tick i
     },
   });
 
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     socketServer.close();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -64,7 +62,12 @@ test('host connector coalesces multiple onData chunks emitted in the same tick i
     close() {},
   };
 
-  await connector.startSession({ type: 'session_start', streamId: 'session-batch-1', cols: 80, rows: 24 });
+  await connector.startSession({
+    type: 'session_start',
+    streamId: 'session-batch-1',
+    cols: 80,
+    rows: 24,
+  });
   assert.ok(capturedOnData, 'PtySession onData callback should be registered');
 
   // Emit two onData chunks in the exact same event loop tick
@@ -124,7 +127,7 @@ test('stopping a session clears pending output and scheduled flush', async (t) =
     },
   });
 
-  t.after(() => {
+  t.onTestFinished(() => {
     connector.stop();
     socketServer.close();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -139,11 +142,16 @@ test('stopping a session clears pending output and scheduled flush', async (t) =
     close() {},
   };
 
-  await connector.startSession({ type: 'session_start', streamId: 'session-cancel-1', cols: 80, rows: 24 });
+  await connector.startSession({
+    type: 'session_start',
+    streamId: 'session-cancel-1',
+    cols: 80,
+    rows: 24,
+  });
   capturedOnData(Buffer.from('abandoned-output', 'utf8'));
 
   // Stop session before flush executes
-  connector.stopSession('session-cancel-1');
+  connector.sessions.stop('session-cancel-1');
 
   await new Promise((resolve) => setImmediate(resolve));
 
