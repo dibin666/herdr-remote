@@ -7,7 +7,13 @@
       "ignoreBinaries": ["herdr"]
     },
     "packages/cli": {
-      "entry": ["bin/*.js", "src/connector/main.ts", "src/tui/index.tsx", "tests/**/*.test.js"],
+      "entry": [
+        "bin/*.js",
+        "src/cli.ts",
+        "src/connector/main.ts",
+        "src/tui/index.tsx",
+        "tests/**/*.test.js"
+      ],
       "project": ["bin/**/*.js", "src/**/*.{js,ts,tsx}", "tests/**/*.js"],
       "ignoreBinaries": ["loginctl", "fc-match"],
       "ignoreDependencies": ["harfbuzzjs"]
