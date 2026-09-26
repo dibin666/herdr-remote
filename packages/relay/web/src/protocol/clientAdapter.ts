@@ -13,8 +13,6 @@ import type {
 } from '@protocol/messages';
 import { RelaySocket } from './relaySocket';
 
-export type { AdapterEventMap } from './adapterEvents';
-
 export class HerdrClientAdapter extends RelaySocket {
   private currentRole: ClientRole = 'viewer';
   private controllerId?: string | null;

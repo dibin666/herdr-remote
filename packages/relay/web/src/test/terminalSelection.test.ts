@@ -7,12 +7,14 @@ import {
   screenText,
   scrollbackText,
   DEFAULT_WORD_SEPARATORS,
+} from '../utils/terminalSelection';
+import {
   paneColumnBand,
   clampRectToBand,
   rectText,
   VERTICAL_BORDER_CHARS,
   PANE_DIVIDER_THRESHOLD,
-} from '../utils/terminalSelection';
+} from '../utils/paneSelection';
 
 /**
  * Creates a mock terminal cell.

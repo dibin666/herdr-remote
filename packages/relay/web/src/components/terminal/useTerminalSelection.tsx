@@ -9,16 +9,14 @@ import type { Translate } from '../../i18n';
 import { copyText } from '../../utils/clipboard';
 import { measureCellDimensions } from '../../utils/terminalFit';
 import { linkAtCell } from '../../utils/terminalLinks';
+import { pointToCell, screenText, wordRangeAt } from '../../utils/terminalSelection';
 import {
   clampRectToBand,
   type PaneColumnBand,
   paneColumnBand,
-  pointToCell,
   rectText,
-  screenText,
   type TerminalSelectionRect,
-  wordRangeAt,
-} from '../../utils/terminalSelection';
+} from '../../utils/paneSelection';
 import { useLatest } from './useLatest';
 
 type Point = { clientX: number; clientY: number };
