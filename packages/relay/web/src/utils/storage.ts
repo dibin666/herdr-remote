@@ -59,9 +59,22 @@ export interface StoredSettings {
   adminTokens?: Record<string, string>;
 }
 
+/** Where builds before the key registry kept the ignored release. */
+const LEGACY_IGNORED_UPDATE_KEY = 'herdr-remote.ignoredUpdate';
+
 /** The herdr-remote release the user chose not to hear about again, if any. */
 export function loadIgnoredUpdate(): string | null {
-  return safeGetItem('local', STORAGE_KEYS.ignoredUpdate);
+  const current = safeGetItem('local', STORAGE_KEYS.ignoredUpdate);
+  if (current !== null) return current;
+  const legacy = safeGetItem('local', LEGACY_IGNORED_UPDATE_KEY);
+  if (legacy === null) return null;
+  saveIgnoredUpdate(legacy);
+  try {
+    window.localStorage.removeItem(LEGACY_IGNORED_UPDATE_KEY);
+  } catch {
+    // Left behind, the old key is only read again while the new one is empty.
+  }
+  return legacy;
 }
 
 export function saveIgnoredUpdate(version: string): void {

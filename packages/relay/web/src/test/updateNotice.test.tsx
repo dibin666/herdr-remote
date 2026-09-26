@@ -5,6 +5,7 @@ import { TerminalProvider, useTerminal } from '../context/TerminalContext';
 import { UpdateChip } from '../components/UpdateNotice';
 import { SessionStatusLine } from '../components/SessionStatusLine';
 import { loadIgnoredUpdate, saveSettings } from '../utils/storage';
+import { STORAGE_KEYS } from '../utils/browserStorage';
 
 /**
  * A newer herdr-remote for the workstation, said on the status line.
@@ -115,6 +116,16 @@ describe('herdr-remote update notice', () => {
     // The next release is news again.
     session.report({ latest: '0.3.1' });
     expect(screen.getByTestId('update-chip')).toHaveTextContent('0.3.1');
+  });
+
+  it('still skips a release that an older build was told to skip', () => {
+    localStorage.setItem('herdr-remote.ignoredUpdate', '0.3.0');
+    const session = mount();
+    session.report({});
+
+    expect(screen.queryByTestId('update-chip')).not.toBeInTheDocument();
+    expect(localStorage.getItem(STORAGE_KEYS.ignoredUpdate)).toBe('0.3.0');
+    expect(localStorage.getItem('herdr-remote.ignoredUpdate')).toBeNull();
   });
 
   it('asks only for a restart when the update is already installed', () => {

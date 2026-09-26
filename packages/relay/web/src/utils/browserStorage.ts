@@ -9,7 +9,7 @@ export const STORAGE_KEYS = {
   /** sessionStorage: this window's own view settings. */
   sessionView: 'herdr_remote_session_view_v1',
   /** localStorage: the release the user chose not to hear about again. */
-  ignoredUpdate: 'herdr-remote.ignoredUpdate',
+  ignoredUpdate: 'herdr_remote_ignored_update_v1',
   /** localStorage: per-workstation answers to "use the host's font?". */
   hostFontConsent: 'herdr_remote_host_font_consent_v1',
   /** localStorage: user agents whose canvas renderer failed its probe. */
