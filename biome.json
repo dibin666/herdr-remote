@@ -123,7 +123,6 @@
     {
       "includes": [
         "packages/relay/web/src/render/HerdrRenderer.ts",
-        "packages/relay/web/src/utils/touchMouseAdapter.ts",
         "scripts/capture-herdr-screens.mjs",
         "scripts/e2e-latency-harness.mjs"
       ],
