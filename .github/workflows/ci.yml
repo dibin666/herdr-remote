@@ -37,3 +37,14 @@ jobs:
       - run: npm test
 
       - run: npm run build
+
+  image:
+    name: relay image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image builds from a slice of the repo picked by the Dockerfile and
+      # .dockerignore, so a layout change can break it while the job above
+      # stays green. Build it here rather than finding out after the merge.
+      - run: docker build -f packages/relay/Dockerfile .
