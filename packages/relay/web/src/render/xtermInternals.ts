@@ -144,3 +144,18 @@ export function xtermCore(terminal: Terminal): XtermCore | null {
   }
   return core as XtermCore;
 }
+
+/** The smallest implementation of xterm's event type. */
+export class Emitter<T> {
+  private readonly listeners = new Set<(value: T) => void>();
+  readonly event = (listener: (value: T) => void): Disposable => {
+    this.listeners.add(listener);
+    return { dispose: () => this.listeners.delete(listener) };
+  };
+  fire(value: T): void {
+    for (const listener of [...this.listeners]) listener(value);
+  }
+  dispose(): void {
+    this.listeners.clear();
+  }
+}

@@ -121,11 +121,7 @@
       }
     },
     {
-      "includes": [
-        "packages/relay/web/src/render/HerdrRenderer.ts",
-        "scripts/capture-herdr-screens.mjs",
-        "scripts/e2e-latency-harness.mjs"
-      ],
+      "includes": ["scripts/capture-herdr-screens.mjs", "scripts/e2e-latency-harness.mjs"],
       "linter": {
         "rules": {
           "style": {

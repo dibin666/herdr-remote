@@ -4,7 +4,8 @@ import { Terminal } from '@xterm/headless';
 // setup.ts replaces the renderer for component tests; these test the real one.
 vi.unmock('../render/HerdrRenderer');
 
-import { HerdrRenderer, type PaintOverlay } from '../render/HerdrRenderer';
+import { HerdrRenderer } from '../render/HerdrRenderer';
+import type { PaintOverlay } from '../render/paintOverlay';
 import { resolveCellColors, type ThemeColors } from '../render/colors';
 import { readCellStyle } from '../render/cell';
 

@@ -7,7 +7,7 @@ import {
   readCellStyle,
   type CellStyle,
 } from '../render/cell';
-import type { OverlayCell, PaintOverlay } from '../render/HerdrRenderer';
+import type { OverlayCell, PaintOverlay } from '../render/paintOverlay';
 import type { OverlayItem } from './predictionModel';
 
 /** What the layer draws into: the canvas renderer, while it is the one in use. */
