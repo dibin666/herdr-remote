@@ -141,6 +141,21 @@ async function main(argv = process.argv.slice(2)) {
   const { positional, flags } = parseArgs(argv);
   const command = positional[0] || null;
 
+  // Answered before anything reads the config or queries the terminal.
+  if (flags.help) {
+    process.stdout.write(USAGE);
+    return;
+  }
+  if (flags.version) {
+    process.stdout.write(`${VERSION}\n`);
+    return;
+  }
+  if (flags.unknown) {
+    process.stderr.write(`herdr-remote: unknown option "${flags.unknown}"\n\n${USAGE}`);
+    process.exitCode = 2;
+    return;
+  }
+
   migrateLegacyConfig();
 
   // Ask the terminal for its colors while it is still a plain terminal: the
@@ -160,16 +175,7 @@ async function main(argv = process.argv.slice(2)) {
       : config.ui.language;
   const t = createTranslator(detectLocale({ preference }));
 
-  if (flags.help) {
-    process.stdout.write(USAGE);
-    return;
-  }
-  if (flags.version) {
-    process.stdout.write(`${VERSION}\n`);
-    return;
-  }
-
-  // Loaded lazily so that `--help` and the TUI do not pay for loading the
+  // Loaded lazily so that the TUI does not pay for loading the
   // service layer (which pulls in the relay package and node-pty).
   const lifecycle = await import('./lifecycle.js');
   const service = await import('./service.js');

@@ -50,6 +50,29 @@ test('--help exits cleanly and names the commands', () => {
   assert.match(result.stdout, /keepalive <action>/);
 });
 
+test('--help and --version answer before reading the config or the terminal', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-cli-help-'));
+  try {
+    fs.mkdirSync(path.join(directory, 'config'));
+    fs.writeFileSync(path.join(directory, 'config', 'config.json'), '{not json');
+    const env = { HERDR_REMOTE_CONFIG_DIR: path.join(directory, 'config') };
+    for (const flag of ['--help', '--version']) {
+      const result = runCli([flag], env);
+      assert.equal(result.status, 0);
+      assert.equal(result.stderr, '', `${flag} should not warn about the config`);
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('an unknown option is refused rather than ignored', () => {
+  const result = runCli(['url', '--jsn']);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /unknown option "--jsn"/);
+  assert.equal(result.stdout, '');
+});
+
 test('without a terminal the bare command reports status as JSON', () => {
   // Herdr runs plugin panes and actions with no TTY attached; painting an
   // interface into a pipe would produce escape-sequence noise instead of
