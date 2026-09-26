@@ -126,7 +126,6 @@
         "packages/relay/web/src/utils/predictiveEcho.ts",
         "packages/relay/web/src/utils/touchMouseAdapter.ts",
         "scripts/capture-herdr-screens.mjs",
-        "packages/relay/web/src/utils/inputField.ts",
         "scripts/e2e-latency-harness.mjs"
       ],
       "linter": {

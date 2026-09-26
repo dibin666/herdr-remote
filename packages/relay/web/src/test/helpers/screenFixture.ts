@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { FieldCell, FieldLine, FieldScreen } from '../../utils/inputField';
+import type { FieldCell, FieldLine, FieldScreen } from '../../utils/fieldScreen';
 import { predictableWidth } from '../../utils/wideChars';
 
 /**

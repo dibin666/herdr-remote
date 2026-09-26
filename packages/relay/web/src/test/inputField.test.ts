@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  detectInputField,
-  InputFieldTracker,
-  type FieldScreen,
-  type InputField,
-} from '../utils/inputField';
+import { detectInputField, InputFieldTracker, type InputField } from '../utils/inputField';
+import type { FieldScreen } from '../utils/fieldScreen';
 import {
   createTestScreen,
   listScreenFixtures,
