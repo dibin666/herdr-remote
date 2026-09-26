@@ -53,6 +53,8 @@ class Supervisor {
   readonly state: RuntimeState;
   readonly logToFiles: boolean;
   readonly onEvent: ((event: SupervisorEvent) => void) | null;
+  /** What to run; the relay and host connector unless a test says otherwise. */
+  readonly specs: ServiceSpec[] | null;
   readonly children = new Map<string, ChildEntry>();
   stopping = false;
 
@@ -61,16 +63,19 @@ class Supervisor {
     state = ensureRuntime(),
     logToFiles = false,
     onEvent = null,
+    specs = null,
   }: {
     config?: Config;
     state?: RuntimeState;
     logToFiles?: boolean;
     onEvent?: ((event: SupervisorEvent) => void) | null;
+    specs?: ServiceSpec[] | null;
   } = {}) {
     this.config = config;
     this.state = state;
     this.logToFiles = logToFiles;
     this.onEvent = onEvent;
+    this.specs = specs;
   }
 
   emit(event: SupervisorEvent): void {
@@ -137,7 +142,7 @@ class Supervisor {
     ensureDir(stateDir());
     await this.reclaimStrays();
     if (this.stopping) return;
-    for (const spec of serviceSpecs(this.config, this.state)) {
+    for (const spec of this.specs ?? serviceSpecs(this.config, this.state)) {
       this.children.set(spec.name, {
         spec,
         child: null,
@@ -352,4 +357,4 @@ async function runForeground({ logToFiles = false } = {}): Promise<number> {
   });
 }
 
-export { runForeground };
+export { MIN_BACKOFF_MS, runForeground, Supervisor };
