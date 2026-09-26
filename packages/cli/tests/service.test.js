@@ -1,8 +1,5 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { pidAlive } from '../src/lib/process.js';
@@ -10,6 +7,7 @@ import { managedPids, recordManagedPid } from '../src/runtime.js';
 import { stopServices } from '../src/service.js';
 import { runtimeStatePath } from '../src/paths.js';
 import { writeJsonAtomic, readJson } from 'herdr-remote-relay/state';
+import { isolateState } from './helpers.js';
 
 // A pid that is certainly not running: above the kernel maximum.
 const DEAD_PID = 4194304;
@@ -22,23 +20,6 @@ const DEAD_PID = 4194304;
  * whatever pids the state file names — against the real state file that means
  * killing the developer's running services.
  */
-async function withTemporaryState(run) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-service-'));
-  const previousConfig = process.env.HERDR_REMOTE_CONFIG_DIR;
-  const previousState = process.env.HERDR_REMOTE_STATE_DIR;
-  process.env.HERDR_REMOTE_CONFIG_DIR = path.join(directory, 'config');
-  process.env.HERDR_REMOTE_STATE_DIR = path.join(directory, 'state');
-  try {
-    return await run(directory);
-  } finally {
-    if (previousConfig === undefined) delete process.env.HERDR_REMOTE_CONFIG_DIR;
-    else process.env.HERDR_REMOTE_CONFIG_DIR = previousConfig;
-    if (previousState === undefined) delete process.env.HERDR_REMOTE_STATE_DIR;
-    else process.env.HERDR_REMOTE_STATE_DIR = previousState;
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-}
-
 /** A detached child that stays alive until it is signalled. */
 function spawnSleeper() {
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
@@ -105,47 +86,45 @@ test('managedPids merges the legacy fields with the ledger and de-duplicates', (
   assert.equal(tracked[0].name, 'supervisor');
 });
 
-test('stopServices stops everything in the ledger, including strays', async () => {
-  await withTemporaryState(async () => {
-    const supervisor = spawnSleeper();
-    const relay = spawnSleeper();
-    const host = spawnSleeper();
-    // A process recorded only in the ledger — exactly the shape an orphan from
-    // an earlier start takes once another writer has reset relayPid/hostPid.
-    const stray = spawnSleeper();
+test('stopServices stops everything in the ledger, including strays', async (t) => {
+  isolateState(t);
+  const supervisor = spawnSleeper();
+  const relay = spawnSleeper();
+  const host = spawnSleeper();
+  // A process recorded only in the ledger — exactly the shape an orphan from
+  // an earlier start takes once another writer has reset relayPid/hostPid.
+  const stray = spawnSleeper();
 
-    const state = { supervisorPid: supervisor, relayPid: relay, hostPid: host };
-    recordManagedPid(state, 'relay', stray);
-    writeJsonAtomic(runtimeStatePath(), state);
+  const state = { supervisorPid: supervisor, relayPid: relay, hostPid: host };
+  recordManagedPid(state, 'relay', stray);
+  writeJsonAtomic(runtimeStatePath(), state);
 
-    const result = stopServices();
-    assert.equal(result.ok, true);
-    // The supervisor has to be signalled first, or it restarts the children
-    // faster than they can be stopped.
-    assert.equal(result.stopped[0].name, 'supervisor');
-    assert.equal(result.stopped.length, 4);
+  const result = stopServices();
+  assert.equal(result.ok, true);
+  // The supervisor has to be signalled first, or it restarts the children
+  // faster than they can be stopped.
+  assert.equal(result.stopped[0].name, 'supervisor');
+  assert.equal(result.stopped.length, 4);
 
-    for (const pid of [supervisor, relay, host, stray]) {
-      assert.equal(await waitForExit(pid), true, `pid ${pid} should have been stopped`);
-    }
+  for (const pid of [supervisor, relay, host, stray]) {
+    assert.equal(await waitForExit(pid), true, `pid ${pid} should have been stopped`);
+  }
 
-    const after = readJson(runtimeStatePath(), {});
-    assert.equal(after.relayPid, null);
-    assert.equal(after.hostPid, null);
-    assert.equal(after.supervisorPid, null);
-    assert.deepEqual(after.managedPids, []);
-  });
+  const after = readJson(runtimeStatePath(), {});
+  assert.equal(after.relayPid, null);
+  assert.equal(after.hostPid, null);
+  assert.equal(after.supervisorPid, null);
+  assert.deepEqual(after.managedPids, []);
 });
 
-test('stopServices is harmless when nothing is running', async () => {
-  await withTemporaryState(() => {
-    writeJsonAtomic(runtimeStatePath(), {
-      relayPid: DEAD_PID,
-      hostPid: DEAD_PID,
-      managedPids: [{ name: 'relay', pid: DEAD_PID }],
-    });
-    const result = stopServices();
-    assert.equal(result.ok, true);
-    assert.deepEqual(result.stopped, []);
+test('stopServices is harmless when nothing is running', async (t) => {
+  isolateState(t);
+  writeJsonAtomic(runtimeStatePath(), {
+    relayPid: DEAD_PID,
+    hostPid: DEAD_PID,
+    managedPids: [{ name: 'relay', pid: DEAD_PID }],
   });
+  const result = stopServices();
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.stopped, []);
 });

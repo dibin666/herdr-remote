@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
@@ -13,12 +12,7 @@ import {
   serverEnv,
   ensureHerdrServer,
 } from '../src/herdr-server.js';
-
-function tempDir(t, prefix) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
-  return directory;
-}
+import { tempDir } from './helpers.js';
 
 test('no socket file means Herdr is stopped', async (t) => {
   const socketPath = path.join(tempDir(t, 'herdr-probe-missing-'), 'herdr.sock');

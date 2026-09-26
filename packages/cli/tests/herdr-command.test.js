@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   FALLBACK_DIRECTORIES,
@@ -15,6 +14,7 @@ import {
   resolveHerdrCommand,
   verifyHerdrCommand,
 } from '../src/herdr-command.js';
+import { tempDir } from './helpers.js';
 
 /** A throwaway tree with an executable `herdr` in `directory`. */
 function makeInstall(directory, { executable = true, name = 'herdr' } = {}) {
@@ -22,12 +22,6 @@ function makeInstall(directory, { executable = true, name = 'herdr' } = {}) {
   const binary = path.join(directory, name);
   fs.writeFileSync(binary, '#!/bin/sh\nexit 0\n', { mode: executable ? 0o755 : 0o644 });
   return binary;
-}
-
-function withTempHome(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-command-'));
-  t.onTestFinished(() => fs.rmSync(home, { recursive: true, force: true }));
-  return home;
 }
 
 /**
@@ -40,7 +34,7 @@ function homeDirectories(home) {
 }
 
 test('HERDR_BIN_PATH pointing at the executable wins', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeInstall(path.join(home, 'custom'));
 
   const found = findHerdrCommand({ env: { HERDR_BIN_PATH: binary, PATH: '' }, home });
@@ -49,7 +43,7 @@ test('HERDR_BIN_PATH pointing at the executable wins', (t) => {
 });
 
 test('HERDR_BIN_PATH pointing at the install directory is accepted too', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const directory = path.join(home, '.local', 'bin');
   const binary = makeInstall(directory);
 
@@ -60,7 +54,7 @@ test('HERDR_BIN_PATH pointing at the install directory is accepted too', (t) => 
 });
 
 test('a stale HERDR_BIN_PATH falls back instead of failing the spawn', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeInstall(path.join(home, '.local', 'bin'));
 
   const found = findHerdrCommand({
@@ -73,7 +67,7 @@ test('a stale HERDR_BIN_PATH falls back instead of failing the spawn', (t) => {
 });
 
 test('PATH is searched before the well-known directories and resolves to an absolute path', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const onPath = makeInstall(path.join(home, 'opt', 'bin'));
   makeInstall(path.join(home, '.local', 'bin'));
 
@@ -86,7 +80,7 @@ test('PATH is searched before the well-known directories and resolves to an abso
 // This is the systemd --user case from issue #1: the unit's PATH has none of
 // the directories the user installed into.
 test('a minimal PATH still finds a ~/.local/bin install', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeInstall(path.join(home, '.local', 'bin'));
   // Stand-ins for the /usr/local/bin:/usr/bin:/bin a systemd --user unit gets.
   const minimalPath = ['usr-local-bin', 'usr-bin', 'bin']
@@ -104,14 +98,14 @@ test('a minimal PATH still finds a ~/.local/bin install', (t) => {
 });
 
 test('~/.cargo/bin is probed when ~/.local/bin has nothing', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeInstall(path.join(home, '.cargo', 'bin'));
 
   assert.equal(findHerdrCommand({ env: { PATH: '' }, home }).command, binary);
 });
 
 test('a file without the executable bit is not a Herdr install', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   makeInstall(path.join(home, '.local', 'bin'), { executable: false });
 
   const found = findHerdrCommand({ env: { PATH: '' }, home, directories: homeDirectories(home) });
@@ -121,13 +115,13 @@ test('a file without the executable bit is not a Herdr install', (t) => {
 });
 
 test('nothing found still yields the bare name, so old behaviour is preserved', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
 
   assert.equal(resolveHerdrCommand({ env: { PATH: '' }, home, directories: [] }), 'herdr');
 });
 
 test('a directory named herdr is not mistaken for the binary', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   fs.mkdirSync(path.join(home, '.local', 'bin', 'herdr'), { recursive: true });
 
   const found = findHerdrCommand({ env: { PATH: '' }, home, directories: homeDirectories(home) });
@@ -146,7 +140,7 @@ test('the well-known directories are probed home-first', () => {
 });
 
 test('verify keeps a still-valid absolute path and re-searches a broken one', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeInstall(path.join(home, '.local', 'bin'));
 
   assert.deepEqual(verifyHerdrCommand(binary, { env: { PATH: '' }, home }), {
@@ -176,7 +170,7 @@ function makeVersionStub(directory, line, { status = 0 } = {}) {
 }
 
 test('the version is read from the install and compared against the minimum', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.1');
 
   const installed = herdrVersion({ command: binary });
@@ -191,7 +185,7 @@ test('the version is read from the install and compared against the minimum', (t
 });
 
 test('an older install is reported as unsupported, not as missing', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.0');
 
   const installed = herdrVersion({ command: binary });
@@ -202,7 +196,7 @@ test('an older install is reported as unsupported, not as missing', (t) => {
 });
 
 test('an unreadable version is not treated as evidence of an old Herdr', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
   const silent = makeVersionStub(path.join(home, '.local', 'bin'), '');
 
   const installed = herdrVersion({ command: silent });
@@ -232,7 +226,7 @@ test('version parsing and comparison cover the shapes Herdr prints', () => {
 });
 
 test('the not-found message names the override and the directories tried', (t) => {
-  const home = withTempHome(t);
+  const home = tempDir(t, 'herdr-command-');
 
   const message = herdrNotFoundMessage({
     env: { HERDR_BIN_PATH: '/gone/herdr', PATH: '' },

@@ -8,21 +8,14 @@ process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { readRuntime, setRelayPassword } from '../src/runtime.js';
 import { loadConfig } from '../src/config.js';
 import { bindAddress } from '../src/relay-urls.js';
+import { isolateState } from './helpers.js';
 
 function loadTui() {
   return import('../src/tui/index.tsx');
-}
-
-function withTemporaryHome() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-tui-home-'));
-  process.env.HERDR_REMOTE_CONFIG_DIR = path.join(directory, 'config');
-  process.env.HERDR_REMOTE_STATE_DIR = path.join(directory, 'state');
-  return () => fs.rmSync(directory, { recursive: true, force: true });
 }
 
 function writeConfig(contents) {
@@ -41,8 +34,7 @@ async function mount(element) {
 }
 
 test('the overview renders the service picture in English', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -60,8 +52,7 @@ test('the overview renders the service picture in English', async (t) => {
 });
 
 test('the interface switches to Chinese from the saved preference', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -78,8 +69,7 @@ test('the interface switches to Chinese from the saved preference', async (t) =>
 });
 
 test('an explicit language flag overrides the saved preference', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -92,8 +82,7 @@ test('an explicit language flag overrides the saved preference', async (t) => {
 });
 
 test('every tab is reachable and titled', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -116,8 +105,7 @@ test('every tab is reachable and titled', async (t) => {
 });
 
 test('the first-run wizard opens on the language step', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
   const instance = await mount(
@@ -134,8 +122,7 @@ test('the first-run wizard opens on the language step', async (t) => {
 });
 
 test('the wizard walks language, access mode and finish', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
   const instance = await mount(
@@ -160,8 +147,7 @@ test('the wizard walks language, access mode and finish', async (t) => {
 });
 
 test('choosing the self-hosted relay adds the URL and credential steps', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
   const instance = await mount(
@@ -187,8 +173,7 @@ test('choosing the self-hosted relay adds the URL and credential steps', async (
 });
 
 test('the Herdr screen shows the installed version and offers no plugin registration', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   // A stand-in herdr that answers --version, old enough to draw the warning.
@@ -220,8 +205,7 @@ test('the Herdr screen shows the installed version and offers no plugin registra
 });
 
 test('the Herdr screen switches starting Herdr with herdr-remote, off by default', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -249,8 +233,7 @@ test('the Herdr screen switches starting Herdr with herdr-remote, off by default
 });
 
 test('the relay screen offers a password only for a self-hosted relay', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
@@ -275,8 +258,7 @@ test('the relay screen offers a password only for a self-hosted relay', async (t
 });
 
 test('a local relay needs no password, so the field is not offered', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -300,8 +282,7 @@ test('the relay screen commits an access-mode change to disk from its own row', 
   // restarted, but the relay kept binding loopback — every field here only
   // edits an in-memory draft, and the sole way to commit one was an
   // undocumented `s`, so the restart read the untouched file.
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -343,8 +324,7 @@ test('the relay screen commits an access-mode change to disk from its own row', 
 });
 
 test('the services screen refuses to restart onto a stale configuration', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -372,8 +352,7 @@ test('the services screen refuses to restart onto a stale configuration', async 
 // The official relay answers the "which relay" question by itself, so setup
 // must not go on to ask for a URL: picking it lands straight on the last step.
 test('the official relay is offered during setup and needs no further answers', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
   const instance = await mount(
@@ -413,8 +392,7 @@ test('the official relay is offered during setup and needs no further answers', 
 // beginning of the render, the second committed the stale copy back over the
 // first: the URL landed but the access mode silently stayed put.
 test('choosing the official relay sets both the mode and the URL', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
@@ -449,8 +427,7 @@ test('choosing the official relay sets both the mode and the URL', async (t) => 
 // "Self-hosted relay", the URL sat in an editable box, and a password field
 // invited a credential the official relay does not take.
 test('the official relay is shown as itself, with a fixed address and no password', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://herdr-remote.564616.xyz' },
@@ -480,8 +457,7 @@ test('the official relay is shown as itself, with a fixed address and no passwor
 });
 
 test('switching from the official relay to a self-hosted one clears the address', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://herdr-remote.564616.xyz' },
@@ -517,8 +493,7 @@ test('switching from the official relay to a self-hosted one clears the address'
 // official one, which takes none, used to leave the old self-hosted password in
 // the runtime file — where the next connection would have sent it.
 test('choosing the official relay drops the password typed for a self-hosted one', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({
     ui: { language: 'en' },
     relay: { mode: 'remote', remoteUrl: 'wss://relay.example.com' },
@@ -554,8 +529,7 @@ test('choosing the official relay drops the password typed for a self-hosted one
 });
 
 test('opening the TUI checks for a newer release and says so where it opens', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
 
   let checks = 0;
@@ -591,8 +565,7 @@ test('opening the TUI checks for a newer release and says so where it opens', as
 });
 
 test('a TUI that is up to date says nothing about updates', async (t) => {
-  const cleanup = withTemporaryHome();
-  t.onTestFinished(cleanup);
+  isolateState(t);
   writeConfig({ ui: { language: 'en' }, relay: { mode: 'local' } });
 
   const updateChecker = async () => ({

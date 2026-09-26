@@ -7,36 +7,7 @@ import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
 import { loadRelayConfig } from '../src/relay-config';
 import { packStreamFrame, unpackStreamFrame } from '../src/protocol';
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 2000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      let value = data;
-      if (!isBinary) {
-        try {
-          value = JSON.parse(data.toString());
-        } catch {}
-      }
-      if (!predicate(value, isBinary)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve({ value, isBinary });
-    };
-    ws.on('message', onMessage);
-  });
-}
+import { nextMessage, openWebSocket } from './helpers.js';
 
 test('relay negotiates permessage-deflate and preserves large compressed payload integrity', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-deflate-test-'));

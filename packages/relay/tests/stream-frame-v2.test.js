@@ -16,36 +16,7 @@ import {
   packStreamFrameV2,
   unpackStreamFrameV2,
 } from '../src/protocol';
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 2000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      let value = data;
-      if (!isBinary) {
-        try {
-          value = JSON.parse(data.toString());
-        } catch {}
-      }
-      if (!predicate(value, isBinary)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve({ value, isBinary });
-    };
-    ws.on('message', onMessage);
-  });
-}
+import { nextMessage, openWebSocket } from './helpers.js';
 
 test('v2 round-trip: packStreamFrameV2 and unpackStreamFrameV2 preserve payload byte-for-byte', () => {
   const testCases = [

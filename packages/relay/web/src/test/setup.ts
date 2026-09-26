@@ -7,7 +7,9 @@ beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
     clearMemoryStorage();
-  } catch {}
+  } catch {
+    // A test that replaced the Storage objects cleans up after itself.
+  }
 });
 
 // Polyfill window.matchMedia

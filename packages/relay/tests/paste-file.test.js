@@ -1,88 +1,19 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
+import { nextMessage, openWebSocket, postJson, relayConfig } from './helpers.js';
 
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-test', 'X-Herdr-Host-Token': 'host-token-secret' };
 
-function relayConfig() {
-  return {
-    relay: {
-      local: true,
-      url: 'ws://127.0.0.1:0',
-      publicUrl: 'http://127.0.0.1:0',
-      host: '127.0.0.1',
-      port: 0,
-      maxPayloadBytes: 5 * 1024 * 1024,
-      maxClientsPerHost: 8,
-      maxHosts: 8,
-      maxBufferedBytesPerClient: 1024,
-      hostReconnectGraceMs: 500,
-    },
-    auth: { pairingTtlMs: 60_000, deviceTtlMs: 60_000, maxDevices: 8 },
-    cleanup: { intervalMs: 60_000, heartbeatIntervalMs: 60_000, staleAfterMs: 180_000 },
-  };
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 2000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      let value = data;
-      if (!isBinary) {
-        try {
-          value = JSON.parse(data.toString());
-        } catch {}
-      }
-      if (!predicate(value, isBinary)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve({ value, isBinary });
-    };
-    ws.on('message', onMessage);
-  });
-}
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function postJson(urlString, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const request = http.request(urlString, { method: 'POST', headers }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => {
-        let body;
-        try {
-          body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        } catch (error) {
-          return reject(error);
-        }
-        if (response.statusCode >= 400)
-          return reject(new Error(body.message || `HTTP ${response.statusCode}`));
-        resolve(body);
-      });
-    });
-    request.on('error', reject);
-    request.end();
-  });
-}
-
 test('paste_file rejects unsupported MIME type with paste_file_unsupported error', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
-  const server = new RelayServer(relayConfig(), { stateFile: path.join(dir, 'auth.json') });
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
@@ -138,7 +69,9 @@ test('paste_file rejects unsupported MIME type with paste_file_unsupported error
 
 test('paste_file rejects payload over 3 MB with paste_file_too_large and keeps connection alive', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
-  const server = new RelayServer(relayConfig(), { stateFile: path.join(dir, 'auth.json') });
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
@@ -205,7 +138,9 @@ test('paste_file rejects payload over 3 MB with paste_file_too_large and keeps c
 
 test('paste_file forwards valid request with streamId to host, and routes paste_file_ready exclusively to that client', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
-  const server = new RelayServer(relayConfig(), { stateFile: path.join(dir, 'auth.json') });
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
@@ -283,7 +218,9 @@ test('paste_file forwards valid request with streamId to host, and routes paste_
     try {
       const msg = JSON.parse(data.toString());
       if (msg.type === 'paste_file_ready') clientBReceivedReady = true;
-    } catch {}
+    } catch {
+      // Only JSON control messages matter here.
+    }
   });
 
   const clientAReceivedReady = nextMessage(clientA, (msg) => msg.type === 'paste_file_ready');
@@ -309,7 +246,9 @@ test('paste_file forwards valid request with streamId to host, and routes paste_
 
 test('paste_file rejects mismatched magic bytes on relay with paste_file_unsupported error', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
-  const server = new RelayServer(relayConfig(), { stateFile: path.join(dir, 'auth.json') });
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
@@ -366,7 +305,9 @@ test('paste_file rejects mismatched magic bytes on relay with paste_file_unsuppo
 
 test('paste_file rejects request when host is offline with host_offline error', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
-  const server = new RelayServer(relayConfig(), { stateFile: path.join(dir, 'auth.json') });
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;
@@ -429,7 +370,9 @@ test('paste_file rejects request when host is offline with host_offline error', 
 
 test('paste_file rejects request when client is viewer mode with viewer_mode error', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
-  const server = new RelayServer(relayConfig(), { stateFile: path.join(dir, 'auth.json') });
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
   const address = await server.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const wsBase = `ws://127.0.0.1:${address.port}`;

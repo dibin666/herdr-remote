@@ -5,12 +5,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { WebSocket } from 'ws';
 import { RelayServer } from '../src/relay-server';
 import { sanitizeTerminalFont, TERMINAL_FONT_CHUNK_BYTES } from '../src/protocol';
+import { nextJson as nextMessage, openWebSocket, postJson, relayConfig } from './helpers.js';
 
 const HOST_AUTH = { 'X-Herdr-Host-Id': 'host-1', 'X-Herdr-Host-Token': 'host-token-123456789' };
 const REGULAR = 'a'.repeat(64);
@@ -100,83 +99,17 @@ test('malformed faces, sizes and sources are dropped one by one', () => {
   });
 });
 
-function config() {
-  return {
-    relay: {
-      local: true,
-      url: 'ws://127.0.0.1:0',
-      publicUrl: 'http://127.0.0.1:0',
-      host: '127.0.0.1',
-      port: 0,
-      maxPayloadBytes: 1024 * 1024,
-      maxClientsPerHost: 8,
-      maxHosts: 8,
-      maxBufferedBytesPerClient: 1024 * 1024,
-      hostReconnectGraceMs: 500,
-    },
-    auth: { pairingTtlMs: 60_000, deviceTtlMs: 60_000, maxDevices: 8 },
-    cleanup: { intervalMs: 60_000, heartbeatIntervalMs: 60_000, staleAfterMs: 180_000 },
-  };
-}
-
-function nextMessage(ws, predicate = () => true, timeoutMs = 1500) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off('message', onMessage);
-      reject(new Error('timed out waiting for WebSocket message'));
-    }, timeoutMs);
-    const onMessage = (data, isBinary) => {
-      if (isBinary) return;
-      let value;
-      try {
-        value = JSON.parse(data.toString());
-      } catch {
-        return;
-      }
-      if (!predicate(value)) return;
-      clearTimeout(timer);
-      ws.off('message', onMessage);
-      resolve(value);
-    };
-    ws.on('message', onMessage);
-  });
-}
-
 function collect(ws) {
   const seen = [];
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
     try {
       seen.push(JSON.parse(data.toString()));
-    } catch {}
+    } catch {
+      // Only JSON control messages matter here.
+    }
   });
   return seen;
-}
-
-function openWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', reject);
-  });
-}
-
-function postJson(urlString, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const request = http.request(urlString, { method: 'POST', headers }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => {
-        try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-    request.on('error', reject);
-    request.end();
-  });
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
@@ -184,7 +117,9 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
 async function startStack(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-font-'));
   t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const relay = new RelayServer(relayConfig({ maxBufferedBytesPerClient: 1024 * 1024 }), {
+    stateFile: path.join(directory, 'auth.json'),
+  });
   const address = await relay.listen(0, '127.0.0.1');
   t.onTestFinished(async () => relay.close());
   const base = `http://127.0.0.1:${address.port}`;
