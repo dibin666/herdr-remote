@@ -2,13 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { App } from '../App';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { SettingsModal } from '../components/SettingsModal';
-import { PairingModal } from '../components/PairingModal';
-import { ToastContainer } from '../components/ToastContainer';
-import { saveSettings } from '../utils/storage';
-import * as themeModule from '../utils/theme';
+import { App } from '@/app/App';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { PairingModal } from '@/features/pairing/PairingModal';
+import { ToastContainer } from '@/app/ToastContainer';
+import { saveSettings } from '@/features/settings/storage';
+import * as themeModule from '@/features/terminal/theme';
 
 describe('Herdr dark chrome with host-owned terminal colors', () => {
   beforeEach(() => {
@@ -119,7 +119,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
 
   it('never invents colors or contrast floors of its own', () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, '../components/TerminalView.tsx'),
+      path.resolve(__dirname, '../features/terminal/TerminalView.tsx'),
       'utf-8',
     );
 

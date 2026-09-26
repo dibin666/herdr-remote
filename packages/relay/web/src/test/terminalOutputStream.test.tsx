@@ -4,10 +4,10 @@ import {
   TerminalProvider,
   useTerminal,
   MAX_PENDING_OUTPUT_CHUNKS,
-} from '../context/TerminalContext';
-import { App } from '../App';
-import { TerminalView } from '../components/TerminalView';
-import { saveSettings } from '../utils/storage';
+} from '@/context/TerminalContext';
+import { App } from '@/app/App';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

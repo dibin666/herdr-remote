@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { copyText, readClipboardText } from '../utils/clipboard';
+import { copyText, readClipboardText } from '@/shared/lib/clipboard';
 
 describe('clipboard utils', () => {
   const originalClipboard = navigator.clipboard;

@@ -5,19 +5,19 @@ import {
   getBase64ByteLength,
   formatByteSize,
   compressAndPrepareImage,
-} from '../utils/imagePaste';
+} from '@/features/paste/imagePaste';
 import { PASTE_MAX_BYTES } from '@protocol/paste';
-import * as imagePasteModule from '../utils/imagePaste';
+import * as imagePasteModule from '@/features/paste/imagePaste';
 import {
   readClipboardImage,
   extractImageFromClipboardEvent,
   extractImageFromFileList,
-} from '../utils/clipboard';
-import { PasteFallbackModal } from '../components/PasteFallbackModal';
-import { ToastContainer } from '../components/ToastContainer';
-import { TerminalView } from '../components/TerminalView';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
+} from '@/shared/lib/clipboard';
+import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
+import { ToastContainer } from '@/app/ToastContainer';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

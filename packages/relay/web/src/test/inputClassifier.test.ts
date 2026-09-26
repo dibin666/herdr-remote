@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyInput, isLoneEscape } from '../utils/inputClassifier';
+import { classifyInput, isLoneEscape } from '@/shared/keys/inputClassifier';
 
 describe('classifyInput', () => {
   it.each([

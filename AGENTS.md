@@ -12,7 +12,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 |---|---|---|
 | `packages/cli` | `herdr-remote`（npm） | `src/cli.ts` 命令行；`src/connector/` host connector（relay 连接、PTY 会话、字体、agent 状态）；`src/tui/` Ink 配置界面；`src/` 其余是服务层；`herdr-plugin.toml` 插件清单 |
 | `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`src/server/` 按职责拆开的服务端模块，都接收 `RelayContext`，`relay-server.ts` 只负责组装 |
-| `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布 |
+| `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布；`src/features/<功能>/` 放该功能的组件、hook 和逻辑；`src/shared/` 放与功能无关的 UI 原语、i18n、按键编码和工具；`src/context/` 是全局状态；`src/connection/` 是到 relay 的连接；`src/app/` 是外壳 |
 
 cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编译到 `dist/`。`bin/` 只是启动器，运行时加载的都是 `dist/`。
 
@@ -36,7 +36,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 - 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli。
 - push master 会自动发布 npm 和镜像，所以只通过 PR 合并。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。
 - `node bin/herdr-remote.js` 及其子命令是插件的对外接口，不能改名。
-- 新增文案要同时加 en 和 zh（cli 在 `src/i18n/`，web 在 `src/i18n/`）；README 和 docs 的中英文版本要一起改。web 的文案结构以 `en.ts` 为准，`t()` 的 key 由编译器检查；动态拼出的 key 只有在查不到时另有回退的地方才能 `as TranslationKey`。
+- 新增文案要同时加 en 和 zh（cli 在 `src/i18n/`，web 在 `src/shared/i18n/`）；README 和 docs 的中英文版本要一起改。web 的文案结构以 `en.ts` 为准，`t()` 的 key 由编译器检查；动态拼出的 key 只有在查不到时另有回退的地方才能 `as TranslationKey`。
 - `dist/` 是构建产物，不提交。
 - `vendor/` 目录里是原样引入的第三方代码（文件头写明来源和版本），不改写、不拆分，升级时整体替换。
 
@@ -45,6 +45,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 - 格式和 lint 以 Biome 为准；写 `biome-ignore` 时必须注明原因。
 - 源文件上限 500 行，Biome 会检查（测试、i18n 文案、`vendor/` 除外）。超了就按职责拆开，不要加豁免。
 - 不新建 `utils` 之类的杂物文件，代码放进它所属的功能目录。
+- web 的 import：同一目录及其子目录用 `./`，其余一律用 `@/`，不写 `../`。
 - 写 helper 前先搜有没有现成的实现；只用一次的逻辑不要抽成函数。
 - 常量名带单位后缀（`_MS`、`_BYTES`），数字字面量写成 `30_000` 这种形式。
 - 不写空的 `catch`；确实要忽略错误时，注释说明原因。

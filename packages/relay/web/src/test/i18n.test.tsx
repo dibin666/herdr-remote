@@ -2,20 +2,20 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, renderHook, act, fireEvent } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
-import { translate } from '../i18n';
-import { en } from '../i18n/en';
-import { zh } from '../i18n/zh';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { describeConnection } from '../utils/connectionStatus';
-import { MobileControlSheet } from '../components/MobileControlSheet';
-import { ClientsTable } from '../components/admin/ClientsTable';
-import { PtysTable } from '../components/admin/PtysTable';
-import { TerminalView } from '../components/TerminalView';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { SettingsModal } from '../components/SettingsModal';
-import { Header } from '../components/Header';
-import { getLocalizedKeyTitle, ALL_AVAILABLE_KEYS } from '../utils/virtualKeys';
-import { saveSettings } from '../utils/storage';
+import { translate } from '@/shared/i18n';
+import { en } from '@/shared/i18n/en';
+import { zh } from '@/shared/i18n/zh';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { describeConnection } from '@/connection/connectionStatus';
+import { MobileControlSheet } from '@/features/mobile/MobileControlSheet';
+import { ClientsTable } from '@/features/admin/ClientsTable';
+import { PtysTable } from '@/features/admin/PtysTable';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { Header } from '@/app/Header';
+import { getLocalizedKeyTitle, ALL_AVAILABLE_KEYS } from '@/features/keyboard/virtualKeys';
+import { saveSettings } from '@/features/settings/storage';
 
 describe('i18n Internationalization Infrastructure & Full Coverage', () => {
   beforeEach(() => {

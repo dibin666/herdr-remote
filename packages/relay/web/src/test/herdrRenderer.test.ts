@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Terminal } from '@xterm/headless';
 
 // setup.ts replaces the renderer for component tests; these test the real one.
-vi.unmock('../render/HerdrRenderer');
+vi.unmock('@/features/terminal/render/HerdrRenderer');
 
-import { HerdrRenderer } from '../render/HerdrRenderer';
-import type { PaintOverlay } from '../render/paintOverlay';
-import { resolveCellColors, type ThemeColors } from '../render/colors';
-import { readCellStyle } from '../render/cell';
+import { HerdrRenderer } from '@/features/terminal/render/HerdrRenderer';
+import type { PaintOverlay } from '@/features/terminal/render/paintOverlay';
+import { resolveCellColors, type ThemeColors } from '@/features/terminal/render/colors';
+import { readCellStyle } from '@/features/terminal/render/cell';
 
 /**
  * The renderer against a real xterm parser and buffer (@xterm/headless), with

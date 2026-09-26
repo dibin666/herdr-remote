@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { TerminalView } from '../components/TerminalView';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { TerminalView } from '@/features/terminal/TerminalView';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

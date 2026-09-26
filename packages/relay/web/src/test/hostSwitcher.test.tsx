@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { HostSwitcher } from '../components/HostSwitcher';
-import { TerminalProvider } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
-import { createConnectionProfile } from '../utils/connectionProfiles';
+import { HostSwitcher } from '@/features/pairing/HostSwitcher';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
+import { createConnectionProfile } from '@/features/pairing/connectionProfiles';
 
 function profile(id: string, name: string, hostId: string) {
   return createConnectionProfile({

@@ -3,7 +3,7 @@
 
 import type { ClientRole, ServerAgentStatusMessage, ServerReadyMessage } from '@protocol/messages';
 import type { HostTerminalPalette } from '@protocol/terminal';
-import type { ConnectionState } from '../types/connection';
+import type { ConnectionState } from '@/connection/types';
 
 export interface SessionState {
   connectionState: ConnectionState;

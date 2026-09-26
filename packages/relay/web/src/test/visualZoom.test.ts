@@ -3,7 +3,7 @@ import {
   getVisualZoomSnapshot,
   evaluateResizeEvent,
   type VisualZoomSnapshot,
-} from '../utils/visualZoom';
+} from '@/features/terminal/visualZoom';
 
 describe('visualZoom helper unit tests', () => {
   it('computes initial snapshot accurately with default dpr and scale', () => {

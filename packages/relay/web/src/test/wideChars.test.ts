@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { predictableWidth } from '../utils/wideChars';
+import { predictableWidth } from '@/features/prediction/wideChars';
 
 const width = (ch: string) => predictableWidth(ch.codePointAt(0)!);
 

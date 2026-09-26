@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Terminal } from '@xterm/headless';
-import { attachScreenState } from '../utils/screenState';
+import { attachScreenState } from '@/features/terminal/screenState';
 
 // The real parser, not the global xterm mock: what matters is that these
 // handlers see Herdr's sequences and leave xterm's own handling intact.

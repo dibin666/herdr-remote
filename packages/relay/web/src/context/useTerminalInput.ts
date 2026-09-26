@@ -4,10 +4,10 @@
 
 import type { ClientRole } from '@protocol/messages';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import type { Translate } from '../i18n';
-import type { HerdrClientAdapter } from '../protocol/clientAdapter';
-import { encodeStringToBytes, type KeyModifiers } from '../protocol/keyEncoder';
-import { isWheelOnlyInput } from '../protocol/scrollInput';
+import type { Translate } from '@/shared/i18n';
+import type { HerdrClientAdapter } from '@/connection/clientAdapter';
+import { encodeStringToBytes, type KeyModifiers } from '@/shared/keys/keyEncoder';
+import { isWheelOnlyInput } from '@/shared/keys/scrollInput';
 import type { ToastItem } from './useToastQueue';
 
 export interface ModifierLatch {

@@ -2,15 +2,15 @@
 
 import type { ClientRole } from '@protocol/messages';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import type { Translate } from '../i18n';
-import type { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { ConnectionState } from '../types/connection';
+import type { Translate } from '@/shared/i18n';
+import type { HerdrClientAdapter } from '@/connection/clientAdapter';
+import type { ConnectionState } from '@/connection/types';
 import {
   compressAndPrepareImage,
   IDLE_IMAGE_UPLOAD_PROGRESS,
   type ImageUploadProgress,
   type PreparedImagePaste,
-} from '../utils/imagePaste';
+} from '@/features/paste/imagePaste';
 import type { ToastItem } from './useToastQueue';
 
 /** How long the workstation may take to confirm it saved the file. */

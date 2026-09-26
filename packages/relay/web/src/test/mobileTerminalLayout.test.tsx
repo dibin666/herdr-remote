@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { HerdrRenderer } from '../render/HerdrRenderer';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { TerminalView, RESIZE_NOTIFY_DEBOUNCE_MS } from '../components/TerminalView';
-import { App } from '../App';
-import { computeContainerGridFit } from '../utils/terminalFit';
-import { saveSettings } from '../utils/storage';
+import { HerdrRenderer } from '@/features/terminal/render/HerdrRenderer';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { TerminalView, RESIZE_NOTIFY_DEBOUNCE_MS } from '@/features/terminal/TerminalView';
+import { App } from '@/app/App';
+import { computeContainerGridFit } from '@/features/terminal/terminalFit';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockHerdrRenderer, MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

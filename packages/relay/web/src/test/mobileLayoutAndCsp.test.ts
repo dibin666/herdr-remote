@@ -7,14 +7,14 @@ import {
   isCoarsePointerDevice,
   DEFAULT_DESKTOP_FONT_SIZE,
   DEFAULT_MOBILE_FONT_SIZE,
-} from '../utils/terminalLayout';
+} from '@/features/terminal/terminalLayout';
 import {
   readViewportMetrics,
   observeViewportMetrics,
   APP_HEIGHT_VAR,
   KEYBOARD_INSET_VAR,
   KEYBOARD_INSET_THRESHOLD_PX,
-} from '../utils/viewportMetrics';
+} from '@/app/viewportMetrics';
 
 const originalWidth = window.innerWidth;
 const originalHeight = window.innerHeight;

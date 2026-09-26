@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react';
-import { App } from '../App';
-import { saveSettings } from '../utils/storage';
-import { createConnectionProfile } from '../utils/connectionProfiles';
-import { isMobileShellViewport, MOBILE_SHELL_MAX_WIDTH_PX } from '../utils/mobileShell';
+import { App } from '@/app/App';
+import { saveSettings } from '@/features/settings/storage';
+import { createConnectionProfile } from '@/features/pairing/connectionProfiles';
+import { isMobileShellViewport, MOBILE_SHELL_MAX_WIDTH_PX } from '@/features/mobile/mobileShell';
 import {
   computeContainerGridFit,
   measureCellDimensions,
   DEFAULT_BASE_FONT_SIZE,
-} from '../utils/terminalFit';
-import { APP_HEIGHT_VAR } from '../utils/viewportMetrics';
+} from '@/features/terminal/terminalFit';
+import { APP_HEIGHT_VAR } from '@/app/viewportMetrics';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

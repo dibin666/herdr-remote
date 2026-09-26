@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { SettingsModal } from '../components/SettingsModal';
-import { applyDocumentTheme, HERDR_DARK_BACKGROUND } from '../utils/theme';
-import { loadSettings, saveSettings } from '../utils/storage';
-import { STORAGE_KEYS } from '../utils/browserStorage';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { applyDocumentTheme, HERDR_DARK_BACKGROUND } from '@/features/terminal/theme';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
+import { STORAGE_KEYS } from '@/shared/lib/browserStorage';
 
 describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
   beforeEach(() => {

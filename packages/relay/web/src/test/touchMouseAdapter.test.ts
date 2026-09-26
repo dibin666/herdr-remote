@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TerminalPointerController } from '../utils/touchMouseAdapter';
+import { TerminalPointerController } from '@/features/terminal/touch/touchMouseAdapter';
 import {
   isMouseTrackingActive,
   createSyntheticMouseEvent,
   dispatchSyntheticMouseEvent,
-} from '../utils/xtermInternals';
+} from '@/features/terminal/touch/xtermInternals';
 import type { Terminal } from '@xterm/xterm';
 
 // jsdom ships no `document.elementFromPoint`, so the adapter's hit test has to

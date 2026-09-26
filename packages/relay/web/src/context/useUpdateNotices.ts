@@ -2,8 +2,8 @@
 
 import type { ServerUpdateStatusMessage } from '@protocol/messages';
 import { type RefObject, useCallback, useRef, useState } from 'react';
-import type { Translate } from '../i18n';
-import { loadIgnoredUpdate, saveIgnoredUpdate } from '../utils/storage';
+import type { Translate } from '@/shared/i18n';
+import { loadIgnoredUpdate, saveIgnoredUpdate } from '@/features/settings/storage';
 import type { ToastItem } from './useToastQueue';
 
 export function useUpdateNotices(

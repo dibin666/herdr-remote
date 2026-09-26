@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
-import { AdminDashboard } from '../components/admin/AdminDashboard';
-import { HostsTable } from '../components/admin/HostsTable';
-import { TerminalProvider } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
-import { Gauge, LineGauge, Sparkline } from '../components/tui';
+import { AdminDashboard } from '@/features/admin/AdminDashboard';
+import { HostsTable } from '@/features/admin/HostsTable';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
+import { Gauge, LineGauge, Sparkline } from '@/shared/ui';
 
 /**
  * The dashboard as a public relay's status board.

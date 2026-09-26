@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { PairingModal } from '../components/PairingModal';
-import { App } from '../App';
-import { loadSettings, saveSettings } from '../utils/storage';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { PairingModal } from '@/features/pairing/PairingModal';
+import { App } from '@/app/App';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
 
 describe('Frontend Security & URL Redaction', () => {
   beforeEach(() => {

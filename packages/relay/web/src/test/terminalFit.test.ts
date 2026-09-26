@@ -11,7 +11,7 @@ import {
   MAX_TERMINAL_COLS,
   MAX_TERMINAL_ROWS,
   DEFAULT_BASE_FONT_SIZE,
-} from '../utils/terminalFit';
+} from '@/features/terminal/terminalFit';
 
 describe('computeContainerGridFit', () => {
   // A 13px monospace cell, as the renderer reports it.

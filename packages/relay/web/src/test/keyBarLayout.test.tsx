@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { Header } from '../components/Header';
-import { TerminalProvider } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { Header } from '@/app/Header';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
 import {
   ALL_AVAILABLE_KEYS,
   DEFAULT_TOOLBAR_KEYS,
   sanitizeVirtualKeys,
-} from '../utils/virtualKeys';
+} from '@/features/keyboard/virtualKeys';
 
 /**
  * Where the touch keys sit, and what language the chrome speaks.

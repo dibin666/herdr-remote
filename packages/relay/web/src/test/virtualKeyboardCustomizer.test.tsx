@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SettingsModal } from '../components/SettingsModal';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { TerminalProvider } from '../context/TerminalContext';
-import { saveSettings, loadSettings } from '../utils/storage';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { saveSettings, loadSettings } from '@/features/settings/storage';
 import {
   ALL_AVAILABLE_KEYS,
   DEFAULT_TOOLBAR_KEYS,
   getDefaultVirtualKeys,
   sanitizeVirtualKeys,
-} from '../utils/virtualKeys';
+} from '@/features/keyboard/virtualKeys';
 
 describe('Virtual Keyboard Customization (Requirement 5)', () => {
   beforeEach(() => {

@@ -1,10 +1,10 @@
 import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { TerminalView } from '../components/TerminalView';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

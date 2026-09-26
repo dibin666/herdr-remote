@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { SettingsModal } from '../components/SettingsModal';
-import { PairingModal } from '../components/PairingModal';
-import { MobileTerminalShell } from '../components/MobileTerminalShell';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { PairingModal } from '@/features/pairing/PairingModal';
+import { MobileTerminalShell } from '@/features/mobile/MobileTerminalShell';
 
 /**
  * Two phone-specific defects, both of them about the browser deciding where

@@ -64,7 +64,7 @@ const PAGE = `
 import { Terminal } from '@xterm/xterm';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { HerdrRenderer } from ${JSON.stringify(path.join(WEB, 'src/render/HerdrRenderer.ts'))};
+import { HerdrRenderer } from ${JSON.stringify(path.join(WEB, 'src/features/terminal/render/HerdrRenderer.ts'))};
 
 // Emulated device scales report CSS pixels as the device-pixel box; both
 // renderers would then draw into a canvas of the wrong size. Without the

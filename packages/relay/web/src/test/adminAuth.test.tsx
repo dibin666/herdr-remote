@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { AdminDashboard } from '../components/admin/AdminDashboard';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { AdminDashboard } from '@/features/admin/AdminDashboard';
+import { saveSettings } from '@/features/settings/storage';
 
 describe('AdminDashboard Authentication & Status Fetch', () => {
   const originalFetch = global.fetch;

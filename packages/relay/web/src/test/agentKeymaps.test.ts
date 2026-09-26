@@ -12,9 +12,9 @@ import {
   getProfileActions,
   resolveProfile,
   type AgentProfileDef,
-} from '../utils/agentKeymaps';
-import { loadSettings, saveSettings } from '../utils/storage';
-import { STORAGE_KEYS } from '../utils/browserStorage';
+} from '@/features/agents/agentKeymaps';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
+import { STORAGE_KEYS } from '@/shared/lib/browserStorage';
 
 describe('Herdr agent keymaps', () => {
   beforeEach(() => {

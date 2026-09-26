@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { RoleControlBadge } from '../components/RoleControlBadge';
-import { StatusBanner } from '../components/StatusBanner';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { OnboardingView } from '../components/OnboardingView';
-import { AdminDashboard } from '../components/admin/AdminDashboard';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { RoleControlBadge } from '@/features/status/RoleControlBadge';
+import { StatusBanner } from '@/features/status/StatusBanner';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { OnboardingView } from '@/features/pairing/OnboardingView';
+import { AdminDashboard } from '@/features/admin/AdminDashboard';
+import { saveSettings } from '@/features/settings/storage';
 
 describe('UI Components', () => {
   beforeEach(() => {

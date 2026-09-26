@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { TerminalView } from '../components/TerminalView';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { saveSettings } from '@/features/settings/storage';
 import {
   ALL_AVAILABLE_KEYS,
   DEFAULT_TOOLBAR_KEYS,
   sanitizeVirtualKeys,
-} from '../utils/virtualKeys';
+} from '@/features/keyboard/virtualKeys';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

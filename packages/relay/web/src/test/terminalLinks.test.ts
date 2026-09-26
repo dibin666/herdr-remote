@@ -8,7 +8,7 @@ import {
   linkDisplayHost,
   logicalLineAt,
   openTerminalLink,
-} from '../utils/terminalLinks';
+} from '@/features/terminal/terminalLinks';
 
 /**
  * A link printed into the terminal opens on the device reading it.

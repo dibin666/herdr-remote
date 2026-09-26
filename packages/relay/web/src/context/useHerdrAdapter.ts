@@ -2,9 +2,9 @@
 // the handlers of the latest render.
 
 import { type RefObject, useRef } from 'react';
-import type { AdapterEventMap } from '../protocol/adapterEvents';
-import { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { ConnectionConfig } from '../types/connection';
+import type { AdapterEventMap } from '@/connection/adapterEvents';
+import { HerdrClientAdapter } from '@/connection/clientAdapter';
+import type { ConnectionConfig } from '@/connection/types';
 
 export type AdapterHandlers = { [K in keyof AdapterEventMap]?: AdapterEventMap[K] };
 

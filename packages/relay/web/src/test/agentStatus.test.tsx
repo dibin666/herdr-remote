@@ -1,9 +1,9 @@
 import type React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { AgentStatusChip } from '../components/AgentStatusChip';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { AgentStatusChip } from '@/features/agents/AgentStatusChip';
+import { saveSettings } from '@/features/settings/storage';
 
 /**
  * "Does anything need me?" answered in a status bar.

@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, waitFor, screen } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import {
   TerminalView,
   PREDICTIVE_ECHO_AUTO_THRESHOLD_MS,
   shouldShowPredictiveEcho,
-} from '../components/TerminalView';
-import { PredictiveEcho } from '../utils/predictiveEcho';
-import { PredictionLayer } from '../utils/predictionPaint';
-import { saveSettings } from '../utils/storage';
+} from '@/features/terminal/TerminalView';
+import { PredictiveEcho } from '@/features/prediction/predictiveEcho';
+import { PredictionLayer } from '@/features/prediction/predictionPaint';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 import { loadScreenFixture, screenFromFixture, type TestScreen } from './helpers/screenFixture';
 

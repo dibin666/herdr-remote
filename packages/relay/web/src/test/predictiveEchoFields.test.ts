@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PredictiveEcho } from '../utils/predictiveEcho';
-import { InputFieldTracker } from '../utils/inputField';
+import { PredictiveEcho } from '@/features/prediction/predictiveEcho';
+import { InputFieldTracker } from '@/features/prediction/inputField';
 import { loadScreenFixture, screenFromFixture, type TestScreen } from './helpers/screenFixture';
 
 /**

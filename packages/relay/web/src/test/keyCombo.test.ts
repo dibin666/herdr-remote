@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatComboCaption, KeyComboError, parseKeyCombo } from '../protocol/keyCombo';
-import { AGENT_PROFILES, GENERIC_SHELL_ACTIONS } from '../utils/agentKeymaps';
+import { formatComboCaption, KeyComboError, parseKeyCombo } from '@/shared/keys/keyCombo';
+import { AGENT_PROFILES, GENERIC_SHELL_ACTIONS } from '@/features/agents/agentKeymaps';
 
 describe('agent key combo encoding', () => {
   it('parses every default combo in every Herdr profile', () => {

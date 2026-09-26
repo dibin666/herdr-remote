@@ -1,11 +1,11 @@
 import type React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { UpdateChip } from '../components/UpdateNotice';
-import { SessionStatusLine } from '../components/SessionStatusLine';
-import { loadIgnoredUpdate, saveSettings } from '../utils/storage';
-import { STORAGE_KEYS } from '../utils/browserStorage';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { UpdateChip } from '@/features/status/UpdateNotice';
+import { SessionStatusLine } from '@/features/status/SessionStatusLine';
+import { loadIgnoredUpdate, saveSettings } from '@/features/settings/storage';
+import { STORAGE_KEYS } from '@/shared/lib/browserStorage';
 
 /**
  * A newer herdr-remote for the workstation, said on the status line.

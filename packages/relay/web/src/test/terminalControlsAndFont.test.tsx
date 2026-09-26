@@ -1,11 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { RoleControlBadge } from '../components/RoleControlBadge';
-import { SettingsModal } from '../components/SettingsModal';
-import { getDefaultSettings, loadSettings } from '../utils/storage';
-import { DEFAULT_TERMINAL_FONT, LEGACY_DEFAULT_FONT, PREVIOUS_DEFAULT_FONT } from '../utils/theme';
-import { FONT_PRESETS, SYSTEM_FONT_STACK, resolveTerminalFontFamily } from '../utils/theme';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { RoleControlBadge } from '@/features/status/RoleControlBadge';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { getDefaultSettings, loadSettings } from '@/features/settings/storage';
+import {
+  DEFAULT_TERMINAL_FONT,
+  LEGACY_DEFAULT_FONT,
+  PREVIOUS_DEFAULT_FONT,
+} from '@/features/terminal/theme';
+import {
+  FONT_PRESETS,
+  SYSTEM_FONT_STACK,
+  resolveTerminalFontFamily,
+} from '@/features/terminal/theme';
 
 // Helper component to control terminal context from within tests
 const TestControlHelper: React.FC<{

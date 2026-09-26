@@ -1,16 +1,16 @@
 import type React from 'react';
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { TerminalView } from '../components/TerminalView';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 import {
   BASE_DOCUMENT_TITLE,
   applyDocumentTitle,
   formatDocumentTitle,
   sanitizeTerminalTitle,
-} from '../utils/documentTitle';
+} from '@/features/agents/documentTitle';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
   .__xtermInstances;

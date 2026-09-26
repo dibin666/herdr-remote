@@ -4,8 +4,8 @@ import {
   attentionLevel,
   formatAttentionPrefix,
   newAttention,
-} from '../utils/agentAttention';
-import { applyFaviconBadge, withFaviconBadge } from '../utils/faviconBadge';
+} from '@/features/agents/agentAttention';
+import { applyFaviconBadge, withFaviconBadge } from '@/features/agents/faviconBadge';
 import type { ServerAgentStatusMessage } from '@protocol/messages';
 
 const report = (

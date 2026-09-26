@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { OnboardingView } from '../components/OnboardingView';
-import { Header } from '../components/Header';
-import { getDefaultSettings, loadSettings } from '../utils/storage';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { OnboardingView } from '@/features/pairing/OnboardingView';
+import { Header } from '@/app/Header';
+import { getDefaultSettings, loadSettings } from '@/features/settings/storage';
 
 describe('Onboarding UX and Herdr Dark Theme System', () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
-import type { ConnectionConfig } from '../types/connection';
-import type { StoredSettings } from '../utils/storage';
+import type { ConnectionConfig } from '@/connection/types';
+import type { StoredSettings } from '@/features/settings/storage';
 
 /** How the adapter connects, from the saved settings of the active profile. */
 export function buildConnectionConfig(source: StoredSettings): ConnectionConfig {

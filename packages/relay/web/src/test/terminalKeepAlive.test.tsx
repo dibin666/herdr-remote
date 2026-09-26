@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { App } from '../App';
-import { saveSettings } from '../utils/storage';
+import { App } from '@/app/App';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

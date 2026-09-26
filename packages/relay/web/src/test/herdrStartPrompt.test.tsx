@@ -1,9 +1,9 @@
 import type React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { HerdrStartPrompt } from '../components/HerdrStartPrompt';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { HerdrStartPrompt } from '@/features/status/HerdrStartPrompt';
+import { saveSettings } from '@/features/settings/storage';
 
 /**
  * Herdr is not running on the paired workstation.

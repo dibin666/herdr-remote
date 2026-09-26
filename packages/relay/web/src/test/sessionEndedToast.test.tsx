@@ -1,8 +1,8 @@
 import { act, render } from '@testing-library/react';
 import type React from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
 
 const Harness: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => void }> = ({
   onReady,

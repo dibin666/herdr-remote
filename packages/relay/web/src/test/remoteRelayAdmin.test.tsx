@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { AdminDashboard } from '../components/admin/AdminDashboard';
-import { SettingsModal } from '../components/SettingsModal';
-import { TerminalProvider } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
+import { AdminDashboard } from '@/features/admin/AdminDashboard';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
 
 describe('Local vs Remote Relay Admin Dashboard & /api/info Contract', () => {
   beforeEach(() => {

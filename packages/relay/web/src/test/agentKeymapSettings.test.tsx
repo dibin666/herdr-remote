@@ -2,12 +2,12 @@ import type React from 'react';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { SettingsModal } from '../components/SettingsModal';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { TerminalView } from '../components/TerminalView';
-import { loadSettings, saveSettings } from '../utils/storage';
-import { STORAGE_KEYS } from '../utils/browserStorage';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { SettingsModal } from '@/features/settings/SettingsModal';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
+import { STORAGE_KEYS } from '@/shared/lib/browserStorage';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

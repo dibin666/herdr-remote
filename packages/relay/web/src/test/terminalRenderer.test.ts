@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Terminal } from '@xterm/xterm';
-import { HerdrRenderer } from '../render/HerdrRenderer';
+import { HerdrRenderer } from '@/features/terminal/render/HerdrRenderer';
 import type { MockHerdrRenderer } from './setup';
 import {
   attachTerminalRenderer,
@@ -10,8 +10,8 @@ import {
   PROBE_FAILURE_TTL_MS,
   isCanvasProbeFailed,
   recordCanvasProbeFailure,
-} from '../utils/terminalRenderer';
-import { clearMemoryStorage, STORAGE_KEYS } from '../utils/browserStorage';
+} from '@/features/terminal/terminalRenderer';
+import { clearMemoryStorage, STORAGE_KEYS } from '@/shared/lib/browserStorage';
 
 const herdrRenderers = (globalThis as unknown as { __herdrRenderers: MockHerdrRenderer[] })
   .__herdrRenderers;

@@ -1,9 +1,9 @@
 import type React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { useAgentAlerts, AGENT_ALERT_COLLAPSE_MS } from '../utils/useAgentAlerts';
-import { saveSettings } from '../utils/storage';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { useAgentAlerts, AGENT_ALERT_COLLAPSE_MS } from '@/features/agents/useAgentAlerts';
+import { saveSettings } from '@/features/settings/storage';
 
 /**
  * Alerts are opt-in, fire on a change and never on the first report, collapse

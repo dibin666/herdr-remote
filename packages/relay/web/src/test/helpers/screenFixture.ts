@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import type { FieldCell, FieldLine, FieldScreen } from '../../utils/fieldScreen';
-import { predictableWidth } from '../../utils/wideChars';
+import type { FieldCell, FieldLine, FieldScreen } from '@/features/prediction/fieldScreen';
+import { predictableWidth } from '@/features/prediction/wideChars';
 
 /**
  * Rebuilds a cell grid from a screen captured by

@@ -1,8 +1,8 @@
 // Herdr not running on the paired workstation, and starting it from here.
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import type { Translate } from '../i18n';
-import type { HerdrClientAdapter } from '../protocol/clientAdapter';
+import type { Translate } from '@/shared/i18n';
+import type { HerdrClientAdapter } from '@/connection/clientAdapter';
 
 /**
  * Herdr is not running on the paired workstation. `null` while it is, or while

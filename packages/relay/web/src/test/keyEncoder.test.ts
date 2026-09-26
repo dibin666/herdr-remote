@@ -6,7 +6,7 @@ import {
   encodeKeyWithModifiers,
   encodeStringToBytes,
   isSingleKey,
-} from '../protocol/keyEncoder';
+} from '@/shared/keys/keyEncoder';
 
 describe('keyEncoder', () => {
   it('encodes standard control characters correctly', () => {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Terminal } from '@xterm/xterm';
-import { PredictionLayer, type OverlayTarget } from '../utils/predictionPaint';
-import type { OverlayItem } from '../utils/predictionModel';
-import type { PaintOverlay } from '../render/paintOverlay';
+import { PredictionLayer, type OverlayTarget } from '@/features/prediction/predictionPaint';
+import type { OverlayItem } from '@/features/prediction/predictionModel';
+import type { PaintOverlay } from '@/features/terminal/render/paintOverlay';
 
 const RGB = 0x3000000;
 const INVERSE = 0x4000000;

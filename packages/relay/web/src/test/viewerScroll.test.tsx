@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { TerminalView } from '../components/TerminalView';
-import { isWheelOnlyInput } from '../protocol/scrollInput';
-import { TerminalPointerController } from '../utils/touchMouseAdapter';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { isWheelOnlyInput } from '@/shared/keys/scrollInput';
+import { TerminalPointerController } from '@/features/terminal/touch/touchMouseAdapter';
 import type { Terminal } from '@xterm/xterm';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 

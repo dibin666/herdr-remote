@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { TerminalSelectionMenu } from '../components/TerminalSelectionMenu';
-import { PasteFallbackModal } from '../components/PasteFallbackModal';
-import { TerminalView } from '../components/TerminalView';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import * as clipboardModule from '../utils/clipboard';
-import { saveSettings } from '../utils/storage';
+import { TerminalSelectionMenu } from '@/features/terminal/TerminalSelectionMenu';
+import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import * as clipboardModule from '@/shared/lib/clipboard';
+import { saveSettings } from '@/features/settings/storage';
 import type { MockTerminalInstance } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

@@ -14,14 +14,14 @@ import {
   useReducer,
   useRef,
 } from 'react';
-import { isServerErrorCode, type Language, type Translate, translate } from '../i18n';
-import type { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { ConnectionConfig } from '../types/connection';
-import { resolveProfile } from '../utils/agentKeymaps';
-import { clampFontSize } from '../utils/terminalLayout';
-import { applyDocumentTheme, resolveTerminalFontFamily } from '../utils/theme';
-import { useHostFont } from '../utils/useHostFont';
-import { installWakeListeners } from '../utils/wakeListeners';
+import { isServerErrorCode, type Language, type Translate, translate } from '@/shared/i18n';
+import type { HerdrClientAdapter } from '@/connection/clientAdapter';
+import type { ConnectionConfig } from '@/connection/types';
+import { resolveProfile } from '@/features/agents/agentKeymaps';
+import { clampFontSize } from '@/features/terminal/terminalLayout';
+import { applyDocumentTheme, resolveTerminalFontFamily } from '@/features/terminal/theme';
+import { useHostFont } from '@/features/hostFont/useHostFont';
+import { installWakeListeners } from '@/connection/wakeListeners';
 import { buildConnectionConfig } from './connectionConfig';
 import { INITIAL_SESSION, sessionReducer } from './session';
 import { useHerdrLaunch } from './useHerdrLaunch';

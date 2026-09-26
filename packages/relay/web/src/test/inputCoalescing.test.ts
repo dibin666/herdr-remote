@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { ConnectionConfig } from '../types/connection';
+import { HerdrClientAdapter } from '@/connection/clientAdapter';
+import type { ConnectionConfig } from '@/connection/types';
 
 class MockWebSocket {
   public static readonly CONNECTING = 0;

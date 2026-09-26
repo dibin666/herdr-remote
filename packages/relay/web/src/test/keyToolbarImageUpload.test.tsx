@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react';
-import { KeyToolbar } from '../components/KeyToolbar';
-import { TerminalView } from '../components/TerminalView';
-import { ToastContainer } from '../components/ToastContainer';
-import { TerminalProvider, useTerminal } from '../context/TerminalContext';
-import { saveSettings } from '../utils/storage';
-import * as imagePasteModule from '../utils/imagePaste';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { TerminalView } from '@/features/terminal/TerminalView';
+import { ToastContainer } from '@/app/ToastContainer';
+import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
+import { saveSettings } from '@/features/settings/storage';
+import * as imagePasteModule from '@/features/paste/imagePaste';
 import type { MockTerminalInstance, MockWebSocket } from './setup';
 
 const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })

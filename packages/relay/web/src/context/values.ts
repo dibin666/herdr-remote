@@ -6,15 +6,15 @@ import type {
   ServerUpdateStatusMessage,
 } from '@protocol/messages';
 import type { HostTerminalPalette } from '@protocol/terminal';
-import type { Language, Translate } from '../i18n';
-import type { HerdrClientAdapter } from '../protocol/clientAdapter';
-import type { KeyModifiers } from '../protocol/keyEncoder';
-import type { ConnectionConfig, ConnectionState } from '../types/connection';
-import type { AgentProfileId } from '../utils/agentKeymaps';
-import type { ImageUploadProgress, PreparedImagePaste } from '../utils/imagePaste';
-import type { StoredSettings } from '../utils/storage';
-import type { ConnectionProfile } from '../utils/connectionProfiles';
-import type { HostFontState } from '../utils/hostFontState';
+import type { Language, Translate } from '@/shared/i18n';
+import type { HerdrClientAdapter } from '@/connection/clientAdapter';
+import type { KeyModifiers } from '@/shared/keys/keyEncoder';
+import type { ConnectionConfig, ConnectionState } from '@/connection/types';
+import type { AgentProfileId } from '@/features/agents/agentKeymaps';
+import type { ImageUploadProgress, PreparedImagePaste } from '@/features/paste/imagePaste';
+import type { StoredSettings } from '@/features/settings/storage';
+import type { ConnectionProfile } from '@/features/pairing/connectionProfiles';
+import type { HostFontState } from '@/features/hostFont/hostFontState';
 import type { HerdrLaunchState } from './useHerdrLaunch';
 import type { TerminalOutputSink } from './useOutputBuffer';
 import type { ModifierLatch } from './useTerminalInput';

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadSettings, saveSettings } from '../utils/storage';
-import { createConnectionProfile, profileKey } from '../utils/connectionProfiles';
-import { STORAGE_KEYS } from '../utils/browserStorage';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
+import { createConnectionProfile, profileKey } from '@/features/pairing/connectionProfiles';
+import { STORAGE_KEYS } from '@/shared/lib/browserStorage';
 
 /**
  * Creates a mock Storage implementation to simulate independent window sessionStorage instances

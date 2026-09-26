@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { vi, beforeEach } from 'vitest';
-import { clearMemoryStorage } from '../utils/browserStorage';
+import { clearMemoryStorage } from '@/shared/lib/browserStorage';
 
 beforeEach(() => {
   try {
@@ -344,7 +344,7 @@ export interface MockHerdrRenderer {
   paintedInk: boolean;
 }
 
-vi.mock('../render/HerdrRenderer', () => {
+vi.mock('@/features/terminal/render/HerdrRenderer', () => {
   const instances: MockHerdrRenderer[] = [];
   class HerdrRenderer implements MockHerdrRenderer {
     /** Set to make the next install throw, as a device without a 2D context would. */

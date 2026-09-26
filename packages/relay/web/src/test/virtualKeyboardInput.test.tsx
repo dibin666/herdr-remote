@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TerminalProvider } from '../context/TerminalContext';
-import { VirtualKeyboardHelper } from '../components/VirtualKeyboardHelper';
+import { TerminalProvider } from '@/context/TerminalContext';
+import { VirtualKeyboardHelper } from '@/features/keyboard/VirtualKeyboardHelper';
 
 describe('Virtual keyboard helper input policy', () => {
   it('keeps the visible field as an explicit IME target', () => {
