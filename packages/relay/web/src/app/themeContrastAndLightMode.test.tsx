@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { App } from './App';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import { SettingsModal } from '@/features/settings/SettingsModal';
@@ -82,6 +82,21 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
       expect(dialog.className).toContain('items-center');
       expect(dialog.className).toContain('justify-center');
     }
+  });
+
+  it('wraps a dialog title and subtitle that do not fit instead of cutting them', () => {
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} />
+      </TerminalProvider>,
+    );
+
+    // On a phone the subtitle ended in an ellipsis after three words.
+    const dialog = screen.getByRole('dialog');
+    const title = within(dialog).getByRole('heading', { level: 2 });
+    const subtitle = within(dialog).getByText('Interface, font, input and alerts');
+    expect(title.className).not.toContain('truncate');
+    expect(subtitle.className).not.toContain('truncate');
   });
 
   it('keeps a scrolling dialog from carrying the whole frame off screen', () => {

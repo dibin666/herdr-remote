@@ -75,7 +75,14 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
   return (
     <div
       ref={rootRef}
-      className={cn('relative min-w-0', mobile && 'w-full', statusBar && 'flex-1')}
+      className={cn(
+        'relative min-w-0',
+        mobile && 'w-full',
+        statusBar && 'flex-1',
+        // The desktop status line is one 20px row; a taller button stood out of
+        // it and made the page 3px taller than the window.
+        !mobile && !statusBar && 'h-full',
+      )}
     >
       <button
         type="button"
@@ -89,7 +96,7 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
             ? 'min-h-11 w-full max-w-none px-2'
             : mobile
               ? 'min-h-11 w-full px-2'
-              : 'min-h-[24px] max-w-[18rem] px-1',
+              : 'h-full max-w-[18rem] px-1',
         )}
       >
         <StatusDot level={statusLevel} />

@@ -282,7 +282,7 @@ export const AgentKeymapsTab: React.FC<{
                 {caption || '—'}
               </KeyCap>
               <span
-                className="min-w-0 truncate text-tui text-tui-text [grid-area:label]"
+                className="min-w-0 break-words text-tui text-tui-text [grid-area:label]"
                 title={label}
               >
                 {label}
@@ -309,7 +309,7 @@ export const AgentKeymapsTab: React.FC<{
                 className={cn('w-full min-w-0 [grid-area:combo]', COMPACT_FIELD)}
               />
               <span
-                className="min-w-0 truncate text-tui-sm text-tui-faint [grid-area:default]"
+                className="min-w-0 break-words text-tui-sm text-tui-faint [grid-area:default]"
                 title={defaultText}
               >
                 {defaultText}

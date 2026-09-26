@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { SettingsModal } from './SettingsModal';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
@@ -131,6 +131,26 @@ describe('Agent keymap settings', () => {
 
     fireEvent.blur(details);
     expect(details).toHaveValue('ctrl+e');
+  });
+
+  it('shows each shortcut name and its default whole', () => {
+    saveSettings({ language: 'en' });
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} initialTab="agentKeymaps" />
+      </TerminalProvider>,
+    );
+    fireEvent.change(screen.getByRole('combobox', { name: /Agent profile/i }), {
+      target: { value: 'claude' },
+    });
+
+    // "Default: ⇧TAB" came out as "Default: ⇧T…" in a 7rem column.
+    const row = screen.getByTestId('agent-setting-row-mode');
+    const fallback = within(row).getByText(/^Default: /);
+    expect(fallback.className).not.toContain('truncate');
+    expect(row.className).toContain('9rem]');
+    expect(row.className).not.toContain('7rem_7rem]');
+    expect(within(row).getByText('Mode').className).not.toContain('truncate');
   });
 
   it('shows typed combo errors in Chinese', () => {

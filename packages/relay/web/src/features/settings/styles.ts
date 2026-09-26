@@ -15,12 +15,13 @@ export const DANGER_GHOST = 'text-tui-bad hover:border-tui-bad hover:text-tui-ba
 
 /**
  * One agent-key row. Every column has a fixed width so the combo fields and
- * buttons line up down the list; a phone splits the row over two lines.
+ * buttons line up down the list; a phone splits the row over two lines. The
+ * default column fits the longest caption, "Default: Alt+⇧P".
  */
 export const AGENT_ROW_GRID = [
   'grid items-center gap-x-2 gap-y-1 py-1',
-  "grid-cols-[4rem_minmax(0,1fr)_7rem] [grid-template-areas:'cap_label_actions'_'combo_combo_default']",
-  "sm:grid-cols-[4rem_minmax(0,1fr)_9rem_7rem_7rem] sm:[grid-template-areas:'cap_label_combo_default_actions']",
+  "grid-cols-[4rem_minmax(0,1fr)_9rem] [grid-template-areas:'cap_label_actions'_'combo_combo_default']",
+  "sm:grid-cols-[4rem_minmax(0,1fr)_9rem_9rem_7rem] sm:[grid-template-areas:'cap_label_combo_default_actions']",
 ].join(' ');
 
 /** The words on every switch in the settings. */

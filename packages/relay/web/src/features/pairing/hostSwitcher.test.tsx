@@ -55,6 +55,23 @@ describe('HostSwitcher', () => {
     expect(add).not.toHaveBeenCalled();
   });
 
+  it('fits the desktop status line instead of standing out of it', () => {
+    const first = profile('profile-a', 'Office', 'host-a');
+    saveSettings({ profiles: [first], activeProfileId: first.id, wsUrl: first.wsUrl });
+    render(
+      <TerminalProvider>
+        <HostSwitcher onAddProfile={() => {}} />
+      </TerminalProvider>,
+    );
+
+    // A 24px button in the 20px status row made the whole page 3px taller
+    // than the window, so focusing a dialog field scrolled the header off.
+    const switcher = screen.getByRole('button', { name: 'Switch Herdr instance' });
+    expect(switcher.className).not.toContain('min-h-[24px]');
+    expect(switcher.className).toContain('h-full');
+    expect(switcher.parentElement?.className).toContain('h-full');
+  });
+
   it('opens the add-profile action without exposing tokens', () => {
     const first = profile('profile-a', 'Office', 'host-a');
     saveSettings({
