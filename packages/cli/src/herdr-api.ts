@@ -244,7 +244,12 @@ function subscribeHerdr(
         ) {
           try {
             onEvent(message as HerdrEvent);
-          } catch {}
+          } catch (error) {
+            // A handler's bug must not end the subscription, but must not vanish either.
+            process.stderr.write(
+              `herdr-remote: Herdr event handler failed: ${error instanceof Error ? error.message : error}\n`,
+            );
+          }
         }
       }
     });

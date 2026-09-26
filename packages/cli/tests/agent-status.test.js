@@ -226,6 +226,39 @@ test('a Herdr subscription parses the live event envelope and can be closed', as
   assert.equal(closeCount, 1);
 });
 
+test('a handler that throws is reported and keeps receiving events', async (t) => {
+  const herdr = await fakeHerdrSocket(t, (request, connection) => {
+    connection.write(
+      `${JSON.stringify({ id: request.id, result: { type: 'subscription_started' } })}\n`,
+    );
+    for (const pane of ['w1:p1', 'w1:p2']) {
+      connection.write(
+        `${JSON.stringify({ event: 'pane_focused', data: { type: 'pane_focused', pane_id: pane } })}\n`,
+      );
+    }
+  });
+  const written = [];
+  const originalWrite = process.stderr.write;
+  process.stderr.write = (chunk, ...rest) => {
+    written.push(String(chunk));
+    return originalWrite.call(process.stderr, chunk, ...rest);
+  };
+  t.onTestFinished(() => {
+    process.stderr.write = originalWrite;
+  });
+
+  const second = await new Promise((resolve) => {
+    const subscription = subscribeHerdr(herdr.socketPath, [{ type: 'pane.focused' }], (event) => {
+      if (event.data.pane_id === 'w1:p1') throw new Error('handler bug');
+      resolve(event);
+      subscription.close();
+    });
+  });
+
+  assert.equal(second.data.pane_id, 'w1:p2');
+  assert.ok(written.some((line) => line.includes('handler bug')));
+});
+
 test('an acknowledged subscription resets the reconnect backoff', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-subscribe-retry-'));
   const socketPath = path.join(directory, 'herdr.sock');
