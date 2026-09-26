@@ -22,18 +22,17 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 
 - `npm ci`：安装（node-pty 需要编译工具链）
 - `npm run build`：构建全部产物。本地运行 cli 或 relay 之前要先构建；`npm test` 会自动构建
-- `npm run check`：Biome + 类型检查，提交前必跑
+- `npm run check`：Biome（格式、lint、import 边界）+ 类型检查 + knip（未使用的文件、导出和依赖），提交前必跑
 - `npm test`：用 vitest 跑三个包的全部测试
   - 跑单个文件：`npx vitest run packages/relay/tests/x.test.js`
 - `npm run format`：自动格式化，并应用可自动修复的 lint
-- `npm run knip`：列出未使用的文件、导出和依赖
 - `npm run dev -w herdr-remote-web`：前端开发服务器，代理到 127.0.0.1:8787 的 relay
 
 ## 不变量
 
 - 线协议（消息类型、常量、校验）只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`），不能引用 `frames`。
 - Herdr socket 路径和 host token 只存在于 host connector，绝不能发给浏览器。
-- 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli。
+- 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli；web 的 `shared/` 不依赖 `features/`、`context/`、`app/`、`connection/`。这些由 `biome.json` 的 `noRestrictedImports` 检查。
 - push master 会自动发布 npm 和镜像，所以只通过 PR 合并。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。
 - `node bin/herdr-remote.js` 及其子命令是插件的对外接口，不能改名。
 - 新增文案要同时加 en 和 zh（cli 在 `src/i18n/`，web 在 `src/shared/i18n/`）；README 和 docs 的中英文版本要一起改。web 的文案结构以 `en.ts` 为准，`t()` 的 key 由编译器检查；动态拼出的 key 只有在查不到时另有回退的地方才能 `as TranslationKey`。
@@ -54,7 +53,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 ## 测试
 
 - 修 bug 时，先加一个修复前会失败的测试。
-- 三个包都用 vitest。cli、relay 的测试放在各包的 `tests/`，断言用 `node:assert/strict`，清理逻辑写在 `t.onTestFinished` 里；用依赖注入和 `HERDR_REMOTE_CONFIG_DIR`、`HERDR_REMOTE_STATE_DIR` 做隔离，不要碰真实的 home 目录。
+- 三个包都用 vitest。cli、relay 的测试放在各包的 `tests/`，断言用 `node:assert/strict`，清理逻辑写在 `t.onTestFinished` 里；用依赖注入和 `HERDR_REMOTE_CONFIG_DIR`、`HERDR_REMOTE_STATE_DIR` 做隔离，不要碰真实的 home 目录。公用的 helper 在各包的 `tests/helpers.js`（cli 的 `isolateState`、`tempDir`，relay 的 WebSocket 和 HTTP 客户端），不要再在测试文件里另写一份。
 - web：用 Testing Library，测试文件 `*.test.ts(x)` 和被测代码放在同一目录；`src/test/` 只放 setup、helpers 和 fixtures。`src/test/setup.ts` 全局 mock 了 WebSocket、xterm 和 canvas 渲染器。`fixtures/screens/*.json` 由 `scripts/capture-herdr-screens.mjs` 生成，不要手改。
 
 ## 提交与 PR

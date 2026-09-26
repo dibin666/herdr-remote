@@ -37,7 +37,3 @@ jobs:
       - run: npm test
 
       - run: npm run build
-
-      # Reported only, until the existing dead code is cleared.
-      - name: Dead code report
-        run: npm run knip -- --no-exit-code

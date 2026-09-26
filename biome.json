@@ -54,7 +54,9 @@
       "a11y": {
         "noLabelWithoutControl": {
           "level": "error",
-          "options": { "inputComponents": ["Input", "Select"] }
+          "options": {
+            "inputComponents": ["Input", "Select"]
+          }
         }
       }
     }
@@ -108,6 +110,90 @@
               "level": "error",
               "options": {
                 "maxLines": 500
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/relay/web/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste and http."
+                },
+                "patterns": [
+                  {
+                    "group": ["../*", "../**"],
+                    "message": "Import from outside this folder through @/\u2026, as AGENTS.md says."
+                  },
+                  {
+                    "group": ["herdr-remote-relay", "herdr-remote-relay/*"],
+                    "message": "The web client reaches the protocol through @protocol/*."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/relay/web/src/shared/**", "!**/*.test.*"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste and http."
+                },
+                "patterns": [
+                  {
+                    "group": ["../*", "../**"],
+                    "message": "Import from outside this folder through @/\u2026, as AGENTS.md says."
+                  },
+                  {
+                    "group": ["herdr-remote-relay", "herdr-remote-relay/*"],
+                    "message": "The web client reaches the protocol through @protocol/*."
+                  },
+                  {
+                    "group": [
+                      "@/features/*",
+                      "@/features/**",
+                      "@/context/*",
+                      "@/app/*",
+                      "@/connection/*"
+                    ],
+                    "message": "shared/ is used by every feature and must not depend on one."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/relay/src/**", "packages/relay/bin/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["herdr-remote", "herdr-remote/*", "**/cli/src/**"],
+                    "message": "The relay must not depend on the cli package."
+                  }
+                ]
               }
             }
           }
