@@ -16,7 +16,9 @@ export function closeSocket(
   if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) return;
   try {
     ws.close(1000, reason);
-  } catch {}
+  } catch {
+    // Closing a socket that is already failing needs no further handling.
+  }
 }
 
 export function terminateSocket(ws: HostSocket | null | undefined): void {
@@ -29,7 +31,9 @@ export function terminateSocket(ws: HostSocket | null | undefined): void {
     if (typeof socket.terminate === 'function') socket.terminate();
     else if (typeof socket.destroy === 'function') socket.destroy();
     else socket.close?.();
-  } catch {}
+  } catch {
+    // Tearing down a dead socket; there is nothing left to recover.
+  }
 }
 
 /**

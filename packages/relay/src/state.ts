@@ -6,7 +6,9 @@ function ensureDir(dirPath: string): void {
   fs.mkdirSync(dirPath, { recursive: true, mode: 0o700 });
   try {
     fs.chmodSync(dirPath, 0o700);
-  } catch {}
+  } catch {
+    // Some filesystems (Windows, some mounts) ignore modes; mkdir already asked for 0700.
+  }
 }
 
 function writeJsonAtomic(filePath: string, value: unknown): void {
@@ -15,11 +17,15 @@ function writeJsonAtomic(filePath: string, value: unknown): void {
   fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
   try {
     fs.chmodSync(tempPath, 0o600);
-  } catch {}
+  } catch {
+    // Some filesystems ignore modes; the file was written with 0600 already.
+  }
   fs.renameSync(tempPath, filePath);
   try {
     fs.chmodSync(filePath, 0o600);
-  } catch {}
+  } catch {
+    // Some filesystems ignore modes; the file was written with 0600 already.
+  }
 }
 
 /** Parsed JSON at `filePath`, or `fallback` when it is missing or unreadable. */

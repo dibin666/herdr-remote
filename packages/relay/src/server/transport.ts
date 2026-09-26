@@ -94,7 +94,9 @@ function flushSendQueue(relay: RelayContext, socket: RelaySocket, queue: SendQue
     const item = queue.items.shift();
     try {
       item?.task();
-    } catch {}
+    } catch {
+      // A send to a socket that closed while queued is dropped like any other.
+    }
   }
   if (queue.items.length > 0 && !queue.timer) {
     const nextDelay = Math.max(0, queue.items[0].sendAt - Date.now());

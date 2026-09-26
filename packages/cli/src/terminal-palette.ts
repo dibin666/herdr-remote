@@ -267,7 +267,9 @@ function probeTerminalPalette({
     if (fd !== null) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch {
+        // The terminal state was already restored above; the descriptor is only closed.
+      }
     }
   }
 }

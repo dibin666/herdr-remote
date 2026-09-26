@@ -179,14 +179,18 @@ async function decodeImageSource(blob: Blob): Promise<DecodedSource> {
         cleanup: () => {
           try {
             URL.revokeObjectURL(url);
-          } catch {}
+          } catch {
+            // Revoking an already revoked URL is harmless.
+          }
         },
       });
     };
     img.onerror = () => {
       try {
         URL.revokeObjectURL(url);
-      } catch {}
+      } catch {
+        // Revoking an already revoked URL is harmless.
+      }
       reject(new Error('Failed to decode image source'));
     };
     img.src = url;

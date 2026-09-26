@@ -213,7 +213,9 @@ export class HostConnector {
         (ws as unknown as { _socket?: { setNoDelay(on: boolean): void } })._socket?.setNoDelay(
           true,
         );
-      } catch {}
+      } catch {
+        // The socket may not be TCP (tests) or already gone; Nagle is only a latency tweak.
+      }
       ws.isAlive = true;
       this.authFailure = false;
       sendJson(ws, {
@@ -432,7 +434,9 @@ export class HostConnector {
     ws.isAlive = false;
     try {
       if (typeof ws.ping === 'function') ws.ping();
-    } catch {}
+    } catch {
+      // A socket failing mid-ping is caught by the next heartbeat, which terminates it.
+    }
     if (this.clientCount <= 0 && !this.legacyHeartbeat) {
       sendJson(ws, { type: 'heartbeat', load: {}, ptys: [] });
     }

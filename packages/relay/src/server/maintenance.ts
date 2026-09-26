@@ -28,7 +28,9 @@ export function heartbeat(relay: RelayContext): void {
     socket.isAlive = false;
     try {
       socket.ping();
-    } catch {}
+    } catch {
+      // A socket failing mid-ping is terminated by the next sweep.
+    }
   }
 }
 

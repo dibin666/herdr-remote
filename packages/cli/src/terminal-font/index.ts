@@ -145,7 +145,9 @@ export function readFontChunk(
     if (fd !== undefined)
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch {
+        // Closing a read-only descriptor cannot lose data.
+      }
   }
 }
 

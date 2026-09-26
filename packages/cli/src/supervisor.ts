@@ -101,7 +101,9 @@ class Supervisor {
       });
       try {
         process.kill(pid, 'SIGTERM');
-      } catch {}
+      } catch {
+        // Already gone, or not ours to signal; the liveness check below decides.
+      }
     }
 
     // Wait for them to actually go: the relay only releases its port on exit,
@@ -123,7 +125,9 @@ class Supervisor {
       });
       try {
         process.kill(pid, 'SIGKILL');
-      } catch {}
+      } catch {
+        // Already gone; SIGKILL was the last resort anyway.
+      }
     }
     return strays;
   }
@@ -179,7 +183,9 @@ class Supervisor {
       if (fd !== null) {
         try {
           fs.closeSync(fd);
-        } catch {}
+        } catch {
+          // The child holds its own copy; failing to close ours leaks one descriptor at worst.
+        }
       }
     }
 
@@ -285,7 +291,9 @@ class Supervisor {
           const killTimer = setTimeout(() => {
             try {
               child.kill('SIGKILL');
-            } catch {}
+            } catch {
+              // Already exited between the timer and the kill.
+            }
             resolve();
           }, graceMs);
           killTimer.unref?.();
@@ -312,7 +320,9 @@ class Supervisor {
           (entry) => entry && pidAlive(entry.pid),
         );
       });
-    } catch {}
+    } catch {
+      // The runtime file is advisory; stopping must finish even if it cannot be written.
+    }
   }
 }
 

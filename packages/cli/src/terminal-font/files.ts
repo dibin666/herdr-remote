@@ -65,7 +65,9 @@ function readHeader(filePath: string, length: number): Buffer | null {
     if (fd !== undefined)
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch {
+        // Closing a read-only descriptor cannot lose data.
+      }
   }
 }
 
@@ -128,7 +130,9 @@ function readSfntNames(
     if (fd !== undefined)
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch {
+        // Closing a read-only descriptor cannot lose data.
+      }
   }
 }
 

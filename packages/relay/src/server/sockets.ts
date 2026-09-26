@@ -38,7 +38,9 @@ export function closeSocket(
     return;
   try {
     socket.close(code, reason.slice(0, 120));
-  } catch {}
+  } catch {
+    // Closing a socket that is already failing needs no further handling.
+  }
 }
 
 export function terminateSocket(socket: RelaySocket | null | undefined): void {
@@ -49,7 +51,9 @@ export function terminateSocket(socket: RelaySocket | null | undefined): void {
     } else if (typeof (socket as { destroy?: () => void }).destroy === 'function') {
       (socket as unknown as { destroy: () => void }).destroy();
     }
-  } catch {}
+  } catch {
+    // Tearing down a dead socket; there is nothing left to recover.
+  }
 }
 
 /** Parsed JSON, or null for anything that is not a string of valid JSON. */

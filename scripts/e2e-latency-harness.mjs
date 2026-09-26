@@ -141,14 +141,18 @@ async function cleanup(signal) {
       if (hostWs.readyState === WebSocket.OPEN) {
         hostWs.close(1000, 'host_shutdown');
       }
-    } catch {}
+    } catch {
+      // Shutting down; a socket that will not close is dropped with the process.
+    }
     hostWs = null;
   }
 
   if (relayServer) {
     try {
       await relayServer.close();
-    } catch {}
+    } catch {
+      // Shutting down; the port is released when the process exits.
+    }
     relayServer = null;
   }
 
@@ -156,7 +160,9 @@ async function cleanup(signal) {
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
-  } catch {}
+  } catch {
+    // A leftover temp directory is harmless.
+  }
 
   process.stdout.write('[e2e-harness] Cleanup complete.\n');
   process.exit(0);

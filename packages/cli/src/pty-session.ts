@@ -113,7 +113,9 @@ class PtySession {
   kill(): void {
     try {
       this.terminal?.kill();
-    } catch {}
+    } catch {
+      // The process has already exited.
+    }
     this.terminal = null;
   }
 }

@@ -448,7 +448,9 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   if (rawLocal) {
     try {
       localObj = JSON.parse(rawLocal);
-    } catch {}
+    } catch {
+      // Unreadable stored settings are replaced by the ones saved now.
+    }
   }
   localObj = stripLegacyColorFields(localObj).data;
   for (const k of GLOBAL_KEYS) {
@@ -466,7 +468,9 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   if (rawSession) {
     try {
       sessionObj = JSON.parse(rawSession);
-    } catch {}
+    } catch {
+      // Unreadable stored settings are replaced by the ones saved now.
+    }
   }
   for (const k of SESSION_KEYS) {
     if (next[k] !== undefined) {

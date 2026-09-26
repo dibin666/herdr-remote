@@ -211,7 +211,9 @@ class RelayServer implements RelayContext {
       };
       tcp.setNoDelay(true);
       tcp.setKeepAlive?.(true, this.config.cleanup.heartbeatIntervalMs);
-    } catch {}
+    } catch {
+      // Not a TCP socket (tests, proxies); these are only latency and liveness tweaks.
+    }
     this.wss.handleUpgrade(req, socket, head, (ws: RelaySocket) => {
       this.pendingHandshakes.add(ws);
       ws.once('close', () => this.finishHandshake(ws));

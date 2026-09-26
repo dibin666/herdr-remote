@@ -63,11 +63,15 @@ function cleanPastedDir({
       if (now - stat.mtimeMs > maxAgeMs) {
         try {
           fs.unlinkSync(fullPath);
-        } catch {}
+        } catch {
+          // Removed by another process meanwhile, or not ours to remove: skip it.
+        }
         continue;
       }
       fileInfos.push({ path: fullPath, size: stat.size, mtimeMs: stat.mtimeMs });
-    } catch {}
+    } catch {
+      // The file vanished between listing and stat; nothing to account for.
+    }
   }
 
   // Sort oldest first
@@ -81,7 +85,9 @@ function cleanPastedDir({
     try {
       fs.unlinkSync(oldest.path);
       totalSize -= oldest.size;
-    } catch {}
+    } catch {
+      // Pruning is best effort; the next save prunes again.
+    }
   }
 }
 
@@ -126,7 +132,9 @@ function savePastedFile({
   fs.writeFileSync(filePath, buf, { mode: 0o600, flag: 'wx' });
   try {
     fs.chmodSync(filePath, 0o600);
-  } catch {}
+  } catch {
+    // The file was created 0600 already; chmod only guards against a lax umask.
+  }
 
   // Prune again after writing to strictly observe count/size ceiling
   cleanPastedDir({ dir });
