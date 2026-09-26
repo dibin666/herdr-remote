@@ -125,7 +125,6 @@
         "packages/relay/web/src/render/HerdrRenderer.ts",
         "packages/relay/web/src/utils/predictiveEcho.ts",
         "packages/relay/web/src/utils/touchMouseAdapter.ts",
-        "packages/relay/web/src/protocol/clientAdapter.ts",
         "packages/relay/web/src/utils/terminalSelection.ts",
         "scripts/capture-herdr-screens.mjs",
         "packages/relay/web/src/utils/inputField.ts",

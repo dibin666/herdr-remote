@@ -93,7 +93,7 @@ describe('Per-window terminal grid', () => {
     // Older relays might still broadcast shared_resize; ensure processing it is a safe no-op.
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (adapter as any).processJsonMessage({ type: 'shared_resize', cols: 40, rows: 20 });
+      (adapter as any).handleServerMessage({ type: 'shared_resize', cols: 40, rows: 20 });
     }).not.toThrow();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
