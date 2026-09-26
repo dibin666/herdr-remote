@@ -129,14 +129,14 @@ describe("PredictiveEcho in Claude Code's input box", () => {
     t.show('desktop-codex-empty');
     type(t.echo, 'x');
     const items = t.echo.getOverlayItems();
-    expect(items).toContainEqual({ row: 36, col: 28, char: 'x', width: 1, kind: 'char' });
+    expect(items).toContainEqual({ row: 11, col: 28, char: 'x', width: 1, kind: 'char' });
     const erased = items.filter((item) => item.kind === 'erase').map((item) => item.col);
     // "Ask Codex to do anything" ran from 28 to 51. The caret sits at 29, over
     // a cell cleared like the rest; the spaces between words are blank already.
     expect(erased[0]).toBe(29);
     expect(erased.at(-1)).toBe(51);
     expect(erased).toHaveLength('sk Codex to do anything'.replace(/ /g, '').length);
-    expect(items).toContainEqual({ row: 36, col: 29, char: ' ', width: 1, kind: 'caret' });
+    expect(items).toContainEqual({ row: 11, col: 29, char: ' ', width: 1, kind: 'caret' });
   });
 
   it('does not predict in normal mode once the box has shown -- INSERT --', () => {

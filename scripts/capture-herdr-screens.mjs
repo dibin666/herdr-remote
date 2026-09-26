@@ -133,6 +133,7 @@ async function quitAgent(probe) {
 // Scenarios. They run in order inside one probe session per layout.
 
 const CLAUDE_EMPTY = /^❯\s*$/;
+const CODEX_EMPTY = /^›\s*$/;
 
 const scenarios = [
   {
@@ -262,6 +263,14 @@ const scenarios = [
       await probe.send('codex\r');
       await probe.waitFor(/Trust this folder|›/, 30000);
       await probe.settle(2000, 15000);
+      // Builds that fail to reach their background server ask before starting.
+      if (/Cannot use the background server/.test(probe.lines().join('\n'))) {
+        if (!/1\. Run without daemon this time/.test(probe.lines().join('\n')))
+          throw new Error('unexpected codex daemon menu');
+        await probe.send('1');
+        await probe.waitFor(/Trust this folder|Ask Codex/, 30000);
+        await probe.settle(2000, 15000);
+      }
       if (/Trust this folder/.test(probe.lines().join('\n'))) {
         await capture('codex-trust');
         if (!/› 1\. Trust and continue/.test(probe.lines().join('\n')))
@@ -272,8 +281,7 @@ const scenarios = [
       await capture('codex-empty');
       await probe.send('hello codex', 80);
       await capture('codex-typed');
-      await probe.send(BACKSPACE.repeat(11));
-      await probe.settle();
+      await clearInput(probe, CODEX_EMPTY);
       await quitAgent(probe);
       await shell(probe, 'clear');
     },
