@@ -91,6 +91,14 @@ export function dataHome(deps: Deps): string {
   return deps.env.XDG_DATA_HOME || path.join(deps.home, '.local', 'share');
 }
 
+export function localAppData(deps: Deps): string {
+  return deps.env.LOCALAPPDATA || path.join(deps.home, 'AppData', 'Local');
+}
+
+export function roamingAppData(deps: Deps): string {
+  return deps.env.APPDATA || path.join(deps.home, 'AppData', 'Roaming');
+}
+
 export function expandHome(filePath: string, deps: Deps): string {
   return filePath.startsWith('~/') ? path.join(deps.home, filePath.slice(2)) : filePath;
 }

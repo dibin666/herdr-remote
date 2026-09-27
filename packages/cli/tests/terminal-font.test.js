@@ -52,6 +52,26 @@ function fakeFiles(files) {
 const HOME = '/home/you';
 const base = { home: HOME, env: { HOME }, platform: 'linux' };
 
+function windowsTerminalSettingsPaths(local) {
+  return [
+    path.join(
+      local,
+      'Packages',
+      'Microsoft.WindowsTerminal_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json',
+    ),
+    path.join(
+      local,
+      'Packages',
+      'Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json',
+    ),
+    path.join(local, 'Microsoft', 'Windows Terminal', 'settings.json'),
+  ];
+}
+
 test('Pango descriptions give up their family and size in pixels', () => {
   assert.deepEqual(parsePangoFontDescription('JetBrainsMono Nerd Font 9'), {
     family: 'JetBrainsMono Nerd Font',
@@ -133,6 +153,153 @@ test('the nearest terminal process wins over variables leaked from an outer one'
   );
 });
 
+test('Windows Terminal is detected after more specific inherited terminal markers', () => {
+  assert.equal(
+    identifyTerminal({ env: { WT_SESSION: 'session' }, ancestry: [] }),
+    'windows-terminal',
+  );
+  assert.equal(
+    identifyTerminal({ env: { WT_SESSION: 'session', TERM_PROGRAM: 'WezTerm' }, ancestry: [] }),
+    'wezterm',
+  );
+  assert.equal(
+    identifyTerminal({ env: { WT_SESSION: 'session', TERM_PROGRAM: 'vscode' }, ancestry: [] }),
+    'vscode',
+  );
+});
+
+test('Windows Terminal reads a profile by case-insensitive GUID and supports JSONC', () => {
+  const local = '/windows/local';
+  const [stable] = windowsTerminalSettingsPaths(local);
+  const settings = `{
+    // WT_PROFILE_ID selects this face.
+    "defaultProfile": "{default-id}",
+    "profiles": {
+      "defaults": { "font": { "face": "Default Mono", "size": 12 } },
+      "list": [
+        { "guid": "{A1B2-C3D4}", "font": { "face": "'Iosevka Term', Consolas" }, "fontSize": 8 },
+      ],
+    },
+  }`;
+  assert.deepEqual(
+    readTerminalFont('windows-terminal', {
+      ...base,
+      platform: 'win32',
+      env: { HOME, LOCALAPPDATA: local, WT_PROFILE_ID: '{a1b2-c3d4}' },
+      readFile: fakeFiles({ [stable]: settings }),
+      run: fakeRun({}),
+    }),
+    { source: 'windows-terminal', family: 'Iosevka Term', sizePx: 10.7 },
+  );
+});
+
+test('Windows Terminal falls back to defaultProfile, defaults, and built-in values', () => {
+  const local = '/windows/local';
+  const [stable] = windowsTerminalSettingsPaths(local);
+  const read = (settings) =>
+    readTerminalFont('windows-terminal', {
+      ...base,
+      platform: 'win32',
+      env: { HOME, LOCALAPPDATA: local, WT_PROFILE_ID: '{missing}' },
+      readFile: fakeFiles({ [stable]: JSON.stringify(settings) }),
+      run: fakeRun({}),
+    });
+
+  assert.deepEqual(
+    read({
+      defaultProfile: '{DEFAULT-ID}',
+      profiles: {
+        list: [
+          { guid: '{default-id}', fontFace: 'Legacy Profile Face', fontSize: 9 },
+          { guid: '{other-id}', font: { face: 'Other Face', size: 10 } },
+        ],
+      },
+    }),
+    { source: 'windows-terminal', family: 'Legacy Profile Face', sizePx: 12 },
+  );
+  assert.deepEqual(
+    read({
+      profiles: {
+        defaults: { font: { face: 'Shared Default', size: 13 } },
+        list: [{ guid: '{missing}', font: { size: 11 } }],
+      },
+    }),
+    { source: 'windows-terminal', family: 'Shared Default', sizePx: 14.7 },
+  );
+  assert.deepEqual(
+    read({ profiles: { defaults: { fontFace: 'Legacy Default', fontSize: 10 }, list: [] } }),
+    { source: 'windows-terminal', family: 'Legacy Default', sizePx: 13.3 },
+  );
+  assert.deepEqual(read({ profiles: { list: [{ guid: '{missing}' }] } }), {
+    source: 'windows-terminal',
+    family: 'Cascadia Mono',
+    sizePx: 16,
+  });
+});
+
+test('Windows Terminal reads old profile arrays and tries settings paths in order', () => {
+  const local = '/windows/local';
+  const [stable, preview, unpackaged] = windowsTerminalSettingsPaths(local);
+  const deps = (files) => ({
+    ...base,
+    platform: 'win32',
+    env: { HOME, LOCALAPPDATA: local, WT_PROFILE_ID: '{LEGACY-ID}' },
+    readFile: fakeFiles(files),
+    run: fakeRun({}),
+  });
+  const expected = { source: 'windows-terminal', family: 'Legacy List Face', sizePx: 14.7 };
+  const arraySettings = JSON.stringify({
+    defaultProfile: '{fallback-id}',
+    profiles: [
+      { guid: '{legacy-id}', fontFace: 'Legacy List Face, Consolas', fontSize: 11 },
+      { guid: '{fallback-id}', fontFace: 'Fallback Face' },
+    ],
+  });
+
+  assert.deepEqual(
+    readTerminalFont('windows-terminal', deps({ [stable]: '{invalid', [preview]: arraySettings })),
+    expected,
+  );
+  assert.deepEqual(
+    readTerminalFont('windows-terminal', deps({ [unpackaged]: arraySettings })),
+    expected,
+  );
+  assert.equal(readTerminalFont('windows-terminal', deps({})), null);
+
+  const home = path.join(HOME, 'AppData', 'Local');
+  const homeStable = windowsTerminalSettingsPaths(home)[0];
+  assert.deepEqual(
+    readTerminalFont('windows-terminal', {
+      ...base,
+      platform: 'win32',
+      env: { HOME, WT_PROFILE_ID: '{LEGACY-ID}' },
+      readFile: fakeFiles({ [homeStable]: arraySettings }),
+      run: fakeRun({}),
+    }),
+    expected,
+  );
+});
+
+test('Windows Terminal profile fallback lists use their first CSS family', () => {
+  const local = '/windows/local';
+  const [stable] = windowsTerminalSettingsPaths(local);
+  assert.deepEqual(
+    readTerminalFont('windows-terminal', {
+      ...base,
+      platform: 'win32',
+      env: { HOME, LOCALAPPDATA: local },
+      readFile: fakeFiles({
+        [stable]: JSON.stringify({
+          defaultProfile: '{profile}',
+          profiles: { list: [{ guid: '{profile}', font: { face: '"Fira Code", Consolas' } }] },
+        }),
+      }),
+      run: fakeRun({}),
+    }),
+    { source: 'windows-terminal', family: 'Fira Code', sizePx: 16 },
+  );
+});
+
 test('GNOME Terminal: the default profile font, or the desktop font when it says so', () => {
   const profile = 'org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:b1dc/';
   const table = {
@@ -208,6 +375,56 @@ test('config-file terminals: kitty, Alacritty, Ghostty, foot, Konsole, VS Code',
   });
 });
 
+test('Windows VS Code and Alacritty use roaming settings paths and Windows defaults', () => {
+  const roaming = '/windows/roaming';
+  const vscodeSettings = path.join(roaming, 'Code', 'User', 'settings.json');
+  const alacrittySettings = path.join(roaming, 'alacritty', 'alacritty.toml');
+  const oldAlacrittySettings = path.join(HOME, '.config', 'alacritty', 'alacritty.toml');
+  const windowsDeps = (files) => ({
+    ...base,
+    platform: 'win32',
+    env: { HOME, APPDATA: roaming },
+    readFile: fakeFiles(files),
+    run: fakeRun({}),
+  });
+
+  assert.deepEqual(
+    readTerminalFont(
+      'vscode',
+      windowsDeps({ [vscodeSettings]: '{ "terminal.integrated.fontFamily": "Cascadia Mono" }' }),
+    ),
+    { source: 'vscode', family: 'Cascadia Mono', sizePx: 14 },
+  );
+  assert.deepEqual(
+    readTerminalFont(
+      'alacritty',
+      windowsDeps({
+        [alacrittySettings]: '[font]\nsize = 12\n[font.normal]\nfamily = "Windows Mono"',
+        [oldAlacrittySettings]: '[font.normal]\nfamily = "Old Config Mono"',
+      }),
+    ),
+    { source: 'alacritty', family: 'Windows Mono', sizePx: 16 },
+  );
+  assert.deepEqual(readTerminalFont('vscode', windowsDeps({})), {
+    source: 'vscode',
+    family: 'Consolas',
+    sizePx: 14,
+  });
+
+  const fallbackRoaming = path.join(HOME, 'AppData', 'Roaming');
+  const fallbackSettings = path.join(fallbackRoaming, 'alacritty', 'alacritty.toml');
+  assert.deepEqual(
+    readTerminalFont('alacritty', {
+      ...base,
+      platform: 'win32',
+      env: { HOME },
+      readFile: fakeFiles({ [fallbackSettings]: '[font.normal]\nfamily = "Fallback Mono"' }),
+      run: fakeRun({}),
+    }),
+    { source: 'alacritty', family: 'Fallback Mono', sizePx: 15 },
+  );
+});
+
 test('a terminal left on its defaults reports the default it really draws with', () => {
   const deps = {
     ...base,
@@ -240,6 +457,93 @@ function fontFile(directory, name, magic, size = 1000) {
   fs.writeFileSync(file, body);
   return file;
 }
+
+/** Writes the sfnt name records read by the folder scanner without a font fixture. */
+function sfntFontFile(directory, name, family, subfamily) {
+  const nameStrings = [family, subfamily].map((value) => Buffer.from(value, 'utf16le').swap16());
+  const records = Buffer.alloc(24);
+  let stringOffset = 0;
+  for (const [index, value] of nameStrings.entries()) {
+    const record = index * 12;
+    records.writeUInt16BE(3, record);
+    records.writeUInt16BE(1, record + 2);
+    records.writeUInt16BE(0x409, record + 4);
+    records.writeUInt16BE(index + 1, record + 6);
+    records.writeUInt16BE(value.length, record + 8);
+    records.writeUInt16BE(stringOffset, record + 10);
+    stringOffset += value.length;
+  }
+
+  const nameHeader = Buffer.alloc(6);
+  nameHeader.writeUInt16BE(0, 0);
+  nameHeader.writeUInt16BE(2, 2);
+  nameHeader.writeUInt16BE(nameHeader.length + records.length, 4);
+  const nameTable = Buffer.concat([nameHeader, records, ...nameStrings]);
+  const offsetTable = Buffer.alloc(12);
+  Buffer.from('\x00\x01\x00\x00', 'latin1').copy(offsetTable);
+  offsetTable.writeUInt16BE(1, 4);
+  const directoryEntry = Buffer.alloc(16);
+  directoryEntry.write('name', 0, 'latin1');
+  directoryEntry.writeUInt32BE(offsetTable.length + directoryEntry.length, 8);
+  directoryEntry.writeUInt32BE(nameTable.length, 12);
+
+  const file = path.join(directory, name);
+  fs.writeFileSync(file, Buffer.concat([offsetTable, directoryEntry, nameTable]));
+  return file;
+}
+
+test('Windows font folders supply regular and bold faces without scanning Linux folders', (t) => {
+  const windows = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-win-fonts-'));
+  const local = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-win-user-fonts-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-win-home-'));
+  t.onTestFinished(() => {
+    fs.rmSync(windows, { recursive: true, force: true });
+    fs.rmSync(local, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const systemFonts = path.join(windows, 'Fonts');
+  const userFonts = path.join(local, 'Microsoft', 'Windows', 'Fonts');
+  const fallbackUserFonts = path.join(home, 'AppData', 'Local', 'Microsoft', 'Windows', 'Fonts');
+  fs.mkdirSync(systemFonts, { recursive: true });
+  fs.mkdirSync(userFonts, { recursive: true });
+  fs.mkdirSync(fallbackUserFonts, { recursive: true });
+  sfntFontFile(systemFonts, 'WindowsMono-Regular.ttf', 'Windows Mono', 'Regular');
+  sfntFontFile(userFonts, 'WindowsMono-Bold.ttf', 'Windows Mono', 'Bold');
+  sfntFontFile(fallbackUserFonts, 'WindowsMono-Bold.ttf', 'Windows Mono', 'Bold');
+
+  const deps = {
+    ...base,
+    home,
+    platform: 'win32',
+    env: { HOME: home, WINDIR: windows, LOCALAPPDATA: local },
+    run: fakeRun({}),
+  };
+  assert.deepEqual(
+    resolveFontFaces('Windows Mono', deps).map(({ style, format }) => ({ style, format })),
+    [
+      { style: 'regular', format: 'truetype' },
+      { style: 'bold', format: 'truetype' },
+    ],
+  );
+  const fallbackLocal = resolveFontFaces('Windows Mono', {
+    ...deps,
+    env: { HOME: home, WINDIR: windows },
+  });
+  assert.equal(fallbackLocal[1].path, path.join(fallbackUserFonts, 'WindowsMono-Bold.ttf'));
+
+  const systemRoot = path.join(windows, 'system-root');
+  const systemRootFonts = path.join(systemRoot, 'Fonts');
+  fs.mkdirSync(systemRootFonts, { recursive: true });
+  sfntFontFile(systemRootFonts, 'SystemRoot-Regular.ttf', 'System Root Mono', 'Regular');
+  assert.equal(
+    resolveFontFaces('System Root Mono', {
+      ...deps,
+      env: { HOME: home, SystemRoot: systemRoot, LOCALAPPDATA: local },
+    })[0].style,
+    'regular',
+  );
+  assert.deepEqual(resolveFontFaces('Windows Mono', { ...deps, platform: 'linux' }), []);
+});
 
 test('font files: real TTF/OTF of the right family only, never the same file twice', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-font-files-'));
