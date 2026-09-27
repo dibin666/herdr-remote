@@ -75,20 +75,30 @@ export class PredictionLayer {
     this.items = [];
   }
 
-  /** The overlay as the renderer reads it, built against the buffer as it is now. */
+  /**
+   * The overlay as the renderer reads it, built against the buffer as it is
+   * now. With nothing predicted it only says where the program paints its
+   * own caret, so the renderer can slide it.
+   */
   paint(): PaintOverlay | null {
-    if (this.items.length === 0) return null;
     const terminal = this.options.getTerminal();
     const active = terminal?.buffer.active;
     if (!terminal || !active) return null;
 
-    const cells: OverlayCell[] = [];
     const cursorHidden = this.options.isCursorHidden();
     const serverRow = active.baseY + active.cursorY;
     const serverCol = active.cursorX;
     const serverStyle = styleAt(terminal, serverRow, serverCol);
     const paintsOwnCaret = cursorHidden && !!serverStyle && looksLikeCaret(serverStyle);
+    if (this.items.length === 0) {
+      if (!paintsOwnCaret) return null;
+      const under = active.getLine(serverRow)?.getCell(serverCol)?.getChars() ?? '';
+      return { cells: [], paintedCaret: ownCaret(serverRow, serverCol, under, serverStyle!) };
+    }
+
+    const cells: OverlayCell[] = [];
     let cursor: PaintOverlay['cursor'];
+    let paintedCaret: PaintOverlay['paintedCaret'];
 
     for (const item of this.items) {
       switch (item.kind) {
@@ -133,12 +143,31 @@ export class PredictionLayer {
               width: 1,
               style: serverStyle!,
             });
+            paintedCaret = ownCaret(item.row, item.col, item.char, serverStyle!);
           }
           break;
       }
     }
-    return cursor === undefined ? { cells } : { cells, cursor };
+    const overlay: PaintOverlay = { cells };
+    if (cursor !== undefined) overlay.cursor = cursor;
+    if (paintedCaret) overlay.paintedCaret = paintedCaret;
+    return overlay;
   }
+}
+
+/** A caret the program paints at `row`, `col` over `chars`, and that cell without it. */
+function ownCaret(
+  row: number,
+  col: number,
+  chars: string,
+  style: CellStyle,
+): NonNullable<PaintOverlay['paintedCaret']> {
+  return {
+    row,
+    col,
+    style,
+    plain: { row, col, chars: chars || ' ', width: 1, style: plainStyle(style) },
+  };
 }
 
 function styleAt(terminal: Terminal, row: number, col: number): CellStyle | null {

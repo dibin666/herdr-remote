@@ -499,7 +499,6 @@ describe('HerdrRenderer typing animations', () => {
     await t.write('\rxyz');
     t.frame();
     expect(glyphAlphas(t)).toEqual([1, 1, 1]);
-    expect(t.redraws).toEqual([]);
   });
 
   it('fades nothing outside the typing zone', async () => {
@@ -514,5 +513,88 @@ describe('HerdrRenderer typing animations', () => {
     await t.write('c');
     t.frame();
     expect(glyphAlphas(t)).toEqual([1]);
+  });
+});
+
+describe('HerdrRenderer caret glide', () => {
+  const zone = { row: 0, startCol: 0, endCol: 20 };
+  /** The decoration layer, where a sliding caret is drawn: the second canvas made. */
+  const decorFills = () => contexts[1].calls.filter(([name]) => name === 'fillRect');
+
+  async function typing() {
+    const t = setup(20, 6);
+    await t.write('ab');
+    t.frame();
+    t.renderer.setTypingZoneProvider(() => zone);
+    contexts[1].calls.length = 0;
+    t.mainContext.calls.length = 0;
+    t.redraws.length = 0;
+    return t;
+  }
+
+  it('slides the cursor along the typing row above the text, then paints it into its cell', async () => {
+    const t = await typing();
+    await t.write('c');
+    t.frame();
+    expect(decorFills().map(([, x]) => x)).toEqual([16]);
+    // The cell it is heading for is painted without it meanwhile.
+    expect(t.mainContext.calls).not.toContainEqual(['fillRect', 24, 0, 8, 16]);
+    expect(t.redraws.at(-1)).toEqual({ start: 0, end: 0 });
+
+    contexts[1].calls.length = 0;
+    t.advance(40);
+    t.frame();
+    const [[, x]] = decorFills() as Array<[string, number]>;
+    expect(x).toBeGreaterThan(16);
+    expect(x).toBeLessThan(24);
+
+    contexts[1].calls.length = 0;
+    t.mainContext.calls.length = 0;
+    t.redraws.length = 0;
+    // Past the slide, and past the fade of the "c" it made room for.
+    t.advance(90);
+    t.frame();
+    expect(decorFills()).toEqual([]);
+    expect(t.mainContext.calls).toContainEqual(['fillRect', 24, 0, 8, 16]);
+    expect(t.redraws).toEqual([]);
+  });
+
+  it('jumps when the cursor leaves the typing row, or moves far along it', async () => {
+    const t = await typing();
+    await t.write('\r\n');
+    t.frame();
+    expect(decorFills()).toEqual([]);
+
+    const u = await typing();
+    await u.write('\x1b[1;20H');
+    u.frame();
+    expect(decorFills()).toEqual([]);
+  });
+
+  it('slides a caret the program paints itself, and paints the cell it enters plainly', async () => {
+    const t = await typing();
+    await t.write('\x1b[?25l');
+    const caret = (col: number): PaintOverlay => ({
+      cells: [],
+      paintedCaret: {
+        row: 0,
+        col,
+        style: { fg: 0x4000000, bg: 0, ext: 0 },
+        plain: { row: 0, col, chars: ' ', width: 1, style: { fg: 0, bg: 0, ext: 0 } },
+      },
+    });
+    let overlay = caret(2);
+    t.renderer.setOverlayProvider(() => overlay);
+    t.frame();
+    expect(decorFills()).toEqual([]);
+
+    overlay = caret(3);
+    t.frame();
+    expect(decorFills().map(([, x]) => x)).toEqual([16]);
+    t.advance(100);
+    t.frame();
+    contexts[1].calls.length = 0;
+    t.frame();
+    expect(decorFills()).toEqual([]);
   });
 });

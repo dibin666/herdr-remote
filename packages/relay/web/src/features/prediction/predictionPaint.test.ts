@@ -78,12 +78,45 @@ describe('PredictionLayer', () => {
     layer.sync(items);
 
     const overlay = layer.paint();
+    const caret = { fg: 0, bg: WHITE_BG, ext: 0 };
     expect(overlay).toEqual({
       cells: [
         { row: 5, col: 3, chars: 'i', width: 1, style: typed },
-        { row: 5, col: 4, chars: ' ', width: 1, style: { fg: 0, bg: WHITE_BG, ext: 0 } },
+        { row: 5, col: 4, chars: ' ', width: 1, style: caret },
       ],
+      // Where the renderer may slide it, and the cell it leaves behind.
+      paintedCaret: {
+        row: 5,
+        col: 4,
+        style: caret,
+        plain: { row: 5, col: 4, chars: ' ', width: 1, style: { fg: 0, bg: 0, ext: 0 } },
+      },
     });
+  });
+
+  it('tells the renderer where a program paints its own caret when nothing is predicted', () => {
+    const screen = fakeTerminal({ row: 5, col: 3 });
+    screen.set(5, 3, { chars: ' ', bg: WHITE_BG });
+    const layer = new PredictionLayer({
+      getTerminal: () => screen.terminal,
+      isCursorHidden: () => true,
+    });
+    expect(layer.paint()).toEqual({
+      cells: [],
+      paintedCaret: {
+        row: 5,
+        col: 3,
+        style: { fg: 0, bg: WHITE_BG, ext: 0 },
+        plain: { row: 5, col: 3, chars: ' ', width: 1, style: { fg: 0, bg: 0, ext: 0 } },
+      },
+    });
+
+    // A visible cursor is the renderer's own to draw.
+    const shell = new PredictionLayer({
+      getTerminal: () => screen.terminal,
+      isCursorHidden: () => false,
+    });
+    expect(shell.paint()).toBeNull();
   });
 
   it("covers the program's caret a round trip behind with plain text", () => {

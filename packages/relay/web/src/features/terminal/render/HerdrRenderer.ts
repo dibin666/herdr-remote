@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
+import { CaretGlide, caretTarget, type SlidingCaret } from './caretGlide';
 import { CellPainter } from './cellPainter';
 import type { ThemeColors } from './colors';
 import { CursorBlink, type CursorState, resolveCursor } from './cursor';
@@ -94,6 +95,9 @@ export class HerdrRenderer implements XtermRenderer {
 
   private inputAt: number | null = null;
   private readonly blink = new CursorBlink(() => this.requestCursorRow());
+  private readonly glide = new CaretGlide();
+  /** The caret drawn on the decoration layer, while it slides. */
+  private slidingCaret: SlidingCaret | null = null;
   private disposed = false;
 
   /**
@@ -335,7 +339,13 @@ export class HerdrRenderer implements XtermRenderer {
 
     const overlay = this.overlayProvider?.() ?? null;
     const overlayByRow = overlayCellsByRow(overlay);
-    const cursor = this.cursorState(overlay);
+    const resting = this.cursorState(overlay);
+    const target = caretTarget(resting, overlay, ydisp, this.colors());
+    const sliding = this.glide.update(target, typingY, began);
+    // While the caret slides it is drawn above the text, and its cell plainly.
+    const cursor = sliding ? null : resting;
+    const plain = sliding && target?.plain;
+    if (plain) overlayByRow.set(plain.row, [...(overlayByRow.get(plain.row) ?? []), plain]);
 
     // Rows the overlay or the cursor left since the last frame must be
     // repainted too, whatever range xterm asked for.
@@ -353,9 +363,14 @@ export class HerdrRenderer implements XtermRenderer {
       const typing = y === typingY ? { start: zone!.startCol, end: zone!.endCol } : null;
       cells += this.cells.paintRow(y, cursor, typing, began);
     }
-    // A fade still running needs the next frame too.
+    // A fade or a slide still running needs the next frame too.
     if (this.cells.fades.size > 0) {
       this.requestAbsoluteRows([...this.cells.fades.rows(this.cols)].map((y) => y + ydisp));
+    }
+    if (sliding || this.slidingCaret) {
+      this.slidingCaret = sliding;
+      this.redrawDecor();
+      if (sliding) this.requestAbsoluteRows([sliding.y + ydisp]);
     }
 
     this.paintedOverlayRows = new Set(overlayByRow.keys());
@@ -417,6 +432,8 @@ export class HerdrRenderer implements XtermRenderer {
       colors: this.colors(),
       focused: this.core._coreBrowserService.isFocused,
       dpr: this.core._coreBrowserService.dpr,
+      cursorWidth: this.core.optionsService.rawOptions.cursorWidth,
+      caret: this.slidingCaret,
     });
   }
 
