@@ -2,7 +2,8 @@ import os from 'node:os';
 
 // Interface names that are almost always virtual bridges rather than something
 // a phone can reach. They are still listed, just ranked last.
-const VIRTUAL_NAME_PATTERN = /^(docker|br-|virbr|veth|vmnet|vboxnet|lxcbr|cni|flannel|kube)/i;
+const VIRTUAL_NAME_PATTERN =
+  /^(docker|br-|virbr|veth|vmnet|vboxnet|lxcbr|cni|flannel|kube|vmware network adapter|virtualbox host-only)/i;
 const TAILSCALE_NAME_PATTERN = /^(tailscale|ts)\d*$/i;
 
 /**
@@ -19,6 +20,16 @@ function isTailscaleAddress(address: unknown): boolean {
   return first === 100 && second >= 64 && second <= 127;
 }
 
+/**
+ * Windows assigns 169.254 addresses when DHCP fails, and other devices cannot
+ * reach them.
+ */
+function isLinkLocalAddress(address: unknown): boolean {
+  const octets = String(address).split('.');
+  if (octets.length !== 4) return false;
+  return Number(octets[0]) === 169 && Number(octets[1]) === 254;
+}
+
 type AddressKind = 'tailscale' | 'lan' | 'virtual' | 'loopback';
 
 export interface NetworkAddress {
@@ -32,7 +43,7 @@ export interface NetworkAddress {
 function classify(name: string, info: os.NetworkInterfaceInfo): AddressKind {
   if (info.internal) return 'loopback';
   if (TAILSCALE_NAME_PATTERN.test(name) || isTailscaleAddress(info.address)) return 'tailscale';
-  if (VIRTUAL_NAME_PATTERN.test(name)) return 'virtual';
+  if (isLinkLocalAddress(info.address) || VIRTUAL_NAME_PATTERN.test(name)) return 'virtual';
   return 'lan';
 }
 
@@ -48,8 +59,12 @@ const KIND_ORDER: Record<AddressKind, number> = { tailscale: 0, lan: 1, virtual:
 function listReachableAddresses({
   includeLoopback = true,
   includeIpv6 = false,
+  interfaces = os.networkInterfaces(),
+}: {
+  includeLoopback?: boolean;
+  includeIpv6?: boolean;
+  interfaces?: ReturnType<typeof os.networkInterfaces>;
 } = {}): NetworkAddress[] {
-  const interfaces = os.networkInterfaces();
   const results: NetworkAddress[] = [];
   for (const [name, entries] of Object.entries(interfaces)) {
     for (const info of entries || []) {
@@ -77,8 +92,10 @@ function listReachableAddresses({
 }
 
 /** Best guess for the address to advertise when binding to every interface. */
-function preferredLanAddress(): string | null {
-  const candidates = listReachableAddresses({ includeLoopback: false });
+function preferredLanAddress(
+  interfaces: ReturnType<typeof os.networkInterfaces> = os.networkInterfaces(),
+): string | null {
+  const candidates = listReachableAddresses({ includeLoopback: false, interfaces });
   return candidates.length > 0 ? candidates[0].address : null;
 }
 
