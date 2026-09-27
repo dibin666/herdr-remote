@@ -109,8 +109,9 @@ jobs:
         # so the native node-pty module has to be compiled. Skipping it here
         # would ship a release validated only against the parts that need no
         # compiler. The tarballs themselves are built by each package's
-        # `prepack`, which `npm publish` runs.
-        run: npm ci
+        # `prepack`, which `npm publish` runs. No audit: npm's retiring audit
+        # endpoint once held a release here for five minutes.
+        run: npm ci --no-audit
 
       # The same checks as ci.yml, so nothing reaches npm that a pull request
       # would have rejected.

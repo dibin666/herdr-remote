@@ -30,7 +30,8 @@ jobs:
           cache: npm
 
       # A full install: the CLI tests drive a real pty, so node-pty must build.
-      - run: npm ci
+      # No audit: npm's retiring audit endpoint can hang for minutes.
+      - run: npm ci --no-audit
 
       - run: npm run check
 
