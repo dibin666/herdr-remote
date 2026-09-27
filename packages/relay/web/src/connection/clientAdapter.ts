@@ -92,6 +92,7 @@ export class HerdrClientAdapter extends RelaySocket {
           msg.platform,
           msg.shellProfile,
           msg.adminTerminalSupported,
+          msg.hostVersion,
         );
         this.emit('terminalFont', msg.terminalFont ?? null);
         break;

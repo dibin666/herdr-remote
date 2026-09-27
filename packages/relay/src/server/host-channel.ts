@@ -23,6 +23,7 @@ import {
   broadcastAgentStatus,
   broadcastTerminalFont,
   broadcastUpdateStatus,
+  releaseVersion,
 } from './host-broadcasts.js';
 import { allowHostHandshake } from './requests.js';
 import {
@@ -71,6 +72,7 @@ function createHostRecord(
     agentStatus: null,
     /** Whether the workstation's herdr-remote is behind; replayed the same way. */
     updateStatus: null,
+    version: releaseVersion(message.version),
     lastSeenAt: Date.now(),
     clients,
     controllerId: null,

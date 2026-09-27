@@ -1772,3 +1772,68 @@ test('a newer herdr-remote is announced to every window, versions only, and repl
   late.close();
   host.close();
 });
+
+test('windows and the operator board learn which herdr-remote each workstation runs', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-host-version-'));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relayConfig = config();
+  relayConfig.auth.adminToken = 'operator-secret-123456789';
+  const relay = new RelayServer(relayConfig, { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.onTestFinished(async () => relay.close());
+
+  const hello = (hostId, extra) =>
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId,
+      token: `${hostId}-token-123456789`,
+      ...extra,
+    });
+  const current = await openWebSocket(`${wsBase}/ws/host`);
+  current.send(hello('host-1', { version: '0.2.31' }));
+  await nextMessage(current, (message) => message.type === 'host_ready');
+  // Before 0.2.31 a connector did not name its release; one that is not a
+  // version is dropped rather than shown as text.
+  const old = await openWebSocket(`${wsBase}/ws/host`);
+  old.send(hello('host-2', { version: '<b>1.0.0</b>' }));
+  await nextMessage(old, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, {
+    'X-Herdr-Host-Id': 'host-2',
+    'X-Herdr-Host-Token': 'host-2-token-123456789',
+  });
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  client.send(
+    JSON.stringify({ type: 'hello', protocol: 1, pairCode: pairing.code, cols: 80, rows: 24 }),
+  );
+  assert.equal((await ready).value.hostVersion, null);
+
+  // The old one did say what it runs when it checked npm.
+  const announced = nextMessage(client, (message) => message.type === 'update_status');
+  old.send(
+    JSON.stringify({
+      type: 'update_status',
+      current: '0.2.20',
+      latest: '0.2.31',
+      updateAvailable: true,
+    }),
+  );
+  await announced;
+
+  const response = await fetch(`${base}/api/admin/status`, {
+    headers: { 'X-Relay-Admin-Token': 'operator-secret-123456789' },
+  });
+  const hosts = Object.fromEntries((await response.json()).hosts.map((host) => [host.id, host]));
+  assert.equal(hosts['host-1'].version, '0.2.31');
+  assert.equal(hosts['host-1'].latestVersion, null);
+  assert.equal(hosts['host-2'].version, '0.2.20');
+  assert.equal(hosts['host-2'].latestVersion, '0.2.31');
+
+  client.close();
+  current.close();
+  old.close();
+});

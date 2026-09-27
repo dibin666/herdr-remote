@@ -24,6 +24,7 @@ The host connects to `/ws/host` and sends:
   "hostname": "workstation",
   "platform": "linux",
   "arch": "x64",
+  "version": "0.2.31",
   "capabilities": ["host_handoff", "idle_heartbeat"],
   "terminalPalette": {
     "background": "#222226",
@@ -54,6 +55,11 @@ Two different secrets, with two different jobs:
 
 That split is what makes a public relay safe to share: joining is open, but each
 workstation remains reachable only by whoever holds its host token.
+
+`version` is the herdr-remote release the connector runs; connectors before
+0.2.31 leave it out. The relay keeps it only if it is release-shaped and reports
+it to windows as `hostVersion` and to the status endpoints as each host's
+`version` — see [Update status](#update-status-update_status).
 
 The relay responds with `host_ready` and an optional `clientCount`. It also
 sends `client_count` whenever the number of attached browser windows changes.
@@ -201,7 +207,9 @@ delivered before the first PTY byte so the terminal is painted in the host's
 colors from its first frame instead of repainting mid-session, and `clientCount`,
 the number of windows now sharing this terminal. It also carries the host's
 `platform` and optional `shellProfile` so the browser can select platform-
-specific shell controls.
+specific shell controls, and `hostVersion`, the host's herdr-remote release or
+`null` when its connector is too old to say. `session_restarted` repeats it,
+since a host that comes back may have been updated.
 
 JSON frames carry control messages. Binary frames carry raw terminal input from
 any attached window, or raw ANSI output from the host. The relay adds a small
@@ -538,3 +546,12 @@ to windows that open later. The browser shows it as a chip on the status line
 with the steps to update, and toasts each release once per page.
 `HERDR_REMOTE_UPDATE_CHECK=0` on the workstation turns the check off, here and
 in the TUI.
+
+A connector too old to send `version` in its hello (`hostVersion: null`) cannot
+be relied on to report updates either, so the browser treats it as outdated on
+its own: the status-line chip stays up with the manual steps (on Windows,
+stopping the running herdr-remote first so npm can replace its files) and it is
+toasted once per page. It is not a release, so it cannot be ignored. The
+status endpoints list each host's `version`, falling back to the `current` of
+its last `update_status`, and `latestVersion` when that status found a newer
+release; the operator board shows both.

@@ -18,6 +18,11 @@ export interface SessionState {
   platform?: string;
   shellProfile: ShellProfile;
   adminTerminalSupported?: boolean;
+  /**
+   * The workstation's herdr-remote release: null when it is too old to say,
+   * undefined before the relay has said anything.
+   */
+  hostVersion?: string | null;
   assignedClientId?: string;
   /** The host terminal's own colors, or null when the host could not report them. */
   hostPalette: HostTerminalPalette | null;
@@ -62,6 +67,7 @@ export type SessionEvent =
       shellProfile?: ShellProfile;
       adminTerminalSupported?: boolean;
       palette?: HostTerminalPalette | null;
+      hostVersion?: string | null;
     }
   | {
       type: 'roleChange';
@@ -87,6 +93,7 @@ const HOST_PRESENTATION = {
   hostname: undefined,
   platform: undefined,
   adminTerminalSupported: undefined,
+  hostVersion: undefined,
   shellProfile: 'posix',
   hostPalette: null,
   rttMs: null,
@@ -116,6 +123,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         hostname: message.hostname,
         platform: message.platform,
         adminTerminalSupported: message.adminTerminalSupported,
+        hostVersion: message.hostVersion,
         shellProfile: defaultShellProfile(message.platform, message.shellProfile),
         assignedClientId: message.clientId || state.assignedClientId,
         // The workstation tells us what its terminal looks like; nothing here
@@ -131,6 +139,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         hostname: event.hostname,
         platform: event.platform,
         adminTerminalSupported: event.adminTerminalSupported,
+        hostVersion: event.hostVersion,
         shellProfile: defaultShellProfile(event.platform, event.shellProfile),
         hostPalette: event.palette || null,
         terminalResetVersion: state.terminalResetVersion + 1,

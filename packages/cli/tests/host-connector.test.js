@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { HostConnector } from '../src/connector/host-connector.js';
 import { FAST_FAILURE_LIMIT } from '../src/connector/sessions.js';
 import {
@@ -381,6 +381,31 @@ test('host connector handles v2 binary frames and negotiation', async (t) => {
   connector.sessions.stop('v2-stream');
   assert.equal(connector.sessions.byStream.size, 0);
   assert.equal(connector.sessions.streamIndexToId.has(7), false);
+});
+
+test('the host hello names the herdr-remote release it runs', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-version-'));
+  const relay = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+  await new Promise((resolve) => relay.once('listening', resolve));
+  const connector = makeConnector(path.join(directory, 'connector.lock'), {
+    relayUrl: `ws://127.0.0.1:${relay.address().port}/ws/host`,
+    runningVersion: '9.8.7',
+  });
+  t.onTestFinished(async () => {
+    connector.stop();
+    await new Promise((resolve) => relay.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const hello = new Promise((resolve) =>
+    relay.once('connection', (socket) =>
+      socket.once('message', (raw) => resolve(JSON.parse(raw.toString()))),
+    ),
+  );
+  connector.connect();
+  const message = await hello;
+  assert.equal(message.type, 'host_hello');
+  assert.equal(message.version, '9.8.7');
 });
 
 test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {

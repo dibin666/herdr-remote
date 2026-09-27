@@ -27,7 +27,8 @@ export interface UpdateReportOptions {
 export class UpdateReport {
   private readonly checkUpdate: (() => Promise<UpdateCheck>) | null;
   private readonly readInstalledVersion: () => string | null;
-  private readonly runningVersion: string;
+  /** The release this process runs, fixed at start. */
+  readonly runningVersion: string;
   private readonly send: (payload: unknown) => void;
   private checkedAt = 0;
   /** The check in flight, if any. */

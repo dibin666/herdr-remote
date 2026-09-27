@@ -232,6 +232,7 @@ export class HostConnector {
           ? { shellProfile: 'git-bash' }
           : {}),
         arch: process.arch,
+        version: this.updates.runningVersion,
         terminalPalette: this.terminalPalette || null,
         terminalFont: this.font.publicFont(),
         capabilities: [

@@ -19,9 +19,18 @@ import { Button, GLYPH, Modal, Row } from '@/shared/ui';
  * which ones exist, so it has to ask before adding the chip, not after.
  */
 export function useUpdateNoticeVisible(): boolean {
-  const { updateStatus, ignoredUpdate } = useConnection();
-  return Boolean(updateStatus?.updateAvailable) && ignoredUpdate !== updateStatus?.latest;
+  const { updateStatus, ignoredUpdate, hostVersion } = useConnection();
+  // Too old to name its release is too old to report one, so nothing else would
+  // say it; and it is not a release that can be ignored.
+  return (
+    hostVersion === null ||
+    (Boolean(updateStatus?.updateAvailable) && ignoredUpdate !== updateStatus?.latest)
+  );
 }
+
+/** Stops every herdr-remote process, so npm can replace the files they hold open. */
+const WINDOWS_STOP_COMMAND =
+  "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*node_modules\\herdr-remote*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }";
 
 export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = ({
   compact = false,
@@ -32,14 +41,16 @@ export const UpdateChip: React.FC<{ compact?: boolean; className?: string }> = (
   const visible = useUpdateNoticeVisible();
   const [open, setOpen] = useState(false);
 
-  if (!visible || !updateStatus) return null;
+  if (!visible) return null;
 
-  const { latest, restartPending } = updateStatus;
-  const label = restartPending
-    ? t('update.chipRestart', { version: latest })
-    : compact
-      ? t('update.chipCompact', { version: latest })
-      : t('update.chip', { version: latest });
+  const release = updateStatus?.updateAvailable ? updateStatus : null;
+  const label = !release
+    ? t('update.chipOutdated')
+    : release.restartPending
+      ? t('update.chipRestart', { version: release.latest })
+      : compact
+        ? t('update.chipCompact', { version: release.latest })
+        : t('update.chip', { version: release.latest });
 
   return (
     <>
@@ -90,8 +101,17 @@ const Command: React.FC<{ command: string }> = ({ command }) => {
 
 const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { t } = useSettings();
-  const { updateStatus, ignoreUpdate, hostname, hostId } = useConnection();
-  if (!updateStatus) return null;
+  const { updateStatus, ignoreUpdate, hostname, hostId, platform } = useConnection();
+  if (!updateStatus?.updateAvailable) {
+    return (
+      <OutdatedModal
+        isOpen={isOpen}
+        onClose={onClose}
+        host={hostname || hostId}
+        win={platform === 'win32'}
+      />
+    );
+  }
   const { current, installed, latest, restartPending, updateCommand } = updateStatus;
 
   return (
@@ -163,6 +183,56 @@ const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
             <p className="text-tui-sm leading-snug text-tui-faint">{t('update.restartNote')}</p>
           </>
         )}
+      </div>
+    </Modal>
+  );
+};
+
+/**
+ * For a workstation too old to name its release: it cannot say which version
+ * it runs or which one is newest, and has no `herdr-remote update`, so this
+ * gives the manual steps. On Windows the running herdr-remote holds its own
+ * files open, and npm cannot replace them until it is stopped.
+ */
+const OutdatedModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  host?: string;
+  win: boolean;
+}> = ({ isOpen, onClose, host, win }) => {
+  const { t } = useSettings();
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={t('update.title')}
+      closeLabel={t('common.closeDialog')}
+      size="md"
+      footer={
+        <Button variant="primary" onClick={onClose}>
+          {t('common.done')}
+        </Button>
+      }
+    >
+      <div className="space-y-3" data-testid="update-modal">
+        <div className="space-y-0.5">
+          <Row label={t('common.host')} labelWidth={10}>
+            {host || '—'}
+          </Row>
+          <Row label={t('update.running')} labelWidth={10}>
+            <span className="text-tui-warn">{t('update.outdatedVersion')}</span>
+          </Row>
+        </div>
+        <p className="leading-snug text-tui-text">{t('update.outdated')}</p>
+        {win ? (
+          <>
+            <p className="leading-snug text-tui-muted">{t('update.windowsStop')}</p>
+            <Command command={WINDOWS_STOP_COMMAND} />
+          </>
+        ) : null}
+        <Command command="npm install -g herdr-remote@latest --prefer-online" />
+        <Command command="herdr-remote restart" />
+        <p className="text-tui-sm leading-snug text-tui-faint">{t('update.restartNote')}</p>
       </div>
     </Modal>
   );
