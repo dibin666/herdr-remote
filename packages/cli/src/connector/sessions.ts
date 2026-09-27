@@ -32,11 +32,16 @@ import { streamOf } from './wire.js';
  * session the user actually used and then left.
  */
 const FAST_FAILURE_MS = 1500;
+/** Coalesce Windows ConPTY's many small output chunks before they reach the relay. */
+const WINDOWS_OUTPUT_BATCH_MS = 4;
 /** How many broken starts in a row before we stop calling them exits. */
 export const FAST_FAILURE_LIMIT = 3;
 
 /** A window's session start, as held while Herdr is checked or started. */
-type StartRequest = Pick<RelaySessionStartMessage, 'clientId' | 'streamId' | 'streamIndex'> & {
+type StartRequest = Pick<
+  RelaySessionStartMessage,
+  'clientId' | 'streamId' | 'streamIndex' | 'adminTerminal'
+> & {
   cols?: number;
   rows?: number;
 };
@@ -53,6 +58,7 @@ export interface LiveSession {
   /** Output from this tick, sent as one frame on the next. */
   pendingOutput: Buffer[];
   flushImmediate: NodeJS.Immediate | null;
+  flushTimeout: NodeJS.Timeout | null;
 }
 
 /** How sessions reach the relay: through whatever socket the connector has now. */
@@ -172,6 +178,10 @@ export class Sessions {
     const streamId = streamOf(message);
     if (!streamId) return undefined;
     this.stop(streamId);
+    if (message.adminTerminal) {
+      this.spawn(message);
+      return undefined;
+    }
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
@@ -267,11 +277,15 @@ export class Sessions {
   private spawn(message: StartRequest): void {
     const streamId = streamOf(message) as string;
     const streamIndex = typeof message.streamIndex === 'number' ? message.streamIndex : null;
+    const adminTerminal = message.adminTerminal === true;
+    // The normal Herdr server keeps its original token, so admin mode needs its own shell.
     const pty = new this.Pty({
-      command: this.herdrCommand,
-      args: this.herdrArgs,
+      command: adminTerminal ? 'powershell.exe' : this.herdrCommand,
+      args: adminTerminal ? ['-NoLogo', '-NoProfile'] : this.herdrArgs,
       cwd: this.cwd,
-      socketPath: this.socketPath,
+      socketPath: adminTerminal ? null : this.socketPath,
+      adminTerminal,
+      fastWindowsPty: adminTerminal,
     });
     const session: LiveSession = {
       id: streamId,
@@ -283,11 +297,16 @@ export class Sessions {
       startedAtMs: Date.now(),
       pendingOutput: [],
       flushImmediate: null,
+      flushTimeout: null,
     };
     const flushOutput = () => {
       if (session.flushImmediate) {
         clearImmediate(session.flushImmediate);
         session.flushImmediate = null;
+      }
+      if (session.flushTimeout) {
+        clearTimeout(session.flushTimeout);
+        session.flushTimeout = null;
       }
       if (session.pendingOutput.length === 0) return;
       const payload = Buffer.concat(session.pendingOutput);
@@ -298,6 +317,31 @@ export class Sessions {
           : packStreamFrame('output', streamId, payload),
       );
     };
+    let readySent = false;
+    const reportReady = () => {
+      if (readySent || this.byStream.get(streamId) !== session) return;
+      readySent = true;
+      this.link.send({ type: 'session_ready', clientId: streamId });
+    };
+    const reportStartError = (error: Error) => {
+      if (this.byStream.get(streamId) !== session) return;
+      this.forget(session);
+      session.pty.kill();
+      const code = (error as NodeJS.ErrnoException).code;
+      const brokerUnavailable =
+        session.pty.adminTerminal &&
+        (code === 'ENOENT' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT');
+      this.sendError(
+        streamId,
+        brokerUnavailable ? 'admin_broker_unavailable' : 'pty_start_failed',
+        brokerUnavailable
+          ? 'Run herdr-remote admin-broker install once from an administrator terminal.'
+          : error.message,
+      );
+      this.link.changed();
+    };
+    this.byStream.set(streamId, session);
+    if (streamIndex !== null) this.streamIndexToId.set(streamIndex, streamId);
     try {
       pty.start({
         cols: session.cols,
@@ -306,9 +350,13 @@ export class Sessions {
           const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
           if (chunk.length === 0) return;
           session.pendingOutput.push(chunk);
-          // Coalesce burst output from the same tick into a single frame to reduce
-          // packet overhead without introducing timer latency.
-          if (!session.flushImmediate) session.flushImmediate = setImmediate(flushOutput);
+          if (!session.flushImmediate && !session.flushTimeout) {
+            if (process.platform === 'win32') {
+              session.flushTimeout = setTimeout(flushOutput, WINDOWS_OUTPUT_BATCH_MS);
+            } else {
+              session.flushImmediate = setImmediate(flushOutput);
+            }
+          }
         },
         onExit: ({ exitCode }) => {
           if (this.byStream.get(streamId) !== session) return;
@@ -316,16 +364,14 @@ export class Sessions {
           this.reportExit(session, exitCode);
           this.link.changed();
         },
+        onReady: reportReady,
+        onError: reportStartError,
       });
+      if (!adminTerminal) reportReady();
     } catch (error) {
-      discardOutput(session);
-      this.sendError(streamId, 'pty_start_failed', (error as Error).message);
-      pty.kill();
+      reportStartError(error as Error);
       return;
     }
-    this.byStream.set(streamId, session);
-    if (streamIndex !== null) this.streamIndexToId.set(streamIndex, streamId);
-    this.link.send({ type: 'session_ready', clientId: streamId });
     this.link.changed();
   }
 
@@ -427,6 +473,10 @@ function discardOutput(session: LiveSession): void {
   if (session.flushImmediate) {
     clearImmediate(session.flushImmediate);
     session.flushImmediate = null;
+  }
+  if (session.flushTimeout) {
+    clearTimeout(session.flushTimeout);
+    session.flushTimeout = null;
   }
   session.pendingOutput = [];
 }

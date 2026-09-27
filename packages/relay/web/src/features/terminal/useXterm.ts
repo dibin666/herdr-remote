@@ -10,6 +10,7 @@ import type { KeyModifiers } from '@/shared/keys/keyEncoder';
 import { isWheelOnlyInput } from '@/shared/keys/scrollInput';
 import { extractImageFromClipboardEvent } from '@/shared/lib/clipboard';
 import { sanitizeTerminalTitle } from '@/features/agents/documentTitle';
+import { detectShellProfile, type ShellProfile } from '@/features/keyboard/shellProfile';
 import type { PreparedImagePaste } from '@/features/paste/imagePaste';
 import { classifyInput } from '@/shared/keys/inputClassifier';
 import {
@@ -47,6 +48,8 @@ export interface XtermLive {
   ensureHostGlyphs: (text: string) => void;
   /** Whether characters on screen are offered to the host font's cut. */
   glyphScan: boolean;
+  platform?: string;
+  reportShellProfile: (profile: ShellProfile) => void;
 }
 
 /** Selection callbacks the terminal's own events drive. */
@@ -291,6 +294,14 @@ export function useXterm({
             // parse can end mid-frame. Judged against a half-drawn frame, good
             // predictions look wrong; wait for the frame to finish.
             if (screenState.isSynchronizing()) return;
+            const active = term.buffer.active;
+            const cursorRow = active.baseY + active.cursorY;
+            const promptRows = Array.from(
+              { length: 8 },
+              (_, index) => active.getLine(cursorRow - 7 + index)?.translateToString(true) ?? '',
+            );
+            const shellProfile = detectShellProfile(promptRows, live.current.platform);
+            if (shellProfile) live.current.reportShellProfile(shellProfile);
             prediction.predictorRef.current?.onServerOutput();
             prediction.sync();
           })

@@ -226,10 +226,19 @@ export class HostConnector {
         password: this.relayPassword || null,
         hostname: os.hostname(),
         platform: process.platform,
+        ...(process.platform === 'win32' &&
+        (process.env.MSYSTEM || /(?:^|[\\/])(?:bash|sh)(?:\.exe)?$/i.test(process.env.SHELL || ''))
+          ? { shellProfile: 'git-bash' }
+          : {}),
         arch: process.arch,
         terminalPalette: this.terminalPalette || null,
         terminalFont: this.font.publicFont(),
-        capabilities: [CAPABILITY.hostHandoff, CAPABILITY.idleHeartbeat, CAPABILITY.binaryFrameV2],
+        capabilities: [
+          CAPABILITY.hostHandoff,
+          CAPABILITY.idleHeartbeat,
+          CAPABILITY.binaryFrameV2,
+          ...(process.platform === 'win32' ? [CAPABILITY.adminSessions] : []),
+        ],
       });
       // The relay sends host_ready with the current browser count. No business
       // heartbeat is started until that message says somebody is watching.

@@ -280,6 +280,17 @@ function detectPromptLine(
   const continued = detectContinuation(screen, cursor, seg);
   if (continued !== undefined) return continued;
 
+  // CMD's default prompt (`C:\path>`) has no space after its terminator.
+  // Accept it only when the text before `>` is itself a Windows prompt path;
+  // a redirection operator in an ordinary command is not an input boundary.
+  for (let x = col - 1; x >= seg.start; x--) {
+    if (screen.char(row, x) !== '>') continue;
+    const prompt = screen.text(row, seg.start, x + 1).trimStart();
+    if (/^(?:[a-z]:\\.*|\\\\[^\\]+\\[^\\]+.*|PS\s+[a-z]:\\.*)>$/i.test(prompt)) {
+      return promptField(screen, cursor, seg, row, x + 1, false);
+    }
+  }
+
   // The rightmost terminator is used so that a `>` typed into the command
   // itself can only make the field look shorter, never swallow the prompt.
   for (let x = col - 2; x >= seg.start; x--) {

@@ -86,6 +86,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     hostPalette,
     terminalResetVersion,
     agentStatus,
+    platform,
+    reportShellProfile,
     connect,
     rttMs,
   } = useConnection();
@@ -124,6 +126,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     // Characters on screen are offered to the host font's cut, when there is one.
     ensureHostGlyphs,
     glyphScan: hostFont.glyphs.status === 'ready',
+    platform,
+    reportShellProfile,
   });
   const isActiveRef = useLatest(isActive);
 

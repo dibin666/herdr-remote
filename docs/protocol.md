@@ -57,6 +57,9 @@ workstation remains reachable only by whoever holds its host token.
 
 The relay responds with `host_ready` and an optional `clientCount`. It also
 sends `client_count` whenever the number of attached browser windows changes.
+Windows connectors that support administrator PTYs advertise `admin_sessions`.
+They may also report `shellProfile: "git-bash"` when the connector started from
+Git Bash; the browser detects CMD and PowerShell prompts from terminal output.
 The host sends full `heartbeat` JSON messages containing load and PTY metadata only
 while `clientCount > 0`; when no browser is attached it pauses business telemetry while
 maintaining a low-frequency transport keepalive (minimal idle heartbeat alongside WebSocket
@@ -187,7 +190,8 @@ The browser connects to `/ws/client` and sends `hello` with either a one-time
   "clientId": "phone-1",
   "cols": 80,
   "rows": 24,
-  "capabilities": ["host_handoff"]
+  "capabilities": ["host_handoff"],
+  "adminTerminal": false
 }
 ```
 
@@ -196,7 +200,9 @@ by `ready`. `ready` carries the workstation's `terminalPalette` and
 `terminalFont` (each possibly `null`),
 delivered before the first PTY byte so the terminal is painted in the host's
 colors from its first frame instead of repainting mid-session, and `clientCount`,
-the number of windows now sharing this terminal.
+the number of windows now sharing this terminal. It also carries the host's
+`platform` and optional `shellProfile` so the browser can select platform-
+specific shell controls.
 
 JSON frames carry control messages. Binary frames carry raw terminal input from
 any attached window, or raw ANSI output from the host. The relay adds a small
@@ -242,6 +248,22 @@ Every window paired to a workstation gets a PTY of its own:
   window's stream, so a phone reporting 40 columns no longer shrinks the laptop
   looking at the same workstation;
 - closing a window stops only its own PTY. The other windows are untouched.
+
+### Windows administrator terminals
+
+A browser may set `adminTerminal: true` in `hello`. The relay records that flag
+for this window and forwards it on that window's `session_start`; it never
+accepts an executable path or credentials from the browser. On Windows, the
+host connector asks the per-user elevated broker over a local named pipe to
+start a fixed PowerShell shell. Herdr credentials and the socket path are not
+part of this terminal session. The broker is installed once from the Windows
+TUI's Keep-alive page under the same Windows account that runs Herdr Remote; later
+browser requests use the broker to start standalone elevated PowerShell sessions
+without another UAC prompt. The Windows connector advertises `admin_sessions`,
+and the relay's `ready.adminTerminalSupported` confirms that both relay and host
+understand the request before a browser treats that tab as elevated. Older
+relays or hosts cannot silently start a standard terminal in admin mode.
+`admin-broker uninstall` removes that task.
 
 This is what Herdr 0.9.0 made possible. Before it, a Herdr server broadcast one
 view — one focused workspace, tab and pane — to every attached client, so two

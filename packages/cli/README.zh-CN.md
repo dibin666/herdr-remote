@@ -32,10 +32,13 @@ herdr-remote start | stop | restart
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url
+herdr-remote admin-broker install | uninstall | status # Windows
 herdr-remote keepalive install | uninstall | restart | status
 herdr-remote plugin link | unlink | status
 herdr-remote --lang zh|en
 ```
+
+在 Windows 上，可在 TUI 的「保活」页面注册以当前账户最高权限运行的计划任务并启动 broker。选择「设置管理员终端」，使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示；之后，已配对的 WebUI 窗口可以新建独立的管理员 PowerShell，不再重复弹出 UAC。也可以使用 `admin-broker install` 和 `admin-broker uninstall` 命令管理任务，使用 `admin-broker status` 检查 broker。
 
 ## Herdr 插件
 

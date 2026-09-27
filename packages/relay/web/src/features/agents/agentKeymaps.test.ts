@@ -84,6 +84,18 @@ describe('Herdr agent keymaps', () => {
     ]);
   });
 
+  it('uses CMD and PowerShell shortcut sets while keeping Git Bash POSIX shortcuts', () => {
+    expect(
+      getDrawerGroups('shell', undefined, 'cmd').genericActions.map((item) => item.id),
+    ).toEqual(['genericCtrlC', 'genericCtrlZ']);
+    expect(
+      getDrawerGroups('shell', undefined, 'powershell').genericActions.map((item) => item.id),
+    ).toEqual(['genericCtrlC', 'genericCtrlL', 'genericCtrlR']);
+    expect(
+      getDrawerGroups('shell', undefined, 'git-bash').genericActions.map((item) => item.id),
+    ).toEqual(['genericCtrlC', 'genericCtrlD', 'genericCtrlL', 'genericCtrlR']);
+  });
+
   it('lets a saved choice override the default visibility either way', () => {
     const rows = getProfileActions('claude', {
       actions: { stash: { hidden: false }, mode: { hidden: true } },

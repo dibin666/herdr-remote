@@ -10,6 +10,7 @@ import {
   action,
   AGENT_PROFILES,
 } from './agentProfiles';
+import type { ShellProfile } from '@/features/keyboard/shellProfile';
 
 export * from './agentIds';
 export * from './agentProfiles';
@@ -60,6 +61,27 @@ export const GENERIC_SHELL_ACTIONS: AgentActionDef[] = [
 /** Common chords a bare shell keeps on the bar; an agent only keeps ^C. */
 const SHELL_GENERIC_BAR = ['genericCtrlC', 'genericCtrlD', 'genericCtrlL', 'genericCtrlR'];
 const AGENT_GENERIC_BAR = ['genericCtrlC'];
+
+const POWERSHELL_ACTIONS = GENERIC_SHELL_ACTIONS.filter(
+  ({ id }) => id !== 'genericCtrlD' && id !== 'genericCtrlZ',
+);
+const CMD_ACTIONS = GENERIC_SHELL_ACTIONS.filter(
+  ({ id }) => id === 'genericCtrlC' || id === 'genericCtrlZ',
+).map((definition) =>
+  definition.id === 'genericCtrlZ' ? { ...definition, labelKey: 'eof' as const } : definition,
+);
+const SHELL_ACTIONS: Record<ShellProfile, AgentActionDef[]> = {
+  posix: GENERIC_SHELL_ACTIONS,
+  'git-bash': GENERIC_SHELL_ACTIONS,
+  cmd: CMD_ACTIONS,
+  powershell: POWERSHELL_ACTIONS,
+};
+const SHELL_BAR: Record<ShellProfile, string[]> = {
+  posix: SHELL_GENERIC_BAR,
+  'git-bash': SHELL_GENERIC_BAR,
+  cmd: ['genericCtrlC', 'genericCtrlZ'],
+  powershell: ['genericCtrlC', 'genericCtrlL', 'genericCtrlR'],
+};
 
 /** Apply saved labels, key combos, visibility and order without mutating defaults. */
 export function applyOverrides(
@@ -133,13 +155,16 @@ const isGenericAction = (item: { id: string }) => item.id.startsWith('generic');
 export function getProfileActions(
   profileId: AgentProfileId,
   overrides?: AgentProfileKeymapOverride,
+  shellProfile: ShellProfile = 'posix',
 ): AppliedAgentAction[] {
   const profile: AgentProfileDef = AGENT_PROFILES[profileId];
+  const genericActions =
+    profileId === 'shell' ? SHELL_ACTIONS[shellProfile] : GENERIC_SHELL_ACTIONS;
   const bar = new Set([
     ...(profile.bar || []),
-    ...(profileId === 'shell' ? SHELL_GENERIC_BAR : AGENT_GENERIC_BAR),
+    ...(profileId === 'shell' ? SHELL_BAR[shellProfile] : AGENT_GENERIC_BAR),
   ]);
-  const defaults = [...profile.actions, ...GENERIC_SHELL_ACTIONS].map((definition) => ({
+  const defaults = [...profile.actions, ...genericActions].map((definition) => ({
     ...definition,
     defaultHidden: !bar.has(definition.id),
   }));
@@ -150,8 +175,9 @@ export function getProfileActions(
 export function getBarChoices(
   profileId: AgentProfileId,
   overrides?: AgentProfileKeymapOverride,
+  shellProfile: ShellProfile = 'posix',
 ): AppliedAgentAction[] {
-  const rows = getProfileActions(profileId, overrides);
+  const rows = getProfileActions(profileId, overrides, shellProfile);
   const agentActions = rows.filter((item) => !isGenericAction(item));
   const kept = new Set(filterDuplicateGenericActions(agentActions, rows.filter(isGenericAction)));
   return rows.filter((item) => !isGenericAction(item) || kept.has(item));
@@ -160,8 +186,9 @@ export function getBarChoices(
 export function getDrawerGroups(
   profileId: AgentProfileId,
   overrides?: AgentProfileKeymapOverride,
+  shellProfile: ShellProfile = 'posix',
 ): { agentActions: AppliedAgentAction[]; genericActions: AppliedAgentAction[] } {
-  const shown = getBarChoices(profileId, overrides).filter((item) => !item.hidden);
+  const shown = getBarChoices(profileId, overrides, shellProfile).filter((item) => !item.hidden);
   return {
     agentActions: shown.filter((item) => !isGenericAction(item)),
     genericActions: shown.filter(isGenericAction),

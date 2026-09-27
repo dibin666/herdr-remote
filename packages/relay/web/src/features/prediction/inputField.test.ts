@@ -300,6 +300,15 @@ describe('detectInputField edge cases', () => {
     expect(field).toMatchObject({ kind: 'prompt', startCol: 22 });
   });
 
+  it('finds a CMD command line after its path prompt without a trailing space', () => {
+    const screen = createTestScreen(60, 2);
+    const prompt = String.raw`C:\Users\dibin>`;
+    screen.write(0, 0, `${prompt}dir`);
+    expect(
+      detectInputField(screen, { row: 0, col: prompt.length + 3, hidden: false }),
+    ).toMatchObject({ kind: 'prompt', startCol: prompt.length, agentLike: false });
+  });
+
   it('refuses a frame taller than an input box, such as a pane border', () => {
     const screen = createTestScreen(20, 14);
     screen.write(0, 0, `┌${'─'.repeat(18)}┐`);

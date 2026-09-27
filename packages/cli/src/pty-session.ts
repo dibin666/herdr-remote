@@ -1,5 +1,17 @@
 import os from 'node:os';
-import pty, { type IPty } from 'node-pty';
+import pty from 'node-pty';
+import { ElevatedPty } from './connector/elevatedPty.js';
+
+interface PtyTerminal {
+  pid: number;
+  cols: number;
+  rows: number;
+  onData(listener: (data: string) => void): unknown;
+  onExit(listener: (event: { exitCode: number; signal?: number }) => void): unknown;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(): void;
+}
 
 interface PtySessionOptions {
   command?: string;
@@ -8,6 +20,8 @@ interface PtySessionOptions {
   socketPath?: string | null;
   platform?: NodeJS.Platform;
   spawn?: typeof pty.spawn;
+  adminTerminal?: boolean;
+  fastWindowsPty?: boolean;
 }
 
 interface PtyStartOptions {
@@ -15,6 +29,8 @@ interface PtyStartOptions {
   rows?: number;
   onData?: (data: string) => void;
   onExit?: (event: { exitCode: number; signal?: number }) => void;
+  onReady?: () => void;
+  onError?: (error: Error) => void;
 }
 
 class PtySession {
@@ -28,8 +44,10 @@ class PtySession {
   readonly cwd: string;
   readonly socketPath: string | null | undefined;
   readonly platform: NodeJS.Platform;
+  readonly adminTerminal: boolean;
+  readonly fastWindowsPty: boolean;
   private readonly spawnPty: typeof pty.spawn;
-  terminal: IPty | null;
+  terminal: PtyTerminal | null;
   startedAt: string | null;
 
   constructor({
@@ -39,6 +57,8 @@ class PtySession {
     socketPath,
     platform = process.platform,
     spawn: spawnPty = pty.spawn,
+    adminTerminal = false,
+    fastWindowsPty = false,
   }: PtySessionOptions = {}) {
     if (typeof command !== 'string' || command.length === 0)
       throw new TypeError('command must be a non-empty string');
@@ -49,6 +69,8 @@ class PtySession {
     this.cwd = cwd;
     this.socketPath = socketPath;
     this.platform = platform;
+    this.adminTerminal = adminTerminal;
+    this.fastWindowsPty = fastWindowsPty;
     this.spawnPty = spawnPty;
     this.terminal = null;
     this.startedAt = null;
@@ -71,18 +93,46 @@ class PtySession {
     return Math.min(PtySession.MAX_DIMENSION, Math.max(PtySession.MIN_DIMENSION, numeric));
   }
 
-  start({ cols, rows, onData, onExit }: PtyStartOptions): this {
+  start({ cols, rows, onData, onExit, onReady, onError }: PtyStartOptions): this {
     if (this.terminal) throw new Error('PTY session already started');
-    // The bundled ConPTY preserves Kitty sequences older system ConPTY drops,
-    // which is why Herdr embeds it too. System ConPTY's kill() forks a
-    // console-list helper without windowsHide, which flashes a window here.
+    if (this.adminTerminal) {
+      if (this.platform !== 'win32')
+        throw new Error('Administrator PTYs are only supported on Windows');
+      const terminal = new ElevatedPty(
+        { command: this.command, args: this.args, cwd: this.cwd, socketPath: this.socketPath },
+        PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
+        PtySession.clampDimension(rows, PtySession.DEFAULT_ROWS),
+      );
+      this.terminal = terminal;
+      this.startedAt = new Date().toISOString();
+      terminal.start({
+        cols: terminal.cols,
+        rows: terminal.rows,
+        onData: onData || (() => {}),
+        onExit: (event) => {
+          this.terminal = null;
+          onExit?.(event);
+        },
+        onReady,
+        onError: (error) => {
+          this.terminal = null;
+          onError?.(error);
+        },
+      });
+      return this;
+    }
+    // The Herdr UI needs the bundled ConPTY's Kitty and mouse reporting.
     this.terminal = this.spawnPty(this.command, this.args, {
       name: 'xterm-256color',
       cols: PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
       rows: PtySession.clampDimension(rows, PtySession.DEFAULT_ROWS),
       cwd: this.cwd,
       env: PtySession.childEnv(this.socketPath) as Record<string, string>,
-      ...(this.platform === 'win32' ? { useConptyDll: true } : {}),
+      ...(this.platform === 'win32'
+        ? this.fastWindowsPty
+          ? { useConpty: false }
+          : { useConptyDll: true }
+        : {}),
     });
     this.startedAt = new Date().toISOString();
     const terminal = this.terminal;
@@ -93,6 +143,7 @@ class PtySession {
         onExit(event);
       });
     }
+    onReady?.();
     return this;
   }
 

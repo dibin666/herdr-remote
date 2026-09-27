@@ -135,6 +135,20 @@ export {
   whileServicesStopped,
 };
 
+export async function adminBrokerStatus(): Promise<boolean> {
+  if (process.platform !== 'win32') return false;
+  const broker = await import('../connector/admin-broker.js');
+  return broker.adminBrokerStatus();
+}
+
+export async function configureAdminBroker(
+  action: 'install' | 'uninstall',
+  t: Translate,
+): Promise<void> {
+  const setup = await import('../connector/admin-broker-setup.js');
+  return setup.configureAdminBroker(action, t);
+}
+
 /** The command that starts a matching relay, ready to paste on the server. */
 export function relayStartCommand(config: Config, password: string): string {
   const publicUrl = config.relay.remoteUrl

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSettings, useConnection, useTerminalIO } from '@/context/TerminalContext';
 import { Button, GLYPH, Input } from '@/shared/ui';
+import { quickCommands } from './shellProfile';
 
 interface VirtualKeyboardHelperProps {
   isOpen: boolean;
@@ -8,8 +9,6 @@ interface VirtualKeyboardHelperProps {
 }
 
 /** Commands short enough to be worth a tap instead of a phone keyboard. */
-const QUICK_COMMANDS = ['ls -la', 'clear', 'git status', 'pwd', 'top', 'exit', 'cat'];
-
 /**
  * A prompt line for devices whose keyboard is slow to reach.
  *
@@ -22,11 +21,12 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
   onClose,
 }) => {
   const { t } = useSettings();
-  const { isController } = useConnection();
+  const { isController, shellProfile } = useConnection();
   const { sendKey, warnViewerMode } = useTerminalIO();
   const [text, setText] = useState('');
 
   if (!isOpen) return null;
+  const commands = quickCommands(shellProfile);
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -67,7 +67,7 @@ export const VirtualKeyboardHelper: React.FC<VirtualKeyboardHelperProps> = ({
       </div>
 
       <div className="scrollbar-none flex items-center gap-1 overflow-x-auto py-0.5">
-        {QUICK_COMMANDS.map((cmd) => (
+        {commands.map((cmd) => (
           <button
             key={cmd}
             type="button"

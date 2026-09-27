@@ -11,6 +11,7 @@ import type { HerdrClientAdapter } from '@/connection/clientAdapter';
 import type { KeyModifiers } from '@/shared/keys/keyEncoder';
 import type { ConnectionConfig, ConnectionState } from '@/connection/types';
 import type { AgentProfileId } from '@/features/agents/agentKeymaps';
+import type { ShellProfile } from '@/features/keyboard/shellProfile';
 import type { ImageUploadProgress, PreparedImagePaste } from '@/features/paste/imagePaste';
 import type { StoredSettings } from '@/features/settings/storage';
 import type { ConnectionProfile } from '@/features/pairing/connectionProfiles';
@@ -60,6 +61,11 @@ export interface ConnectionContextValue {
   controllerId?: string | null;
   hostId?: string;
   hostname?: string;
+  platform?: string;
+  adminTerminalSupported?: boolean;
+  shellProfile: ShellProfile;
+  reportShellProfile: (profile: ShellProfile) => void;
+  isAdminTerminal: boolean;
   assignedClientId?: string;
   isController: boolean;
   /** How many windows currently connect to this host, this one included. */
