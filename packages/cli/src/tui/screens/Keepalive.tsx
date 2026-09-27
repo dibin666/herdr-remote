@@ -31,22 +31,22 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
     ctx.run(() => {
       if (id === 'install') {
         const result = keepalive.install(ctx.config);
-        ctx.notify(t('keepalive.installed', { manager: result.manager }), 'success');
+        ctx.notify((t) => t('keepalive.installed', { manager: result.manager }), 'success');
         return;
       }
       if (id === 'uninstall') {
         keepalive.uninstall(ctx.config);
-        ctx.notify(t('keepalive.uninstalled'), 'success');
+        ctx.notify((t) => t('keepalive.uninstalled'), 'success');
         return;
       }
       if (id === 'restart') {
         keepalive.restart(ctx.config);
-        ctx.notify(t('keepalive.restarted'), 'success');
+        ctx.notify((t) => t('keepalive.restarted'), 'success');
         return;
       }
       if (id === 'linger') {
         const result = keepalive.enableLinger();
-        ctx.notify(t('keepalive.lingerDone', { username: result.username }), 'success');
+        ctx.notify((t) => t('keepalive.lingerDone', { username: result.username }), 'success');
       }
     });
   };
@@ -69,8 +69,9 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
           current={draft.keepalive.manager}
           onPick={(manager) => {
             const result = setField(draft, 'keepaliveManager', manager);
-            if (result.errorKey) {
-              ctx.notify(t(result.errorKey), 'error');
+            const { errorKey } = result;
+            if (errorKey) {
+              ctx.notify((t) => t(errorKey), 'error');
               return;
             }
             ctx.updateDraft(result.draft);
@@ -78,7 +79,10 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
               saveDraft(result.draft);
               ctx.reloadConfig();
             } catch (error) {
-              ctx.notify(t('error.saveFailed', { message: (error as Error).message }), 'error');
+              ctx.notify(
+                (t) => t('error.saveFailed', { message: (error as Error).message }),
+                'error',
+              );
             }
             ctx.setEditing(null);
           }}

@@ -22,7 +22,7 @@ export function Services({ ctx }: { ctx: AppContext }) {
     // top of an unsaved draft silently applies the old settings — which reads
     // as "I changed the relay and it never took effect". Stopping is unaffected.
     if (ctx.dirty && id !== 'stop') {
-      ctx.notify(t('services.unsavedBlocked'), 'error');
+      ctx.notify((t) => t('services.unsavedBlocked'), 'error');
       return;
     }
     return run(() => {
@@ -30,9 +30,10 @@ export function Services({ ctx }: { ctx: AppContext }) {
       if (id === 'start') {
         const result = startAll(config);
         ctx.notify(
-          result.managed
-            ? t('services.managedNotice', { manager: result.manager ?? '' })
-            : t('services.started'),
+          (t) =>
+            result.managed
+              ? t('services.managedNotice', { manager: result.manager ?? '' })
+              : t('services.started'),
           'success',
         );
         return;
@@ -40,18 +41,20 @@ export function Services({ ctx }: { ctx: AppContext }) {
       if (id === 'stop') {
         const result = stopAll(config);
         ctx.notify(
-          result.managed
-            ? t('services.managedNotice', { manager: result.manager ?? '' })
-            : t('services.stopped'),
+          (t) =>
+            result.managed
+              ? t('services.managedNotice', { manager: result.manager ?? '' })
+              : t('services.stopped'),
           'success',
         );
         return;
       }
       const result = restartAll(config);
       ctx.notify(
-        result.managed
-          ? t('services.managedNotice', { manager: result.manager ?? '' })
-          : t('services.restarted'),
+        (t) =>
+          result.managed
+            ? t('services.managedNotice', { manager: result.manager ?? '' })
+            : t('services.restarted'),
         'success',
       );
     });

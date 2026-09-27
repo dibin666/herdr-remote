@@ -74,8 +74,9 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
     let next = draft;
     for (const [id, value] of updates) {
       const result = setField(next, id, value);
-      if (result.errorKey) {
-        ctx.notify(t(result.errorKey), 'error');
+      const { errorKey } = result;
+      if (errorKey) {
+        ctx.notify((t) => t(errorKey), 'error');
         return false;
       }
       next = result.draft;
@@ -129,7 +130,7 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
         } catch (error) {
           // Keep-alive is a convenience; a container without systemd should not
           // block a working setup.
-          ctx.notify(t('keepalive.failed', { message: (error as Error).message }), 'error');
+          ctx.notify((t) => t('keepalive.failed', { message: (error as Error).message }), 'error');
         }
       }
       if (startNow && !keepaliveInstalled) startAll(finalConfig);
@@ -267,7 +268,7 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
             active
             onSubmit={(value) => {
               if (!value) {
-                ctx.notify(t('error.remoteUrlRequired'), 'error');
+                ctx.notify((t) => t('error.remoteUrlRequired'), 'error');
                 return;
               }
               if (apply('remoteUrl', value)) advance('relayUrl');

@@ -38,8 +38,9 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
 
   const applyField = (id: string, value: string) => {
     const result = setField(draft, id, value);
-    if (result.errorKey) {
-      ctx.notify(t(result.errorKey), 'error');
+    const { errorKey } = result;
+    if (errorKey) {
+      ctx.notify((t) => t(errorKey), 'error');
       return false;
     }
     ctx.updateDraft(result.draft);
@@ -50,9 +51,9 @@ export function HerdrScreen({ ctx }: { ctx: AppContext }) {
     try {
       const result = saveDraft(draft);
       ctx.reloadConfig();
-      ctx.notify(t('common.saved', { path: result.path }), 'success');
+      ctx.notify((t) => t('common.saved', { path: result.path }), 'success');
     } catch (error) {
-      ctx.notify(t('error.saveFailed', { message: (error as Error).message }), 'error');
+      ctx.notify((t) => t('error.saveFailed', { message: (error as Error).message }), 'error');
     }
   };
 

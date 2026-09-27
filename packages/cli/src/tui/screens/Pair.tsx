@@ -46,7 +46,7 @@ export function PairScreen({ ctx }: { ctx: AppContext }) {
 
   const generate = () =>
     run(async () => {
-      ctx.notify(t('pair.working'));
+      ctx.notify((t) => t('pair.working'));
       try {
         const result = await pair();
         const code = extractPairingCode(result);

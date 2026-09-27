@@ -620,3 +620,32 @@ test('a TUI that is up to date says nothing about updates', async (t) => {
 
   assert.doesNotMatch(instance.lastFrame(), /is out \(running/);
 });
+
+test('a notice already on screen changes language with the interface', async (t) => {
+  isolateState(t);
+  writeConfig({ ui: { language: 'en' }, relay: { mode: 'local', port: 8787 } });
+
+  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
+  const instance = await mount(
+    React.createElement(App, { initialLanguage: null, needsWizard: false }),
+  );
+  t.onTestFinished(() => instance.unmount());
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+  instance.stdin.write('7');
+  await settle();
+  instance.stdin.write('\u001b[B'); // 中文
+  await settle();
+  instance.stdin.write('\r');
+  await settle();
+  // Saving the choice is announced in the language just chosen.
+  assert.match(instance.lastFrame(), /配置已保存至/);
+  assert.equal(/Configuration saved/.test(instance.lastFrame()), false);
+
+  instance.stdin.write('\u001b[B'); // English
+  await settle();
+  instance.stdin.write('\r');
+  await settle();
+  assert.match(instance.lastFrame(), /Configuration saved to/);
+  assert.equal(/配置已保存至/.test(instance.lastFrame()), false);
+});
