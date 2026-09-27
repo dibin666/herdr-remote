@@ -48,8 +48,8 @@ function runPowerShell(script: string, t: Translate): void {
   }
 }
 
-export function installAdminBroker(t: Translate): void {
-  if (process.platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
+/** Registers and starts the broker's logon task; run elevated. */
+function adminBrokerTaskScript(): string {
   const brokerPath = fileURLToPath(import.meta.url);
   // Pinned so the broker publishes its endpoint where this install's callers look.
   const brokerCommand = `$env:HERDR_REMOTE_STATE_DIR = ${powershellQuote(stateDir())}; & ${powershellQuote(process.execPath)} ${powershellQuote(brokerPath)}`;
@@ -61,7 +61,7 @@ export function installAdminBroker(t: Translate): void {
     'v1.0',
     'powershell.exe',
   );
-  const script = `
+  return `
 $ErrorActionPreference = 'Stop'
 $taskName = ${powershellQuote(adminBrokerTaskName())}
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -73,7 +73,11 @@ Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 Start-ScheduledTask -TaskName $taskName
 `;
-  runPowerShell(script, t);
+}
+
+export function installAdminBroker(t: Translate): void {
+  if (process.platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
+  runPowerShell(adminBrokerTaskScript(), t);
 }
 
 export function uninstallAdminBroker(t: Translate): void {
