@@ -22,7 +22,11 @@
  * - pi draws a rounded frame `╭─╮ │ │ ╰─╯` a few rows tall, cursor visible.
  * - fish and Codex are a single prompt line: a terminator glyph and a space
  *   before a visible cursor. On a phone-width screen fish's prompt fills its
- *   row and the command continues at the start of the next one.
+ *   row and the command continues at the start of the next one. Codex wraps
+ *   its text by words onto rows indented by two, and keeps the last cell of
+ *   each row for its caret: a word that reaches the cell before it stays
+ *   there, the caret moves to the next row, and the next key of that word
+ *   moves the whole word down.
  * - Any Herdr overlay (help, pickers) dims everything behind it, and parks
  *   the hidden cursor wherever the pane had it — so a dimmed prompt glyph
  *   means the keys are going to the overlay, not the field.
@@ -87,6 +91,11 @@ export interface InputField {
   vimInsert: boolean | null;
   /** The field is in vim insert mode, where a lone Escape turns keys into commands. */
   modal: boolean;
+  /**
+   * The caret starts a row that the word ending the row above runs on into:
+   * Codex wraps by words, so the next key may move that word down.
+   */
+  midWord: boolean;
 }
 
 /** Taller than this, a frame is a pane border rather than an input box. */
@@ -105,6 +114,8 @@ const FRAME_PAD = 1;
 const WRAP_SLACK = 4;
 /** Rows a wrapped command may span below its prompt before we give up. */
 const MAX_WRAPPED_ROWS = 3;
+/** Rows of an agent's wrapped prompt text searched for the prompt glyph that starts it. */
+const MAX_CONTINUATION_ROWS = 20;
 
 const VIM_INSERT = /-- INSERT --/;
 const VIM_OTHER_MODE = /-- (?:NORMAL|VISUAL(?: LINE| BLOCK)?|REPLACE) --/;
@@ -185,6 +196,7 @@ function detectFrame(screen: ScreenReader, cursor: FieldCursor, seg: Segment): I
     agentLike: true,
     vimInsert: null,
     modal: false,
+    midWord: false,
   };
 }
 
@@ -251,6 +263,7 @@ function detectRuleBox(screen: ScreenReader, cursor: FieldCursor, seg: Segment):
     agentLike: true,
     vimInsert: VIM_INSERT.test(status),
     modal: VIM_INSERT.test(status),
+    midWord: false,
   };
 }
 
@@ -263,6 +276,9 @@ function detectPromptLine(
   // a program that paints its own caret has the keys.
   if (cursor.hidden) return null;
   const { row, col } = cursor;
+
+  const continued = detectContinuation(screen, cursor, seg);
+  if (continued !== undefined) return continued;
 
   // The rightmost terminator is used so that a `>` typed into the command
   // itself can only make the field look shorter, never swallow the prompt.
@@ -290,6 +306,31 @@ function detectPromptLine(
   return null;
 }
 
+/**
+ * A row of an agent's prompt text wrapped under its glyph (Codex): indented
+ * by two, below rows of text indented the same way, below the row the glyph
+ * starts. Undefined when the caret row is not shaped like one.
+ */
+function detectContinuation(
+  screen: ScreenReader,
+  cursor: FieldCursor,
+  seg: Segment,
+): InputField | null | undefined {
+  const { row } = cursor;
+  const indent = seg.start + CONTINUATION_INDENT;
+  const indented = (y: number) =>
+    isBlank(screen.char(y, seg.start)) && isBlank(screen.char(y, seg.start + 1));
+  if (!indented(row)) return undefined;
+  for (let y = row - 1; y >= Math.max(screen.top, row - MAX_CONTINUATION_ROWS); y--) {
+    if (AGENT_PROMPTS.has(screen.char(y, seg.start)) && isBlank(screen.char(y, seg.start + 1))) {
+      if (screen.dim(y, seg.start)) return null;
+      return promptField(screen, cursor, seg, y, indent, true, indent);
+    }
+    if (!indented(y) || screen.blankOrDim(y, indent, seg.end)) return undefined;
+  }
+  return undefined;
+}
+
 function promptField(
   screen: ScreenReader,
   cursor: FieldCursor,
@@ -297,9 +338,16 @@ function promptField(
   promptRow: number,
   promptEnd: number,
   bareGlyph: boolean,
+  continuationStart = seg.start,
 ): InputField | null {
-  const startCol = cursor.row === promptRow ? promptEnd : seg.start;
+  const startCol = cursor.row === promptRow ? promptEnd : continuationStart;
   if (cursor.col < startCol || cursor.col >= seg.end) return null;
+  const lastTextCol = seg.end - 2;
+  const midWord =
+    cursor.row > promptRow &&
+    continuationStart > seg.start &&
+    cursor.col === startCol &&
+    !isBlank(screen.char(cursor.row - 1, lastTextCol));
   return {
     kind: 'prompt',
     key: `prompt:${regionKey(seg)}:${paneTop(screen, promptRow, seg)}`,
@@ -317,6 +365,7 @@ function promptField(
     agentLike: bareGlyph,
     vimInsert: null,
     modal: false,
+    midWord,
   };
 }
 

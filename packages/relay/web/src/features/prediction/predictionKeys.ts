@@ -30,6 +30,10 @@ export abstract class PredictionKeys extends PredictionState {
       this.freeze('agent mode switch');
       return false;
     }
+    if (field.midWord && atFieldStart) {
+      this.freeze('the word above may move down');
+      return false;
+    }
 
     // When a cell is refused, the key still goes to the server, so the
     // modelled caret would drift from the real one: end the whole run instead.
