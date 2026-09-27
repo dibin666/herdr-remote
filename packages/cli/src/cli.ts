@@ -162,7 +162,7 @@ async function main(argv = process.argv.slice(2)) {
   // TUI takes the screen a few lines below, and the services this command
   // starts usually run detached with nothing to ask. Everything downstream
   // inherits the answer through the environment.
-  (await import('./terminal-palette.js')).captureTerminalPalette();
+  await (await import('./terminal-palette.js')).captureTerminalPalette();
   // The font, likewise, is read while this process still knows which terminal
   // it runs in: its variables and its parent process are gone once a service
   // manager or Herdr's detached server starts the connector.
