@@ -44,5 +44,31 @@ export function useUpdateNotices(
   /** Another workstation may be on another release; it will say so itself. */
   const forgetUpdateStatus = useCallback(() => setUpdateStatus(null), []);
 
-  return { updateStatus, ignoredUpdate, ignoreUpdate, receiveUpdateStatus, forgetUpdateStatus };
+  /**
+   * A workstation too old to name its release (`null`) cannot report updates
+   * either, so nothing else would tell its user. Said once per page per host;
+   * the status line keeps saying it.
+   */
+  const noteHostVersion = useCallback(
+    (version: string | null | undefined, host: string | undefined) => {
+      if (version !== null) return;
+      const key = `outdated:${host || ''}`;
+      if (announcedUpdatesRef.current.has(key)) return;
+      announcedUpdatesRef.current.add(key);
+      addToast(
+        'warning',
+        tRef.current('update.toastOutdated', { host: host || tRef.current('update.thisHost') }),
+      );
+    },
+    [addToast, tRef],
+  );
+
+  return {
+    updateStatus,
+    ignoredUpdate,
+    ignoreUpdate,
+    receiveUpdateStatus,
+    forgetUpdateStatus,
+    noteHostVersion,
+  };
 }

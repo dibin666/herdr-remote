@@ -53,6 +53,7 @@ export type AdapterEventMap = {
     platform?: string,
     shellProfile?: ServerSessionRestartedMessage['shellProfile'],
     adminTerminalSupported?: boolean,
+    hostVersion?: string | null,
   ) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;

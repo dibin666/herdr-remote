@@ -135,6 +135,8 @@ export interface ServerReadyMessage {
   terminalFont?: HostTerminalFont | null;
   /** How many windows share this terminal, this one included. */
   clientCount?: number;
+  /** The workstation's herdr-remote release; null when it is too old to say. */
+  hostVersion?: string | null;
 }
 
 export interface ServerPairedMessage {
@@ -178,6 +180,8 @@ export interface ServerSessionRestartedMessage {
   adminTerminalSupported?: boolean;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
+  /** As in `ready`: the host may have come back on another release. */
+  hostVersion?: string | null;
 }
 
 export interface ServerExitMessage {
@@ -314,6 +318,8 @@ export interface HostHelloMessage {
   platform?: string;
   shellProfile?: HostShellProfile;
   arch?: string;
+  /** The herdr-remote release the host runs. Connectors before 0.2.31 leave it out. */
+  version?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
   capabilities?: string[];

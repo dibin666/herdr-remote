@@ -114,6 +114,13 @@ export const en = {
     stepCli: 'Or run on the workstation:',
     restartNote: 'Restarting reconnects this window after a few seconds.',
     ignore: 'Skip this version',
+    chipOutdated: '↑ update herdr-remote',
+    toastOutdated: '{host} runs an old herdr-remote; please update it',
+    thisHost: 'this workstation',
+    outdatedVersion: 'too old to tell',
+    outdated:
+      'This workstation runs a herdr-remote too old to report its version or check for updates, and it lacks recent features and fixes. On the workstation, run:',
+    windowsStop: 'On Windows, first stop the running herdr-remote in PowerShell:',
   },
   /** Herdr not running on the paired workstation, and starting it from here. */
   herdrLaunch: {
@@ -607,6 +614,9 @@ export const en = {
     colStatus: 'Status',
     deviceWindows: '{count} windows open',
     hostPtys: '{count} PTY',
+    hostVersion: 'herdr-remote {version}',
+    hostVersionBehind: 'herdr-remote {version} → {latest}',
+    hostVersionUnknown: 'herdr-remote too old',
     relayAdminPrompt: "Enter RELAY_ADMIN_TOKEN to see this relay's hosts, devices and traffic.",
   },
   toasts: {

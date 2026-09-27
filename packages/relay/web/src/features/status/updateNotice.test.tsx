@@ -175,4 +175,34 @@ describe('herdr-remote update notice', () => {
     expect(right.firstElementChild).toBe(screen.getByTestId('update-chip'));
     expect(right.querySelectorAll(':scope > [aria-hidden="true"]').length).toBe(1);
   });
+
+  it('asks a workstation too old to name its release to update, once per page', () => {
+    const session = mount();
+    const readyFrom = (extra: Record<string, unknown>) =>
+      session.emit('ready', {
+        type: 'ready',
+        role: 'controller',
+        hostId: 'host-a',
+        hostname: 'workbox',
+        clientId: 'client-1',
+        ...extra,
+      });
+
+    readyFrom({ hostVersion: '0.2.31' });
+    expect(screen.queryByTestId('update-chip')).not.toBeInTheDocument();
+
+    readyFrom({ hostVersion: null, platform: 'win32' });
+    readyFrom({ hostVersion: null, platform: 'win32' });
+    expect(session.toasts.filter((toast) => /old herdr-remote/.test(toast.message))).toHaveLength(
+      1,
+    );
+    fireEvent.click(screen.getByTestId('update-chip'));
+    expect(screen.getByTestId('update-chip')).toHaveTextContent('update herdr-remote');
+    const modal = screen.getByTestId('update-modal');
+    expect(modal).toHaveTextContent('too old to tell');
+    expect(modal).toHaveTextContent('Stop-Process');
+    expect(modal).toHaveTextContent('npm install -g herdr-remote@latest --prefer-online');
+    // Not a release, so not one to ignore.
+    expect(screen.queryByRole('button', { name: /Ignore/ })).not.toBeInTheDocument();
+  });
 });

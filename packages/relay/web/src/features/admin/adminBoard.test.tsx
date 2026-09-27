@@ -245,6 +245,31 @@ describe('HostsTable', () => {
     expect(screen.getAllByText('0 connected').length).toBeGreaterThan(0);
   });
 
+  it('says which herdr-remote each host runs, and which are behind', () => {
+    const base = STATUS_FIXTURE.hosts[0];
+    render(
+      <TerminalProvider>
+        <HostsTable
+          hosts={[
+            { ...base, id: 'host-new', hostname: 'current-box', version: '0.2.31' },
+            {
+              ...base,
+              id: 'host-behind',
+              hostname: 'behind-box',
+              version: '0.2.20',
+              latestVersion: '0.2.31',
+            },
+            { ...base, id: 'host-old', hostname: 'old-box', version: null },
+          ]}
+        />
+      </TerminalProvider>,
+    );
+
+    expect(screen.getByText('herdr-remote 0.2.31')).toHaveClass('text-tui-muted');
+    expect(screen.getByText('herdr-remote 0.2.20 → 0.2.31')).toHaveClass('text-tui-warn');
+    expect(screen.getByText('herdr-remote too old')).toHaveClass('text-tui-warn');
+  });
+
   it('reports both counts per host', () => {
     render(
       <TerminalProvider>

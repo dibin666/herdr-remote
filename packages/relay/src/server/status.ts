@@ -61,6 +61,10 @@ export function statusSnapshot(
         .filter((client): client is RelayClient => Boolean(client)),
     ),
     pairedDeviceCount: pairedPerHost.get(host.id) || 0,
+    // A connector too old to name itself in its hello may still have said
+    // which release it runs when it checked npm.
+    version: host.version ?? host.updateStatus?.current ?? null,
+    latestVersion: host.updateStatus?.updateAvailable ? host.updateStatus.latest : null,
     load: host.load,
   }));
   // The workstation counts one PTY per stream and cannot know how many

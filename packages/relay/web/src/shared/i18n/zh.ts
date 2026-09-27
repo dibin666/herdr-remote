@@ -107,6 +107,13 @@ export const zh: TranslationSchema = {
     stepCli: '或在宿主机上执行：',
     restartNote: '重启后这个窗口会在几秒内自动重连。',
     ignore: '忽略此版本',
+    chipOutdated: '↑ 升级 herdr-remote',
+    toastOutdated: '{host} 的 herdr-remote 版本过旧，请升级',
+    thisHost: '这台宿主机',
+    outdatedVersion: '过旧，无法获知版本',
+    outdated:
+      '这台宿主机的 herdr-remote 太旧，不会报告版本，也不会检查更新，还缺少近期的功能和修复。在宿主机上执行：',
+    windowsStop: 'Windows 上先在 PowerShell 里结束正在运行的 herdr-remote：',
   },
   herdrLaunch: {
     title: 'Herdr 未运行',
@@ -588,6 +595,9 @@ export const zh: TranslationSchema = {
     colStatus: '状态',
     deviceWindows: '{count} 个窗口在线',
     hostPtys: 'PTY {count}',
+    hostVersion: 'herdr-remote {version}',
+    hostVersionBehind: 'herdr-remote {version} → {latest}',
+    hostVersionUnknown: 'herdr-remote 过旧',
     relayAdminPrompt: '输入 RELAY_ADMIN_TOKEN，查看本 Relay 的主机、设备与流量。',
   },
   toasts: {

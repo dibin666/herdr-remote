@@ -63,6 +63,8 @@ export interface ConnectionContextValue {
   hostname?: string;
   platform?: string;
   adminTerminalSupported?: boolean;
+  /** The workstation's herdr-remote release; null when it is too old to say. */
+  hostVersion?: string | null;
   shellProfile: ShellProfile;
   reportShellProfile: (profile: ShellProfile) => void;
   assignedClientId?: string;

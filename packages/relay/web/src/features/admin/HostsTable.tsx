@@ -22,6 +22,9 @@ interface HostRow {
   connectedDeviceCount: number;
   pairedDeviceCount: number;
   activePtyCount: number;
+  /** herdr-remote on the host: undefined when offline, null when too old to say. */
+  version?: string | null;
+  latestVersion?: string | null;
   devices: PairedDeviceInfo[];
   /** True when nothing but the pairing roster remembers this host. */
   fromRosterOnly: boolean;
@@ -63,6 +66,9 @@ function buildHostRows(hosts: HostInfo[] = [], devices: PairedDeviceInfo[] = [])
       // roster is only present for an operator.
       pairedDeviceCount: host.pairedDeviceCount ?? paired.length,
       activePtyCount: host.activePtyCount ?? 0,
+      // An older relay leaves the field out entirely; only its null means old.
+      version: host.version,
+      latestVersion: host.latestVersion,
       devices: paired,
       fromRosterOnly: false,
     };
@@ -143,6 +149,23 @@ export const HostsTable: React.FC<HostsTableProps> = ({ hosts, devices, clients 
                   <span key="paired" className="text-tui-muted">
                     {t('admin.hostPairedDevices', { count: row.pairedDeviceCount })}
                   </span>,
+                  row.version === undefined ? null : (
+                    <span
+                      key="version"
+                      className={
+                        row.version && !row.latestVersion ? 'text-tui-muted' : 'text-tui-warn'
+                      }
+                    >
+                      {!row.version
+                        ? t('admin.hostVersionUnknown')
+                        : row.latestVersion
+                          ? t('admin.hostVersionBehind', {
+                              version: row.version,
+                              latest: row.latestVersion,
+                            })
+                          : t('admin.hostVersion', { version: row.version })}
+                    </span>
+                  ),
                   row.fromRosterOnly ? null : (
                     <span
                       key="ptys"

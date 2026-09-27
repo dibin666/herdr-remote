@@ -92,6 +92,7 @@ export function startSession(
       adminTerminalSupported: host.adminTabsAvailable,
       terminalPalette: host.terminalPalette || null,
       terminalFont: host.terminalFont || null,
+      hostVersion: host.version,
     });
   }
 }

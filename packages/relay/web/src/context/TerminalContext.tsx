@@ -95,8 +95,14 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     adapterRef,
     tRef,
   );
-  const { updateStatus, ignoredUpdate, ignoreUpdate, receiveUpdateStatus, forgetUpdateStatus } =
-    useUpdateNotices(addToast, tRef);
+  const {
+    updateStatus,
+    ignoredUpdate,
+    ignoreUpdate,
+    receiveUpdateStatus,
+    forgetUpdateStatus,
+    noteHostVersion,
+  } = useUpdateNotices(addToast, tRef);
   // Observing is this window's own choice: the relay gives every paired window
   // input, and holding it back here is what makes the window only watch.
   const role: ClientRole = settings.observerMode ? 'viewer' : session.role;
@@ -139,6 +145,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       forgetUpdateStatus();
       dispatch({ type: 'ready', message, resetTerminal });
       noteReadyProfile(message);
+      noteHostVersion(message.hostVersion, message.hostname || message.hostId);
     },
     hostReconnecting: (code) => {
       dispatch({
@@ -156,6 +163,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       platform,
       shellProfile,
       adminTerminalSupported,
+      hostVersion,
     ) => {
       clearPendingOutput();
       dispatch({
@@ -165,7 +173,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         platform,
         shellProfile,
         adminTerminalSupported,
+        hostVersion,
       });
+      noteHostVersion(hostVersion, hostname);
       noteReadyProfile({ hostId: adapterRef.current?.getHostId(), hostname });
     },
     roleChange: (role, controllerId, hostId, assignedClientId) => {

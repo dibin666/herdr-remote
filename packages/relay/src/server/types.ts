@@ -45,6 +45,8 @@ export interface RelayHost {
   agentStatus: ServerAgentStatusMessage | null;
   /** Whether the workstation's herdr-remote is behind; replayed the same way. */
   updateStatus: ServerUpdateStatusMessage | null;
+  /** The herdr-remote release the host runs; null when its hello did not say. */
+  version: string | null;
   lastSeenAt: number;
   /** Ids of the windows attached to this host. */
   clients: Set<string>;

@@ -194,6 +194,7 @@ export function handleClientConnection(
         terminalPalette: host.terminalPalette || null,
         terminalFont: host.terminalFont || null,
         clientCount: host.clients.size,
+        hostVersion: host.version,
       });
       if (host.agentStatus) jsonSend(ws, host.agentStatus);
       if (host.updateStatus) jsonSend(ws, host.updateStatus);

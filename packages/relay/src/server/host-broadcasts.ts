@@ -21,6 +21,11 @@ type Unchecked<T> = { [K in keyof T]?: unknown };
 /** A release version as npm writes it; anything else is not forwarded. */
 const RELEASE_VERSION = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/;
 
+/** `value` if it is a release version, else null: it ends up as text in browsers. */
+export function releaseVersion(value: unknown): string | null {
+  return typeof value === 'string' && RELEASE_VERSION.test(value) ? value : null;
+}
+
 /** Matches the host's own cap; the relay re-applies it rather than trusting it. */
 const MAX_AGENT_STATUS_ENTRIES = 16;
 
@@ -81,15 +86,13 @@ export function broadcastUpdateStatus(
   host: RelayHost,
   message: Unchecked<HostUpdateStatusMessage>,
 ): void {
-  const version = (value: unknown) =>
-    typeof value === 'string' && RELEASE_VERSION.test(value) ? value : null;
-  const current = version(message.current);
-  const latest = version(message.latest);
+  const current = releaseVersion(message.current);
+  const latest = releaseVersion(message.latest);
   if (!current || !latest) return;
   const payload: ServerUpdateStatusMessage = {
     type: 'update_status',
     current,
-    installed: version(message.installed) || current,
+    installed: releaseVersion(message.installed) || current,
     latest,
     updateAvailable: message.updateAvailable === true,
     restartPending: message.restartPending === true,

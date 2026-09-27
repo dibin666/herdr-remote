@@ -73,6 +73,10 @@ export interface HostInfo {
   connectedDeviceCount?: number;
   /** Devices holding a valid pairing token for this host, online or not. */
   pairedDeviceCount?: number;
+  /** The herdr-remote release the host runs; null when it is too old to say. */
+  version?: string | null;
+  /** A newer release the host found on npm, if it found one. */
+  latestVersion?: string | null;
 }
 
 export interface PtyInfo {
