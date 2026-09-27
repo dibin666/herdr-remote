@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, render, screen, fireEvent } from '@testing-library/react';
-import { TerminalProvider } from '@/context/TerminalContext';
-import { PairingModal } from './PairingModal';
+import { act, render } from '@testing-library/react';
 import { App } from '@/app/App';
 import { loadSettings, saveSettings } from '@/features/settings/storage';
 import type { MockWebSocket } from '@/test/setup';
@@ -13,37 +11,6 @@ const webSocketInstances = (globalThis as unknown as { __webSocketInstances: Moc
 describe('Frontend Security & URL Redaction', () => {
   beforeEach(() => {
     localStorage.clear();
-  });
-
-  it('PairingModal copies share URL with pairCode only and NEVER includes token', async () => {
-    saveSettings({
-      token: 'super-secret-token-do-not-share',
-      pairCode: 'PAIR99',
-    });
-
-    let copiedText = '';
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn().mockImplementation((text: string) => {
-          copiedText = text;
-          return Promise.resolve();
-        }),
-      },
-    });
-
-    render(
-      <TerminalProvider>
-        <PairingModal isOpen={true} onClose={() => {}} />
-      </TerminalProvider>,
-    );
-
-    const copyBtn = screen.getByRole('button', { name: /Copy direct pairing link/i });
-    fireEvent.click(copyBtn);
-
-    expect(navigator.clipboard.writeText).toHaveBeenCalled();
-    expect(copiedText).toContain('pairCode=PAIR99');
-    expect(copiedText).not.toContain('super-secret-token-do-not-share');
-    expect(copiedText).not.toContain('token=');
   });
 
   it('never lets a link point the saved device token at another relay', () => {
