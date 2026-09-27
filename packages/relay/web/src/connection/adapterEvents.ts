@@ -50,6 +50,9 @@ export type AdapterEventMap = {
     rows?: number,
     palette?: ServerSessionRestartedMessage['terminalPalette'],
     hostname?: string,
+    platform?: string,
+    shellProfile?: ServerSessionRestartedMessage['shellProfile'],
+    adminTerminalSupported?: boolean,
   ) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;

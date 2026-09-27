@@ -9,6 +9,7 @@ import { CAP_ACTIVE, CAP_BASE, CAP_COMMIT, CAP_IDLE, capSizes } from './caps';
 import { ChordsDrawer, FnKeysDrawer, SymbolsDrawer } from './KeyDrawers';
 import { ImageUploadButton, UploadFileInputs, UploadProgressBar } from './UploadControls';
 import { useKeySender } from './useKeySender';
+import { AdminTerminalButton } from './AdminTerminalButton';
 
 interface KeyToolbarProps {
   /**
@@ -262,6 +263,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             </button>
 
             {configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
+            <AdminTerminalButton capHeight={capHeight} />
             <AgentKeyActions
               capHeight={capHeight}
               onCustomize={onCustomize}

@@ -426,6 +426,11 @@ export const zh: TranslationSchema = {
     releaseControlAria: '释放终端控制权',
     takeoverControlAria: '强占终端控制权',
     claimControlAria: '获取终端控制权',
+    newAdminTerminal: '以管理员身份新建终端',
+    adminShort: '管理员',
+    adminTerminalSetup:
+      '请在 Windows 主机打开 herdr-remote TUI，进入「保活」并选择「设置管理员终端」，再使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示。',
+    adminTerminalUpdate: '请先升级 relay 和 Windows 主机连接器，再新建管理员终端。',
   },
   keyTitles: {
     esc: 'Escape (ESC)',
@@ -631,6 +636,10 @@ export const zh: TranslationSchema = {
     paste_file_corrupt: '粘贴图片数据损坏或与声明格式不符。',
     viewer_mode: '观察者模式无法粘贴到终端。',
     no_session: '终端会话未准备就绪。',
+    admin_broker_unavailable:
+      '管理员终端 broker 尚未运行。请在 Windows 主机打开 herdr-remote TUI，进入「保活」并选择「设置管理员终端」，然后刷新此标签页。',
+    admin_terminal_unsupported:
+      '当前 relay 或 Windows 主机连接器无法确认管理员模式。请升级两端后重新打开此标签页。',
   },
   fontPresets: {
     host: '宿主机终端字体（默认）',

@@ -55,6 +55,14 @@ export function startSession(
   { restarted = false } = {},
 ): void {
   if (!client || !isOpen(host.ws)) return;
+  if (client.adminTerminal && !host.adminSessionsAvailable) {
+    jsonSend(client.ws, {
+      type: 'error',
+      code: 'admin_terminal_unsupported',
+      message: 'Update the host connector to support administrator terminals.',
+    });
+    return;
+  }
   const streamId = randomId('session');
   let streamIndex: number | null = null;
   if (host.binaryFrameV2) {
@@ -78,6 +86,7 @@ export function startSession(
     cols: Math.max(MIN_SESSION_COLS, client.cols),
     rows: Math.max(MIN_SESSION_ROWS, client.rows),
     role: 'controller',
+    ...(client.adminTerminal ? { adminTerminal: true } : {}),
     ...(streamIndex !== null ? { streamIndex } : {}),
   });
   if (restarted) {
@@ -87,6 +96,9 @@ export function startSession(
       cols: client.cols,
       rows: client.rows,
       hostname: host.hostname,
+      platform: host.platform,
+      ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
+      adminTerminalSupported: host.adminSessionsAvailable,
       terminalPalette: host.terminalPalette || null,
       terminalFont: host.terminalFont || null,
     });

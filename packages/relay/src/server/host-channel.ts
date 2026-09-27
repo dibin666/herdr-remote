@@ -59,6 +59,8 @@ function createHostRecord(
     hostname: typeof message.hostname === 'string' ? message.hostname.slice(0, 128) : os.hostname(),
     platform:
       typeof message.platform === 'string' ? message.platform.slice(0, 32) : process.platform,
+    ...(message.shellProfile === 'git-bash' ? { shellProfile: message.shellProfile } : {}),
+    adminSessionsAvailable: capabilities.includes(CAPABILITY.adminSessions),
     arch: typeof message.arch === 'string' ? message.arch.slice(0, 32) : process.arch,
     connectedAt: new Date(pending.connectedAt).toISOString(),
     connectedAtMs: pending.connectedAt,

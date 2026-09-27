@@ -92,6 +92,22 @@ const en = {
   'services.logRelay': 'Relay',
   'services.logHost': 'Host connector',
 
+  'adminBroker.windowsOnly': 'The administrator terminal broker only runs on Windows.',
+  'adminBroker.needsElevation':
+    'Open the Windows TUI and choose Set up admin terminal access. Approve the one-time Windows prompt under the same account as Herdr Remote.',
+  'adminBroker.title': 'Admin terminal broker',
+  'adminBroker.checking': 'Checking…',
+  'adminBroker.ready': 'Ready',
+  'adminBroker.notReady': 'Not configured or stopped',
+  'adminBroker.install': 'Set up admin terminal access',
+  'adminBroker.uninstall': 'Remove admin terminal access',
+  'adminBroker.installDone': 'Admin terminal broker setup task registered.',
+  'adminBroker.uninstallDone': 'Admin terminal broker setup task removed.',
+  'adminBroker.elevationCancelled': 'Administrator approval was declined; no changes were made.',
+  'adminBroker.setupFailed': 'Could not configure the administrator terminal broker.',
+  'adminBroker.tuiHint':
+    'Set this up once. Windows asks for administrator approval; later WebUI admin terminals open without UAC.',
+
   'relay.title': 'Relay settings',
   'relay.settings': 'Settings',
   'relay.locked': 'fixed',

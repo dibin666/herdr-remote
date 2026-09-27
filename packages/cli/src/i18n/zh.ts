@@ -93,6 +93,22 @@ const zh: Record<MessageKey, string> = {
   'services.logRelay': 'Relay',
   'services.logHost': '主机连接器',
 
+  'adminBroker.windowsOnly': '管理员终端 broker 只支持 Windows。',
+  'adminBroker.needsElevation':
+    '请打开 Windows TUI 并选择“设置管理员终端”，使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示。',
+  'adminBroker.title': '管理员终端 broker',
+  'adminBroker.checking': '正在检查…',
+  'adminBroker.ready': '已就绪',
+  'adminBroker.notReady': '尚未设置或未运行',
+  'adminBroker.install': '设置管理员终端',
+  'adminBroker.uninstall': '移除管理员终端设置',
+  'adminBroker.installDone': '管理员终端 broker 任务已注册。',
+  'adminBroker.uninstallDone': '管理员终端 broker 任务已移除。',
+  'adminBroker.elevationCancelled': '未批准管理员权限，未进行更改。',
+  'adminBroker.setupFailed': '管理员终端 broker 设置失败。',
+  'adminBroker.tuiHint':
+    '只需设置一次。Windows 会请求管理员授权；之后 WebUI 新建管理员终端不再弹出 UAC。',
+
   'relay.title': 'Relay 设置',
   'relay.settings': '设置',
   'relay.locked': '固定',

@@ -23,12 +23,17 @@ export interface PairingResult {
  * relay or host, with the settings now saved: the window has to drop what the
  * old one showed and connect to the new one.
  */
-export function useProfiles(onActiveProfileChanged: (next: StoredSettings) => void) {
+export function useProfiles(
+  onActiveProfileChanged: (next: StoredSettings) => void,
+  beforeActiveProfileChanged?: () => void,
+) {
   const [settings, setSettingsState] = useState<StoredSettings>(loadSettings);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const onChangedRef = useRef(onActiveProfileChanged);
   onChangedRef.current = onActiveProfileChanged;
+  const beforeChangedRef = useRef(beforeActiveProfileChanged);
+  beforeChangedRef.current = beforeActiveProfileChanged;
 
   const updateSettings = useCallback((partial: Partial<StoredSettings>) => {
     const updated = saveSettings(partial);
@@ -45,6 +50,7 @@ export function useProfiles(onActiveProfileChanged: (next: StoredSettings) => vo
 
   const addProfileAndConnect = useCallback(
     (draft: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'wsUrl'>) => {
+      beforeChangedRef.current?.();
       const current = settingsRef.current;
       const profile = createConnectionProfile(
         {
@@ -75,6 +81,7 @@ export function useProfiles(onActiveProfileChanged: (next: StoredSettings) => vo
       const current = settingsRef.current;
       const target = current.profiles.find((profile) => profile.id === profileId);
       if (!target || target.id === current.activeProfileId) return;
+      beforeChangedRef.current?.();
       const next = saveSettings({
         activeProfileId: target.id,
         wsUrl: target.wsUrl,

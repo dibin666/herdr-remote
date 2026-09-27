@@ -4,6 +4,7 @@
 import type { ClientRole, ServerAgentStatusMessage, ServerReadyMessage } from '@protocol/messages';
 import type { HostTerminalPalette } from '@protocol/terminal';
 import type { ConnectionState } from '@/connection/types';
+import { defaultShellProfile, type ShellProfile } from '@/features/keyboard/shellProfile';
 
 export interface SessionState {
   connectionState: ConnectionState;
@@ -14,6 +15,9 @@ export interface SessionState {
   controllerId?: string | null;
   hostId?: string;
   hostname?: string;
+  platform?: string;
+  shellProfile: ShellProfile;
+  adminTerminalSupported?: boolean;
   assignedClientId?: string;
   /** The host terminal's own colors, or null when the host could not report them. */
   hostPalette: HostTerminalPalette | null;
@@ -38,6 +42,7 @@ export interface SessionState {
 export const INITIAL_SESSION: SessionState = {
   connectionState: 'disconnected',
   role: 'viewer',
+  shellProfile: 'posix',
   hostPalette: null,
   rttMs: null,
   sharedWindowCount: 1,
@@ -50,7 +55,14 @@ export type SessionEvent =
   | { type: 'stateChange'; state: ConnectionState; detail?: string; code?: string }
   | { type: 'ready'; message: ServerReadyMessage; resetTerminal: boolean }
   | { type: 'hostReconnecting'; code: string; detail: string }
-  | { type: 'sessionRestarted'; hostname?: string; palette?: HostTerminalPalette | null }
+  | {
+      type: 'sessionRestarted';
+      hostname?: string;
+      platform?: string;
+      shellProfile?: ShellProfile;
+      adminTerminalSupported?: boolean;
+      palette?: HostTerminalPalette | null;
+    }
   | {
       type: 'roleChange';
       role: ClientRole;
@@ -64,6 +76,7 @@ export type SessionEvent =
   | { type: 'peerCount'; count: number }
   | { type: 'sessionReady' }
   | { type: 'agentStatus'; status: ServerAgentStatusMessage }
+  | { type: 'shellProfile'; profile: ShellProfile }
   /** A profile switch or new connection: forget the last host, optionally its screen. */
   | { type: 'reset'; resetTerminal: boolean };
 
@@ -72,6 +85,9 @@ const HOST_PRESENTATION = {
   role: 'viewer',
   controllerId: undefined,
   hostname: undefined,
+  platform: undefined,
+  adminTerminalSupported: undefined,
+  shellProfile: 'posix',
   hostPalette: null,
   rttMs: null,
   sharedWindowCount: 1,
@@ -98,6 +114,9 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         controllerId: message.controllerId,
         hostId: message.hostId,
         hostname: message.hostname,
+        platform: message.platform,
+        adminTerminalSupported: message.adminTerminalSupported,
+        shellProfile: defaultShellProfile(message.platform, message.shellProfile),
         assignedClientId: message.clientId || state.assignedClientId,
         // The workstation tells us what its terminal looks like; nothing here
         // decides a color, and an absent palette leaves xterm on its defaults.
@@ -110,6 +129,9 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
       return {
         ...state,
         hostname: event.hostname,
+        platform: event.platform,
+        adminTerminalSupported: event.adminTerminalSupported,
+        shellProfile: defaultShellProfile(event.platform, event.shellProfile),
         hostPalette: event.palette || null,
         terminalResetVersion: state.terminalResetVersion + 1,
       };
@@ -133,11 +155,16 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
       return { ...state, connectionState: 'connected' };
     case 'agentStatus':
       return { ...state, agentStatus: event.status };
+    case 'shellProfile':
+      return state.shellProfile === event.profile
+        ? state
+        : { ...state, shellProfile: event.profile };
     case 'reset':
       return {
         ...state,
         ...HOST_PRESENTATION,
         hostId: undefined,
+        platform: undefined,
         assignedClientId: undefined,
         terminalResetVersion: state.terminalResetVersion + (event.resetTerminal ? 1 : 0),
       };

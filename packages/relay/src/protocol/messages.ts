@@ -19,9 +19,12 @@ export const CAPABILITY = {
   idleHeartbeat: 'idle_heartbeat',
   /** The host routes output by 16-bit stream index (v2 frames). */
   binaryFrameV2: 'binary_frame_v2',
+  /** The host can route elevated Windows PTYs through its local broker. */
+  adminSessions: 'admin_sessions',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
+export type HostShellProfile = 'posix' | 'cmd' | 'powershell' | 'git-bash';
 
 // ---------------------------------------------------------------------------
 // Browser → relay
@@ -32,6 +35,8 @@ export interface ClientHelloMessage {
   protocol: 1;
   token?: string;
   pairCode?: string;
+  /** Open this window's PTY through the host's pre-authorized admin broker. */
+  adminTerminal?: boolean;
   clientId: string;
   cols: number;
   rows: number;
@@ -114,6 +119,10 @@ export interface ServerReadyMessage {
   controllerId?: string | null;
   hostId?: string;
   hostname?: string;
+  platform?: string;
+  shellProfile?: HostShellProfile;
+  /** The relay and Windows host both understand administrator-terminal requests. */
+  adminTerminalSupported?: boolean;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
@@ -157,6 +166,9 @@ export interface ServerSessionRestartedMessage {
   cols?: number;
   rows?: number;
   hostname?: string;
+  platform?: string;
+  shellProfile?: HostShellProfile;
+  adminTerminalSupported?: boolean;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
 }
@@ -291,6 +303,7 @@ export interface HostHelloMessage {
   password?: string | null;
   hostname?: string;
   platform?: string;
+  shellProfile?: HostShellProfile;
   arch?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
@@ -387,6 +400,7 @@ export interface RelaySessionStartMessage extends StreamAddressed {
   cols: number;
   rows: number;
   role: ClientRole;
+  adminTerminal?: boolean;
   /** Present when the host negotiated v2 frames and an index was free. */
   streamIndex?: number;
 }

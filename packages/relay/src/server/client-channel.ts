@@ -131,6 +131,7 @@ export function handleClientConnection(
         // same browser rather than a genuinely separate viewer.
         browserClientId:
           typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
+        adminTerminal: message.adminTerminal === true,
         handoffCapable:
           Array.isArray(message.capabilities) &&
           message.capabilities.includes(CAPABILITY.hostHandoff),
@@ -182,6 +183,9 @@ export function handleClientConnection(
         controllerId: null,
         hostId: host.id,
         hostname: host.hostname,
+        platform: host.platform,
+        ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
+        adminTerminalSupported: host.adminSessionsAvailable,
         clientId: client.id,
         // Delivered with `ready`, before the first PTY byte, so the terminal
         // is painted in the host's colors from its very first frame.

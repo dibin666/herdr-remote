@@ -180,7 +180,7 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                   </div>
 
                   {editing && (
-                    <div className="flex items-center gap-1 px-2 pb-2">
+                    <div className="grid grid-cols-2 gap-1 px-2 pb-2">
                       <input
                         // biome-ignore lint/a11y/noAutofocus: the user just asked to rename; the field is what they came for
                         autoFocus
@@ -192,19 +192,19 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                           if (event.key === 'Escape') setEditingId(null);
                         }}
                         aria-label={t('profiles.rename')}
-                        className="tui-input min-w-0 flex-1 px-2 py-1 text-tui"
+                        className="tui-input col-span-2 h-11 min-w-0 px-2 py-1 text-tui"
                       />
                       <Button
                         onClick={() => commitRename(profile.id)}
                         variant="primary"
-                        className="min-h-11"
+                        className="h-11 w-full min-w-0 whitespace-nowrap"
                       >
                         {t('common.save')}
                       </Button>
                       <Button
                         onClick={() => remove(profile.id)}
                         variant="danger"
-                        className="min-h-11"
+                        className="h-11 w-full min-w-0 whitespace-nowrap"
                       >
                         {t('profiles.remove')}
                       </Button>

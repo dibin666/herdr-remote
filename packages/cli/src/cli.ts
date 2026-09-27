@@ -33,6 +33,7 @@ Commands:
   pair [--json]        Create pairing code
   url                  Print browser access URL
   run [--daemon]       Run services in foreground (keep-alive)
+  admin-broker install | uninstall | status (Windows)
   keepalive <action>   install | uninstall | restart | status
   plugin <action>      link | unlink | status  (Herdr plugin)
 
@@ -258,6 +259,22 @@ async function main(argv = process.argv.slice(2)) {
     case 'run': {
       const { runForeground } = await import('./supervisor.js');
       await runForeground({ logToFiles: Boolean(flags.daemon) });
+      return;
+    }
+    case 'admin-broker': {
+      const broker = await import('./connector/admin-broker.js');
+      const action = positional[1] || 'status';
+      if (action === 'install') {
+        broker.installAdminBroker(t);
+        printJson({ installed: true, available: await broker.adminBrokerStatus() });
+      } else if (action === 'uninstall') {
+        broker.uninstallAdminBroker(t);
+        printJson({ installed: false });
+      } else if (action === 'status') {
+        printJson({ available: await broker.adminBrokerStatus() });
+      } else {
+        throw new Error(`unknown administrator broker action: ${action}`);
+      }
       return;
     }
     case 'keepalive': {

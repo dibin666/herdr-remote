@@ -21,8 +21,12 @@ export function AgentKeyActions({
   sendCombo: (combo: string) => void;
 }) {
   const { settings, t } = useSettings();
-  const { agentProfile } = useConnection();
-  const agentGroups = getDrawerGroups(agentProfile, settings.agentKeymaps[agentProfile]);
+  const { agentProfile, shellProfile } = useConnection();
+  const agentGroups = getDrawerGroups(
+    agentProfile,
+    settings.agentKeymaps[agentProfile],
+    shellProfile,
+  );
 
   const renderAgentAction = (item: AppliedAgentAction) => {
     let caption = '';

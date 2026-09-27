@@ -1,14 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
 import { Message, Panel, Row, Selectable, StatusDot } from '../components/common.js';
 import { ChoiceList } from './Relay.js';
-import { KEEPALIVE_MANAGERS, keepalive, saveDraft, setField } from '../api.js';
+import {
+  KEEPALIVE_MANAGERS,
+  adminBrokerStatus,
+  configureAdminBroker,
+  keepalive,
+  saveDraft,
+  setField,
+} from '../api.js';
 
 export function Keepalive({ ctx }: { ctx: AppContext }) {
   const { t, status, draft, editingId } = ctx;
   const [selected, setSelected] = useState('install');
+  const [brokerReady, setBrokerReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (process.platform !== 'win32') return undefined;
+    let cancelled = false;
+    adminBrokerStatus()
+      .then((available) => {
+        if (!cancelled) setBrokerReady(available);
+      })
+      .catch(() => {
+        if (!cancelled) setBrokerReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const current = status?.keepalive;
   const entries = [
@@ -19,11 +42,36 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
     ...(process.platform === 'linux' && current?.manager === 'systemd' && !current?.linger
       ? [{ id: 'linger', label: t('keepalive.enableLinger') }]
       : []),
+    ...(process.platform === 'win32'
+      ? [
+          { id: 'adminBrokerInstall', label: t('adminBroker.install') },
+          { id: 'adminBrokerUninstall', label: t('adminBroker.uninstall') },
+        ]
+      : []),
   ];
 
   const activate = (id: string) => {
     if (id === 'manager') {
       ctx.setEditing('keepaliveManager');
+      return;
+    }
+    if (id === 'adminBrokerInstall' || id === 'adminBrokerUninstall') {
+      const action = id === 'adminBrokerInstall' ? 'install' : 'uninstall';
+      ctx.run(async () => {
+        let ready = false;
+        try {
+          await configureAdminBroker(action, t);
+          ready = action === 'install' && (await adminBrokerStatus());
+        } catch (error) {
+          if ((error as Error & { code?: string }).code === 'ELEVATION_CANCELLED') {
+            ctx.notify((t) => t('adminBroker.elevationCancelled'), 'info');
+            return;
+          }
+          throw error;
+        }
+        setBrokerReady(ready);
+        ctx.notify((t) => t(`adminBroker.${action}Done`), 'success');
+      });
       return;
     }
     ctx.run(async () => {
@@ -118,6 +166,18 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
           </Text>
         </Box>
       </Row>
+      {process.platform === 'win32' ? (
+        <>
+          <Row label={t('adminBroker.title')}>
+            <Text color={brokerReady ? theme.ok : theme.warn}>
+              {brokerReady === null
+                ? t('adminBroker.checking')
+                : t(brokerReady ? 'adminBroker.ready' : 'adminBroker.notReady')}
+            </Text>
+          </Row>
+          <Text color={theme.muted}>{t('adminBroker.tuiHint')}</Text>
+        </>
+      ) : null}
       {current?.unitPath ? (
         <Row label={t('keepalive.unitPath')}>
           <Text color={theme.muted}>{current.unitPath}</Text>

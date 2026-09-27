@@ -9,6 +9,7 @@ import type {
   HostPtySummary,
   ServerAgentStatusMessage,
   ServerUpdateStatusMessage,
+  HostShellProfile,
 } from '../protocol/messages.js';
 import type { HostTerminalFont, HostTerminalPalette } from '../protocol/terminal.js';
 import type { RelayConfig } from '../relay-config.js';
@@ -32,6 +33,8 @@ export interface RelayHost {
   ws: RelaySocket | null;
   hostname: string;
   platform: string;
+  shellProfile?: HostShellProfile;
+  adminSessionsAvailable: boolean;
   arch: string;
   connectedAt: string;
   connectedAtMs: number;
@@ -67,6 +70,7 @@ export interface RelayClient {
   deviceId: string;
   /** Stable per browser profile, supplied by the browser itself. */
   browserClientId: string | null;
+  adminTerminal: boolean;
   handoffCapable: boolean;
   session: ClientSession | null;
   role: ClientRole;

@@ -437,6 +437,12 @@ export const en = {
     releaseControlAria: 'Release Control',
     takeoverControlAria: 'Takeover Control',
     claimControlAria: 'Claim Control',
+    newAdminTerminal: 'Open a new administrator terminal',
+    adminShort: 'Admin',
+    adminTerminalSetup:
+      'On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access. Approve the one-time Windows prompt under the same account as Herdr Remote.',
+    adminTerminalUpdate:
+      'Update the relay and Windows host connector before opening an administrator terminal.',
   },
   keyTitles: {
     esc: 'Escape (ESC)',
@@ -655,6 +661,10 @@ export const en = {
     paste_file_corrupt: 'Pasted image data is corrupt or does not match declared MIME.',
     viewer_mode: 'Viewer mode cannot paste to terminal.',
     no_session: 'Terminal session is not ready.',
+    admin_broker_unavailable:
+      'The administrator terminal broker is not running. On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access, then reload this tab.',
+    admin_terminal_unsupported:
+      'This relay or Windows host connector cannot confirm administrator mode. Upgrade both, then reopen this tab.',
   },
   fontPresets: {
     host: 'Workstation font (default)',
