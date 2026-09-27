@@ -33,6 +33,7 @@ Commands:
   pair [--json]        Create pairing code
   url                  Print browser access URL
   run [--daemon]       Run services in foreground (keep-alive)
+  update [--json]      Install the latest release and restart services
   admin-broker install | uninstall | status (Windows)
   admin-shell          Elevated PowerShell in this terminal (Windows)
   keepalive <action>   install | uninstall | restart | status
@@ -255,6 +256,16 @@ async function main(argv = process.argv.slice(2)) {
     }
     case 'url': {
       process.stdout.write(`${resolvePublicUrl(config, preferredLanAddress())}\n`);
+      return;
+    }
+    case 'update': {
+      const { runUpdate } = await import('./update-command.js');
+      const outcome = await runUpdate(t, {
+        config,
+        ...(flags.json ? { report: () => {} } : {}),
+      });
+      if (flags.json) printJson(outcome);
+      if (!outcome.ok) process.exitCode = 1;
       return;
     }
     case 'run': {

@@ -156,6 +156,7 @@ herdr-remote keepalive install | uninstall | restart | status
 ```bash
 herdr-remote                      # Configuration TUI
 herdr-remote start | stop | restart
+herdr-remote update [--json]      # Install the latest release and restart services
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url
