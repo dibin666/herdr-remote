@@ -31,6 +31,13 @@ const STATUS_POLL_MS = 3000;
 
 export type MessageLevel = 'info' | 'success' | 'error';
 
+/**
+ * A notice, as text in no particular language (an error from the system) or
+ * as a way to say it in whichever language the interface is in when drawn:
+ * switching language re-says what is already on screen.
+ */
+export type Notice = string | ((t: Translate) => string);
+
 export type AppContext = {
   t: Translate;
   locale: Locale;
@@ -44,7 +51,7 @@ export type AppContext = {
   updateDraft: (next: Config) => void;
   reloadConfig: () => void;
   setEditing: (id: string | null) => void;
-  notify: (text: string, level?: MessageLevel) => void;
+  notify: (notice: Notice, level?: MessageLevel) => void;
   run: (task: () => unknown | Promise<unknown>) => void;
   refresh: () => void;
   message: { text: string; level: MessageLevel } | null;
@@ -117,7 +124,7 @@ export function App({
   const [runtime, setRuntime] = useState(() => ensureRuntime());
   const [status, setStatus] = useState<Status | null>(null);
   const [tab, setTab] = useState<TabId>('overview');
-  const [message, setMessage] = useState<{ text: string; level: MessageLevel } | null>(null);
+  const [notice, setNotice] = useState<{ notice: Notice; level: MessageLevel } | null>(null);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [wizardDone, setWizardDone] = useState(!needsWizard);
@@ -150,9 +157,13 @@ export function App({
     [config, draft, dirty],
   );
 
-  const notify = useCallback((text: string, level: MessageLevel = 'info') => {
-    setMessage({ text, level });
+  const notify = useCallback((next: Notice, level: MessageLevel = 'info') => {
+    setNotice({ notice: next, level });
   }, []);
+  const message = notice && {
+    text: typeof notice.notice === 'string' ? notice.notice : notice.notice(t),
+    level: notice.level,
+  };
 
   const refresh = useCallback(() => {
     fullStatus(loadConfig())
@@ -237,13 +248,13 @@ export function App({
         return;
       }
       if (input === 'r') {
-        setMessage(null);
+        setNotice(null);
         refresh();
         return;
       }
       if (input === 'm') {
         if (!mouse.supported) {
-          notify(t('hint.mouseUnsupported'), 'info');
+          notify((t) => t('hint.mouseUnsupported'), 'info');
           return;
         }
         mouseChoice.current = !mouse.enabled;

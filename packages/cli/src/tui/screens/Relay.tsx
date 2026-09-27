@@ -102,8 +102,9 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     let next = draft;
     for (const [id, value] of updates) {
       const result = setField(next, id, value);
-      if (result.errorKey) {
-        ctx.notify(t(result.errorKey), 'error');
+      const { errorKey } = result;
+      if (errorKey) {
+        ctx.notify((t) => t(errorKey), 'error');
         return false;
       }
       next = result.draft;
@@ -119,13 +120,14 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     try {
       const result = saveDraft(draft);
       ctx.reloadConfig();
-      ctx.notify(t('common.saved', { path: result.path }), 'success');
+      ctx.notify((t) => t('common.saved', { path: result.path }), 'success');
     } catch (error) {
       const problems = (error as Error & { problems?: string[] }).problems;
       ctx.notify(
-        problems
-          ? problems.map((key) => t(key)).join(' ')
-          : t('error.saveFailed', { message: (error as Error).message }),
+        (t) =>
+          problems
+            ? problems.map((key) => t(key)).join(' ')
+            : t('error.saveFailed', { message: (error as Error).message }),
         'error',
       );
     }
@@ -135,7 +137,7 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
     const entry = entries.find((candidate) => candidate.id === id);
     if (!entry) return;
     if (entry.kind === 'readonly') {
-      ctx.notify(t('relay.officialFixed'), 'info');
+      ctx.notify((t) => t('relay.officialFixed'), 'info');
       return;
     }
     if (entry.kind === 'field' || entry.kind === 'password') {
@@ -158,7 +160,7 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
       ctx.run(() => {
         regenerateHostIdentity();
         ctx.reloadConfig();
-        ctx.notify(t('relay.regenerated'), 'success');
+        ctx.notify((t) => t('relay.regenerated'), 'success');
       });
       return;
     }
@@ -166,9 +168,10 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
       ctx.run(async () => {
         const result = await probeRelay(ctx.config);
         ctx.notify(
-          result.ok
-            ? t('relay.testOk', { version: result.version ?? '?', hosts: result.hosts ?? 0 })
-            : t('relay.testFailed', { message: result.message ?? '' }),
+          (t) =>
+            result.ok
+              ? t('relay.testOk', { version: result.version ?? '?', hosts: result.hosts ?? 0 })
+              : t('relay.testFailed', { message: result.message ?? '' }),
           result.ok ? 'success' : 'error',
         );
       });
@@ -295,7 +298,7 @@ export function RelayScreen({ ctx }: { ctx: AppContext }) {
                   setPassword(value);
                   setRelayPassword(value);
                   ctx.setEditing(null);
-                  ctx.notify(t('relay.passwordSaved'), 'success');
+                  ctx.notify((t) => t('relay.passwordSaved'), 'success');
                 }}
                 onCancel={() => ctx.setEditing(null)}
               />

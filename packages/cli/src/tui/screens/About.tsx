@@ -37,7 +37,7 @@ export function About({ ctx }: { ctx: AppContext }) {
   const [selected, setSelected] = useState('auto');
   const [update, setUpdate] = useState<UpdateState>({ phase: 'idle' });
   /** Why the install will come from somewhere other than npm's own registry. */
-  const [sourceNote, setSourceNote] = useState<string | null>(null);
+  const [sourceNote, setSourceNote] = useState<{ registries: string; source: string } | null>(null);
   const checkRef = useState<CheckRef>(() => ({ current: { registry: '', sources: [] } }))[0];
 
   const detected = detectLocale({ preference: 'auto' });
@@ -81,12 +81,12 @@ export function About({ ctx }: { ctx: AppContext }) {
     const behind = result.behind ?? [];
     setSourceNote(
       result.updateAvailable && behind.length > 0 && result.registry
-        ? t('update.mirrorBehind', {
+        ? {
             registries: behind
               .map((entry) => `${registryHost(entry.registry)} ${entry.version ?? ''}`.trim())
               .join(', '),
             source: registryHost(result.registry),
-          })
+          }
         : null,
     );
     setUpdate(
@@ -111,8 +111,8 @@ export function About({ ctx }: { ctx: AppContext }) {
       // Which registries were tried, and what each of them said. Without this
       // the row reads "could not reach npm registry" on a machine where
       // `npm install` works perfectly, and there is nothing to act on.
-      if (result.message)
-        ctx.notify(t('update.errorNetworkDetail', { message: result.message }), 'error');
+      const { message } = result;
+      if (message) ctx.notify((t) => t('update.errorNetworkDetail', { message }), 'error');
       return;
     }
     ctx.setUpdateCheck(result);
@@ -133,9 +133,10 @@ export function About({ ctx }: { ctx: AppContext }) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed', params });
       // npm's own words: "update failed" alone is what left this unfixable.
       ctx.notify(
-        result.summary
-          ? t('update.errorFailedDetail', { message: result.summary })
-          : t(result.errorKey ?? 'update.errorFailed', params),
+        (t) =>
+          result.summary
+            ? t('update.errorFailedDetail', { message: result.summary })
+            : t(result.errorKey ?? 'update.errorFailed', params),
         'error',
       );
       return;
@@ -144,7 +145,7 @@ export function About({ ctx }: { ctx: AppContext }) {
     setSourceNote(null);
     // Installed: the line under the title has nothing left to announce.
     ctx.setUpdateCheck(null);
-    ctx.notify(t('update.restartHint'), 'success');
+    ctx.notify((t) => t('update.restartHint'), 'success');
   };
 
   /**
@@ -167,17 +168,18 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const choose = (language: string) => {
     const result = setField(draft, 'language', language);
-    if (result.errorKey) {
-      ctx.notify(t(result.errorKey), 'error');
+    const { errorKey } = result;
+    if (errorKey) {
+      ctx.notify((t) => t(errorKey), 'error');
       return;
     }
     ctx.updateDraft(result.draft);
     try {
       saveDraft(result.draft);
       ctx.reloadConfig();
-      ctx.notify(t('common.saved', { path: configPath() }), 'success');
+      ctx.notify((t) => t('common.saved', { path: configPath() }), 'success');
     } catch (error) {
-      ctx.notify(t('error.saveFailed', { message: (error as Error).message }), 'error');
+      ctx.notify((t) => t('error.saveFailed', { message: (error as Error).message }), 'error');
     }
   };
 
@@ -230,7 +232,9 @@ export function About({ ctx }: { ctx: AppContext }) {
         >
           {updateLabel}
         </Selectable>
-        {sourceNote ? <Text color={theme.muted}>{`  ${sourceNote}`}</Text> : null}
+        {sourceNote ? (
+          <Text color={theme.muted}>{`  ${t('update.mirrorBehind', sourceNote)}`}</Text>
+        ) : null}
       </Box>
 
       <Row label={t('about.version')}>
