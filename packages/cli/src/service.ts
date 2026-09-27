@@ -137,6 +137,8 @@ function spawnDetached(spec: ServiceSpec): number | undefined {
       cwd: PACKAGE_ROOT,
       env: { ...baseEnvironment(), ...spec.env },
       detached: true,
+      // A detached console program can open a visible window from a console-less Windows parent.
+      windowsHide: true,
       stdio: ['ignore', logFd, logFd],
     });
     child.unref();

@@ -112,7 +112,10 @@ export function stopManaged(config = loadConfig()) {
 
 export function enableLinger(): { ok: true; username: string } {
   const username = os.userInfo().username;
-  const result = spawnSync('loginctl', ['enable-linger', username], { encoding: 'utf8' });
+  const result = spawnSync('loginctl', ['enable-linger', username], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
   if (result.status !== 0) {
     throw new Error(String(result.stderr || '').trim() || 'loginctl enable-linger failed');
   }

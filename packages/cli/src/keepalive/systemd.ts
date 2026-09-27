@@ -60,7 +60,11 @@ WantedBy=default.target
 }
 
 function systemctl(args: string[]) {
-  return spawnSync('systemctl', ['--user', ...args], { encoding: 'utf8', stdio: 'pipe' });
+  return spawnSync('systemctl', ['--user', ...args], {
+    encoding: 'utf8',
+    stdio: 'pipe',
+    windowsHide: true,
+  });
 }
 
 /** Run a systemctl command that must succeed, throwing its stderr when it does not. */
@@ -82,7 +86,7 @@ export const systemd: KeepaliveBackend = {
     const lingering = spawnSync(
       'loginctl',
       ['show-user', os.userInfo().username, '--property=Linger'],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', windowsHide: true },
     );
     return {
       manager: 'systemd',

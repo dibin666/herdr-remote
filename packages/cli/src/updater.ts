@@ -31,7 +31,11 @@ type FetchLike = (
   init: { signal: AbortSignal; headers: Record<string, string> },
 ) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
 
-type SpawnLike = (command: string, args: string[], options: { timeout: number }) => ChildProcess;
+type SpawnLike = (
+  command: string,
+  args: string[],
+  options: { timeout: number; windowsHide: boolean },
+) => ChildProcess;
 
 /** What `checkForUpdate` answered. */
 export interface UpdateCheck {
@@ -355,7 +359,7 @@ function runNpm(spawnImpl: SpawnLike, args: string[], timeoutMs: number): Promis
   return new Promise((resolve) => {
     let child: ChildProcess;
     try {
-      child = spawnImpl('npm', args, { timeout: timeoutMs });
+      child = spawnImpl('npm', args, { timeout: timeoutMs, windowsHide: true });
     } catch (error) {
       resolve({
         ok: false,

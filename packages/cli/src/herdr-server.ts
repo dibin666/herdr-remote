@@ -182,6 +182,7 @@ function launchHerdrServer({
       cwd,
       env: serverEnv(socketPath),
       detached: true,
+      windowsHide: true,
       stdio: ['ignore', out, out],
     });
   } finally {

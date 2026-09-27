@@ -44,7 +44,11 @@ function manifestPath(): string {
 // manager, neither of which is guaranteed the PATH the user installed with, so
 // the command is resolved rather than named.
 function runHerdr(args: string[], { timeout = 15_000 } = {}): SpawnSyncReturns<string> {
-  const result = spawnSync(resolveHerdrCommand(), args, { encoding: 'utf8', timeout });
+  const result = spawnSync(resolveHerdrCommand(), args, {
+    encoding: 'utf8',
+    timeout,
+    windowsHide: true,
+  });
   if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
     throw Object.assign(new Error('herdr command not found'), { code: 'HERDR_NOT_FOUND' });
   }

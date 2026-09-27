@@ -6,6 +6,8 @@ interface PtySessionOptions {
   args?: string[];
   cwd?: string;
   socketPath?: string | null;
+  platform?: NodeJS.Platform;
+  spawn?: typeof pty.spawn;
 }
 
 interface PtyStartOptions {
@@ -25,10 +27,19 @@ class PtySession {
   readonly args: string[];
   readonly cwd: string;
   readonly socketPath: string | null | undefined;
+  readonly platform: NodeJS.Platform;
+  private readonly spawnPty: typeof pty.spawn;
   terminal: IPty | null;
   startedAt: string | null;
 
-  constructor({ command, args = [], cwd = os.homedir(), socketPath }: PtySessionOptions = {}) {
+  constructor({
+    command,
+    args = [],
+    cwd = os.homedir(),
+    socketPath,
+    platform = process.platform,
+    spawn: spawnPty = pty.spawn,
+  }: PtySessionOptions = {}) {
     if (typeof command !== 'string' || command.length === 0)
       throw new TypeError('command must be a non-empty string');
     if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string'))
@@ -37,6 +48,8 @@ class PtySession {
     this.args = args;
     this.cwd = cwd;
     this.socketPath = socketPath;
+    this.platform = platform;
+    this.spawnPty = spawnPty;
     this.terminal = null;
     this.startedAt = null;
   }
@@ -60,12 +73,16 @@ class PtySession {
 
   start({ cols, rows, onData, onExit }: PtyStartOptions): this {
     if (this.terminal) throw new Error('PTY session already started');
-    this.terminal = pty.spawn(this.command, this.args, {
+    // The bundled ConPTY preserves Kitty sequences older system ConPTY drops,
+    // which is why Herdr embeds it too. System ConPTY's kill() forks a
+    // console-list helper without windowsHide, which flashes a window here.
+    this.terminal = this.spawnPty(this.command, this.args, {
       name: 'xterm-256color',
       cols: PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
       rows: PtySession.clampDimension(rows, PtySession.DEFAULT_ROWS),
       cwd: this.cwd,
       env: PtySession.childEnv(this.socketPath) as Record<string, string>,
+      ...(this.platform === 'win32' ? { useConptyDll: true } : {}),
     });
     this.startedAt = new Date().toISOString();
     const terminal = this.terminal;

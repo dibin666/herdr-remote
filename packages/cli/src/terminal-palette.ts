@@ -133,7 +133,11 @@ function paletteFromEnvironment(env: NodeJS.ProcessEnv = process.env): HostTermi
 }
 
 function runStty(args: string[], ttyPath: string) {
-  return spawnSync('stty', [...args, '-F', ttyPath], { encoding: 'utf8', timeout: 1000 });
+  return spawnSync('stty', [...args, '-F', ttyPath], {
+    encoding: 'utf8',
+    timeout: 1000,
+    windowsHide: true,
+  });
 }
 
 /**

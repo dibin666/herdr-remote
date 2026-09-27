@@ -29,6 +29,7 @@ function start() {
       cwd: PACKAGE_ROOT,
       env: { ...process.env, HERDR_REMOTE_SERVICE: '1', ...serviceEnvironment() },
       detached: true,
+      windowsHide: true,
       stdio: ['ignore', logFd, logFd],
     });
     child.unref();
