@@ -16,8 +16,8 @@ export interface KeepaliveStatus {
 export interface KeepaliveBackend {
   readonly name: 'systemd' | 'launchd' | 'supervisor';
   status(): KeepaliveStatus;
-  install(): { ok: true; [key: string]: unknown };
-  uninstall(): { ok: true; [key: string]: unknown };
+  install(): Promise<{ ok: true; [key: string]: unknown }>;
+  uninstall(): Promise<{ ok: true; [key: string]: unknown }>;
   /** Restart the services, so config edits take effect. */
   restart(): { ok: true; [key: string]: unknown };
   /** Stop the services without uninstalling them. */

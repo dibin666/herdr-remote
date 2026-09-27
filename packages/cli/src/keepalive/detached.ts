@@ -70,8 +70,13 @@ export const detached: KeepaliveBackend = {
     };
   },
 
-  install: start,
-  uninstall: stopAndForget,
+  async install() {
+    return start();
+  },
+
+  async uninstall() {
+    return stopAndForget();
+  },
 
   restart() {
     stopAndForget();

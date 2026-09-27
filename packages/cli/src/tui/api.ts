@@ -5,6 +5,7 @@
 // single surface to call.
 
 import { OFFICIAL_RELAY_URL, configExists, loadConfig } from '../config.js';
+export { KEEPALIVE_MANAGERS } from '../config.js';
 import { configPath, stateDir } from '../paths.js';
 import { bindAddress, resolveAdminOrigin, runsLocalRelay } from '../relay-urls.js';
 import { MIN_HERDR_VERSION, herdrVersion } from '../herdr-command.js';

@@ -125,7 +125,7 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
       let keepaliveInstalled = false;
       if (installKeepalive) {
         try {
-          keepalive.install(finalConfig);
+          await keepalive.install(finalConfig);
           keepaliveInstalled = true;
         } catch (error) {
           // Keep-alive is a convenience; a container without systemd should not

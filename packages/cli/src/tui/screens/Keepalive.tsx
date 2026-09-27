@@ -4,9 +4,7 @@ import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
 import { Message, Panel, Row, Selectable, StatusDot } from '../components/common.js';
 import { ChoiceList } from './Relay.js';
-import { keepalive, saveDraft, setField } from '../api.js';
-
-const MANAGERS = ['auto', 'systemd', 'launchd', 'supervisor', 'none'];
+import { KEEPALIVE_MANAGERS, keepalive, saveDraft, setField } from '../api.js';
 
 export function Keepalive({ ctx }: { ctx: AppContext }) {
   const { t, status, draft, editingId } = ctx;
@@ -28,14 +26,14 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
       ctx.setEditing('keepaliveManager');
       return;
     }
-    ctx.run(() => {
+    ctx.run(async () => {
       if (id === 'install') {
-        const result = keepalive.install(ctx.config);
+        const result = await keepalive.install(ctx.config);
         ctx.notify((t) => t('keepalive.installed', { manager: result.manager }), 'success');
         return;
       }
       if (id === 'uninstall') {
-        keepalive.uninstall(ctx.config);
+        await keepalive.uninstall(ctx.config);
         ctx.notify((t) => t('keepalive.uninstalled'), 'success');
         return;
       }
@@ -65,7 +63,7 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
     return (
       <Panel title={t('field.keepalive')}>
         <ChoiceList
-          options={MANAGERS.map((manager) => ({ id: manager, label: manager }))}
+          options={KEEPALIVE_MANAGERS.map((manager) => ({ id: manager, label: manager }))}
           current={draft.keepalive.manager}
           onPick={(manager) => {
             const result = setField(draft, 'keepaliveManager', manager);

@@ -258,8 +258,8 @@ async function main(argv = process.argv.slice(2)) {
     case 'keepalive': {
       const keepalive = await import('./keepalive/index.js');
       const action = positional[1] || 'status';
-      if (action === 'install') printJson(keepalive.install(config));
-      else if (action === 'uninstall') printJson(keepalive.uninstall(config));
+      if (action === 'install') printJson(await keepalive.install(config));
+      else if (action === 'uninstall') printJson(await keepalive.uninstall(config));
       else if (action === 'restart') printJson(keepalive.restart(config));
       else if (action === 'status') printJson(keepalive.status(config));
       else throw new Error(`unknown keepalive action: ${action}`);

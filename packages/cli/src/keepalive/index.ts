@@ -80,15 +80,15 @@ export function status(config = loadConfig()): KeepaliveStatus {
   return backendOf(config).status();
 }
 
-export function install(config = loadConfig()) {
+export async function install(config = loadConfig()) {
   if (managerOf(config) === 'none') throw new Error('keep-alive is disabled in the configuration');
   const backend = backendOf(config);
-  return { manager: backend.name, ...backend.install() };
+  return { manager: backend.name, ...(await backend.install()) };
 }
 
-export function uninstall(config = loadConfig()) {
+export async function uninstall(config = loadConfig()) {
   const backend = backendOf(config);
-  return { manager: backend.name, ...backend.uninstall() };
+  return { manager: backend.name, ...(await backend.uninstall()) };
 }
 
 /** Restart whatever manages the services, so config edits take effect. */
