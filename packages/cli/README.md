@@ -57,8 +57,9 @@ herdr-remote plugin link
 The `herdr` binary is looked up in `HERDR_BIN_PATH`, then `PATH`, then the usual
 install directories (`~/.local/bin`, `~/.cargo/bin`, `~/bin`, `/opt/homebrew/bin`,
 `/usr/local/bin`, …). `herdr-remote keepalive install` writes the binary it found
-and the current `PATH` into the systemd unit, launchd agent, or Windows service
-(`windows-service`), because a service manager does not inherit your shell's environment.
+and the current `PATH` into the systemd unit, launchd agent, Windows logon task
+(`windows-task`), or Windows service (`windows-service`), because managed processes
+do not inherit your shell's environment.
 
 On Windows, only `herdr.exe` is searched for, including `%LOCALAPPDATA%\Programs\Herdr\bin`,
 `~\.cargo\bin`, and `~\scoop\shims`.

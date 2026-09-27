@@ -140,7 +140,7 @@ Install the background service from the **Keep-alive** tab or the CLI:
 
 - **Linux**: systemd user unit (`loginctl enable-linger` keeps it running after logout)
 - **macOS**: LaunchAgent
-- **Windows**: a WinSW service that runs as your account and starts at boot. Installation first tries an empty account password; if Windows rejects it, enter the Windows account password (not a PIN). Choose `supervisor` to run without administrator rights or a password, while you are signed in.
+- **Windows**: a Task Scheduler task starts under your account when you sign in, without asking for a password or administrator rights. It does not run before sign-in. Select `windows-service` if it must start before sign-in; that option needs administrator rights and Windows may require your account password.
 - **Anything else**: a built-in supervisor process
 
 ```bash

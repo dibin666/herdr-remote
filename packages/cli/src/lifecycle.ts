@@ -54,7 +54,7 @@ function restartAll(config = loadConfig()) {
   return { ...restartServices(), managed: false };
 }
 
-/** Release Windows service binaries while npm replaces their package files. */
+/** Stop Windows keep-alive processes while npm replaces their package files. */
 async function whileServicesStopped<T>(
   config: Config,
   task: () => T | Promise<T>,

@@ -141,8 +141,10 @@ const en = {
   'keepalive.lingerDone': 'Start at boot enabled for {username}.',
   'keepalive.fallbackNote':
     'No system service manager found; background process will not survive reboot.',
+  'keepalive.windowsTaskNote':
+    'Starts after you sign in as your account. It needs no password or administrator rights and does not run before sign-in.',
   'keepalive.serviceNote':
-    'Runs as a Windows service under your account and starts at boot, before anyone signs in. Installing or removing it asks for administrator rights.',
+    'Runs as a Windows service under your account and starts before sign-in. Installing or removing it asks for administrator rights, and Windows may require your account password.',
   'keepalive.serviceWindowHint': 'Finish the installation in the administrator window that opens.',
   'keepalive.elevationCancelled': 'Administrator rights were not granted; nothing was installed.',
   'keepalive.passwordPrompt':

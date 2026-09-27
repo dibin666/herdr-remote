@@ -35,6 +35,7 @@ const KEEPALIVE_MANAGERS = [
   'systemd',
   'launchd',
   'supervisor',
+  'windows-task',
   'windows-service',
   'none',
 ] as const;
