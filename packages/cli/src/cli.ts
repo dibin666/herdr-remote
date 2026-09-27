@@ -49,6 +49,7 @@ Self-hosting: docs/self-hosted-relay.md
 interface CliFlags {
   json?: boolean;
   daemon?: boolean;
+  elevated?: boolean;
   help?: boolean;
   version?: boolean;
   lang?: string;
@@ -68,6 +69,10 @@ function parseArgs(argv: string[]): { positional: string[]; flags: CliFlags } {
     }
     if (arg === '--daemon') {
       flags.daemon = true;
+      continue;
+    }
+    if (arg === '--elevated') {
+      flags.elevated = true;
       continue;
     }
     if (arg === '--help' || arg === '-h') {
@@ -258,7 +263,10 @@ async function main(argv = process.argv.slice(2)) {
     case 'keepalive': {
       const keepalive = await import('./keepalive/index.js');
       const action = positional[1] || 'status';
-      if (action === 'install') printJson(await keepalive.install(config));
+      if (action === 'install' && flags.elevated) {
+        const { completeServiceInstall } = await import('./keepalive/windows-service-setup.js');
+        process.exitCode = await completeServiceInstall(t);
+      } else if (action === 'install') printJson(await keepalive.install(config));
       else if (action === 'uninstall') printJson(await keepalive.uninstall(config));
       else if (action === 'restart') printJson(keepalive.restart(config));
       else if (action === 'status') printJson(keepalive.status(config));
