@@ -54,13 +54,18 @@ function restartAll(config = loadConfig()) {
   return { ...restartServices(), managed: false };
 }
 
+/** Whether the host connector is up, under a keep-alive manager or detached. */
+function servicesRunning(config = loadConfig()): boolean {
+  return Boolean(managerInUse(config)?.active || pidAlive(readRuntime().hostPid));
+}
+
 /** Stop Windows keep-alive processes while npm replaces their package files. */
 async function whileServicesStopped<T>(
   config: Config,
   task: () => T | Promise<T>,
   {
     platform = process.platform,
-    isRunning = () => Boolean(managerInUse(config)?.active || pidAlive(readRuntime().hostPid)),
+    isRunning = () => servicesRunning(config),
     stop = stopAll,
     start = startAll,
   }: {
@@ -89,4 +94,12 @@ async function fullStatus(config = loadConfig()) {
   };
 }
 
-export { startAll, stopAll, restartAll, fullStatus, managerInUse, whileServicesStopped };
+export {
+  startAll,
+  stopAll,
+  restartAll,
+  fullStatus,
+  managerInUse,
+  servicesRunning,
+  whileServicesStopped,
+};
