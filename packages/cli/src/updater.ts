@@ -219,15 +219,19 @@ async function fetchJson(
  */
 async function askRegistry(
   registry: string,
-  { timeoutMs, fetchImpl }: { timeoutMs: number; fetchImpl: FetchLike },
+  {
+    timeoutMs,
+    fetchImpl,
+    packageName,
+  }: { timeoutMs: number; fetchImpl: FetchLike; packageName: string },
 ): Promise<{ ok: true; latest: string } | { ok: false; message: string | null }> {
   type Body = { latest?: unknown; version?: unknown } | null | undefined;
   const endpoints = [
     {
-      url: `${registry}/-/package/${PACKAGE_NAME}/dist-tags`,
+      url: `${registry}/-/package/${packageName}/dist-tags`,
       read: (body: unknown) => (body as Body)?.latest,
     },
-    { url: `${registry}/${PACKAGE_NAME}/latest`, read: (body: unknown) => (body as Body)?.version },
+    { url: `${registry}/${packageName}/latest`, read: (body: unknown) => (body as Body)?.version },
   ];
   let message: string | null = null;
   for (const endpoint of endpoints) {
@@ -259,16 +263,20 @@ async function checkForUpdate({
   timeoutMs = 6000,
   fetchImpl = globalThis.fetch,
   registries = registryCandidates(),
+  // Another package this one installs, and the version of it on disk: the relay.
+  packageName = PACKAGE_NAME,
+  current = currentVersion(),
 }: {
   timeoutMs?: number;
   fetchImpl?: FetchLike;
   registries?: string[];
+  packageName?: string;
+  current?: string;
 } = {}): Promise<UpdateCheck> {
-  const current = currentVersion();
   const attempts = await Promise.all(
     registries.map(async (registry) => ({
       registry,
-      ...(await askRegistry(registry, { timeoutMs, fetchImpl })),
+      ...(await askRegistry(registry, { timeoutMs, fetchImpl, packageName })),
     })),
   );
   const answers = attempts.filter(

@@ -241,6 +241,19 @@ const zh: Record<MessageKey, string> = {
   'update.mirrorBehind': '{registries} 仍是旧版本，将从 {source} 安装',
   'update.cannot.source': '源码目录运行，请使用 git 更新',
   'update.cannot.linked': 'npm link 工作副本，由 npm link 管理',
+  'relayUpdate.check': 'Relay {version}：检查更新',
+  'relayUpdate.checking': 'Relay：查询 npm 中…',
+  'relayUpdate.upToDate': 'Relay 已是最新（{version}）',
+  'relayUpdate.available': 'Relay 新版本 {latest} 可用，当前 {installed}（按 Enter 安装）',
+  'relayUpdate.needsCli': 'Relay {latest} 需要更新 herdr-remote，请先更新上一行',
+  'relayUpdate.updating': '安装 relay {version} 中…',
+  'relayUpdate.updatingRetry': '安装 relay {version} 中…（npm 尚未同步，第 {attempt} 次尝试）',
+  'relayUpdate.restart': 'Relay {version} 已安装，运行中的仍是 {running}（按 Enter 重启生效）',
+  'relayUpdate.restarting': '正在重启 herdr-remote…',
+  'relayUpdate.restarted': 'herdr-remote 已重启，relay 现在运行 {version}。',
+  'relayUpdate.errorNotApplied': 'npm 已完成，但安装的仍是 relay {installed}',
+  'relayUpdate.banner':
+    'Relay {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在 Relay 一行按 Enter 安装。',
 };
 
 export default zh;

@@ -14,6 +14,12 @@ import {
   DEFAULT_REGISTRY,
   MIRROR_REGISTRY,
 } from '../src/updater.js';
+import {
+  checkForRelayUpdate,
+  installedRelayVersion,
+  performRelayUpdate,
+  withinCaretRange,
+} from '../src/relay-updater.js';
 
 test('version comparison orders releases numerically, not as text', () => {
   assert.equal(compareVersions('0.2.10', '0.2.9'), 1, '10 is newer than 9');
@@ -355,4 +361,74 @@ test('npm reporting success while the old version stays installed is not success
   assert.equal(result.ok, false);
   assert.equal(result.errorKey, 'update.errorNotApplied');
   assert.equal(result.installed, '0.2.15');
+});
+
+// A relay released on its own leaves herdr-remote's version alone, so the
+// herdr-remote check never sees it: a local relay is checked by itself.
+test('a relay range below 1.0 holds its minor version, from its floor', () => {
+  assert.equal(withinCaretRange('0.3.18', '^0.3.9'), true);
+  assert.equal(withinCaretRange('0.3.9', '^0.3.9'), true);
+  assert.equal(withinCaretRange('0.3.8', '^0.3.9'), false);
+  assert.equal(withinCaretRange('0.4.0', '^0.3.9'), false);
+  assert.equal(withinCaretRange('1.5.0', '^1.2.0'), true);
+  assert.equal(withinCaretRange('2.0.0', '^1.2.0'), false);
+  assert.equal(withinCaretRange('0.3.18', '0.3.x'), false);
+});
+
+test('the relay is checked by its own name, against the relay on disk', async () => {
+  const urls = [];
+  const result = await checkForRelayUpdate({
+    registries: ['https://registry.npmjs.org'],
+    fetchImpl: async (url) => {
+      urls.push(url);
+      return { ok: true, json: async () => ({ latest: '0.3.999' }) };
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.updateAvailable, true);
+  assert.equal(result.latest, '0.3.999');
+  assert.equal(result.current, installedRelayVersion());
+  assert.match(urls[0], /\/herdr-remote-relay\//);
+});
+
+test('a relay this herdr-remote cannot take is left to the herdr-remote update', async () => {
+  const result = await checkForRelayUpdate({
+    registries: ['https://registry.npmjs.org'],
+    fetchImpl: async () => ({ ok: true, json: async () => ({ latest: '99.0.0' }) }),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.updateAvailable, false);
+  assert.equal(result.needsNewerCli, true);
+});
+
+test('a relay update reinstalls the running herdr-remote, and checks the relay it got', async () => {
+  const npm = fakeNpm([{ code: 0, stdout: 'changed 76 packages' }]);
+  const updated = await performRelayUpdate({
+    installKindImpl: () => 'npm',
+    registry: 'https://registry.npmjs.org',
+    relayVersion: '0.3.18',
+    spawnImpl: npm.spawnImpl,
+    readInstalledVersion: () => currentVersion(),
+    readRelayVersion: () => '0.3.18',
+  });
+  assert.equal(updated.ok, true);
+  assert.equal(updated.installed, '0.3.18');
+  assert.deepEqual(npm.calls[0].slice(0, 4), [
+    'install',
+    '-g',
+    `herdr-remote@${currentVersion()}`,
+    '--prefer-online',
+  ]);
+
+  // npm resolved an older relay (a mirror behind the release): not an update.
+  const stale = await performRelayUpdate({
+    installKindImpl: () => 'npm',
+    relayVersion: '0.3.18',
+    spawnImpl: fakeNpm([{ code: 0, stdout: 'changed 76 packages' }]).spawnImpl,
+    readInstalledVersion: () => currentVersion(),
+    readRelayVersion: () => '0.3.14',
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.errorKey, 'relayUpdate.errorNotApplied');
+  assert.equal(stale.installed, '0.3.14');
 });
