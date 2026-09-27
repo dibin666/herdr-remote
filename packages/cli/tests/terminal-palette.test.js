@@ -3,6 +3,7 @@
 // mean. These tests cover the path that closes that gap — asking the host's own
 // terminal, and refusing to invent an answer when there is nothing to ask.
 
+import { EventEmitter } from 'node:events';
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -19,9 +20,11 @@ import {
   parseXColor,
   parseOscColorReply,
   paletteFromEnvironment,
+  probeConsolePalette,
   probeTerminalPalette,
   resolveHostPalette,
 } from '../src/terminal-palette.js';
+import { isolateState } from './helpers.js';
 
 const FULL_ANSI = Object.fromEntries(
   ANSI_KEYS.map((key, index) => [key, `#${index.toString(16).repeat(6)}`]),
@@ -195,13 +198,13 @@ test('a start with no terminal reuses the palette an earlier start remembered', 
   }
 });
 
-test('the entry point captures once, before the TUI owns the screen', () => {
+test('the entry point captures once, before the TUI owns the screen', async () => {
   const probed = { background: '#222226', ansi: FULL_ANSI };
 
   // An answer already in the environment is reused; no second probe.
   let probes = 0;
   const inheritedEnv = { HERDR_TERM_PALETTE_JSON: JSON.stringify(probed) };
-  const inherited = captureTerminalPalette({
+  const inherited = await captureTerminalPalette({
     env: inheritedEnv,
     probe: () => {
       probes += 1;
@@ -213,7 +216,7 @@ test('the entry point captures once, before the TUI owns the screen', () => {
 
   // A captured palette is published for every child of this process.
   const freshEnv = {};
-  const captured = captureTerminalPalette({ env: freshEnv, probe: () => probed });
+  const captured = await captureTerminalPalette({ env: freshEnv, probe: () => probed });
   if (process.stdin.isTTY && process.stdout.isTTY) {
     assert.equal(captured.background, '#222226');
     assert.equal(JSON.parse(freshEnv.HERDR_TERM_PALETTE_JSON).background, '#222226');
@@ -318,4 +321,172 @@ test('a reply still arriving is not parsed out of a fragment', () => {
   assert.equal(takeOscColorReply(state, '\x1b]11'), null);
   state.pending += '/2626\x1b\\';
   assert.equal(takeOscColorReply(state, '\x1b]11'), '#222226');
+});
+
+function fakeConsole(sendReplies = () => {}) {
+  const input = new EventEmitter();
+  const rawModes = [];
+  const writes = [];
+  let resumes = 0;
+  let pauses = 0;
+  input.isTTY = true;
+  input.setRawMode = (enabled) => {
+    rawModes.push(enabled);
+    return input;
+  };
+  input.resume = () => {
+    resumes += 1;
+    return input;
+  };
+  input.pause = () => {
+    pauses += 1;
+    return input;
+  };
+  const output = {
+    isTTY: true,
+    write(value) {
+      writes.push(value);
+      sendReplies(input);
+      return true;
+    },
+  };
+  return {
+    input,
+    output,
+    rawModes,
+    writes,
+    get resumes() {
+      return resumes;
+    },
+    get pauses() {
+      return pauses;
+    },
+  };
+}
+
+function fullPaletteReplies() {
+  return [
+    `\x1b]10;${asXColor('#abcdef')}\x1b\\`,
+    `\x1b]11;${asXColor('#222226')}\x1b\\`,
+    `\x1b]12;${asXColor('#cc0000')}\x1b\\`,
+    ...ANSI_KEYS.map((key, slot) => `\x1b]4;${slot};${asXColor(FULL_ANSI[key])}\x1b\\`),
+  ].join('');
+}
+
+function assertConsoleRestored({ input, rawModes, resumes, pauses }) {
+  assert.deepEqual(rawModes, [true, false]);
+  assert.equal(resumes, 1);
+  assert.equal(pauses, 1);
+  assert.equal(input.listenerCount('data'), 0);
+}
+
+function stubProcessTTY(t) {
+  const streams = [process.stdin, process.stdout];
+  const descriptors = streams.map((stream) => Object.getOwnPropertyDescriptor(stream, 'isTTY'));
+  for (const stream of streams)
+    Object.defineProperty(stream, 'isTTY', { configurable: true, value: true });
+  t.onTestFinished(() => {
+    streams.forEach((stream, index) => {
+      const descriptor = descriptors[index];
+      if (descriptor) Object.defineProperty(stream, 'isTTY', descriptor);
+      else delete stream.isTTY;
+    });
+  });
+}
+
+test('the Windows console probe collects every color reply before the DA1 sentinel', async () => {
+  const fullReplies = fullPaletteReplies();
+  const consoleStreams = fakeConsole((input) => {
+    queueMicrotask(() => input.emit('data', Buffer.from(`${fullReplies}\x1b[?1;2c`, 'latin1')));
+  });
+  const palette = await probeConsolePalette({ ...consoleStreams, timeoutMs: 100 });
+
+  assert.deepEqual(palette, {
+    foreground: '#abcdef',
+    background: '#222226',
+    cursor: '#cc0000',
+    ansi: FULL_ANSI,
+  });
+  assert.deepEqual(consoleStreams.writes, [
+    [
+      '\x1b]10;?\x1b\\',
+      '\x1b]11;?\x1b\\',
+      '\x1b]12;?\x1b\\',
+      ...ANSI_KEYS.map((_, slot) => `\x1b]4;${slot};?\x1b\\`),
+      '\x1b[c',
+    ].join(''),
+  ]);
+  assertConsoleRestored(consoleStreams);
+});
+
+test('the Windows console probe joins replies split across data chunks', async () => {
+  const fullReplies = fullPaletteReplies();
+  const split = fullReplies.indexOf('rgb:') + 9;
+  const consoleStreams = fakeConsole((input) => {
+    queueMicrotask(() => input.emit('data', Buffer.from(fullReplies.slice(0, split), 'latin1')));
+    setImmediate(() =>
+      input.emit('data', Buffer.from(`${fullReplies.slice(split)}\x1b[?1;2c`, 'latin1')),
+    );
+  });
+
+  assert.deepEqual(await probeConsolePalette({ ...consoleStreams, timeoutMs: 100 }), {
+    foreground: '#abcdef',
+    background: '#222226',
+    cursor: '#cc0000',
+    ansi: FULL_ANSI,
+  });
+  assertConsoleRestored(consoleStreams);
+});
+
+test('the Windows console probe returns null when only DA1 arrives', async () => {
+  const consoleStreams = fakeConsole((input) => {
+    queueMicrotask(() => input.emit('data', Buffer.from('\x1b[?1;2c', 'latin1')));
+  });
+
+  assert.equal(await probeConsolePalette({ ...consoleStreams, timeoutMs: 100 }), null);
+  assertConsoleRestored(consoleStreams);
+});
+
+test('the Windows console probe times out without replies and restores the input', async () => {
+  const consoleStreams = fakeConsole();
+
+  assert.equal(await probeConsolePalette({ ...consoleStreams, timeoutMs: 5 }), null);
+  assertConsoleRestored(consoleStreams);
+});
+
+test('capture uses the Windows console probe and the synchronous probe elsewhere', async (t) => {
+  isolateState(t);
+  stubProcessTTY(t);
+  const palette = { background: '#222226', ansi: FULL_ANSI };
+  const consoleProbe = vi.fn(async () => palette);
+  const synchronousProbe = vi.fn(() => palette);
+  const windowsEnv = {};
+
+  assert.deepEqual(
+    await captureTerminalPalette({
+      env: windowsEnv,
+      platform: 'win32',
+      consoleProbe,
+      probe: synchronousProbe,
+    }),
+    palette,
+  );
+  assert.equal(JSON.parse(windowsEnv.HERDR_TERM_PALETTE_JSON).background, '#222226');
+  assert.equal(consoleProbe.mock.calls.length, 1);
+  assert.equal(synchronousProbe.mock.calls.length, 0);
+
+  const linuxEnv = {};
+  const unusedConsoleProbe = vi.fn(async () => null);
+  assert.deepEqual(
+    await captureTerminalPalette({
+      env: linuxEnv,
+      platform: 'linux',
+      consoleProbe: unusedConsoleProbe,
+      probe: synchronousProbe,
+    }),
+    palette,
+  );
+  assert.equal(JSON.parse(linuxEnv.HERDR_TERM_PALETTE_JSON).background, '#222226');
+  assert.equal(unusedConsoleProbe.mock.calls.length, 0);
+  assert.equal(synchronousProbe.mock.calls.length, 1);
 });

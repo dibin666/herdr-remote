@@ -300,6 +300,57 @@ function probeTerminalPalette({
   }
 }
 
+/** Queries Windows Terminal through the raw stdin stream, whose replies are VT bytes. */
+async function probeConsolePalette({
+  input = process.stdin,
+  output = process.stdout,
+  timeoutMs = TOTAL_TIMEOUT_MS,
+}: {
+  input?: NodeJS.ReadStream;
+  output?: NodeJS.WriteStream;
+  timeoutMs?: number;
+} = {}): Promise<HostTerminalPalette | null> {
+  if (!input.isTTY || !output.isTTY) return null;
+
+  const state: ProbeState = { pending: '', overallDeadline: Date.now() + timeoutMs };
+  let listener: ((chunk: Buffer | string) => void) | null = null;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    input.setRawMode(true);
+    await new Promise<void>((resolve) => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        resolve();
+      };
+      listener = (chunk) => {
+        state.pending += typeof chunk === 'string' ? chunk : chunk.toString('latin1');
+        if (/\x1b\[\?[\d;]*c/.test(state.pending)) finish();
+      };
+      input.on('data', listener);
+      input.resume();
+      timer = setTimeout(finish, Math.max(0, state.overallDeadline - Date.now()));
+      // Windows has no /dev/tty-style synchronous read with a timeout. Terminals
+      // answer in order, so DA1 confirms all earlier color replies arrived.
+      output.write(`${PALETTE_QUERIES.map(({ query }) => query).join('')}\x1b[c`);
+    });
+    return collectPalette((_query, prefix) => takeOscColorReply(state, prefix));
+  } catch {
+    // A broken or disconnected console must not prevent the CLI from starting.
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (listener) input.removeListener('data', listener);
+    try {
+      input.setRawMode(false);
+    } catch {
+      // A closed console can reject mode restoration, but pausing still releases the stream.
+    }
+    input.pause();
+  }
+}
+
 /**
  * Remembers a palette for the next start that has no terminal to ask.
  *
@@ -349,15 +400,22 @@ function resolveHostPalette({
  * the very start of the command, means every later caller in this process tree
  * simply inherits the answer through the environment.
  */
-function captureTerminalPalette({
+async function captureTerminalPalette({
   env = process.env,
   probe = probeTerminalPalette as () => HostTerminalPalette | null,
-} = {}): HostTerminalPalette | null {
+  platform = process.platform,
+  consoleProbe = probeConsolePalette,
+}: {
+  env?: NodeJS.ProcessEnv;
+  probe?: () => HostTerminalPalette | null;
+  platform?: string;
+  consoleProbe?: () => Promise<HostTerminalPalette | null>;
+} = {}): Promise<HostTerminalPalette | null> {
   if (env.HERDR_TERM_PALETTE_JSON) return paletteFromEnvironment(env);
   // Without both ends on a terminal there is nobody to answer the query.
   if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
 
-  const palette = probe();
+  const palette = platform === 'win32' ? await consoleProbe() : probe();
   if (!palette) return null;
 
   env.HERDR_TERM_PALETTE_JSON = JSON.stringify(palette);
@@ -401,6 +459,7 @@ export {
   sanitizePalette,
   paletteFromEnvironment,
   probeTerminalPalette,
+  probeConsolePalette,
   resolveHostPalette,
   hostTerminalPalette,
   captureTerminalPalette,
