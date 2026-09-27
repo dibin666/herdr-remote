@@ -24,9 +24,19 @@ async function closeOwnPane(): Promise<void> {
   }
 }
 
-export async function runAdminShell(t: Translate): Promise<number> {
-  const { stdin, stdout } = process;
-  if (process.platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
+export async function runAdminShell(
+  t: Translate,
+  {
+    stdin = process.stdin,
+    stdout = process.stdout,
+    platform = process.platform,
+  }: {
+    stdin?: NodeJS.ReadStream;
+    stdout?: NodeJS.WriteStream;
+    platform?: NodeJS.Platform;
+  } = {},
+): Promise<number> {
+  if (platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
   if (!stdin.isTTY || !stdout.isTTY) throw new Error(t('adminShell.needsTerminal'));
   const pty = new ElevatedPty({
     command: 'powershell.exe',
@@ -37,6 +47,9 @@ export async function runAdminShell(t: Translate): Promise<number> {
   const relayResize = () => pty.resize(stdout.columns, stdout.rows);
   stdin.setRawMode(true);
   stdin.on('data', relayInput);
+  // The CLI's Windows color probe pauses stdin before any command runs, and a
+  // paused stream ignores a new 'data' listener: no key would reach PowerShell.
+  stdin.resume();
   stdout.on('resize', relayResize);
   try {
     const exitCode = await new Promise<number>((resolve, reject) => {
