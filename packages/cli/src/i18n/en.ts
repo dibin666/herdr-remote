@@ -145,8 +145,10 @@ const en = {
     'Runs as a Windows service under your account and starts at boot, before anyone signs in. Installing or removing it asks for administrator rights.',
   'keepalive.serviceWindowHint': 'Finish the installation in the administrator window that opens.',
   'keepalive.elevationCancelled': 'Administrator rights were not granted; nothing was installed.',
-  'keepalive.passwordPrompt': 'Windows password for {account} (the service signs in as you):',
-  'keepalive.passwordRejected': 'Windows did not accept that password. Try again.',
+  'keepalive.passwordPrompt':
+    'Windows account password for {account} (not a PIN; press Enter if there is no password):',
+  'keepalive.passwordRejected':
+    'Windows could not start the service with those credentials. Check the account password and service logon policy.',
   'keepalive.serviceInstalled': 'Service {id} is installed and running.',
   'keepalive.wrongAccount':
     'Run this as the account that will use herdr-remote, not another administrator account.',

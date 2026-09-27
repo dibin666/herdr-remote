@@ -145,8 +145,10 @@ const zh: Record<MessageKey, string> = {
     '以你的账户作为 Windows 服务运行，开机后、登录前自动启动。安装或移除需要管理员权限。',
   'keepalive.serviceWindowHint': '请在随后打开的管理员窗口中完成安装。',
   'keepalive.elevationCancelled': '未授予管理员权限，未安装服务。',
-  'keepalive.passwordPrompt': '请输入 {account} 的 Windows 密码（服务将以你的账户登录）：',
-  'keepalive.passwordRejected': 'Windows 不接受这个密码，请重试。',
+  'keepalive.passwordPrompt':
+    '请输入 {account} 的 Windows 账户密码（不是 PIN；账户无密码时直接按 Enter）：',
+  'keepalive.passwordRejected':
+    'Windows 未能使用这些凭据启动服务。请检查账户密码和“作为服务登录”策略。',
   'keepalive.serviceInstalled': '服务 {id} 已安装并正在运行。',
   'keepalive.wrongAccount': '请使用将运行 herdr-remote 的账户执行此操作，不要换用其他管理员账户。',
   'keepalive.pressEnter': '按 Enter 关闭此窗口。',

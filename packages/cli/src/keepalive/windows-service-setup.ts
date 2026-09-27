@@ -86,6 +86,45 @@ function failure(label: string, result: ReturnType<typeof spawnSync>): Error {
   return new Error(`${label} failed (${String(result.status)}): ${output}`);
 }
 
+type ServiceAccountFlow = {
+  setAccount: typeof setServiceAccount;
+  start: typeof startService;
+  prompt: (account: string) => Promise<string | null>;
+  write: (message: string) => void;
+};
+
+export async function configureAndStartServiceAccount(
+  id: string,
+  account: string,
+  t: Translate,
+  dependencies: Partial<ServiceAccountFlow> = {},
+): Promise<boolean> {
+  const setAccount = dependencies.setAccount || setServiceAccount;
+  const start = dependencies.start || startService;
+  const prompt =
+    dependencies.prompt ||
+    ((name) => promptSecret(t('keepalive.passwordPrompt', { account: name })));
+  const write = dependencies.write || ((message) => process.stdout.write(message));
+
+  for (let attempt = 0; attempt <= MAX_PASSWORD_ATTEMPTS; attempt += 1) {
+    const password = attempt === 0 ? '' : await prompt(account);
+    if (password === null) return false;
+
+    const changed = setAccount(id, account, password);
+    if (changed.error || changed.status !== 0)
+      throw failure('Setting the Windows service account', changed);
+
+    const started = classifyStartResult(start());
+    if (started === 'ok') return true;
+    if (started !== 'logon-failed') {
+      write(`${started.message}\n`);
+      return false;
+    }
+    write(`${t('keepalive.passwordRejected')}\n`);
+  }
+  return false;
+}
+
 /** Complete service installation inside the elevated console. */
 export async function completeServiceInstall(t: Translate): Promise<number> {
   try {
@@ -114,23 +153,9 @@ export async function completeServiceInstall(t: Translate): Promise<number> {
 
     const { domain, user } = currentServiceAccount();
     const account = `${domain}\\${user}`;
-    for (let attempt = 0; attempt < MAX_PASSWORD_ATTEMPTS; attempt += 1) {
-      const password = await promptSecret(t('keepalive.passwordPrompt', { account }));
-      if (password === null) return 1;
-      const changed = setServiceAccount(paths.id, account, password);
-      if (changed.error || changed.status !== 0)
-        throw failure('Setting the Windows service account', changed);
-      const started = classifyStartResult(startService());
-      if (started === 'ok') {
-        process.stdout.write(`${t('keepalive.serviceInstalled', { id: paths.id })}\n`);
-        return 0;
-      }
-      if (started === 'logon-failed') {
-        process.stdout.write(`${t('keepalive.passwordRejected')}\n`);
-        continue;
-      }
-      process.stdout.write(`${started.message}\n`);
-      return 1;
+    if (await configureAndStartServiceAccount(paths.id, account, t)) {
+      process.stdout.write(`${t('keepalive.serviceInstalled', { id: paths.id })}\n`);
+      return 0;
     }
     return 1;
   } catch (error) {
