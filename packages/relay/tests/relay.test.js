@@ -1747,6 +1747,7 @@ test('a newer herdr-remote is announced to every window, versions only, and repl
       latest: '0.3.0',
       updateAvailable: true,
       restartPending: 'yes',
+      updateCommand: true,
       extra: 'dropped',
     }),
   );
@@ -1757,6 +1758,7 @@ test('a newer herdr-remote is announced to every window, versions only, and repl
     latest: '0.3.0',
     updateAvailable: true,
     restartPending: false,
+    updateCommand: true,
   });
 
   const late = await openWebSocket(`${wsBase}/ws/client`);

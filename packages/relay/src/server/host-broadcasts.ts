@@ -73,7 +73,7 @@ export function broadcastAgentStatus(
 
 /**
  * Whether the workstation runs the newest herdr-remote, for every window on
- * it. Only version strings and two flags pass: this ends up as text in the
+ * it. Only version strings and three flags pass: this ends up as text in the
  * browser, and the host is not the relay's to trust.
  */
 export function broadcastUpdateStatus(
@@ -93,6 +93,7 @@ export function broadcastUpdateStatus(
     latest,
     updateAvailable: message.updateAvailable === true,
     restartPending: message.restartPending === true,
+    updateCommand: message.updateCommand === true,
   };
   host.updateStatus = payload;
   broadcastToClients(relay, host, () => payload);

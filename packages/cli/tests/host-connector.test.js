@@ -767,6 +767,8 @@ test('opening a window tells every window whether a newer herdr-remote is out', 
     latest: '0.3.0',
     updateAvailable: true,
     restartPending: false,
+    // This connector's CLI has `herdr-remote update`; the window can offer it.
+    updateCommand: true,
   });
   // A fact about the workstation, not about one window.
   assert.equal(Object.hasOwn(status, 'clientId'), false);

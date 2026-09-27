@@ -92,7 +92,7 @@ const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
   const { t } = useSettings();
   const { updateStatus, ignoreUpdate, hostname, hostId } = useConnection();
   if (!updateStatus) return null;
-  const { current, installed, latest, restartPending } = updateStatus;
+  const { current, installed, latest, restartPending, updateCommand } = updateStatus;
 
   return (
     <Modal
@@ -152,8 +152,14 @@ const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
               {t('update.stepTui')}
             </p>
             <p className="leading-snug text-tui-muted">{t('update.stepCli')}</p>
-            <Command command={`npm install -g herdr-remote@${latest} --prefer-online`} />
-            <Command command="herdr-remote restart" />
+            {updateCommand ? (
+              <Command command="herdr-remote update" />
+            ) : (
+              <>
+                <Command command={`npm install -g herdr-remote@${latest} --prefer-online`} />
+                <Command command="herdr-remote restart" />
+              </>
+            )}
             <p className="text-tui-sm leading-snug text-tui-faint">{t('update.restartNote')}</p>
           </>
         )}
