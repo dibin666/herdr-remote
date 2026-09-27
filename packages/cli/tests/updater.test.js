@@ -14,12 +14,69 @@ import {
   DEFAULT_REGISTRY,
   MIRROR_REGISTRY,
 } from '../src/updater.js';
+import { npmInvocation } from '../src/updater/npm.js';
 import {
   checkForRelayUpdate,
   installedRelayVersion,
   performRelayUpdate,
   withinCaretRange,
 } from '../src/relay-updater.js';
+
+test('npm invocation keeps the platform default command off Windows', () => {
+  const args = ['install', '-g', 'herdr-remote@1.0.0'];
+
+  assert.deepEqual(npmInvocation({ args, platform: 'linux' }), { command: 'npm', args });
+});
+
+test('Windows npm invocation uses npm_execpath when it names npm-cli.js', () => {
+  const execPath = path.join(os.tmpdir(), 'node.exe');
+  const npmCli = path.join(os.tmpdir(), 'npm', 'bin', 'npm-cli.JS');
+  const args = ['install', '-g', 'herdr-remote@1.0.0'];
+
+  assert.deepEqual(
+    npmInvocation({
+      args,
+      platform: 'win32',
+      env: { npm_execpath: npmCli },
+      execPath,
+      exists: (filePath) => filePath === npmCli,
+    }),
+    { command: execPath, args: [npmCli, ...args] },
+  );
+});
+
+test('Windows npm invocation finds npm-cli.js beside the current Node executable', () => {
+  const execPath = path.join(os.tmpdir(), 'node.exe');
+  const npmCli = path.join(path.dirname(execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const args = ['install', '-g', 'herdr-remote@1.0.0'];
+
+  assert.deepEqual(
+    npmInvocation({
+      args,
+      platform: 'win32',
+      env: {},
+      execPath,
+      exists: (filePath) => filePath === npmCli,
+    }),
+    { command: execPath, args: [npmCli, ...args] },
+  );
+});
+
+test('Windows npm invocation falls back to a shell command line without an args array', () => {
+  const invocation = npmInvocation({
+    args: ['install', '-g', 'herdr remote@1.0.0'],
+    platform: 'win32',
+    env: {},
+    execPath: path.join(os.tmpdir(), 'node.exe'),
+    exists: () => false,
+  });
+
+  assert.deepEqual(invocation, {
+    command: 'npm.cmd "install" "-g" "herdr remote@1.0.0"',
+    shell: true,
+  });
+  assert.equal(Object.hasOwn(invocation, 'args'), false);
+});
 
 test('version comparison orders releases numerically, not as text', () => {
   assert.equal(compareVersions('0.2.10', '0.2.9'), 1, '10 is newer than 9');

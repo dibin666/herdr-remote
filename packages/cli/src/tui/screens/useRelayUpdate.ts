@@ -14,6 +14,7 @@ import {
   type RelayUpdateCheck,
   restartAll,
   runsLocalRelay,
+  whileServicesStopped,
 } from '../api.js';
 
 type RelayUpdateState =
@@ -75,12 +76,14 @@ export function useRelayUpdate(ctx: AppContext) {
 
   const install = async (latest: string) => {
     setState({ phase: 'updating', latest, attempt: 1 });
-    const result = await performRelayUpdate({
-      ...source,
-      relayVersion: latest,
-      onAttempt: ({ attempt }: { attempt: number }) =>
-        setState({ phase: 'updating', latest, attempt }),
-    });
+    const result = await whileServicesStopped(ctx.config, () =>
+      performRelayUpdate({
+        ...source,
+        relayVersion: latest,
+        onAttempt: ({ attempt }: { attempt: number }) =>
+          setState({ phase: 'updating', latest, attempt }),
+      }),
+    );
     if (!result.ok) {
       const params = { version: currentVersion(), installed: result.installed ?? '' };
       const messageKey = result.errorKey ?? 'update.errorFailed';

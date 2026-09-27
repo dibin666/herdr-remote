@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test, vi } from 'vitest';
 import * as lifecycle from '../src/lifecycle.js';
+import { managerInUse } from '../src/lifecycle.js';
 
 // Should the keep-alive mock below ever stop applying, lifecycle falls through
 // to the real service layer; keep it out of the real home directory.
@@ -60,4 +61,95 @@ test('restart still restarts', () => {
     lifecycle.restartAll(config);
     assert.equal(restarts.length, 1);
   });
+});
+
+test('managerInUse returns an installed keep-alive manager', () => {
+  const status = { manager: 'systemd', installed: true, active: true };
+  withKeepalive(status, () => assert.equal(managerInUse(config), status));
+});
+
+test('whileServicesStopped stops, runs the task, and restarts Windows services', async () => {
+  const events = [];
+  const result = await lifecycle.whileServicesStopped(
+    config,
+    async () => {
+      events.push('task');
+      return 'updated';
+    },
+    {
+      platform: 'win32',
+      isRunning: () => true,
+      stop: () => events.push('stop'),
+      start: () => events.push('start'),
+    },
+  );
+
+  assert.deepEqual(events, ['stop', 'task', 'start']);
+  assert.equal(result, 'updated');
+});
+
+test('whileServicesStopped restarts Windows services when the task throws', async () => {
+  const events = [];
+  const failure = new Error('update failed');
+
+  await assert.rejects(
+    lifecycle.whileServicesStopped(
+      config,
+      async () => {
+        events.push('task');
+        throw failure;
+      },
+      {
+        platform: 'win32',
+        isRunning: () => true,
+        stop: () => events.push('stop'),
+        start: () => events.push('start'),
+      },
+    ),
+    failure,
+  );
+  assert.deepEqual(events, ['stop', 'task', 'start']);
+});
+
+test('whileServicesStopped does not start Windows services that were already stopped', async () => {
+  const events = [];
+  const result = await lifecycle.whileServicesStopped(
+    config,
+    async () => {
+      events.push('task');
+      return 'updated';
+    },
+    {
+      platform: 'win32',
+      isRunning: () => false,
+      stop: () => events.push('stop'),
+      start: () => events.push('start'),
+    },
+  );
+
+  assert.deepEqual(events, ['task']);
+  assert.equal(result, 'updated');
+});
+
+test('whileServicesStopped runs directly on Linux', async () => {
+  const events = [];
+  const result = await lifecycle.whileServicesStopped(
+    config,
+    async () => {
+      events.push('task');
+      return 'updated';
+    },
+    {
+      platform: 'linux',
+      isRunning: () => {
+        events.push('isRunning');
+        return true;
+      },
+      stop: () => events.push('stop'),
+      start: () => events.push('start'),
+    },
+  );
+
+  assert.deepEqual(events, ['task']);
+  assert.equal(result, 'updated');
 });

@@ -5,6 +5,7 @@
 // herdr-plugin.toml, which Herdr runs without a terminal attached.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { LANGUAGES, loadConfig, migrateLegacyConfig } from './config.js';
@@ -139,6 +140,17 @@ async function runTui(options: { language: string | null }): Promise<void> {
 
 async function main(argv = process.argv.slice(2)) {
   const { positional, flags } = parseArgs(argv);
+  if (process.platform === 'win32') {
+    const relative = path.relative(PACKAGE_ROOT, process.cwd());
+    const insidePackage =
+      relative === '' ||
+      (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+    if (insidePackage) {
+      // Herdr starts plugin panels in PACKAGE_ROOT; Windows locks the cwd,
+      // preventing npm from replacing that directory.
+      process.chdir(os.homedir());
+    }
+  }
   const command = positional[0] || null;
 
   // Answered before anything reads the config or queries the terminal.
