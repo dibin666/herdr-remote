@@ -2,7 +2,8 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { WS_CLIENT_PATH } from '@protocol/messages';
 import { useSettings, useToasts } from '@/context/TerminalContext';
-import { Button, FieldLabel, GLYPH, Input, Modal } from '@/shared/ui';
+import { Button, FieldLabel, Input, Modal } from '@/shared/ui';
+import { AdvancedFields } from './AdvancedFields';
 
 interface AddHostModalProps {
   isOpen: boolean;
@@ -23,14 +24,12 @@ export const AddHostModal: React.FC<AddHostModalProps> = ({ isOpen, onClose }) =
   const { t, addProfileAndConnect } = useSettings();
   const { addToast } = useToasts();
   const [pairCode, setPairCode] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [wsUrl, setWsUrl] = useState(WS_CLIENT_PATH);
   const [token, setToken] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
     setPairCode('');
-    setShowAdvanced(false);
     setWsUrl(WS_CLIENT_PATH);
     setToken('');
   }, [isOpen]);
@@ -87,49 +86,30 @@ export const AddHostModal: React.FC<AddHostModalProps> = ({ isOpen, onClose }) =
           <p className="text-tui-sm text-tui-faint">{t('pairing.pairCodeHelp')}</p>
         </div>
 
-        <div className="border border-tui-border-dim">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            aria-expanded={showAdvanced}
-            className="tui-focusable flex w-full items-center gap-2 px-2 py-1 text-left text-tui text-tui-muted transition-colors hover:text-tui-accent"
-          >
-            <span aria-hidden="true" className="text-tui-accent">
-              {showAdvanced ? GLYPH.chevronDown : GLYPH.chevronRight}
-            </span>
-            <span>{t('pairing.advancedTitle')}</span>
-            <span className="min-w-0 truncate text-tui-sm text-tui-faint">
-              {t('pairing.advancedHint')}
-            </span>
-          </button>
-
-          {showAdvanced && (
-            <div className="space-y-2.5 border-t border-tui-border-dim px-2 py-2">
-              <div className="space-y-1">
-                <FieldLabel htmlFor="add-host-ws">{t('pairing.wsUrlLabel')}</FieldLabel>
-                <Input
-                  id="add-host-ws"
-                  type="text"
-                  value={wsUrl}
-                  onChange={(e) => setWsUrl(e.target.value)}
-                  placeholder={t('onboarding.wsEndpointPlaceholder')}
-                />
-              </div>
-              <div className="space-y-1">
-                <FieldLabel htmlFor="add-host-token" hint={t('pairing.tokenNote')}>
-                  {t('pairing.tokenLabel')}
-                </FieldLabel>
-                <Input
-                  id="add-host-token"
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder={t('onboarding.manualTokenPlaceholder')}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+        <AdvancedFields hint={t('pairing.advancedHint')}>
+          <div className="space-y-1">
+            <FieldLabel htmlFor="add-host-ws">{t('pairing.wsUrlLabel')}</FieldLabel>
+            <Input
+              id="add-host-ws"
+              type="text"
+              value={wsUrl}
+              onChange={(e) => setWsUrl(e.target.value)}
+              placeholder={t('onboarding.wsEndpointPlaceholder')}
+            />
+          </div>
+          <div className="space-y-1">
+            <FieldLabel htmlFor="add-host-token" hint={t('pairing.tokenNote')}>
+              {t('pairing.tokenLabel')}
+            </FieldLabel>
+            <Input
+              id="add-host-token"
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={t('onboarding.manualTokenPlaceholder')}
+            />
+          </div>
+        </AdvancedFields>
       </form>
     </Modal>
   );

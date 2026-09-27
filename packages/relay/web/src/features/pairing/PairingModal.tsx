@@ -1,40 +1,20 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
 import { useSettings, useConnection, useToasts } from '@/context/TerminalContext';
-import { cn } from '@/shared/lib/cn';
 import { describeConnection } from '@/connection/connectionStatus';
-import { useCopyFeedback } from '@/context/useCopyFeedback';
-import {
-  Button,
-  Checkbox,
-  FieldLabel,
-  GLYPH,
-  Input,
-  Modal,
-  StatusDot,
-  type StatusLevel,
-} from '@/shared/ui';
+import { Button, Checkbox, FieldLabel, Input, Modal, StatusDot } from '@/shared/ui';
 import { WS_CLIENT_PATH } from '@protocol/messages';
+import { AdvancedFields } from './AdvancedFields';
 
 interface PairingModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const STATE_TONE: Record<string, StatusLevel> = {
-  connected: 'ok',
-  connecting: 'warn',
-  reconnecting: 'warn',
-  error: 'bad',
-  disconnected: 'idle',
-};
-
 /**
- * Where the session's credentials live.
- *
- * Laid out as a TUI settings screen: a label column, one field per row, a
- * bracketed checkbox for the boolean, and the actions on the status line at the
- * bottom where a terminal program keeps them.
+ * The open instance's connection: its name, a new pairing code when it has to
+ * pair again, and the rarely touched relay endpoint, token, client ID and
+ * reconnect policy folded away below them.
  */
 export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings, t, activeProfile, activeProfileId, renameProfile } =
@@ -48,8 +28,6 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
   const [clientId, setClientId] = useState(settings.clientId);
   const [displayName, setDisplayName] = useState(activeProfile?.displayName || '');
   const [autoReconnect, setAutoReconnect] = useState(settings.autoReconnect);
-  const { copied, copy } = useCopyFeedback();
-  const copiedLink = copied !== null;
 
   useEffect(() => {
     if (isOpen) {
@@ -92,29 +70,13 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
     onClose();
   };
 
-  const handleGenerateClientId = () => {
-    const newId = `client-${Math.random().toString(36).substring(2, 8)}`;
-    setClientId(newId);
-  };
-
-  const handleCopyShareUrl = () => {
-    const url = new URL(window.location.href);
-    url.search = '';
-    if (pairCode.trim()) {
-      url.searchParams.set('pairCode', pairCode.trim().toUpperCase());
-    }
-    // NEVER include long-lived tokens in share URL
-    copy(url.toString(), t('toasts.pairingLinkCopied'));
-  };
-
-  const tone = STATE_TONE[connectionState] ?? 'idle';
+  const status = describeConnection(connectionState, t);
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={t('pairing.title')}
-      subtitle={t('pairing.subtitle')}
       closeLabel={t('common.closeDialog')}
       hints={[
         { keys: 'esc', action: t('common.close') },
@@ -140,32 +102,10 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
       }
     >
       {/* Live session state, on one line, the way a TUI reports itself. */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-tui-border-dim pb-2 text-tui">
-        <span className="flex items-center gap-1.5">
-          <StatusDot level={tone} />
-          <span className="text-tui-muted">{t('common.status')}</span>
-          {/* The state in the interface's own words. Printing the protocol's
-              own enum here left `CONNECTED` sitting in the middle of a Chinese
-              sentence. */}
-          <span
-            className={cn(
-              tone === 'ok'
-                ? 'text-tui-ok'
-                : tone === 'bad'
-                  ? 'text-tui-bad'
-                  : tone === 'warn'
-                    ? 'text-tui-warn'
-                    : 'text-tui-faint',
-            )}
-          >
-            {describeConnection(connectionState, t).label}
-          </span>
-        </span>
-        {hostId && (
-          <span className="flex items-center gap-1.5 text-tui-muted">
-            {t('common.host')} <span className="text-tui-text">{hostId}</span>
-          </span>
-        )}
+      <div className="mb-3 flex min-w-0 items-center gap-1.5 border-b border-tui-border-dim pb-2 text-tui">
+        <StatusDot level={status.level} />
+        <span className="shrink-0 text-tui-text">{status.label}</span>
+        {hostId && <span className="truncate text-tui-muted">· {hostId}</span>}
       </div>
 
       <form id="pairing-form" onSubmit={handleSaveAndConnect} className="space-y-3">
@@ -180,11 +120,10 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
             maxLength={64}
             autoComplete="off"
           />
-          <p className="text-tui-sm text-tui-faint">{t('pairing.displayNameHelp')}</p>
         </div>
 
         <div className="space-y-1">
-          <FieldLabel htmlFor="pairing-code" hint={t('pairing.pairCodeNote')}>
+          <FieldLabel htmlFor="pairing-code" hint={t('pairing.repairNote')}>
             {t('pairing.pairCodeLabel')}
           </FieldLabel>
           <Input
@@ -194,75 +133,61 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
             onChange={(e) => setPairCode(e.target.value.toUpperCase())}
             placeholder={t('pairing.pairCodePlaceholder')}
             maxLength={12}
+            autoComplete="off"
             className="uppercase"
           />
-          <p className="text-tui-sm text-tui-faint">{t('pairing.pairCodeHelp')}</p>
         </div>
 
-        <div className="space-y-1">
-          <FieldLabel htmlFor="pairing-token" hint={t('pairing.tokenNote')}>
-            {t('pairing.tokenLabel')}
-          </FieldLabel>
-          <Input
-            id="pairing-token"
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder={t('pairing.tokenPlaceholder')}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <FieldLabel htmlFor="pairing-ws">{t('pairing.wsUrlLabel')}</FieldLabel>
-          <Input
-            id="pairing-ws"
-            type="text"
-            value={wsUrl}
-            onChange={(e) => setWsUrl(e.target.value)}
-            placeholder={t('pairing.wsUrlPlaceholder')}
-          />
-          <p className="text-tui-sm text-tui-faint">{t('pairing.wsUrlDefaultNote')}</p>
-        </div>
-
-        <div className="space-y-1">
-          <FieldLabel htmlFor="pairing-client-id">{t('pairing.clientIdLabel')}</FieldLabel>
-          <div className="flex gap-2">
+        <AdvancedFields hint={t('pairing.editAdvancedHint')}>
+          <div className="space-y-1">
+            <FieldLabel htmlFor="pairing-ws">{t('pairing.wsUrlLabel')}</FieldLabel>
             <Input
-              id="pairing-client-id"
+              id="pairing-ws"
               type="text"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="flex-1"
+              value={wsUrl}
+              onChange={(e) => setWsUrl(e.target.value)}
+              placeholder={t('pairing.wsUrlPlaceholder')}
             />
-            <Button
-              onClick={handleGenerateClientId}
-              title={t('pairing.regenerateClientIdTitle')}
-              className="shrink-0"
-            >
-              {t('pairing.newIdButton')}
-            </Button>
           </div>
-        </div>
 
-        <div className="border-t border-tui-border-dim pt-2">
+          <div className="space-y-1">
+            <FieldLabel htmlFor="pairing-token" hint={t('pairing.tokenNote')}>
+              {t('pairing.tokenLabel')}
+            </FieldLabel>
+            <Input
+              id="pairing-token"
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={t('pairing.tokenPlaceholder')}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <FieldLabel htmlFor="pairing-client-id">{t('pairing.clientIdLabel')}</FieldLabel>
+            <div className="flex gap-2">
+              <Input
+                id="pairing-client-id"
+                type="text"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                onClick={() => setClientId(`client-${Math.random().toString(36).substring(2, 8)}`)}
+                className="shrink-0"
+              >
+                {t('pairing.newIdButton')}
+              </Button>
+            </div>
+          </div>
+
           <Checkbox
             checked={autoReconnect}
             onChange={setAutoReconnect}
             label={t('pairing.autoReconnectLabel')}
-            description={t('pairing.autoReconnectDesc')}
           />
-        </div>
-
-        <div className="border-t border-tui-border-dim pt-2">
-          <Button
-            onClick={handleCopyShareUrl}
-            block
-            glyph={copiedLink ? GLYPH.check : '⧉'}
-            className={cn(copiedLink && 'border-tui-ok text-tui-ok')}
-          >
-            {t('pairing.copyDirectLink')}
-          </Button>
-        </div>
+        </AdvancedFields>
       </form>
     </Modal>
   );
