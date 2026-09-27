@@ -63,6 +63,19 @@ interface ProbeState {
 /** Asks one OSC question; resolves the color, or null for no answer. */
 type Ask = (query: string, expectedPrefix: string) => string | null;
 
+type PaletteQuery =
+  | {
+      query: string;
+      prefix: string;
+      paletteKey: 'foreground' | 'background' | 'cursor';
+    }
+  | {
+      query: string;
+      prefix: string;
+      paletteKey: 'ansi';
+      ansiKey: (typeof ANSI_KEYS)[number];
+    };
+
 /**
  * `rgb:RRRR/GGGG/BBBB` (and the 1/2/3-digit variants) to `#rrggbb`.
  * Terminals answer in 16-bit-per-channel notation; the top byte is the color.
@@ -154,6 +167,18 @@ function takeOscColorReply(state: ProbeState, expectedPrefix: string): string | 
   return found.color;
 }
 
+const PALETTE_QUERIES: readonly PaletteQuery[] = [
+  { query: '\x1b]10;?\x1b\\', prefix: '\x1b]10', paletteKey: 'foreground' },
+  { query: '\x1b]11;?\x1b\\', prefix: '\x1b]11', paletteKey: 'background' },
+  { query: '\x1b]12;?\x1b\\', prefix: '\x1b]12', paletteKey: 'cursor' },
+  ...ANSI_KEYS.map((ansiKey, slot) => ({
+    query: `\x1b]4;${slot};?\x1b\\`,
+    prefix: `\x1b]4;${slot}`,
+    paletteKey: 'ansi' as const,
+    ansiKey,
+  })),
+];
+
 /**
  * Runs the color conversation over an injected `ask(query, prefix)`.
  *
@@ -173,19 +198,16 @@ function takeOscColorReply(state: ProbeState, expectedPrefix: string): string | 
  */
 function collectPalette(ask: Ask): HostTerminalPalette | null {
   const palette: HostTerminalPalette = {};
-
-  const foreground = ask('\x1b]10;?\x1b\\', '\x1b]10');
-  if (foreground) palette.foreground = foreground;
-  const background = ask('\x1b]11;?\x1b\\', '\x1b]11');
-  if (background) palette.background = background;
-  const cursor = ask('\x1b]12;?\x1b\\', '\x1b]12');
-  if (cursor) palette.cursor = cursor;
-
   const ansi: Partial<HostAnsiPalette> = {};
-  for (let slot = 0; slot < ANSI_SLOTS; slot += 1) {
-    const color = ask(`\x1b]4;${slot};?\x1b\\`, `\x1b]4;${slot}`);
-    if (!color) break;
-    ansi[ANSI_KEYS[slot]] = color;
+
+  for (const query of PALETTE_QUERIES) {
+    const color = ask(query.query, query.prefix);
+    if (query.paletteKey === 'ansi') {
+      if (!color) break;
+      ansi[query.ansiKey] = color;
+    } else if (color) {
+      palette[query.paletteKey] = color;
+    }
   }
   if (Object.keys(ansi).length === ANSI_SLOTS) palette.ansi = ansi as HostAnsiPalette;
 
