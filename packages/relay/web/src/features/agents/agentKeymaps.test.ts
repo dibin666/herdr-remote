@@ -134,7 +134,7 @@ describe('Herdr agent keymaps', () => {
     ).toEqual({ order: ['model', 'mode'], actions: { details: { keys: 'ctrl+e' } } });
   });
 
-  it('stores sanitized keymaps globally so a new window inherits the rebind', () => {
+  it("keeps a rebind out of the window's own copy so a new window inherits it", () => {
     saveSettings({
       agentKeymaps: {
         claude: {
@@ -143,11 +143,7 @@ describe('Herdr agent keymaps', () => {
         },
       },
     });
-    const global = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
-    expect(global.agentKeymaps.claude.actions.details.keys).toBe('ctrl+e');
-    expect(
-      JSON.parse(sessionStorage.getItem('herdr_remote_session_view_v1') || '{}').agentKeymaps,
-    ).toBeUndefined();
+    expect(sessionStorage.getItem(STORAGE_KEYS.sessionView)).not.toContain('ctrl+e');
 
     sessionStorage.clear();
     expect(loadSettings().agentKeymaps.claude.custom?.[0]).toEqual({

@@ -37,7 +37,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab,
   onOpenAdmin,
 }) => {
-  const { updateSettings, t } = useSettings();
+  const { updateSettings, t, activeProfile } = useSettings();
   const { addToast } = useToasts();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
@@ -50,6 +50,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Only this instance's settings: the language is every instance's, so
+  // resetting one leaves it alone.
   const handleResetDefaults = () => {
     const defaults = getDefaultSettings();
     updateSettings({
@@ -63,7 +65,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       agentAlertSound: defaults.agentAlertSound,
       agentAlertVibrate: defaults.agentAlertVibrate,
       agentAlertNotify: defaults.agentAlertNotify,
-      language: defaults.language,
       virtualKeys: defaults.virtualKeys,
     });
     addToast('info', t('settings.resetDefaultsToast'));
@@ -74,7 +75,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={t('settings.title')}
-      subtitle={t('settings.subtitle')}
+      subtitle={
+        activeProfile
+          ? t('settings.subtitleInstance', { name: activeProfile.displayName })
+          : t('settings.subtitle')
+      }
       closeLabel={t('common.closeDialog')}
       size="lg"
       fixedHeight

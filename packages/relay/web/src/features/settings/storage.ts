@@ -3,6 +3,11 @@ import type { Language } from '@/shared/i18n';
 import { type AgentKeymapsSettings, sanitizeAgentKeymaps } from '@/features/agents/agentKeymaps';
 import { safeGetItem, safeSetItem, STORAGE_KEYS } from '@/shared/lib/browserStorage';
 import {
+  type InstanceSettings,
+  pickInstanceSettings,
+  readInstanceSettingsMap,
+} from './instanceSettings';
+import {
   type ConnectionProfile,
   cleanProfile,
   generateProfileId,
@@ -30,10 +35,11 @@ export interface StoredSettings {
   clientId: string;
   autoReconnect: boolean;
   profiles: ConnectionProfile[];
+  /** The instance this window shows. Each window has its own. */
   activeProfileId: string;
   language: Language;
 
-  // Per-window / session view states (stored in sessionStorage)
+  // The active instance's own settings: see `instanceSettings.ts`.
   fontSize: number;
   /**
    * Use the workstation terminal's size instead of `fontSize`. On by default;
@@ -47,7 +53,7 @@ export interface StoredSettings {
   vibrateOnKeyPress: boolean;
   predictiveEcho: 'auto' | 'always' | 'off';
   virtualKeys: ToolbarKeyDef[];
-  /** Workstation-wide agent shortcut overrides, shared with newly opened windows. */
+  /** Agent shortcut overrides for the active instance, the same in every window. */
   agentKeymaps: AgentKeymapsSettings;
   /**
    * When an agent is blocked or done: count it in the tab title and badge the
@@ -135,7 +141,6 @@ const GLOBAL_KEYS: Array<keyof StoredSettings> = [
   'clientId',
   'autoReconnect',
   'language',
-  'agentKeymaps',
 ];
 
 const CONNECTION_KEYS: Array<keyof StoredSettings> = [
@@ -144,36 +149,6 @@ const CONNECTION_KEYS: Array<keyof StoredSettings> = [
   'pairCode',
   'autoReconnect',
 ];
-
-const SESSION_KEYS: Array<keyof StoredSettings> = [
-  'fontSize',
-  'fontSizeFollowsHost',
-  'fontFamily',
-  'toolbarVisible',
-  'toolbarPosition',
-  'vibrateOnKeyPress',
-  'predictiveEcho',
-  'virtualKeys',
-  'agentAlertBadge',
-  'agentAlertSound',
-  'agentAlertVibrate',
-  'agentAlertNotify',
-  'adminToken',
-  'adminTokens',
-];
-
-/**
- * The subset of the per-window settings that is also remembered browser-wide,
- * so a new window continues where the last one left off instead of resetting to
- * the defaults.
- *
- * `adminToken` and `adminTokens` are deliberately excluded. They are relay
- * operator credentials and stay in sessionStorage only: they should not outlive
- * the tab they were typed into, and they have no business being written to disk.
- */
-const PERSISTED_VIEW_KEYS: Array<keyof StoredSettings> = SESSION_KEYS.filter(
-  (key) => key !== 'adminToken' && key !== 'adminTokens',
-);
 
 /**
  * Terminal colors used to be a client setting. They are the host's now, so any
@@ -201,110 +176,109 @@ function sanitizeAdminTokens(value: unknown): Record<string, string> {
   return output;
 }
 
+type StoredObject = Partial<StoredSettings> & { instances?: unknown };
+
+function readStored(area: 'local' | 'session', key: string): StoredObject {
+  const raw = safeGetItem(area, key);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    console.warn(`Failed to parse ${area}Storage settings:`, err);
+    return {};
+  }
+}
+
 /**
  * Load merged settings:
- * 1. Global credentials come from localStorage
- * 2. View/zoom/font settings come from sessionStorage (per-window isolation)
- * 3. Fallback: If sessionStorage is empty, seed from localStorage (or defaults),
- *    after which sessionStorage strictly takes precedence over any legacy localStorage data.
+ * 1. Credentials, the saved instances and the language come from localStorage.
+ * 2. Which instance this window shows is its own, in sessionStorage. A new
+ *    window opens on the instance a window last moved to.
+ * 3. That instance's settings come from this window's copy, taken from the
+ *    instance's localStorage copy the first time the window shows it. Settings
+ *    saved before instances had their own are where an instance starts.
  */
 export function loadSettings(): StoredSettings {
   const defaults = getDefaultSettings();
   if (typeof window === 'undefined') return defaults;
 
-  // 1. Read global credentials from localStorage
-  let localData: Partial<StoredSettings> = {};
-  const rawLocal = safeGetItem('local', STORAGE_KEYS.settings);
-  if (rawLocal) {
-    try {
-      localData = JSON.parse(rawLocal);
-    } catch (err) {
-      console.warn('Failed to parse localStorage settings:', err);
-    }
-  }
-
+  let localData = readStored('local', STORAGE_KEYS.settings);
   const strippedLocal = stripLegacyColorFields(localData);
   if (strippedLocal.changed) {
     localData = strippedLocal.data;
     safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localData));
   }
+  const sessionData = readStored('session', STORAGE_KEYS.sessionView);
 
-  // 2. Read per-window view settings from sessionStorage
-  let sessionData: Partial<StoredSettings> | null = null;
-  const rawSession = safeGetItem('session', STORAGE_KEYS.sessionView);
-  if (rawSession) {
-    try {
-      sessionData = JSON.parse(rawSession);
-    } catch (err) {
-      console.warn('Failed to parse sessionStorage settings:', err);
-    }
-  }
+  const normalizedProfiles = normalizeProfiles(localData);
+  const profileIds = normalizedProfiles.profiles.map((profile) => profile.id);
+  const activeProfileId =
+    typeof sessionData.activeProfileId === 'string' &&
+    profileIds.includes(sessionData.activeProfileId)
+      ? sessionData.activeProfileId
+      : normalizedProfiles.activeProfileId;
+  const activeProfile = normalizedProfiles.profiles.find(
+    (profile) => profile.id === activeProfileId,
+  );
 
-  // If this window does not have a session state yet (e.g. freshly opened tab),
-  // seed from legacy localStorage or defaults, then save this initial snapshot into sessionStorage.
-  if (!sessionData) {
-    const seededSession: Partial<StoredSettings> = {};
-    for (const key of SESSION_KEYS) {
-      if (localData[key] !== undefined) {
-        (seededSession as Record<string, unknown>)[key] = localData[key];
-      }
-    }
-    sessionData = seededSession;
-    safeSetItem('session', STORAGE_KEYS.sessionView, JSON.stringify(sessionData));
+  const shared: InstanceSettings = {
+    ...pickInstanceSettings(localData, 'local'),
+    ...readInstanceSettingsMap(localData.instances, profileIds, 'local')[activeProfileId],
+  };
+  const sessionInstances = readInstanceSettingsMap(sessionData.instances, profileIds, 'session');
+  let own = sessionInstances[activeProfileId];
+  if (!own) {
+    // Copied now, so that another window saving to this instance later leaves
+    // this window's view of it alone. Builds before instances had their own
+    // settings kept a window's view flat; it becomes this instance's.
+    own = pickInstanceSettings(
+      { ...shared, ...pickInstanceSettings(sessionData, 'session') },
+      'session',
+    );
+    sessionInstances[activeProfileId] = own;
+    safeSetItem(
+      'session',
+      STORAGE_KEYS.sessionView,
+      JSON.stringify({
+        activeProfileId,
+        instances: sessionInstances,
+        adminToken: sessionData.adminToken,
+        adminTokens: sessionData.adminTokens,
+      }),
+    );
   }
+  const view: InstanceSettings = { ...shared, ...own };
 
   // Stacks stored by older builds become the preset that replaced them.
-  const fontFamily = migrateFontFamily(
-    sessionData.fontFamily ?? localData.fontFamily ?? defaults.fontFamily,
-  );
+  const fontFamily = migrateFontFamily(view.fontFamily ?? defaults.fontFamily);
 
   const fallbackSize =
     window.innerWidth < 640 ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE;
-  // Strict priority: sessionData (per-window) > localData (seed) > defaults
-  const rawFontSize = sessionData.fontSize ?? localData.fontSize ?? defaults.fontSize;
+  const rawFontSize = view.fontSize ?? defaults.fontSize;
   const fontSize = clampFontSize(rawFontSize, fallbackSize);
   // Settings from before the size could follow the host: a size somebody
   // moved away from the default was a choice and is kept; a default size
   // follows the host like a fresh install.
-  const storedFollows = sessionData.fontSizeFollowsHost ?? localData.fontSizeFollowsHost;
+  const storedFollows = view.fontSizeFollowsHost;
   const fontSizeFollowsHost =
     typeof storedFollows === 'boolean'
       ? storedFollows
-      : rawFontSize === undefined ||
-        fontSize === DEFAULT_DESKTOP_FONT_SIZE ||
-        fontSize === DEFAULT_MOBILE_FONT_SIZE;
+      : fontSize === DEFAULT_DESKTOP_FONT_SIZE || fontSize === DEFAULT_MOBILE_FONT_SIZE;
 
-  const rawVirtualKeys = sessionData.virtualKeys ?? localData.virtualKeys ?? defaults.virtualKeys;
-  const virtualKeys = sanitizeVirtualKeys(rawVirtualKeys);
+  const virtualKeys = sanitizeVirtualKeys(view.virtualKeys ?? defaults.virtualKeys);
 
   const rawLang = localData.language ?? defaults.language;
   const language: Language =
     rawLang === 'zh' || rawLang === 'en' ? rawLang : detectDefaultLanguage();
-  const normalizedProfiles = normalizeProfiles(localData);
-  const activeProfile = normalizedProfiles.profiles.find(
-    (profile) => profile.id === normalizedProfiles.activeProfileId,
-  );
 
-  const strippedSession = stripLegacyColorFields(sessionData);
-  if (strippedSession.changed) {
-    sessionData = strippedSession.data;
-    safeSetItem('session', STORAGE_KEYS.sessionView, JSON.stringify(sessionData));
-  }
-
-  const toolbarVisible =
-    sessionData.toolbarVisible ?? localData.toolbarVisible ?? defaults.toolbarVisible;
-  const toolbarPosition =
-    sessionData.toolbarPosition ?? localData.toolbarPosition ?? defaults.toolbarPosition;
-  const vibrateOnKeyPress =
-    sessionData.vibrateOnKeyPress ?? localData.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress;
   const booleanSetting = (
     key: 'agentAlertBadge' | 'agentAlertSound' | 'agentAlertVibrate' | 'agentAlertNotify',
   ) => {
-    const value = sessionData[key] ?? localData[key];
+    const value = view[key];
     return typeof value === 'boolean' ? value : defaults[key];
   };
-  const rawPredictiveEcho =
-    sessionData?.predictiveEcho ?? localData?.predictiveEcho ?? defaults.predictiveEcho;
+  const rawPredictiveEcho = view.predictiveEcho ?? defaults.predictiveEcho;
   const predictiveEcho: 'auto' | 'always' | 'off' =
     rawPredictiveEcho === 'always' || rawPredictiveEcho === 'off' || rawPredictiveEcho === 'auto'
       ? rawPredictiveEcho
@@ -319,8 +293,6 @@ export function loadSettings(): StoredSettings {
 
   const result: StoredSettings = {
     ...defaults,
-    ...localData,
-    ...sessionData,
     wsUrl:
       activeProfile?.wsUrl ||
       (typeof localData.wsUrl === 'string' ? localData.wsUrl : defaults.wsUrl),
@@ -328,7 +300,7 @@ export function loadSettings(): StoredSettings {
     pairCode: activeProfile?.pairCode || '',
     autoReconnect: activeProfile?.autoReconnect ?? defaults.autoReconnect,
     profiles: normalizedProfiles.profiles,
-    activeProfileId: normalizedProfiles.activeProfileId,
+    activeProfileId,
     clientId:
       typeof localData.clientId === 'string' && localData.clientId.trim()
         ? localData.clientId.trim().slice(0, 128)
@@ -336,12 +308,12 @@ export function loadSettings(): StoredSettings {
     fontFamily,
     fontSize,
     fontSizeFollowsHost,
-    toolbarVisible,
-    toolbarPosition,
-    vibrateOnKeyPress,
+    toolbarVisible: view.toolbarVisible ?? defaults.toolbarVisible,
+    toolbarPosition: view.toolbarPosition ?? defaults.toolbarPosition,
+    vibrateOnKeyPress: view.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress,
     predictiveEcho,
     virtualKeys,
-    agentKeymaps: sanitizeAgentKeymaps(localData.agentKeymaps),
+    agentKeymaps: sanitizeAgentKeymaps(view.agentKeymaps),
     agentAlertBadge: booleanSetting('agentAlertBadge'),
     agentAlertSound: booleanSetting('agentAlertSound'),
     agentAlertVibrate: booleanSetting('agentAlertVibrate'),
@@ -351,8 +323,8 @@ export function loadSettings(): StoredSettings {
     adminTokens,
   };
 
-  // Write a migrated font back, so the browser-wide copy a new window seeds
-  // from no longer names a stack that is not offered any more.
+  // Write a migrated font back, so the settings every instance starts from no
+  // longer name a stack that is not offered any more.
   if (
     typeof localData.fontFamily === 'string' &&
     migrateFontFamily(localData.fontFamily) !== localData.fontFamily
@@ -365,9 +337,13 @@ export function loadSettings(): StoredSettings {
 }
 
 /**
- * Save settings with strict per-window isolation:
- * - Credentials & global keys persist to localStorage
- * - View / zoom / font / virtual-key states persist only to this window's sessionStorage
+ * Save settings:
+ * - Credentials, the saved instances and the language go to localStorage.
+ * - This window's instance, and its view of it, go to sessionStorage.
+ * - The instance's settings also go to its localStorage copy, which a window
+ *   opened later starts from. Windows already open keep their own copies.
+ * - The operator token stays in sessionStorage only: it should not outlive the
+ *   tab it was typed into, and has no business being written to disk.
  */
 export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const current = loadSettings();
@@ -435,66 +411,57 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
     activeProfileId = profiles[0].id;
   }
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId);
-  next.profiles = profiles;
-  next.activeProfileId = activeProfileId;
   next.wsUrl = activeProfile?.wsUrl || next.wsUrl || WS_CLIENT_PATH;
   next.token = activeProfile?.token || '';
   next.pairCode = activeProfile?.pairCode || '';
   next.autoReconnect = activeProfile?.autoReconnect ?? next.autoReconnect;
 
-  // 1. Save global keys and normalized profiles to localStorage
-  const rawLocal = safeGetItem('local', STORAGE_KEYS.settings);
-  let localObj: Record<string, unknown> = {};
-  if (rawLocal) {
-    try {
-      localObj = JSON.parse(rawLocal);
-    } catch {
-      // Unreadable stored settings are replaced by the ones saved now.
-    }
-  }
-  localObj = stripLegacyColorFields(localObj).data;
+  const profileIds = profiles.map((profile) => profile.id);
+  const localObj = stripLegacyColorFields(readStored('local', STORAGE_KEYS.settings)).data;
+  const sessionObj = readStored('session', STORAGE_KEYS.sessionView);
+  const localInstances = readInstanceSettingsMap(localObj.instances, profileIds, 'local');
+  const sessionInstances = readInstanceSettingsMap(sessionObj.instances, profileIds, 'session');
+
+  // A window moving to another instance takes up that instance's settings;
+  // carrying the old one's across is exactly the mixing this keeps apart. A
+  // window with no instance yet hands what it changed to its first one.
+  const sameInstance = activeProfileId === current.activeProfileId || !current.activeProfileId;
+  const changed = sameInstance ? next : updates;
+  localInstances[activeProfileId] = {
+    ...localInstances[activeProfileId],
+    ...pickInstanceSettings(changed, 'local'),
+  };
+  sessionInstances[activeProfileId] = {
+    ...sessionInstances[activeProfileId],
+    ...pickInstanceSettings(changed, 'session'),
+  };
+
   for (const k of GLOBAL_KEYS) {
     if (next[k] !== undefined) {
-      localObj[k] = next[k];
+      (localObj as Record<string, unknown>)[k] = next[k];
     }
   }
   localObj.profiles = profiles;
-  localObj.activeProfileId = activeProfileId;
+  localObj.instances = localInstances;
+  // Where the next new window opens: the instance a window last moved to,
+  // not whichever window happened to save last.
+  if (
+    activeProfileId !== current.activeProfileId ||
+    !profileIds.includes(localObj.activeProfileId ?? '')
+  )
+    localObj.activeProfileId = activeProfileId;
   safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localObj));
 
-  // 2. Save session-specific view keys to sessionStorage
-  const rawSession = safeGetItem('session', STORAGE_KEYS.sessionView);
-  let sessionObj: Record<string, unknown> = {};
-  if (rawSession) {
-    try {
-      sessionObj = JSON.parse(rawSession);
-    } catch {
-      // Unreadable stored settings are replaced by the ones saved now.
-    }
-  }
-  for (const k of SESSION_KEYS) {
-    if (next[k] !== undefined) {
-      sessionObj[k] = next[k];
-    }
-  }
-  safeSetItem('session', STORAGE_KEYS.sessionView, JSON.stringify(sessionObj));
+  safeSetItem(
+    'session',
+    STORAGE_KEYS.sessionView,
+    JSON.stringify({
+      activeProfileId,
+      instances: sessionInstances,
+      adminToken: next.adminToken,
+      adminTokens: next.adminTokens,
+    }),
+  );
 
-  // 3. Mirror the view settings into localStorage as the browser-wide baseline.
-  //
-  // sessionStorage dies with the tab, so writing there alone meant every visit
-  // started from the built-in defaults — a font size chosen on a phone had to be
-  // chosen again on the next visit. localStorage remembers the last values
-  // saved anywhere, and a newly opened window seeds from them.
-  //
-  // The two-tier arrangement is what keeps both properties: windows already
-  // open keep their own sessionStorage overrides and are unaffected by another
-  // window's changes, while a *new* window inherits rather than resetting.
-  for (const k of PERSISTED_VIEW_KEYS) {
-    if (next[k] !== undefined) {
-      localObj[k] = next[k];
-    }
-  }
-  safeSetItem('local', STORAGE_KEYS.settings, JSON.stringify(localObj));
-
-  return next;
+  return loadSettings();
 }

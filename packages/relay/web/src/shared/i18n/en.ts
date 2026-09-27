@@ -183,6 +183,7 @@ export const en = {
   settings: {
     title: 'Terminal Preferences',
     subtitle: 'Interface, font, input and alerts',
+    subtitleInstance: 'Only for {name}',
     tabGeneral: 'General',
     sectionInterface: 'Interface',
     sectionFont: 'Font',
@@ -218,6 +219,7 @@ export const en = {
     agentAlertNotify: 'System notification',
     agentAlertNotifyDesc: 'In the background (HTTPS only)',
     languageLabel: 'Language',
+    languageHint: 'Shared by every instance',
     resetDefaults: 'Reset to Defaults',
     resetDefaultsToast: 'Settings reset to defaults',
     fontSizeFollowHost: 'Same size as the workstation terminal ({size}px)',

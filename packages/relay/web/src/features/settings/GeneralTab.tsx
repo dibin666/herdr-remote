@@ -82,6 +82,7 @@ export const GeneralTab: React.FC<{ onOpenAdmin?: () => void }> = ({ onOpenAdmin
       <SettingSection title={t('settings.sectionInterface')}>
         <SettingRow
           label={t('settings.languageLabel')}
+          hint={t('settings.languageHint')}
           control={
             <Segmented
               name="ui-language"

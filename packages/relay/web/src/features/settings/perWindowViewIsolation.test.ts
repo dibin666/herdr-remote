@@ -2,78 +2,17 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { loadSettings, saveSettings } from './storage';
 import { createConnectionProfile, profileKey } from '@/features/pairing/connectionProfiles';
 import { STORAGE_KEYS } from '@/shared/lib/browserStorage';
-
-/**
- * Creates a mock Storage implementation to simulate independent window sessionStorage instances
- */
-class MemoryStorageShim implements Storage {
-  private store = new Map<string, string>();
-
-  get length(): number {
-    return this.store.size;
-  }
-
-  clear(): void {
-    this.store.clear();
-  }
-
-  getItem(key: string): string | null {
-    return this.store.get(key) ?? null;
-  }
-
-  key(index: number): string | null {
-    return Array.from(this.store.keys())[index] ?? null;
-  }
-
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-
-  setItem(key: string, value: string): void {
-    this.store.set(key, String(value));
-  }
-}
+import { simulateWindows } from '@/test/helpers/windowStorage';
 
 describe('Per-Window View State & Font Zoom Isolation', () => {
-  const originalLocalStorage = window.localStorage;
-  const originalSessionStorage = window.sessionStorage;
-
   beforeEach(() => {
-    Object.defineProperty(window, 'localStorage', {
-      value: originalLocalStorage,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(window, 'sessionStorage', {
-      value: originalSessionStorage,
-      writable: true,
-      configurable: true,
-    });
     localStorage.clear();
     sessionStorage.clear();
   });
 
   it('seeds a new window from the last saved view settings while keeping open windows independent', () => {
-    // Shared localStorage across both windows
-    const sharedLocalStorage = new MemoryStorageShim();
-    Object.defineProperty(window, 'localStorage', {
-      value: sharedLocalStorage,
-      writable: true,
-      configurable: true,
-    });
-
-    // SessionStorage for Window 1
-    const window1SessionStorage = new MemoryStorageShim();
-    // SessionStorage for Window 2
-    const window2SessionStorage = new MemoryStorageShim();
-
-    const switchWindow = (win: 1 | 2) => {
-      Object.defineProperty(window, 'sessionStorage', {
-        value: win === 1 ? window1SessionStorage : window2SessionStorage,
-        writable: true,
-        configurable: true,
-      });
-    };
+    const windows = simulateWindows(2);
+    const switchWindow = (win: 1 | 2) => windows.use(win - 1);
 
     // --- 1. Initialize Baseline in Window 1 ---
     switchWindow(1);
@@ -136,20 +75,12 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   });
 
   it('keeps view settings after the tab is closed and reopened', () => {
-    const sharedLocalStorage = new MemoryStorageShim();
-    Object.defineProperty(window, 'localStorage', { value: sharedLocalStorage, writable: true });
-    Object.defineProperty(window, 'sessionStorage', {
-      value: new MemoryStorageShim(),
-      writable: true,
-    });
+    const windows = simulateWindows(1);
 
     saveSettings({ fontSize: 22, toolbarPosition: 'top', vibrateOnKeyPress: false });
 
     // Closing the tab takes sessionStorage with it; localStorage survives.
-    Object.defineProperty(window, 'sessionStorage', {
-      value: new MemoryStorageShim(),
-      writable: true,
-    });
+    windows.reopen(0);
 
     const reopened = loadSettings();
     expect(reopened.fontSize).toBe(22);
@@ -158,16 +89,11 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   });
 
   it('never writes the relay operator token to localStorage', () => {
-    const sharedLocalStorage = new MemoryStorageShim();
-    Object.defineProperty(window, 'localStorage', { value: sharedLocalStorage, writable: true });
-    Object.defineProperty(window, 'sessionStorage', {
-      value: new MemoryStorageShim(),
-      writable: true,
-    });
+    const windows = simulateWindows(1);
 
     saveSettings({ adminToken: 'operator-secret-123456789', fontSize: 20 });
 
-    const persisted = sharedLocalStorage.getItem(STORAGE_KEYS.settings) || '';
+    const persisted = windows.local.getItem(STORAGE_KEYS.settings) || '';
     expect(persisted).toContain('20');
     expect(persisted).not.toContain('operator-secret-123456789');
 
@@ -263,6 +189,8 @@ describe('Per-Window View State & Font Zoom Isolation', () => {
   });
 
   it('sessionStorage failure gracefully falls back to memory storage per session', () => {
+    // Puts the real storages back afterwards.
+    simulateWindows(1);
     // Break sessionStorage by throwing errors on access
     Object.defineProperty(window, 'sessionStorage', {
       value: {
