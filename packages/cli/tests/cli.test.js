@@ -39,6 +39,7 @@ test('argument parsing separates commands from flags', () => {
   assert.deepEqual(parseArgs(['--lang', 'zh']).flags.lang, 'zh');
   assert.deepEqual(parseArgs(['--lang=en']).flags.lang, 'en');
   assert.deepEqual(parseArgs(['keepalive', 'install']).positional, ['keepalive', 'install']);
+  assert.equal(parseArgs(['keepalive', 'install', '--elevated']).flags.elevated, true);
   assert.equal(parseArgs(['run', '--daemon']).flags.daemon, true);
 });
 
