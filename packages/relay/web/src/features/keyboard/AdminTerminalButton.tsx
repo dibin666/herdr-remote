@@ -3,23 +3,18 @@ import { cn } from '@/shared/lib/cn';
 import { CAP_BASE } from './caps';
 
 export function AdminTerminalButton({ capHeight }: { capHeight: string }) {
-  const { platform, isAdminTerminal, adminTerminalSupported } = useConnection();
-  const { activeProfileId, t } = useSettings();
-  if (platform !== 'win32' || isAdminTerminal) return null;
+  const { platform, adminTerminalSupported, adapter } = useConnection();
+  const { t } = useSettings();
+  if (platform !== 'win32') return null;
   const supported = adminTerminalSupported !== false;
-
-  const openAdminTerminal = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('adminTerminal', '1');
-    url.searchParams.set('profile', activeProfileId);
-    window.open(url.toString(), '_blank', 'noopener,noreferrer');
-  };
 
   return (
     <button
       type="button"
       data-testid="new-admin-terminal"
-      onClick={openAdminTerminal}
+      // The host opens the tab in Herdr and focuses it there; this window's
+      // terminal shows it, and nothing opens in the browser.
+      onClick={() => adapter?.sendAdminTabOpen()}
       disabled={!supported}
       className={cn(
         CAP_BASE,

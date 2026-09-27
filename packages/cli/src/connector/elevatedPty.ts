@@ -11,7 +11,6 @@ interface ElevatedPtyOptions {
   command: string;
   args: string[];
   cwd: string;
-  socketPath: string | null | undefined;
 }
 
 interface ElevatedPtyStartOptions {
@@ -19,47 +18,32 @@ interface ElevatedPtyStartOptions {
   rows: number;
   onData: (data: string) => void;
   onExit: (event: { exitCode: number; signal?: number }) => void;
-  onReady?: () => void;
-  onError?: (error: Error) => void;
+  onError: (error: Error) => void;
 }
 
+/** A PTY the admin broker runs elevated, driven over its loopback socket. */
 export class ElevatedPty {
-  pid = 0;
-  cols: number;
-  rows: number;
   private socket: net.Socket | null = null;
   private input = '';
   private connected = false;
   private started = false;
   private finished = false;
   private killed = false;
+  /** Keystrokes typed while the elevated shell was still starting. */
+  private early: Buffer[] = [];
   private dataListener: ((data: string) => void) | null = null;
   private exitListener: ((event: { exitCode: number; signal?: number }) => void) | null = null;
-  private readyListener: (() => void) | null = null;
   private errorListener: ((error: Error) => void) | null = null;
   private readonly options: ElevatedPtyOptions;
 
-  constructor(options: ElevatedPtyOptions, cols: number, rows: number) {
+  constructor(options: ElevatedPtyOptions) {
     this.options = options;
-    this.cols = cols;
-    this.rows = rows;
   }
 
-  onData(listener: (data: string) => void): void {
-    this.dataListener = listener;
-  }
-
-  onExit(listener: (event: { exitCode: number; signal?: number }) => void): void {
-    this.exitListener = listener;
-  }
-
-  start({ cols, rows, onData, onExit, onReady, onError }: ElevatedPtyStartOptions): void {
-    this.cols = cols;
-    this.rows = rows;
+  start({ cols, rows, onData, onExit, onError }: ElevatedPtyStartOptions): void {
     this.dataListener = onData;
     this.exitListener = onExit;
-    this.readyListener = onReady || null;
-    this.errorListener = onError || null;
+    this.errorListener = onError;
     let broker: ReturnType<typeof connectAdminBroker>;
     try {
       broker = connectAdminBroker();
@@ -71,18 +55,16 @@ export class ElevatedPty {
     this.socket = socket;
     socket.setEncoding('utf8');
     socket.setTimeout(BROKER_CONNECT_TIMEOUT_MS, () => {
-      socket.destroy(new Error('Administrator terminal broker connection timed out'));
+      socket.destroy(
+        Object.assign(new Error('Administrator terminal broker connection timed out'), {
+          code: 'ETIMEDOUT',
+        }),
+      );
     });
     socket.on('connect', () => {
       this.connected = true;
       socket.setTimeout(0);
-      sendAdminBrokerMessage(socket, {
-        type: 'start',
-        token,
-        ...this.options,
-        cols: this.cols,
-        rows: this.rows,
-      });
+      sendAdminBrokerMessage(socket, { type: 'start', token, ...this.options, cols, rows });
     });
     socket.on('data', (chunk: string) => this.receive(chunk));
     socket.on('error', (error) => this.fail(error));
@@ -94,8 +76,13 @@ export class ElevatedPty {
     });
   }
 
-  write(data: string): void {
-    if (this.started && !this.finished && this.socket?.writable) {
+  write(data: string | Buffer): void {
+    if (this.finished) return;
+    if (!this.started) {
+      this.early.push(Buffer.from(data));
+      return;
+    }
+    if (this.socket?.writable) {
       sendAdminBrokerMessage(this.socket, {
         type: 'input',
         dataBase64: Buffer.from(data).toString('base64'),
@@ -104,8 +91,6 @@ export class ElevatedPty {
   }
 
   resize(cols: number, rows: number): void {
-    this.cols = cols;
-    this.rows = rows;
     if (this.started && this.socket?.writable) {
       sendAdminBrokerMessage(this.socket, { type: 'resize', cols, rows });
     }
@@ -113,7 +98,6 @@ export class ElevatedPty {
 
   kill(): void {
     this.killed = true;
-    this.pid = 0;
     if (!this.socket) return;
     if (this.connected && this.socket.writable) {
       sendAdminBrokerMessage(this.socket, { type: 'kill' });
@@ -143,13 +127,13 @@ export class ElevatedPty {
       }
       if (message.type === 'started') {
         this.started = true;
-        this.pid = Number(message.pid) || 0;
-        this.readyListener?.();
+        const early = Buffer.concat(this.early);
+        this.early = [];
+        if (early.length > 0) this.write(early);
       } else if (message.type === 'data' && typeof message.dataBase64 === 'string') {
         this.dataListener?.(Buffer.from(message.dataBase64, 'base64').toString('utf8'));
       } else if (message.type === 'exit') {
         this.finished = true;
-        this.pid = 0;
         this.exitListener?.({
           exitCode: Number(message.exitCode) || 0,
           ...(typeof message.signal === 'number' ? { signal: message.signal } : {}),

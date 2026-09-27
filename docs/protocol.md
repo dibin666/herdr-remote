@@ -57,7 +57,7 @@ workstation remains reachable only by whoever holds its host token.
 
 The relay responds with `host_ready` and an optional `clientCount`. It also
 sends `client_count` whenever the number of attached browser windows changes.
-Windows connectors that support administrator PTYs advertise `admin_sessions`.
+Windows connectors that can open administrator terminal tabs advertise `admin_tabs`.
 They may also report `shellProfile: "git-bash"` when the connector started from
 Git Bash; the browser detects CMD and PowerShell prompts from terminal output.
 The host sends full `heartbeat` JSON messages containing load and PTY metadata only
@@ -190,8 +190,7 @@ The browser connects to `/ws/client` and sends `hello` with either a one-time
   "clientId": "phone-1",
   "cols": 80,
   "rows": 24,
-  "capabilities": ["host_handoff"],
-  "adminTerminal": false
+  "capabilities": ["host_handoff"]
 }
 ```
 
@@ -249,26 +248,6 @@ Every window paired to a workstation gets a PTY of its own:
   looking at the same workstation;
 - closing a window stops only its own PTY. The other windows are untouched.
 
-### Windows administrator terminals
-
-A browser may set `adminTerminal: true` in `hello`. The relay records that flag
-for this window and forwards it on that window's `session_start`; it never
-accepts an executable path or credentials from the browser. On Windows, the
-host connector asks the per-user elevated broker to start a fixed PowerShell
-shell. The broker listens on a random `127.0.0.1` port and writes that port and
-a fresh token to `admin-broker.json` in the state directory, which only this
-Windows account can read; every request must carry the token. It does not use a
-named pipe: a pipe created by an elevated process admits only Administrators,
-so the connector's standard token would be refused. Herdr credentials and the
-socket path are not part of this terminal session. The broker is installed once from the Windows
-TUI's Keep-alive page under the same Windows account that runs Herdr Remote; later
-browser requests use the broker to start standalone elevated PowerShell sessions
-without another UAC prompt. The Windows connector advertises `admin_sessions`,
-and the relay's `ready.adminTerminalSupported` confirms that both relay and host
-understand the request before a browser treats that tab as elevated. Older
-relays or hosts cannot silently start a standard terminal in admin mode.
-`admin-broker uninstall` removes that task.
-
 This is what Herdr 0.9.0 made possible. Before it, a Herdr server broadcast one
 view — one focused workspace, tab and pane — to every attached client, so two
 PTYs would only have produced two identical mirrors at two different sizes;
@@ -291,6 +270,32 @@ that.
 `claim_control` and `release_control` remain answered — with a grant and a
 `control_state` respectively — so clients built against protocol 1 keep working,
 but they no longer move anything.
+
+### Windows administrator terminals
+
+A window asks for one with `admin_tab_open`, which carries nothing. The relay
+forwards it to that window's own host only when the host advertised
+`admin_tabs`, and drops a repeat within a second; `ready.adminTerminalSupported`
+tells the browser whether both sides can do it. The browser never names an
+executable or credentials.
+
+The host opens a new tab in its Herdr and focuses it. Herdr's API cannot start a
+tab with a command of its caller's choosing, so the host waits for the tab's
+shell and types `herdr-remote admin-shell` into it in that shell's syntax. Herdr
+cannot focus a tab for one client either: `tab.focus` moves every client
+attached to that Herdr. `admin-shell` runs with the pane's standard rights and
+relays its console to an elevated PowerShell that the per-user broker starts.
+When that PowerShell exits, `admin-shell` closes its pane, and with it the tab.
+
+The broker is installed once from the Windows TUI's Keep-alive page under the
+same Windows account that runs Herdr Remote; later requests start elevated
+PowerShell without another UAC prompt. It listens on a random `127.0.0.1` port
+and writes that port and a fresh token to `admin-broker.json` in the state
+directory, which only this Windows account can read; every request must carry
+the token. It does not use a named pipe: a pipe created by an elevated process
+admits only Administrators, so the connector's standard token would be refused.
+Herdr credentials and the socket path are not part of the elevated session.
+`admin-broker uninstall` removes the task.
 
 ### When Herdr is not running
 

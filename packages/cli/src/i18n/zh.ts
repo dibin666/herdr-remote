@@ -109,6 +109,11 @@ const zh: Record<MessageKey, string> = {
   'adminBroker.tuiHint':
     '只需设置一次。Windows 会请求管理员授权；之后 WebUI 新建管理员终端不再弹出 UAC。',
 
+  'adminShell.needsTerminal': 'admin-shell 必须在终端中运行。',
+  'adminShell.brokerUnavailable':
+    '管理员终端 broker 尚未运行。请打开 herdr-remote TUI，进入「保活」并选择「设置管理员终端」。',
+  'adminShell.tabLabel': '管理员',
+
   'relay.title': 'Relay 设置',
   'relay.settings': '设置',
   'relay.locked': '固定',

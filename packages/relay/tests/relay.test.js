@@ -1538,6 +1538,75 @@ test('inactive or stuck CLOSING sockets are terminated by heartbeat and sweep', 
   hostWs.close();
 });
 
+test("an admin tab request reaches the window's own Windows host only when it can open one", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-admin-tab-'));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.onTestFinished(async () => {
+    await relay.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  async function pairedWindow(hostId, capabilities) {
+    const host = await openWebSocket(`${wsBase}/ws/host`);
+    const received = [];
+    host.on('message', (data, isBinary) => {
+      if (!isBinary) received.push(JSON.parse(data.toString()));
+    });
+    const token = `${hostId}-token-123456789`;
+    host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId, token, capabilities }));
+    await nextMessage(host, (message) => message.type === 'host_ready');
+    const pairing = await postJson(`${base}/api/pair/start`, {
+      'X-Herdr-Host-Id': hostId,
+      'X-Herdr-Host-Token': token,
+    });
+    const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
+    const client = await openWebSocket(`${wsBase}/ws/client`);
+    const ready = nextMessage(client, (message) => message.type === 'ready');
+    client.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode: pairing.code,
+        clientId: `${hostId}-device`,
+        cols: 80,
+        rows: 24,
+      }),
+    );
+    const { value: readyMessage } = await ready;
+    const { value: started } = await sessionStart;
+    t.onTestFinished(() => {
+      client.close();
+      host.close();
+    });
+    return { host, received, client, readyMessage, started };
+  }
+
+  const windows = await pairedWindow('host-win', ['admin_tabs']);
+  assert.equal(windows.readyMessage.adminTerminalSupported, true);
+  const forwarded = nextMessage(windows.host, (message) => message.type === 'admin_tab_open');
+  windows.client.send(JSON.stringify({ type: 'admin_tab_open', streamId: 'someone-elses' }));
+  const { value } = await forwarded;
+  assert.equal(value.streamId, windows.started.streamId);
+  assert.equal(value.clientId, windows.started.streamId);
+  // A double tap opens one tab.
+  windows.client.send(JSON.stringify({ type: 'admin_tab_open' }));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(windows.received.filter((message) => message.type === 'admin_tab_open').length, 1);
+
+  const older = await pairedWindow('host-old', []);
+  assert.equal(older.readyMessage.adminTerminalSupported, false);
+  const refused = nextMessage(older.client, (message) => message.type === 'error');
+  older.client.send(JSON.stringify({ type: 'admin_tab_open' }));
+  assert.equal((await refused).value.code, 'admin_terminal_unsupported');
+  assert.equal(
+    older.received.some((message) => message.type === 'admin_tab_open'),
+    false,
+  );
+});
+
 test('a request to start Herdr reaches only the workstation the window is paired to', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-herdr-start-'));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });

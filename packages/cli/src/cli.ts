@@ -34,6 +34,7 @@ Commands:
   url                  Print browser access URL
   run [--daemon]       Run services in foreground (keep-alive)
   admin-broker install | uninstall | status (Windows)
+  admin-shell          Elevated PowerShell in this terminal (Windows)
   keepalive <action>   install | uninstall | restart | status
   plugin <action>      link | unlink | status  (Herdr plugin)
 
@@ -275,6 +276,11 @@ async function main(argv = process.argv.slice(2)) {
       } else {
         throw new Error(`unknown administrator broker action: ${action}`);
       }
+      return;
+    }
+    case 'admin-shell': {
+      const { runAdminShell } = await import('./connector/admin-shell.js');
+      process.exitCode = await runAdminShell(t);
       return;
     }
     case 'keepalive': {

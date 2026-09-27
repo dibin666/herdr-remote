@@ -60,7 +60,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     profileId: requestedProfileId,
     requestedProfileIdRef,
     clearProfileOverride,
-    isAdminTerminal,
   } = useWindowConnectionOverrides();
 
   useEffect(() => {
@@ -365,13 +364,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const connectionValue = useMemo<ConnectionContextValue>(
     () => ({
       ...session,
-      shellProfile: isAdminTerminal ? 'powershell' : session.shellProfile,
       isController: session.role === 'controller',
-      agentProfile: isAdminTerminal
-        ? 'shell'
-        : resolveProfile(session.agentStatus?.focusedAgent, 'auto'),
+      agentProfile: resolveProfile(session.agentStatus?.focusedAgent, 'auto'),
       reportShellProfile: (profile: ShellProfile) => dispatch({ type: 'shellProfile', profile }),
-      isAdminTerminal,
       adapter,
       connect,
       disconnect,
@@ -385,7 +380,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     }),
     [
       session,
-      isAdminTerminal,
       adapter,
       connect,
       disconnect,

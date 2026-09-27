@@ -34,7 +34,8 @@ export interface RelayHost {
   hostname: string;
   platform: string;
   shellProfile?: HostShellProfile;
-  adminSessionsAvailable: boolean;
+  /** The host can open an administrator terminal as a Herdr tab. */
+  adminTabsAvailable: boolean;
   arch: string;
   connectedAt: string;
   connectedAtMs: number;
@@ -70,7 +71,6 @@ export interface RelayClient {
   deviceId: string;
   /** Stable per browser profile, supplied by the browser itself. */
   browserClientId: string | null;
-  adminTerminal: boolean;
   handoffCapable: boolean;
   session: ClientSession | null;
   role: ClientRole;
@@ -86,6 +86,7 @@ export interface RelayClient {
   cols: number;
   rows: number;
   herdrStartAt?: number;
+  adminTabAt?: number;
   fontRefreshAt?: number;
   /** When each outstanding font chunk request was sent. */
   fontChunkRequests?: number[];

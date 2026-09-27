@@ -437,7 +437,7 @@ export const en = {
     releaseControlAria: 'Release Control',
     takeoverControlAria: 'Takeover Control',
     claimControlAria: 'Claim Control',
-    newAdminTerminal: 'Open a new administrator terminal',
+    newAdminTerminal: 'Open an administrator PowerShell tab in Herdr',
     adminShort: 'Admin',
     adminTerminalSetup:
       'On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access. Approve the one-time Windows prompt under the same account as Herdr Remote.',
@@ -662,9 +662,11 @@ export const en = {
     viewer_mode: 'Viewer mode cannot paste to terminal.',
     no_session: 'Terminal session is not ready.',
     admin_broker_unavailable:
-      'The administrator terminal broker is not running. On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access, then reload this tab.',
+      'The administrator terminal broker is not running. On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access, then tap Admin again.',
     admin_terminal_unsupported:
-      'This relay or Windows host connector cannot confirm administrator mode. Upgrade both, then reopen this tab.',
+      'This relay or Windows host connector cannot open administrator terminals. Upgrade both, then try again.',
+    admin_tab_failed:
+      'Could not open the administrator tab in Herdr. The host connector log has the details.',
   },
   fontPresets: {
     host: 'Workstation font (default)',
