@@ -145,6 +145,23 @@ export interface PendingPrediction {
    * until one of its run is confirmed, and a wrong guess is dropped quietly.
    */
   probation?: boolean;
+  /**
+   * Typed while the server's caret was still past this cell, backspaces
+   * before it not yet processed: the caret being past it says nothing until
+   * the caret has come back to it, or the cell has changed.
+   */
+  behindCaret?: boolean;
+  /**
+   * Taken back by a backspace before its echo arrived. Both keys are still on
+   * their way, and the server may draw the character before it clears it:
+   * the cell is drawn blank meanwhile, and the run keeps its place.
+   */
+  cancelled?: boolean;
+  /**
+   * A cancelled character the server's caret has been seen past: it was
+   * drawn, and its backspace comes next.
+   */
+  passed?: boolean;
 }
 
 export function normalizeBlank(chars: string): string {

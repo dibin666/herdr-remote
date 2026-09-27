@@ -28,12 +28,13 @@ export function overlayItems(
   },
 ): OverlayItem[] {
   const items: OverlayItem[] = visible.map((p) => {
+    // A character taken back is drawn as the blank its backspace leaves.
     const item: OverlayItem = {
       row: p.row,
       col: p.col,
-      char: p.char,
+      char: p.cancelled ? ' ' : p.char,
       width: p.width,
-      kind: p.kind,
+      kind: p.cancelled ? 'erase' : p.kind,
     };
     if (style) item.style = style;
     return item;
@@ -44,13 +45,14 @@ export function overlayItems(
   const last = visible[visible.length - 1];
   const next = predictedCursor ?? {
     row: last.row,
-    col: last.kind === 'erase' ? last.col : last.col + last.width,
+    col: last.kind === 'erase' || last.cancelled ? last.col : last.col + last.width,
   };
   const covers = (row: number, col: number) =>
     items.some((p) => p.row === row && p.col <= col && col < p.col + p.width);
 
   // The placeholder of an empty agent box goes with the first key typed.
-  if (active && field && runStartedEmpty && field.agentLike && next.row === field.row) {
+  const typed = visible.some((p) => p.kind === 'char' && !p.cancelled);
+  if (active && field && runStartedEmpty && typed && field.agentLike && next.row === field.row) {
     const line = active.getLine(next.row);
     for (let col = next.col; col < field.endCol; col++) {
       if (covers(next.row, col)) continue;

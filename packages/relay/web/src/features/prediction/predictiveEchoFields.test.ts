@@ -185,6 +185,157 @@ describe("PredictiveEcho in Claude Code's input box", () => {
     expect(t.echo.getMismatchCount()).toBe(0);
   });
 
+  it('predicts every backspace of a held key, not only the first', () => {
+    const t = setup('desktop-claude-typed'); // "❯ hello wor", caret at 37
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    type(t.echo, '\x7f\x7f\x7f');
+    const erased = t.echo
+      .getOverlayItems()
+      .filter((item) => item.kind === 'erase')
+      .map((item) => item.col);
+    expect(erased).toEqual([37, 36, 35]);
+
+    // Claude works through them one at a time.
+    for (const col of [37, 36, 35]) {
+      t.screen.setCell(34, col, { chars: '' });
+      t.screen.setCursor(col, 34);
+      t.echo.onServerOutput();
+    }
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+    expect(t.echo.getMismatchCount()).toBe(0);
+    expect(t.echo.getState()).toBe('confident');
+  });
+
+  it('keeps a retyped correction when unrelated output arrives before the backspace lands', () => {
+    const t = setup('desktop-claude-typed'); // "❯ hello wor", caret at 37
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    type(t.echo, '\x7fxy');
+    // A status line redraw: the caret is still past the cell being retyped.
+    t.echo.onServerOutput();
+    expect(t.echo.getMismatchCount()).toBe(0);
+    expect(t.echo.getVisiblePredictions()).toEqual([
+      { row: 34, col: 37, char: 'x' },
+      { row: 34, col: 38, char: 'y' },
+    ]);
+
+    // Claude draws the backspace and both keys in one frame.
+    t.screen.write(34, 37, 'xy');
+    t.screen.setCursor(39, 34);
+    t.echo.onServerOutput();
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+    expect(t.echo.getMismatchCount()).toBe(0);
+    expect(t.echo.getState()).toBe('confident');
+  });
+
+  it('retypes over every pending backspace, not only the last', () => {
+    const t = setup('desktop-claude-typed');
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    type(t.echo, '\x7f\x7f\x7fxy');
+    const drawn = t.echo
+      .getOverlayItems()
+      .filter((item) => item.kind === 'char' || item.kind === 'erase')
+      .map((item) => `${item.col}${item.char}`)
+      .sort();
+    expect(drawn).toEqual(['35x', '36y', '37 ']);
+
+    t.screen.write(34, 35, 'xy ');
+    t.screen.setCursor(37, 34);
+    t.echo.onServerOutput();
+    expect(t.echo.getOverlayItems().filter((item) => item.kind === 'erase')).toEqual([]);
+    expect(t.echo.getMismatchCount()).toBe(0);
+  });
+
+  it('places the key after a typo taken back where the backspace leaves the caret', () => {
+    const t = setup('desktop-claude-typed'); // "❯ hello wor", caret at 37
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    type(t.echo, 'z\x7f');
+    // Claude draws the typo before the backspace reaches it; it stays hidden.
+    t.remoteEcho('z');
+    const items = t.echo.getOverlayItems();
+    expect(items).toContainEqual({ row: 34, col: 38, char: ' ', width: 1, kind: 'erase' });
+    expect(items).toContainEqual({ row: 34, col: 38, char: ' ', width: 1, kind: 'caret' });
+
+    type(t.echo, 'd');
+    expect(t.echo.getMismatchCount()).toBe(0);
+    expect(t.echo.getVisiblePredictions()).toEqual([{ row: 34, col: 38, char: 'd' }]);
+
+    type(t.echo, 'x');
+    expect(t.echo.getVisiblePredictions()).toEqual([
+      { row: 34, col: 38, char: 'd' },
+      { row: 34, col: 39, char: 'x' },
+    ]);
+
+    t.screen.write(34, 38, 'dx');
+    t.screen.setCursor(40, 34);
+    t.echo.onServerOutput();
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+    expect(t.echo.getMismatchCount()).toBe(0);
+  });
+
+  it('keeps a held backspace on screen after reaching a key it cannot predict', () => {
+    const t = setup('desktop-claude-typed'); // "❯ hello worl" once echoed
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    // "lrow" goes, then the backspace over the space ends the run.
+    type(t.echo, '\x7f'.repeat(5));
+    const erased = () =>
+      t.echo
+        .getOverlayItems()
+        .filter((item) => item.kind === 'erase')
+        .map((item) => item.col);
+    expect(erased()).toEqual([37, 36, 35, 34]);
+
+    // The first backspace lands, taking the caret back.
+    t.screen.setCell(34, 37, { chars: '' });
+    t.screen.setCursor(37, 34);
+    t.echo.onServerOutput();
+    expect(erased()).toEqual([36, 35, 34]);
+  });
+
+  it('does not take a cleared cell as proof of where a run after unknown keys is', () => {
+    const t = setup('desktop-claude-typed');
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    // Four backspaces predicted, one over the space refused, and one more
+    // typed while the predictor waits for the caret: that one is untracked.
+    for (let i = 0; i < 6; i++) type(t.echo, '\x7f');
+    for (const col of [37, 36, 35, 34, 33]) {
+      t.screen.setCell(34, col, { chars: '' });
+      t.screen.setCursor(col, 34);
+      t.echo.onServerOutput();
+    }
+    // The next backspace is placed as if nothing were on its way: a guess.
+    type(t.echo, '\x7f');
+    // The untracked backspace lands and clears the cell the guess named.
+    t.screen.setCell(34, 32, { chars: '' });
+    t.screen.setCursor(32, 34);
+    t.echo.onServerOutput();
+
+    // One backspace is still on its way: a key typed now must not be shown
+    // where the caret is.
+    type(t.echo, 'x');
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+  });
+
+  it('keeps track of the keys after a backspace it cannot predict in the same chunk', () => {
+    const t = setup('desktop-claude-typed');
+    type(t.echo, 'l');
+    t.remoteEcho('l');
+    type(t.echo, '\x7f'.repeat(6));
+    for (const col of [37, 36, 35, 34, 33]) {
+      t.screen.setCell(34, col, { chars: '' });
+      t.screen.setCursor(col, 34);
+      t.echo.onServerOutput();
+    }
+    // The sixth backspace is still on its way.
+    type(t.echo, 'x');
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+  });
+
   it('never predicts erasing the first character of the field', () => {
     const t = setup('desktop-claude-empty');
     type(t.echo, 'a');
