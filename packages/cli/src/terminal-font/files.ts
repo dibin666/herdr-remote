@@ -136,12 +136,11 @@ function readSfntNames(
   }
 }
 
-function macFontFiles(deps: Deps): string[] {
-  const roots = [
-    path.join(deps.home, 'Library', 'Fonts'),
-    '/Library/Fonts',
-    '/System/Library/Fonts',
-  ];
+function fontFolderFiles(deps: Deps): string[] {
+  const roots =
+    deps.platform === 'darwin'
+      ? [path.join(deps.home, 'Library', 'Fonts'), '/Library/Fonts', '/System/Library/Fonts']
+      : [];
   const files: string[] = [];
   const walk = (directory: string, depth: number) => {
     let entries: fs.Dirent[];
@@ -176,7 +175,7 @@ export function familyForPostScriptName(postscript: string, deps: Deps): string 
   if (listed.status === 0 && listed.stdout.trim())
     return listed.stdout.trim().split('\n')[0].split(',')[0].trim();
   if (deps.platform !== 'darwin') return null;
-  for (const file of macFontFiles(deps)) {
+  for (const file of fontFolderFiles(deps)) {
     const names = readSfntNames(file);
     if (names?.postscript === postscript) return names.family;
   }
@@ -213,9 +212,9 @@ function locateFaceFiles(family: string, deps: Deps): Partial<Record<HostFontSty
     if (!file || !names.includes(family.toLowerCase()) || Number(index) !== 0) continue;
     located[style] = file;
   }
-  if (fontconfig || deps.platform !== 'darwin') return located;
+  if (fontconfig) return located;
 
-  for (const file of macFontFiles(deps)) {
+  for (const file of fontFolderFiles(deps)) {
     const names = readSfntNames(file);
     if (!names || names.family?.toLowerCase() !== family.toLowerCase()) continue;
     const style = styleOfSubfamily(names.subfamily);
