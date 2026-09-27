@@ -116,7 +116,7 @@ export function useXterm({
   onTitle: (title: string | null) => void;
   onRendererKind: (kind: string) => void;
 }): void {
-  const { requestFit, scheduleBoundedFit, seedFit, cancelPendingFits } = fit;
+  const { requestFit, scheduleBoundedFit, fitNow, seedFit, cancelPendingFits } = fit;
 
   // Initialize Terminal instance
   // biome-ignore lint/correctness/useExhaustiveDependencies: the terminal is created once; later changes reach it through the effects below
@@ -384,14 +384,21 @@ export function useXterm({
     if (!term) return;
 
     const box = measureElementBox(containerRef.current, getViewportWidth(), getViewportHeight());
-    term.options.fontSize = getEffectiveTerminalFontSize(terminalFontSize, box.width);
+    const fontSize = getEffectiveTerminalFontSize(terminalFontSize, box.width);
+    const changed =
+      term.options.fontSize !== fontSize || term.options.fontFamily !== terminalFontFamily;
+    term.options.fontSize = fontSize;
     term.options.fontFamily = terminalFontFamily;
     refresh(term);
 
     // A different font means a different cell, and the grid is measured from
     // the cell. Refitting keeps the terminal full-bleed after a zoom instead of
-    // leaving the frame half-painted; the renderer needs a frame to re-measure,
-    // which is what the bounded chain waits for.
+    // leaving the frame half-painted. A font that really changed is fitted now
+    // and told to the host at once: switching instances changes the font as it
+    // reconnects, and the new session starts at whatever grid the window has
+    // when it opens. The bounded chain then catches a renderer that needed a
+    // frame to re-measure.
+    if (changed) fitNow();
     scheduleBoundedFit(10);
   }, [terminalFontSize, terminalFontFamily]);
 
