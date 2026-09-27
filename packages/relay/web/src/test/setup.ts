@@ -338,6 +338,7 @@ export interface MockHerdrRenderer {
   };
   textCanvas: HTMLCanvasElement;
   overlayProvider: (() => unknown) | null;
+  typingZoneProvider: (() => unknown) | null;
   overlayInvalidations: number;
   flushes: number;
   uninstalled: boolean;
@@ -372,6 +373,7 @@ vi.mock('@/features/terminal/render/HerdrRenderer', () => {
     // finds it inconclusive without asking jsdom for a 2D context it lacks.
     textCanvas = Object.assign(document.createElement('canvas'), { width: 0, height: 0 });
     overlayProvider: (() => unknown) | null = null;
+    typingZoneProvider: (() => unknown) | null = null;
     overlayInvalidations = 0;
     flushes = 0;
     uninstalled = false;
@@ -382,6 +384,9 @@ vi.mock('@/features/terminal/render/HerdrRenderer', () => {
     }
     setOverlayProvider(provider: (() => unknown) | null) {
       this.overlayProvider = provider;
+    }
+    setTypingZoneProvider(provider: (() => unknown) | null) {
+      this.typingZoneProvider = provider;
     }
     invalidateOverlay() {
       this.overlayInvalidations += 1;

@@ -36,6 +36,8 @@ function recordingContext(): CanvasRenderingContext2D & Recorder {
     },
     set(target, prop, value) {
       target[prop] = value;
+      // Fades are drawn through it; the other properties are only read back.
+      if (prop === 'globalAlpha') (target.calls as Recorder['calls']).push(['globalAlpha', value]);
       return true;
     },
   }) as unknown as CanvasRenderingContext2D & Recorder;
@@ -94,7 +96,7 @@ class ManualResizeObserver {
   }
 }
 
-function setup(cols = 20, rows = 6, dpr = 1) {
+function setup(cols = 20, rows = 6, dpr = 1, view: Record<string, unknown> = {}) {
   const term = new Terminal({ cols, rows, allowProposedApi: true });
   const headless = (term as unknown as { _core: Record<string, unknown> })._core;
   // The browser build does this on focus, input or the alternate screen, which
@@ -115,7 +117,10 @@ function setup(cols = 20, rows = 6, dpr = 1) {
     _coreBrowserService: {
       isFocused: true,
       dpr,
-      window: Object.assign(Object.create(window), { ResizeObserver: ManualResizeObserver }),
+      window: Object.assign(Object.create(window), {
+        ResizeObserver: ManualResizeObserver,
+        ...view,
+      }),
       mainDocument: document,
     },
     _themeService: {
@@ -411,5 +416,103 @@ describe('resolveCellColors', () => {
       bg: colors.ansi[2].css,
       bgIsDefault: false,
     });
+  });
+});
+
+describe('HerdrRenderer typing animations', () => {
+  const zone = { row: 0, startCol: 0, endCol: 20 };
+
+  /** The alpha each glyph copied from the atlas was drawn with, in order. */
+  function glyphAlphas(t: ReturnType<typeof setup>): number[] {
+    const alphas: number[] = [];
+    let alpha = 1;
+    for (const [name, value] of t.mainContext.calls) {
+      if (name === 'globalAlpha') alpha = value as number;
+      else if (name === 'drawImage') alphas.push(alpha);
+    }
+    return alphas;
+  }
+
+  async function typed(view: Record<string, unknown> = {}) {
+    const t = setup(20, 6, 1, view);
+    await t.write('ab');
+    t.frame();
+    t.renderer.setTypingZoneProvider(() => zone);
+    t.mainContext.calls.length = 0;
+    t.redraws.length = 0;
+    return t;
+  }
+
+  it('fades a typed character in, frame by frame, then paints it whole', async () => {
+    const t = await typed();
+    await t.write('c');
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([0]);
+    expect(t.redraws.at(-1)).toEqual({ start: 0, end: 0 });
+
+    t.mainContext.calls.length = 0;
+    t.advance(60);
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([1 - 0.5 ** 3]);
+
+    t.mainContext.calls.length = 0;
+    t.redraws.length = 0;
+    t.advance(60);
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([1]);
+    expect(t.redraws).toEqual([]);
+    t.frame();
+    expect(t.renderer.stats.lastCells).toBe(0);
+  });
+
+  it('staggers characters that land in one frame, left to right', async () => {
+    const t = await typed();
+    await t.write('cde');
+    t.frame();
+    t.mainContext.calls.length = 0;
+    t.advance(40);
+    t.frame();
+    const [c, d, e] = glyphAlphas(t);
+    expect(c).toBeGreaterThan(d);
+    expect(d).toBeGreaterThan(e);
+    expect(e).toBeGreaterThan(0);
+  });
+
+  it('fades a deleted character out over the blank it leaves', async () => {
+    const t = await typed();
+    await t.write('\b \b');
+    t.frame();
+    // The blank under the cursor, then "b" over it, fully drawn to start with.
+    expect(glyphAlphas(t)).toEqual([1]);
+    t.mainContext.calls.length = 0;
+    t.advance(60);
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([0.25]);
+    t.mainContext.calls.length = 0;
+    t.advance(60);
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([]);
+  });
+
+  it('shows a redraw at once: characters replaced by others do not fade', async () => {
+    const t = await typed();
+    await t.write('\rxyz');
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([1, 1, 1]);
+    expect(t.redraws).toEqual([]);
+  });
+
+  it('fades nothing outside the typing zone', async () => {
+    const t = await typed();
+    await t.write('\x1b[3;1Hlog line');
+    t.frame();
+    expect(glyphAlphas(t).every((alpha) => alpha === 1)).toBe(true);
+  });
+
+  it('does not animate for someone who asked for reduced motion', async () => {
+    const t = await typed({ matchMedia: () => ({ matches: true }) });
+    await t.write('c');
+    t.frame();
+    expect(glyphAlphas(t)).toEqual([1]);
   });
 });

@@ -2,9 +2,9 @@ import type { Terminal } from '@xterm/xterm';
 import { CellPainter } from './cellPainter';
 import type { ThemeColors } from './colors';
 import { CursorBlink, type CursorState, resolveCursor } from './cursor';
-import { DecorLayer } from './decorLayer';
-import { createDimensions, layoutCells, watchDevicePixelSize } from './geometry';
+import { createDimensions, layoutCells } from './geometry';
 import { overlayCellsByRow, overlayRows, type PaintOverlay } from './paintOverlay';
+import { RenderSurface, watchFontLoads } from './renderSurface';
 import { SyncHold } from './syncHold';
 import {
   type Disposable,
@@ -37,6 +37,13 @@ export interface HerdrRendererOptions {
 
 const DEFAULT_MAX_SYNC_HOLD_MS = 150;
 
+/** Where the user types: part of one row (absolute), in whose cells typed text fades in and out. */
+export interface TypingZone {
+  row: number;
+  startCol: number;
+  endCol: number;
+}
+
 /**
  * Paints the terminal on one canvas, and only the cells that changed.
  *
@@ -68,8 +75,7 @@ export class HerdrRenderer implements XtermRenderer {
     lastInputToPaintMs: null,
   };
 
-  private readonly canvas: HTMLCanvasElement;
-  private readonly decor: DecorLayer;
+  private readonly surface: RenderSurface;
   private readonly cells: CellPainter;
   private readonly disposables: Disposable[] = [];
   private readonly now: () => number;
@@ -79,6 +85,8 @@ export class HerdrRenderer implements XtermRenderer {
   private rows = 0;
 
   private overlayProvider: (() => PaintOverlay | null) | null = null;
+  private typingZoneProvider: (() => TypingZone | null) | null = null;
+  private readonly reducedMotion: MediaQueryList | undefined;
   /** Absolute rows the last painted overlay touched. */
   private paintedOverlayRows = new Set<number>();
   private paintedCursorRow = -1;
@@ -110,20 +118,12 @@ export class HerdrRenderer implements XtermRenderer {
       this.flushHeld(),
     );
     this.isSynchronizing = options.isSynchronizing ?? (() => false);
+    this.reducedMotion = core._coreBrowserService.window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    );
     const document = core._coreBrowserService.mainDocument;
-    const screen = core.screenElement!;
-
-    this.canvas = document.createElement('canvas');
-    this.canvas.classList.add('xterm-text-layer');
-    this.canvas.style.zIndex = '0';
-    const ctx = this.canvas.getContext('2d', { alpha: false });
-    if (!ctx) throw new Error('2D canvas unavailable');
-
-    this.decor = new DecorLayer(document);
-
-    screen.appendChild(this.canvas);
-    screen.appendChild(this.decor.canvas);
-    this.cells = new CellPainter(ctx, document, core, this.dimensions);
+    this.surface = new RenderSurface(document, core.screenElement!);
+    this.cells = new CellPainter(this.surface.textContext, document, core, this.dimensions);
 
     this.disposables.push(
       core._themeService.onChangeColors(() => {
@@ -138,17 +138,29 @@ export class HerdrRenderer implements XtermRenderer {
     if (core.linkifier) {
       this.disposables.push(
         core.linkifier.onShowLinkUnderline((event) => {
-          this.decor.link = event;
+          this.surface.decor.link = event;
           this.redrawDecor();
         }),
         core.linkifier.onHideLinkUnderline(() => {
-          this.decor.link = null;
+          this.surface.decor.link = null;
           this.redrawDecor();
         }),
       );
     }
-    this.observeDevicePixels();
-    this.observeFonts(document);
+    const pixels = this.surface.watchDevicePixels(
+      core._coreBrowserService.window,
+      this.dimensions,
+      () => core._coreBrowserService.dpr,
+      () => {
+        this.invalidateAll();
+        this.cells.fillBackground();
+        this.redrawDecor();
+        this.redraw.fire({ start: 0, end: Math.max(0, this.rows - 1) });
+      },
+    );
+    if (pixels) this.disposables.push(pixels);
+    const fonts = watchFontLoads(document, () => this.clearTextureAtlas());
+    if (fonts) this.disposables.push(fonts);
     this.restartBlink();
   }
 
@@ -161,6 +173,11 @@ export class HerdrRenderer implements XtermRenderer {
   setOverlayProvider(provider: (() => PaintOverlay | null) | null): void {
     this.overlayProvider = provider;
     this.invalidateOverlay();
+  }
+
+  /** Where the user types, read on every frame; text appearing or clearing there fades. */
+  setTypingZoneProvider(provider: (() => TypingZone | null) | null): void {
+    this.typingZoneProvider = provider;
   }
 
   /** The overlay changed: repaint the rows it touched and touches now. */
@@ -200,18 +217,7 @@ export class HerdrRenderer implements XtermRenderer {
     if (layoutCells(this.dimensions, this.core, cols, rows)) {
       this.dprUsed = this.core._coreBrowserService.dpr;
     }
-    const dims = this.dimensions;
-    for (const canvas of [this.canvas, this.decor.canvas]) {
-      canvas.width = dims.device.canvas.width;
-      canvas.height = dims.device.canvas.height;
-      canvas.style.width = `${dims.css.canvas.width}px`;
-      canvas.style.height = `${dims.css.canvas.height}px`;
-    }
-    const screen = this.core.screenElement;
-    if (screen) {
-      screen.style.width = `${dims.css.canvas.width}px`;
-      screen.style.height = `${dims.css.canvas.height}px`;
-    }
+    this.surface.size(this.dimensions);
     this.cols = cols;
     this.rows = rows;
     this.cells.resize(cols, rows);
@@ -243,7 +249,7 @@ export class HerdrRenderer implements XtermRenderer {
     end: [number, number] | undefined,
     columnSelectMode: boolean,
   ): void {
-    this.decor.setSelection(start, end, columnSelectMode);
+    this.surface.decor.setSelection(start, end, columnSelectMode);
     this.redrawDecor();
   }
 
@@ -282,8 +288,7 @@ export class HerdrRenderer implements XtermRenderer {
     this.disposables.length = 0;
     this.redraw.dispose();
     this.cells.atlas.dispose();
-    this.canvas.remove();
-    this.decor.canvas.remove();
+    this.surface.remove();
   }
 
   /** Hands drawing back to xterm's own DOM renderer. */
@@ -300,7 +305,7 @@ export class HerdrRenderer implements XtermRenderer {
   }
 
   get textCanvas(): HTMLCanvasElement {
-    return this.canvas;
+    return this.surface.text;
   }
 
   /**
@@ -322,8 +327,11 @@ export class HerdrRenderer implements XtermRenderer {
     const ydisp = buffer.ydisp;
     if (ydisp !== this.lastYdisp) {
       this.lastYdisp = ydisp;
+      this.cells.fades.clear();
       this.redrawDecor();
     }
+    const zone = this.reducedMotion?.matches ? null : (this.typingZoneProvider?.() ?? null);
+    const typingY = zone ? zone.row - ydisp : -1;
 
     const overlay = this.overlayProvider?.() ?? null;
     const overlayByRow = overlayCellsByRow(overlay);
@@ -337,11 +345,17 @@ export class HerdrRenderer implements XtermRenderer {
     for (const row of overlayByRow.keys()) addViewportRow(rows, row - ydisp, this.rows);
     if (this.paintedCursorRow >= 0) addViewportRow(rows, this.paintedCursorRow, this.rows);
     if (cursor) addViewportRow(rows, cursor.y, this.rows);
+    for (const y of this.cells.fades.rows(this.cols)) addViewportRow(rows, y, this.rows);
 
     let cells = 0;
     for (const y of rows) {
       this.cells.loadRow(buffer.lines.get(ydisp + y), overlayByRow.get(y + ydisp));
-      cells += this.cells.paintRow(y, cursor);
+      const typing = y === typingY ? { start: zone!.startCol, end: zone!.endCol } : null;
+      cells += this.cells.paintRow(y, cursor, typing, began);
+    }
+    // A fade still running needs the next frame too.
+    if (this.cells.fades.size > 0) {
+      this.requestAbsoluteRows([...this.cells.fades.rows(this.cols)].map((y) => y + ydisp));
     }
 
     this.paintedOverlayRows = new Set(overlayByRow.keys());
@@ -395,7 +409,7 @@ export class HerdrRenderer implements XtermRenderer {
   // Selection and link underline, on their own layer
 
   private redrawDecor(): void {
-    this.decor.paint({
+    this.surface.decor.paint({
       dims: this.dimensions.device,
       rows: this.rows,
       cols: this.cols,
@@ -415,43 +429,6 @@ export class HerdrRenderer implements XtermRenderer {
   private invalidateAll(): void {
     this.cells.invalidate();
     this.paintedCursorRow = -1;
-  }
-
-  /** Adopts the canvas's exact size in device pixels; see watchDevicePixelSize. */
-  private observeDevicePixels(): void {
-    const watch = watchDevicePixelSize(
-      this.core._coreBrowserService.window,
-      this.canvas,
-      (width, height) => {
-        // A rounding correction is a pixel or two. Anything else is a size the
-        // cells were not laid out for (emulated device scales report CSS pixels
-        // here), and drawing into it would scale the whole grid.
-        const dpr = this.core._coreBrowserService.dpr;
-        const css = this.dimensions.css.canvas;
-        if (Math.abs(width - css.width * dpr) > 2 || Math.abs(height - css.height * dpr) > 2)
-          return;
-        this.dimensions.device.canvas.width = width;
-        this.dimensions.device.canvas.height = height;
-        for (const canvas of [this.canvas, this.decor.canvas]) {
-          canvas.width = width;
-          canvas.height = height;
-        }
-        this.invalidateAll();
-        this.cells.fillBackground();
-        this.redrawDecor();
-        this.redraw.fire({ start: 0, end: Math.max(0, this.rows - 1) });
-      },
-    );
-    if (watch) this.disposables.push(watch);
-  }
-
-  /** A web font that finishes loading changes glyphs already cached with its fallback. */
-  private observeFonts(document: Document): void {
-    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-    if (!fonts || typeof fonts.addEventListener !== 'function') return;
-    const onLoaded = () => this.clearTextureAtlas();
-    fonts.addEventListener('loadingdone', onLoaded);
-    this.disposables.push({ dispose: () => fonts.removeEventListener('loadingdone', onLoaded) });
   }
 
   // ---------------------------------------------------------------------------
