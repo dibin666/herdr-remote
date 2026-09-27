@@ -246,7 +246,11 @@ function herdrVersion({
   };
   let result: SpawnSyncReturns<string>;
   try {
-    result = spawnSync(resolved, ['--version'], { encoding: 'utf8', timeout });
+    result = spawnSync(resolved, ['--version'], {
+      encoding: 'utf8',
+      timeout,
+      windowsHide: true,
+    });
   } catch {
     return unknown;
   }

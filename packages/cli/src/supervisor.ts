@@ -173,6 +173,7 @@ class Supervisor {
       child = spawn(entry.spec.command, entry.spec.args, {
         cwd: PACKAGE_ROOT,
         env: { ...baseEnvironment(), ...entry.spec.env },
+        windowsHide: true,
         stdio,
       });
     } catch (error) {

@@ -84,12 +84,12 @@ function serviceTarget(): string {
 }
 
 function launchctl(args: string[]) {
-  return spawnSync('launchctl', args, { encoding: 'utf8' });
+  return spawnSync('launchctl', args, { encoding: 'utf8', windowsHide: true });
 }
 
 /** A launchctl call whose outcome does not matter (bootout of nothing, say). */
 function launchctlQuietly(args: string[]): void {
-  spawnSync('launchctl', args, { stdio: 'ignore' });
+  spawnSync('launchctl', args, { stdio: 'ignore', windowsHide: true });
 }
 
 export const launchd: KeepaliveBackend = {

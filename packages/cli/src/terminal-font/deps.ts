@@ -47,7 +47,11 @@ export const GENERIC_FAMILIES = new Set([
 
 export function defaultRun(command: string, args: string[]): RunResult {
   try {
-    const result = spawnSync(command, args, { encoding: 'utf8', timeout: COMMAND_TIMEOUT_MS });
+    const result = spawnSync(command, args, {
+      encoding: 'utf8',
+      timeout: COMMAND_TIMEOUT_MS,
+      windowsHide: true,
+    });
     return { status: result.status, stdout: result.stdout || '' };
   } catch {
     return { status: null, stdout: '' };
