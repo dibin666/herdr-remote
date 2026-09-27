@@ -38,15 +38,26 @@ const PACKAGE_ROOT = findPackageRoot(import.meta.dirname);
  * it launches the plugin itself, so honouring it would give "herdr-remote" run
  * from a shell and the same tool run from a Herdr pane two different config
  * files. One path, one config; `migrateLegacyConfig()` imports the old one.
+ * On Windows, configuration roams under `APPDATA` while state and logs stay
+ * local under `LOCALAPPDATA`, following Windows and Herdr's directory layout.
  */
-function configDir(): string {
-  return process.env.HERDR_REMOTE_CONFIG_DIR || path.join(os.homedir(), '.config', 'herdr-remote');
+function configDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform): string {
+  if (env.HERDR_REMOTE_CONFIG_DIR) return env.HERDR_REMOTE_CONFIG_DIR;
+  if (platform === 'win32') {
+    return path.join(env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'herdr-remote');
+  }
+  return path.join(os.homedir(), '.config', 'herdr-remote');
 }
 
-function stateDir(): string {
-  return (
-    process.env.HERDR_REMOTE_STATE_DIR || path.join(os.homedir(), '.local', 'state', 'herdr-remote')
-  );
+function stateDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform): string {
+  if (env.HERDR_REMOTE_STATE_DIR) return env.HERDR_REMOTE_STATE_DIR;
+  if (platform === 'win32') {
+    return path.join(
+      env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+      'herdr-remote',
+    );
+  }
+  return path.join(os.homedir(), '.local', 'state', 'herdr-remote');
 }
 
 function configPath(): string {
