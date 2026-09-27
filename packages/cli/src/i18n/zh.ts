@@ -141,6 +141,10 @@ const zh: Record<MessageKey, string> = {
   'keepalive.enableLinger': '开启开机自启',
   'keepalive.lingerDone': '已为 {username} 开启开机自启。',
   'keepalive.fallbackNote': '无系统服务管理器，使用后台守护进程，重启后不自动恢复。',
+  'keepalive.serviceNote':
+    '以你的账户作为 Windows 服务运行，开机后、登录前自动启动。安装或移除需要管理员权限。',
+  'keepalive.serviceWindowHint': '请在随后打开的管理员窗口中完成安装。',
+  'keepalive.elevationCancelled': '未授予管理员权限，未安装服务。',
 
   'herdr.title': 'Herdr 集成',
   'herdr.socketPath': '套接字路径',

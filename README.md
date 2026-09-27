@@ -131,6 +131,7 @@ Install the background service from the **Keep-alive** tab or the CLI:
 
 - **Linux**: systemd user unit (`loginctl enable-linger` keeps it running after logout)
 - **macOS**: LaunchAgent
+- **Windows**: a WinSW service that runs as your account and starts at boot; install and uninstall need administrator rights and your Windows account password. Choose `supervisor` to run without them.
 - **Anything else**: a built-in supervisor process
 
 ```bash

@@ -141,6 +141,10 @@ const en = {
   'keepalive.lingerDone': 'Start at boot enabled for {username}.',
   'keepalive.fallbackNote':
     'No system service manager found; background process will not survive reboot.',
+  'keepalive.serviceNote':
+    'Runs as a Windows service under your account and starts at boot, before anyone signs in. Installing or removing it asks for administrator rights.',
+  'keepalive.serviceWindowHint': 'Finish the installation in the administrator window that opens.',
+  'keepalive.elevationCancelled': 'Administrator rights were not granted; nothing was installed.',
 
   'herdr.title': 'Herdr integration',
   'herdr.socketPath': 'Socket path',

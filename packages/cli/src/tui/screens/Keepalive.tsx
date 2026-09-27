@@ -28,8 +28,18 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
     }
     ctx.run(async () => {
       if (id === 'install') {
-        const result = await keepalive.install(ctx.config);
-        ctx.notify((t) => t('keepalive.installed', { manager: result.manager }), 'success');
+        if (keepalive.detectManager(ctx.config.keepalive.manager) === 'windows-service')
+          ctx.notify((t) => t('keepalive.serviceWindowHint'), 'info');
+        try {
+          const result = await keepalive.install(ctx.config);
+          ctx.notify((t) => t('keepalive.installed', { manager: result.manager }), 'success');
+        } catch (error) {
+          if ((error as Error & { code?: string }).code === 'ELEVATION_CANCELLED') {
+            ctx.notify((t) => t('keepalive.elevationCancelled'), 'info');
+            return;
+          }
+          throw error;
+        }
         return;
       }
       if (id === 'uninstall') {
@@ -138,6 +148,9 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
         ) : null}
         {current?.manager === 'supervisor' ? (
           <Text color={theme.warn}>{t('keepalive.fallbackNote')}</Text>
+        ) : null}
+        {current?.manager === 'windows-service' ? (
+          <Text color={theme.warn}>{t('keepalive.serviceNote')}</Text>
         ) : null}
         <Text color={theme.muted}>
           {t('keepalive.logsHint', { command: status?.logsHint ?? '' })}

@@ -1,6 +1,6 @@
 /** What a keep-alive manager reports about the installed service. */
 export interface KeepaliveStatus {
-  manager: 'systemd' | 'launchd' | 'supervisor' | 'none';
+  manager: 'systemd' | 'launchd' | 'supervisor' | 'windows-service' | 'none';
   installed: boolean;
   active: boolean;
   enabled: boolean;
@@ -14,7 +14,7 @@ export interface KeepaliveStatus {
 
 /** One way of keeping the services running; each platform manager is one. */
 export interface KeepaliveBackend {
-  readonly name: 'systemd' | 'launchd' | 'supervisor';
+  readonly name: 'systemd' | 'launchd' | 'supervisor' | 'windows-service';
   status(): KeepaliveStatus;
   install(): Promise<{ ok: true; [key: string]: unknown }>;
   uninstall(): Promise<{ ok: true; [key: string]: unknown }>;

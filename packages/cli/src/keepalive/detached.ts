@@ -53,6 +53,14 @@ function stopAndForget() {
   return { ok: true as const, stoppedPid: pid };
 }
 
+export function detachedLogsHint(
+  platform = process.platform,
+  logFile = logPath('supervisor'),
+): string {
+  if (platform === 'win32') return `Get-Content -Wait -Tail 40 "${logFile}"`;
+  return `tail -f ${logFile}`;
+}
+
 export const detached: KeepaliveBackend = {
   name: 'supervisor',
 
@@ -88,6 +96,6 @@ export const detached: KeepaliveBackend = {
   },
 
   logsHint() {
-    return `tail -f ${logPath('supervisor')}`;
+    return detachedLogsHint();
   },
 };

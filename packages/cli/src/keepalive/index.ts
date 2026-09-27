@@ -14,6 +14,7 @@ import { type Config, type KeepaliveManager, loadConfig } from '../config.js';
 import { detached } from './detached.js';
 import { launchd } from './launchd.js';
 import { systemd } from './systemd.js';
+import { windowsService } from './windows-service.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
 
 export { serviceEnvironment, servicePath } from './environment.js';
@@ -43,9 +44,11 @@ function commandExists(command: string): boolean {
 /** Which manager to use given the platform, the user's preference and reality. */
 export function detectManager(
   preference: KeepaliveManager = 'auto',
+  platform = process.platform,
 ): Exclude<KeepaliveManager, 'auto'> {
   if (preference && preference !== 'auto') return preference;
-  if (process.platform === 'linux') {
+  if (platform === 'win32') return 'windows-service';
+  if (platform === 'linux') {
     // `systemctl --user` needs a user bus; containers and bare TTY logins often
     // have systemd installed but no session bus, where it would fail at runtime.
     if (
@@ -56,7 +59,7 @@ export function detectManager(
     }
     return 'supervisor';
   }
-  if (process.platform === 'darwin') {
+  if (platform === 'darwin') {
     return commandExists('launchctl') ? 'launchd' : 'supervisor';
   }
   return 'supervisor';
@@ -71,6 +74,7 @@ function backendOf(config: Config): KeepaliveBackend {
   const manager = managerOf(config);
   if (manager === 'systemd') return systemd;
   if (manager === 'launchd') return launchd;
+  if (manager === 'windows-service') return windowsService;
   return detached;
 }
 

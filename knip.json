@@ -15,7 +15,7 @@
         "tests/**/*.test.js"
       ],
       "project": ["bin/**/*.js", "src/**/*.{js,ts,tsx}", "tests/**/*.js"],
-      "ignoreBinaries": ["loginctl", "fc-match"],
+      "ignoreBinaries": ["loginctl", "fc-match", "sc.exe"],
       "ignoreDependencies": ["harfbuzzjs"]
     },
     "packages/relay": {
