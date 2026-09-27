@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process';
 import { type Config, loadConfig } from './config.js';
-import { logPath, PACKAGE_ROOT, stateDir } from './paths.js';
+import { logPath, stateDir } from './paths.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 import {
   type RuntimeState,
@@ -171,7 +171,7 @@ class Supervisor {
     let child: ChildProcess;
     try {
       child = spawn(entry.spec.command, entry.spec.args, {
-        cwd: PACKAGE_ROOT,
+        cwd: entry.spec.cwd,
         env: { ...baseEnvironment(), ...entry.spec.env },
         windowsHide: true,
         stdio,

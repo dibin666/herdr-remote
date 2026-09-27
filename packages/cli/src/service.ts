@@ -43,6 +43,11 @@ export interface ServiceSpec {
   name: 'relay' | 'host';
   command: string;
   args: string[];
+  /**
+   * Never PACKAGE_ROOT: npm updates the package by renaming its directory, and
+   * Windows refuses (EBUSY) while that is any process's working directory.
+   */
+  cwd: string;
   env: Record<string, string>;
 }
 
@@ -73,6 +78,7 @@ export function serviceSpecs(config = loadConfig(), state = ensureRuntime()): Se
       name: 'relay',
       command: process.execPath,
       args: [relayBinPath()],
+      cwd: stateDir(),
       env: {
         // Let the shared web UI tell a private workstation relay apart from
         // the operator-facing self-hosted relay. Standalone relay installs
@@ -106,6 +112,7 @@ export function serviceSpecs(config = loadConfig(), state = ensureRuntime()): Se
     name: 'host',
     command: process.execPath,
     args: [path.join(PACKAGE_ROOT, 'dist', 'connector', 'main.js')],
+    cwd: stateDir(),
     env: {
       // Captured here, where a terminal may still be attached, because the
       // connector itself usually runs detached with no terminal to ask.
@@ -134,7 +141,7 @@ function spawnDetached(spec: ServiceSpec): number | undefined {
   const logFd = fs.openSync(logPath(spec.name), 'a');
   try {
     const child = spawn(spec.command, spec.args, {
-      cwd: PACKAGE_ROOT,
+      cwd: spec.cwd,
       env: { ...baseEnvironment(), ...spec.env },
       detached: true,
       // A detached console program can open a visible window from a console-less Windows parent.
