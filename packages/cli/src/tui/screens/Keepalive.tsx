@@ -61,7 +61,7 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
         let ready = false;
         try {
           await configureAdminBroker(action, t);
-          ready = action === 'install' && (await adminBrokerStatus());
+          ready = action === 'install' && (await adminBrokerStatus({ waitForStart: true }));
         } catch (error) {
           if ((error as Error & { code?: string }).code === 'ELEVATION_CANCELLED') {
             ctx.notify((t) => t('adminBroker.elevationCancelled'), 'info');

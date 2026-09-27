@@ -135,10 +135,10 @@ export {
   whileServicesStopped,
 };
 
-export async function adminBrokerStatus(): Promise<boolean> {
+export async function adminBrokerStatus({ waitForStart = false } = {}): Promise<boolean> {
   if (process.platform !== 'win32') return false;
   const broker = await import('../connector/admin-broker.js');
-  return broker.adminBrokerStatus();
+  return waitForStart ? broker.waitForAdminBroker() : broker.adminBrokerStatus();
 }
 
 export async function configureAdminBroker(
