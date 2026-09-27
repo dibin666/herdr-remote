@@ -38,7 +38,13 @@ export function createMouseSource(
     if (passthrough.length > 0) forwarded.write(passthrough);
   };
 
-  if (supported) input.on('data', onData);
+  if (supported) {
+    input.on('data', onData);
+    // A 'data' listener only starts a stream nobody paused. The Windows color
+    // probe reads stdin before the TUI and pauses it afterwards, and a paused
+    // stdin delivers no keys and keeps nothing alive: the TUI exited at once.
+    input.resume();
+  }
 
   // Ink expects a TTY: it checks isTTY and drives raw mode itself. Delegate
   // those to the real stdin while it reads from our filtered copy.

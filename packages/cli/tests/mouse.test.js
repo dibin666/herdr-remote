@@ -102,3 +102,25 @@ test('containment is half-open, so neighbouring rows never both match', async ()
   assert.equal(rectContains(row3, 21, 3), false);
   assert.equal(rectContains(row3, 0, 3), false);
 });
+
+// Windows asks the terminal for its colors through stdin and pauses it when
+// done. A stream paused that way ignores a new 'data' listener, so the TUI
+// received no keys and, with nothing left to wait on, exited at once.
+test('keys reach Ink even when stdin was paused before the TUI took it over', async (t) => {
+  const { createMouseSource } = await loadMouse();
+  const { PassThrough } = await import('node:stream');
+  const input = new PassThrough();
+  input.isTTY = true;
+  input.setRawMode = () => input;
+  input.pause();
+  const output = { isTTY: true, write: () => true };
+
+  const source = createMouseSource(input, output);
+  t.onTestFinished(() => source.dispose());
+  const received = new Promise((resolve) =>
+    source.stdin.once('data', (chunk) => resolve(String(chunk))),
+  );
+  input.write('q');
+
+  assert.equal(await received, 'q');
+});
