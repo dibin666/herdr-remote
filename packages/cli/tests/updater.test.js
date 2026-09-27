@@ -14,7 +14,7 @@ import {
   DEFAULT_REGISTRY,
   MIRROR_REGISTRY,
 } from '../src/updater.js';
-import { npmInvocation } from '../src/updater/npm.js';
+import { npmInvocation, runNpm } from '../src/updater/npm.js';
 import {
   checkForRelayUpdate,
   installedRelayVersion,
@@ -62,20 +62,42 @@ test('Windows npm invocation finds npm-cli.js beside the current Node executable
   );
 });
 
-test('Windows npm invocation falls back to a shell command line without an args array', () => {
+test('Windows npm invocation returns null when no npm-cli.js is available', () => {
   const invocation = npmInvocation({
-    args: ['install', '-g', 'herdr remote@1.0.0'],
+    args: ['install', '-g', 'herdr-remote@1.0.0'],
     platform: 'win32',
     env: {},
     execPath: path.join(os.tmpdir(), 'node.exe'),
     exists: () => false,
   });
 
-  assert.deepEqual(invocation, {
-    command: 'npm.cmd "install" "-g" "herdr remote@1.0.0"',
-    shell: true,
+  assert.equal(invocation, null);
+});
+
+test('runNpm reports a manual update when Windows has no npm-cli.js', async () => {
+  let spawned = false;
+  const result = await runNpm(
+    () => {
+      spawned = true;
+      throw new Error('must not spawn');
+    },
+    ['install', '-g', 'herdr-remote@1.0.0'],
+    1_000,
+    {
+      platform: 'win32',
+      env: {},
+      execPath: path.join(os.tmpdir(), 'node.exe'),
+      exists: () => false,
+    },
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    spawnFailed: true,
+    output:
+      'npm-cli.js was not found next to this Node.js; run npm install -g herdr-remote yourself.',
   });
-  assert.equal(Object.hasOwn(invocation, 'args'), false);
+  assert.equal(spawned, false);
 });
 
 test('version comparison orders releases numerically, not as text', () => {

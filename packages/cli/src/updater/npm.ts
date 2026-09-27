@@ -2,19 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 
-type SpawnOptionsLike = { timeout: number; windowsHide: boolean; shell?: boolean };
-export type SpawnLike = {
-  (command: string, args: string[], options: SpawnOptionsLike): ChildProcess;
-  (command: string, options: SpawnOptionsLike): ChildProcess;
-};
-
-type NpmInvocation =
-  | { command: string; args: string[]; shell?: false }
-  | { command: string; args?: never; shell: true };
+type SpawnOptionsLike = { timeout: number; windowsHide: boolean };
+export type SpawnLike = (
+  command: string,
+  args: string[],
+  options: SpawnOptionsLike,
+) => ChildProcess;
 
 /**
  * After the CVE-2024-27980 fix, spawning `.cmd` without a shell returns EINVAL;
- * npm-cli.js lets the current Node process run npm without a shell.
+ * npm-cli.js lets the current Node process run npm without a shell. `npm.cmd`
+ * requires cmd.exe, whose quote rules cannot stop `%` expansion in registry URLs.
  */
 export function npmInvocation({
   args,
@@ -28,7 +26,7 @@ export function npmInvocation({
   env?: NodeJS.ProcessEnv;
   execPath?: string;
   exists?: (filePath: string) => boolean;
-}): NpmInvocation {
+}): { command: string; args: string[] } | null {
   if (platform !== 'win32') return { command: 'npm', args };
 
   const npmExecPath = env.npm_execpath;
@@ -45,10 +43,7 @@ export function npmInvocation({
   );
   if (exists(adjacentNpmCli)) return { command: execPath, args: [adjacentNpmCli, ...args] };
 
-  return {
-    command: ['npm.cmd', ...args.map((arg) => `"${arg}"`)].join(' '),
-    shell: true,
-  };
+  return null;
 }
 
 export interface NpmRun {
@@ -57,19 +52,29 @@ export interface NpmRun {
   spawnFailed?: boolean;
 }
 
-export function runNpm(spawnImpl: SpawnLike, args: string[], timeoutMs: number): Promise<NpmRun> {
+export function runNpm(
+  spawnImpl: SpawnLike,
+  args: string[],
+  timeoutMs: number,
+  invocationOptions: Omit<Parameters<typeof npmInvocation>[0], 'args'> = {},
+): Promise<NpmRun> {
   return new Promise((resolve) => {
     let child: ChildProcess;
     try {
-      const invocation = npmInvocation({ args });
-      const options = {
+      const invocation = npmInvocation({ args, ...invocationOptions });
+      if (!invocation) {
+        resolve({
+          ok: false,
+          spawnFailed: true,
+          output:
+            'npm-cli.js was not found next to this Node.js; run npm install -g herdr-remote yourself.',
+        });
+        return;
+      }
+      child = spawnImpl(invocation.command, invocation.args, {
         timeout: timeoutMs,
         windowsHide: true,
-        ...(invocation.shell ? { shell: true } : {}),
-      };
-      child = invocation.args
-        ? spawnImpl(invocation.command, invocation.args, options)
-        : spawnImpl(invocation.command, options);
+      });
     } catch (error) {
       resolve({
         ok: false,
