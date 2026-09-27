@@ -64,6 +64,11 @@ export interface StoredSettings {
   agentAlertSound: boolean;
   agentAlertVibrate: boolean;
   agentAlertNotify: boolean;
+  /**
+   * This window only watches: nothing it types, pastes or clicks reaches the
+   * terminal, though it can still scroll. The window's own choice, not shared.
+   */
+  observerMode: boolean;
   /** Per-window operator credentials keyed by the exact relay origin. */
   adminToken?: string;
   adminTokens?: Record<string, string>;
@@ -129,6 +134,7 @@ export function getDefaultSettings(): StoredSettings {
     language: detectDefaultLanguage(),
     virtualKeys: getDefaultVirtualKeys(),
     agentKeymaps: {},
+    observerMode: false,
     adminToken: '',
     adminTokens: {},
   };
@@ -243,6 +249,7 @@ export function loadSettings(): StoredSettings {
       JSON.stringify({
         activeProfileId,
         instances: sessionInstances,
+        observerMode: sessionData.observerMode,
         adminToken: sessionData.adminToken,
         adminTokens: sessionData.adminTokens,
       }),
@@ -319,6 +326,7 @@ export function loadSettings(): StoredSettings {
     agentAlertVibrate: booleanSetting('agentAlertVibrate'),
     agentAlertNotify: booleanSetting('agentAlertNotify'),
     language,
+    observerMode: sessionData.observerMode === true,
     adminToken,
     adminTokens,
   };
@@ -342,8 +350,9 @@ export function loadSettings(): StoredSettings {
  * - This window's instance, and its view of it, go to sessionStorage.
  * - The instance's settings also go to its localStorage copy, which a window
  *   opened later starts from. Windows already open keep their own copies.
- * - The operator token stays in sessionStorage only: it should not outlive the
- *   tab it was typed into, and has no business being written to disk.
+ * - Observing, and the operator token, stay in sessionStorage only. The token
+ *   should not outlive the tab it was typed into, and has no business being
+ *   written to disk.
  */
 export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
   const current = loadSettings();
@@ -458,6 +467,7 @@ export function saveSettings(updates: Partial<StoredSettings>): StoredSettings {
     JSON.stringify({
       activeProfileId,
       instances: sessionInstances,
+      observerMode: next.observerMode === true,
       adminToken: next.adminToken,
       adminTokens: next.adminTokens,
     }),

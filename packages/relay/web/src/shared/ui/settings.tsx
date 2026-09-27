@@ -92,6 +92,7 @@ export function Segmented<T extends string>({
   options,
   onChange,
   tone = 'accent',
+  size = 'md',
   className,
   'aria-label': ariaLabel,
 }: {
@@ -100,6 +101,8 @@ export function Segmented<T extends string>({
   options: SegmentOption<T>[];
   onChange: (value: T) => void;
   tone?: StatusLevel;
+  /** `sm` sets the words at the status line's size, for a control that sits in it. */
+  size?: 'md' | 'sm';
   className?: string;
   'aria-label'?: string;
 }) {
@@ -117,6 +120,7 @@ export function Segmented<T extends string>({
             key={option.value}
             className={cn(
               SEGMENT_CELL,
+              size === 'sm' && 'px-1.5 text-tui-sm',
               index > 0 && 'border-l border-tui-border',
               checked ? cn(TONE_BG[tone], 'font-bold text-tui-crust') : SEGMENT_IDLE,
             )}

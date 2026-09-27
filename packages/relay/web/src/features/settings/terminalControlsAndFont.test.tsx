@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
-import { RoleControlBadge } from '@/features/status/RoleControlBadge';
+import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { SettingsModal } from './SettingsModal';
 import { getDefaultSettings, loadSettings, saveSettings } from './storage';
 import {
@@ -201,10 +201,9 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(screen.queryByText(/^Blinking Cursor$/i)).not.toBeInTheDocument();
   });
 
-  it('RoleControlBadge states shared control and how many windows are attached', () => {
-    // The lease is gone: every paired window types into the same terminal, so
-    // the badge reports the shape of the room rather than offering a control
-    // to seize it from somebody else.
+  it('ControlModeSwitch starts on full control and says how many windows are attached', () => {
+    // There is no lease to seize from another window: the switch only decides
+    // whether this window types or watches.
     let terminalCtx: ReturnType<typeof useTerminal> | undefined;
 
     render(
@@ -214,7 +213,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
             terminalCtx = ctx;
           }}
         />
-        <RoleControlBadge />
+        <ControlModeSwitch />
       </TerminalProvider>,
     );
 
@@ -233,7 +232,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       terminalCtx?.adapter?.emit('peerCount', 2);
     });
 
-    expect(screen.getByText(/Full control/i)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Full control' })).toBeChecked();
     expect(screen.getByText(/2 windows/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Takeover|Claim Control|Release/i })).toBeNull();
     expect(screen.queryByText(/Confirm Control Takeover/i)).toBeNull();

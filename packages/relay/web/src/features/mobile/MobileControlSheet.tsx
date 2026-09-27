@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useSettings, useConnection, useToasts } from '@/context/TerminalContext';
-import { RoleControlBadge } from '@/features/status/RoleControlBadge';
+import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { describeConnection } from '@/connection/connectionStatus';
 import { cn } from '@/shared/lib/cn';
 import { translate } from '@/shared/i18n';
@@ -151,13 +151,13 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         </button>
       </Panel>
 
-      {/* Control lease — the switch between viewer and full input */}
+      {/* This window's input: full control, or only watching */}
       <Panel
         title={t('mobile.inputControl')}
         tone="accent"
         aria-label={t('mobile.terminalControlAria')}
       >
-        <RoleControlBadge />
+        <ControlModeSwitch className="h-11" />
       </Panel>
 
       {/* Menu */}
