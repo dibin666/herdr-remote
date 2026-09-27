@@ -10,6 +10,7 @@ import { createTranslator } from '../src/i18n/index.js';
 import { parsePluginList } from '../src/herdr-plugin.js';
 import { serviceSpecs, relayBinPath } from '../src/service.js';
 import { DEFAULTS } from '../src/config.js';
+import { PACKAGE_ROOT } from '../src/paths.js';
 
 const ENTRY_POINT = path.join(__dirname, '..', 'bin', 'herdr-remote.js');
 
@@ -188,6 +189,15 @@ test('remote mode plans a host connector only', () => {
   // The password joins the relay; the host token identifies this workstation.
   assert.equal(specs[0].env.RELAY_PASSWORD, 'hunter2');
   assert.equal(specs[0].env.RELAY_HOST_TOKEN, state.hostToken);
+});
+
+test('services run outside the package, which npm renames to update it', () => {
+  const state = { hostId: 'host-test', hostToken: 'a'.repeat(32) };
+  for (const spec of serviceSpecs(JSON.parse(JSON.stringify(DEFAULTS)), state)) {
+    assert.equal(typeof spec.cwd, 'string', `${spec.name} has no working directory`);
+    const relative = path.relative(PACKAGE_ROOT, spec.cwd);
+    assert.ok(relative.startsWith('..') || path.isAbsolute(relative), `${spec.name}: ${spec.cwd}`);
+  }
 });
 
 test('the plugin manifest version matches package.json', () => {

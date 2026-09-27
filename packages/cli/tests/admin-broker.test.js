@@ -4,7 +4,12 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { test } from 'vitest';
-import { adminBrokerStatus, serveAdminBroker } from '../src/connector/admin-broker.js';
+import {
+  adminBrokerStatus,
+  adminBrokerTaskScript,
+  serveAdminBroker,
+} from '../src/connector/admin-broker.js';
+import { PACKAGE_ROOT } from '../src/paths.js';
 import { isolateState } from './helpers.js';
 
 async function startBroker(t) {
@@ -56,4 +61,13 @@ test('the broker refuses requests that do not carry its token', async (t) => {
 test('status says unavailable when no broker has published an endpoint', async (t) => {
   isolateState(t);
   assert.equal(await adminBrokerStatus(), false);
+});
+
+test('the broker task runs outside the package, which npm renames to update it', (t) => {
+  isolateState(t);
+  const match = /-WorkingDirectory '((?:[^']|'')*)'/.exec(adminBrokerTaskScript());
+  assert.ok(match, 'the task sets no working directory');
+  const directory = match[1].replaceAll("''", "'");
+  assert.notEqual(path.resolve(directory), path.resolve(PACKAGE_ROOT));
+  assert.equal(directory, process.env.HERDR_REMOTE_STATE_DIR);
 });

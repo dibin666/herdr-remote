@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
 import { pidAlive } from '../lib/process.js';
-import { logPath, PACKAGE_ROOT, stateDir } from '../paths.js';
+import { logPath, stateDir } from '../paths.js';
 import { cliEntryPoint, serviceEnvironment } from './environment.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
 
@@ -26,7 +26,8 @@ function start() {
   const logFd = fs.openSync(logPath('supervisor'), 'a');
   try {
     const child = spawn(process.execPath, [cliEntryPoint(), 'run', '--daemon'], {
-      cwd: PACKAGE_ROOT,
+      // Not PACKAGE_ROOT: npm renames it to update, which Windows refuses for a working directory.
+      cwd: stateDir(),
       env: { ...process.env, HERDR_REMOTE_SERVICE: '1', ...serviceEnvironment() },
       detached: true,
       windowsHide: true,

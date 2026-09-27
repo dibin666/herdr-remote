@@ -1,5 +1,6 @@
 import os from 'node:os';
-import pty, { type IPty } from 'node-pty';
+import type { IPty, spawn } from 'node-pty';
+import { nodePty } from './node-pty-loader.js';
 
 interface PtySessionOptions {
   command?: string;
@@ -7,7 +8,7 @@ interface PtySessionOptions {
   cwd?: string;
   socketPath?: string | null;
   platform?: NodeJS.Platform;
-  spawn?: typeof pty.spawn;
+  spawn?: typeof spawn;
   fastWindowsPty?: boolean;
 }
 
@@ -30,7 +31,7 @@ class PtySession {
   readonly socketPath: string | null | undefined;
   readonly platform: NodeJS.Platform;
   readonly fastWindowsPty: boolean;
-  private readonly spawnPty: typeof pty.spawn;
+  private readonly spawnPty: typeof spawn;
   terminal: IPty | null;
   startedAt: string | null;
 
@@ -40,7 +41,7 @@ class PtySession {
     cwd = os.homedir(),
     socketPath,
     platform = process.platform,
-    spawn: spawnPty = pty.spawn,
+    spawn: spawnPty = nodePty().spawn,
     fastWindowsPty = false,
   }: PtySessionOptions = {}) {
     if (typeof command !== 'string' || command.length === 0)

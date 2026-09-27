@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Translate } from '../i18n/index.js';
 import { PtySession } from '../pty-session.js';
-import { PACKAGE_ROOT, stateDir } from '../paths.js';
+import { stateDir } from '../paths.js';
 import {
   ADMIN_BROKER_MAX_MESSAGE_BYTES,
   adminBrokerTaskName,
@@ -49,7 +50,7 @@ function runPowerShell(script: string, t: Translate): void {
 }
 
 /** Registers and starts the broker's logon task; run elevated. */
-function adminBrokerTaskScript(): string {
+export function adminBrokerTaskScript(): string {
   const brokerPath = fileURLToPath(import.meta.url);
   // Pinned so the broker publishes its endpoint where this install's callers look.
   const brokerCommand = `$env:HERDR_REMOTE_STATE_DIR = ${powershellQuote(stateDir())}; & ${powershellQuote(process.execPath)} ${powershellQuote(brokerPath)}`;
@@ -61,11 +62,13 @@ function adminBrokerTaskScript(): string {
     'v1.0',
     'powershell.exe',
   );
+  // Not PACKAGE_ROOT: npm updates the package by renaming its directory, and
+  // Windows refuses while it is the working directory of this long-lived task.
   return `
 $ErrorActionPreference = 'Stop'
 $taskName = ${powershellQuote(adminBrokerTaskName())}
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$action = New-ScheduledTaskAction -Execute ${powershellQuote(powershell)} -Argument ${powershellQuote(`-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${encodedBrokerCommand}`)} -WorkingDirectory ${powershellQuote(PACKAGE_ROOT)}
+$action = New-ScheduledTaskAction -Execute ${powershellQuote(powershell)} -Argument ${powershellQuote(`-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${encodedBrokerCommand}`)} -WorkingDirectory ${powershellQuote(stateDir())}
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
@@ -77,6 +80,8 @@ Start-ScheduledTask -TaskName $taskName
 
 export function installAdminBroker(t: Translate): void {
   if (process.platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
+  // The task cannot start in a working directory that does not exist yet.
+  fs.mkdirSync(stateDir(), { recursive: true });
   runPowerShell(adminBrokerTaskScript(), t);
 }
 
