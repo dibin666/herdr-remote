@@ -134,6 +134,7 @@ herdr-remote keepalive install | uninstall | restart | status
 ```bash
 herdr-remote                      # 配置界面 (TUI)
 herdr-remote start | stop | restart
+herdr-remote update [--json]      # 安装最新版本并重启服务
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url

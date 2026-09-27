@@ -29,6 +29,7 @@ Defender 防火墙提示中允许 `node.exe` 通过专用网络通信。
 
 ```bash
 herdr-remote start | stop | restart
+herdr-remote update [--json]  # 安装最新版本并重启服务
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url

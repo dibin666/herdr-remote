@@ -274,6 +274,12 @@ const zh: Record<MessageKey, string> = {
   'update.mirrorBehind': '{registries} 仍是旧版本，将从 {source} 安装',
   'update.cannot.source': '源码目录运行，请使用 git 更新',
   'update.cannot.linked': 'npm link 工作副本，由 npm link 管理',
+  'update.stoppingServices': '替换文件期间先停止服务…',
+  'update.restarting': '正在用新版本重启服务…',
+  'update.notRunning': '服务之前没有运行，保持停止。需要时执行：herdr-remote start',
+  'update.restartFailed': '已安装，但服务没能重启：{message}',
+  'update.errorBusy':
+    "仍有进程占用 herdr-remote 的安装目录，旧版本设置的管理员终端 broker 会这样。先在管理员 PowerShell 中执行：Get-ScheduledTask -TaskName 'HerdrRemoteAdminBroker-*' | Stop-ScheduledTask，再回到这里重新运行 herdr-remote update，最后以管理员身份运行 herdr-remote admin-broker install。",
   'relayUpdate.check': 'Relay {version}：检查更新',
   'relayUpdate.checking': 'Relay：查询 npm 中…',
   'relayUpdate.upToDate': 'Relay 已是最新（{version}）',
@@ -284,6 +290,7 @@ const zh: Record<MessageKey, string> = {
   'relayUpdate.restart': 'Relay {version} 已安装，运行中的仍是 {running}（按 Enter 重启生效）',
   'relayUpdate.restarting': '正在重启 herdr-remote…',
   'relayUpdate.restarted': 'herdr-remote 已重启，relay 现在运行 {version}。',
+  'relayUpdate.done': 'Relay 已更新至 {version}',
   'relayUpdate.errorNotApplied': 'npm 已完成，但安装的仍是 relay {installed}',
   'relayUpdate.banner':
     'Relay {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在 Relay 一行按 Enter 安装。',
