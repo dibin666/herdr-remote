@@ -40,8 +40,8 @@ herdr-remote --lang zh|en
 
 On Windows, the TUI's **Keep-alive** page can register a per-user Task Scheduler broker with highest
 privileges and start it for the signed-in account. Choose **Set up admin terminal access** and
-approve the one-time Windows prompt under the same account as Herdr Remote; paired WebUI windows
-can then open a standalone elevated PowerShell without another UAC prompt. The CLI
+approve the one-time Windows prompt under the same account as Herdr Remote; the WebUI's Admin
+button then opens an elevated PowerShell as a new Herdr tab without another UAC prompt. The CLI
 `admin-broker install` and `admin-broker uninstall` commands are also available for administrators.
 Use `admin-broker status` to check the broker.
 

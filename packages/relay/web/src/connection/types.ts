@@ -12,7 +12,6 @@ export interface ConnectionConfig {
   wsUrl: string;
   token?: string;
   pairCode?: string;
-  adminTerminal?: boolean;
   clientId: string;
   autoReconnect: boolean;
   reconnectIntervalMs: number;

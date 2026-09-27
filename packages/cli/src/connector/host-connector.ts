@@ -20,6 +20,7 @@ import { hostWebSocketUrl, resolveHostRelayUrl } from '../relay-urls.js';
 import { resolveSocketPath } from '../socket-discovery.js';
 import { resolveHostPalette } from '../terminal-palette.js';
 import { randomToken } from 'herdr-remote-relay/state';
+import { openAdminTabFor } from './admin-tab.js';
 import { AgentWatch, type AgentWatchOptions } from './agent-watch.js';
 import { FontServer, type FontServerOptions } from './font-server.js';
 import { acquireHostLock, releaseHostLock } from './lock.js';
@@ -237,7 +238,7 @@ export class HostConnector {
           CAPABILITY.hostHandoff,
           CAPABILITY.idleHeartbeat,
           CAPABILITY.binaryFrameV2,
-          ...(process.platform === 'win32' ? [CAPABILITY.adminSessions] : []),
+          ...(process.platform === 'win32' ? [CAPABILITY.adminTabs] : []),
         ],
       });
       // The relay sends host_ready with the current browser count. No business
@@ -331,6 +332,12 @@ export class HostConnector {
         return this.startSession(message);
       case 'herdr_start':
         return this.sessions.startHerdrFor(streamOf(message));
+      case 'admin_tab_open':
+        return openAdminTabFor(streamOf(message), {
+          socketPath: this.socketPath,
+          language: this.config.ui?.language,
+          send: (payload) => sendJson(this.ws, payload),
+        });
       case 'session_stop': {
         const streamId = streamOf(message);
         if (streamId) this.sessions.stop(streamId);

@@ -108,6 +108,11 @@ const en = {
   'adminBroker.tuiHint':
     'Set this up once. Windows asks for administrator approval; later WebUI admin terminals open without UAC.',
 
+  'adminShell.needsTerminal': 'admin-shell must run in a terminal.',
+  'adminShell.brokerUnavailable':
+    'The administrator terminal broker is not running. Open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access.',
+  'adminShell.tabLabel': 'Admin',
+
   'relay.title': 'Relay settings',
   'relay.settings': 'Settings',
   'relay.locked': 'fixed',

@@ -65,7 +65,6 @@ export interface ConnectionContextValue {
   adminTerminalSupported?: boolean;
   shellProfile: ShellProfile;
   reportShellProfile: (profile: ShellProfile) => void;
-  isAdminTerminal: boolean;
   assignedClientId?: string;
   isController: boolean;
   /** How many windows currently connect to this host, this one included. */

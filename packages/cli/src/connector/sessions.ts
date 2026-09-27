@@ -38,10 +38,7 @@ const WINDOWS_OUTPUT_BATCH_MS = 4;
 export const FAST_FAILURE_LIMIT = 3;
 
 /** A window's session start, as held while Herdr is checked or started. */
-type StartRequest = Pick<
-  RelaySessionStartMessage,
-  'clientId' | 'streamId' | 'streamIndex' | 'adminTerminal'
-> & {
+type StartRequest = Pick<RelaySessionStartMessage, 'clientId' | 'streamId' | 'streamIndex'> & {
   cols?: number;
   rows?: number;
 };
@@ -178,10 +175,6 @@ export class Sessions {
     const streamId = streamOf(message);
     if (!streamId) return undefined;
     this.stop(streamId);
-    if (message.adminTerminal) {
-      this.spawn(message);
-      return undefined;
-    }
     const missingHerdr = this.ensureHerdrCommand();
     if (missingHerdr) {
       process.stderr.write(`herdr-remote host connector: ${missingHerdr}\n`);
@@ -277,15 +270,11 @@ export class Sessions {
   private spawn(message: StartRequest): void {
     const streamId = streamOf(message) as string;
     const streamIndex = typeof message.streamIndex === 'number' ? message.streamIndex : null;
-    const adminTerminal = message.adminTerminal === true;
-    // The normal Herdr server keeps its original token, so admin mode needs its own shell.
     const pty = new this.Pty({
-      command: adminTerminal ? 'powershell.exe' : this.herdrCommand,
-      args: adminTerminal ? ['-NoLogo', '-NoProfile'] : this.herdrArgs,
+      command: this.herdrCommand,
+      args: this.herdrArgs,
       cwd: this.cwd,
-      socketPath: adminTerminal ? null : this.socketPath,
-      adminTerminal,
-      fastWindowsPty: adminTerminal,
+      socketPath: this.socketPath,
     });
     const session: LiveSession = {
       id: streamId,
@@ -317,31 +306,6 @@ export class Sessions {
           : packStreamFrame('output', streamId, payload),
       );
     };
-    let readySent = false;
-    const reportReady = () => {
-      if (readySent || this.byStream.get(streamId) !== session) return;
-      readySent = true;
-      this.link.send({ type: 'session_ready', clientId: streamId });
-    };
-    const reportStartError = (error: Error) => {
-      if (this.byStream.get(streamId) !== session) return;
-      this.forget(session);
-      session.pty.kill();
-      const code = (error as NodeJS.ErrnoException).code;
-      const brokerUnavailable =
-        session.pty.adminTerminal &&
-        (code === 'ENOENT' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT');
-      this.sendError(
-        streamId,
-        brokerUnavailable ? 'admin_broker_unavailable' : 'pty_start_failed',
-        brokerUnavailable
-          ? 'Run herdr-remote admin-broker install once from an administrator terminal.'
-          : error.message,
-      );
-      this.link.changed();
-    };
-    this.byStream.set(streamId, session);
-    if (streamIndex !== null) this.streamIndexToId.set(streamIndex, streamId);
     try {
       pty.start({
         cols: session.cols,
@@ -364,14 +328,16 @@ export class Sessions {
           this.reportExit(session, exitCode);
           this.link.changed();
         },
-        onReady: reportReady,
-        onError: reportStartError,
       });
-      if (!adminTerminal) reportReady();
     } catch (error) {
-      reportStartError(error as Error);
+      discardOutput(session);
+      this.sendError(streamId, 'pty_start_failed', (error as Error).message);
+      pty.kill();
       return;
     }
+    this.byStream.set(streamId, session);
+    if (streamIndex !== null) this.streamIndexToId.set(streamIndex, streamId);
+    this.link.send({ type: 'session_ready', clientId: streamId });
     this.link.changed();
   }
 

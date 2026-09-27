@@ -86,7 +86,8 @@ Defender Firewall asks whether to allow `node.exe`; allow it on private networks
 - **Predictive echo.** On a slow link your typing shows before the echo comes back.
 - **Windows shell support.** The key bar recognizes CMD, PowerShell and Git Bash. Set up the
   administrator broker once in the Windows TUI under Keep-alive and approve the Windows prompt;
-  after that, the WebUI's Admin button opens a separate elevated terminal without another UAC prompt.
+  after that, the WebUI's Admin button opens an elevated PowerShell as a new Herdr tab without
+  another UAC prompt.
 - **Images from the phone.** A photo or screenshot is saved on the workstation and its path is
   typed into the agent's prompt.
 - **Several workstations** in one browser, and a **relay dashboard** for whoever runs the relay.

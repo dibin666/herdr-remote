@@ -51,6 +51,9 @@ const HERDR_START_REPEAT_MS = 3_000;
 /** A window asks its workstation to re-read the terminal font at most this often. */
 const FONT_REFRESH_REPEAT_MS = 2_000;
 
+/** A window opens an administrator tab at most this often. */
+const ADMIN_TAB_REPEAT_MS = 1_000;
+
 function verifyImageMagicBytes(mime: string, dataBase64: unknown): boolean {
   if (typeof dataBase64 !== 'string' || dataBase64.length === 0) return false;
   let headerBuf: Buffer;
@@ -131,7 +134,6 @@ export function handleClientConnection(
         // same browser rather than a genuinely separate viewer.
         browserClientId:
           typeof message.clientId === 'string' ? message.clientId.slice(0, 128) : null,
-        adminTerminal: message.adminTerminal === true,
         handoffCapable:
           Array.isArray(message.capabilities) &&
           message.capabilities.includes(CAPABILITY.hostHandoff),
@@ -185,7 +187,7 @@ export function handleClientConnection(
         hostname: host.hostname,
         platform: host.platform,
         ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
-        adminTerminalSupported: host.adminSessionsAvailable,
+        adminTerminalSupported: host.adminTabsAvailable,
         clientId: client.id,
         // Delivered with `ready`, before the first PTY byte, so the terminal
         // is painted in the host's colors from its very first frame.
@@ -298,6 +300,27 @@ function handleClientMessage(
         streamId: client.session.streamId,
       });
     }
+  } else if (message.type === 'admin_tab_open') {
+    // Routed like herdr_start. The host runs the fixed elevated PowerShell of
+    // its own broker; nothing in this message chooses what starts.
+    if (!client.session || !isOpen(host.ws)) return;
+    if (!host.adminTabsAvailable) {
+      jsonSend(client.ws, {
+        type: 'error',
+        code: 'admin_terminal_unsupported',
+        message: 'Update the host connector to open administrator terminals.',
+      });
+      return;
+    }
+    // A double tap is one request; a second tab needs a second, later tap.
+    const now = Date.now();
+    if (client.adminTabAt && now - client.adminTabAt < ADMIN_TAB_REPEAT_MS) return;
+    client.adminTabAt = now;
+    jsonSend(host.ws, {
+      type: 'admin_tab_open',
+      clientId: client.session.streamId,
+      streamId: client.session.streamId,
+    });
   } else if (message.type === 'host_font_chunk_request') {
     requestFontChunk(host, client, message);
   } else if (message.type === 'host_font_subset_request') {

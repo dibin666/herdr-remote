@@ -23,8 +23,5 @@ export function useWindowConnectionOverrides() {
     profileId,
     requestedProfileIdRef: profileIdRef,
     clearProfileOverride,
-    isAdminTerminal:
-      typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('adminTerminal') === '1',
   };
 }

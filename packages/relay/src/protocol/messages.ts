@@ -19,8 +19,8 @@ export const CAPABILITY = {
   idleHeartbeat: 'idle_heartbeat',
   /** The host routes output by 16-bit stream index (v2 frames). */
   binaryFrameV2: 'binary_frame_v2',
-  /** The host can route elevated Windows PTYs through its local broker. */
-  adminSessions: 'admin_sessions',
+  /** The host can open an elevated PowerShell as a tab of its Windows Herdr. */
+  adminTabs: 'admin_tabs',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
@@ -35,8 +35,6 @@ export interface ClientHelloMessage {
   protocol: 1;
   token?: string;
   pairCode?: string;
-  /** Open this window's PTY through the host's pre-authorized admin broker. */
-  adminTerminal?: boolean;
   clientId: string;
   cols: number;
   rows: number;
@@ -77,6 +75,14 @@ export interface ClientHerdrStartMessage {
   type: 'herdr_start';
 }
 
+/**
+ * Open an elevated PowerShell as a new tab of the workstation's Herdr. Carries
+ * nothing: the host decides what runs, through its own pre-authorized broker.
+ */
+export interface ClientAdminTabOpenMessage {
+  type: 'admin_tab_open';
+}
+
 /** One slice of an announced font file, by the file's hash. */
 export interface ClientHostFontChunkRequestMessage {
   type: 'host_font_chunk_request';
@@ -107,7 +113,8 @@ export type ClientJsonMessage =
   | ClientResizeMessage
   | ClientPingMessage
   | ClientPasteFileMessage
-  | ClientHerdrStartMessage;
+  | ClientHerdrStartMessage
+  | ClientAdminTabOpenMessage;
 
 // ---------------------------------------------------------------------------
 // Relay → browser
@@ -121,7 +128,7 @@ export interface ServerReadyMessage {
   hostname?: string;
   platform?: string;
   shellProfile?: HostShellProfile;
-  /** The relay and Windows host both understand administrator-terminal requests. */
+  /** The relay and Windows host can both open an administrator terminal tab. */
   adminTerminalSupported?: boolean;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
@@ -400,7 +407,6 @@ export interface RelaySessionStartMessage extends StreamAddressed {
   cols: number;
   rows: number;
   role: ClientRole;
-  adminTerminal?: boolean;
   /** Present when the host negotiated v2 frames and an index was free. */
   streamIndex?: number;
 }
@@ -417,6 +423,10 @@ export interface RelayResizeMessage extends StreamAddressed {
 
 export interface RelayHerdrStartMessage extends StreamAddressed {
   type: 'herdr_start';
+}
+
+export interface RelayAdminTabOpenMessage extends StreamAddressed {
+  type: 'admin_tab_open';
 }
 
 export interface RelayHostFontRefreshMessage extends StreamAddressed {
@@ -456,6 +466,7 @@ export type RelayToHostMessage =
   | RelaySessionStopMessage
   | RelayResizeMessage
   | RelayHerdrStartMessage
+  | RelayAdminTabOpenMessage
   | RelayHostFontRefreshMessage
   | RelayHostFontChunkRequestMessage
   | RelayHostFontSubsetRequestMessage

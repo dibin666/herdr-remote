@@ -69,7 +69,7 @@ Herdr 的 Windows 插件功能仍处于 preview 阶段。首次以局域网模�
 - **智能体快捷键。** 按键栏跟随当前窗格里的智能体（Claude Code、Codex、Gemini CLI 等 24 种），每种智能体的按键都可以调整顺序或重新绑定。
 - **沿用工作站的外观。** 浏览器使用工作站终端的配色、字体和字号；设备上没有该字体时通过 relay 加载，中文字形随用随取。
 - **预测回显。** 网络较慢时，输入内容先于回显显示出来。
-- **Windows Shell 支持。** 按键栏自动识别 CMD、PowerShell 和 Git Bash。在 Windows TUI 的「保活」页面设置一次管理员终端并批准 Windows 提示后，WebUI 的“管理员”按钮可打开独立的提权终端，不再重复弹出 UAC。
+- **Windows Shell 支持。** 按键栏自动识别 CMD、PowerShell 和 Git Bash。在 Windows TUI 的「保活」页面设置一次管理员终端并批准 Windows 提示后，WebUI 的“管理员”按钮会在 Herdr 中新建一个提权 PowerShell 标签页，不再重复弹出 UAC。
 - **从手机发图片。** 照片或截图保存到工作站，文件路径自动输入到智能体的提示框里。
 - **一个浏览器管理多台工作站**，relay 运营者还有**管理面板**可用。
 

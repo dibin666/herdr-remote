@@ -1,17 +1,5 @@
 import os from 'node:os';
-import pty from 'node-pty';
-import { ElevatedPty } from './connector/elevatedPty.js';
-
-interface PtyTerminal {
-  pid: number;
-  cols: number;
-  rows: number;
-  onData(listener: (data: string) => void): unknown;
-  onExit(listener: (event: { exitCode: number; signal?: number }) => void): unknown;
-  write(data: string): void;
-  resize(cols: number, rows: number): void;
-  kill(): void;
-}
+import pty, { type IPty } from 'node-pty';
 
 interface PtySessionOptions {
   command?: string;
@@ -20,7 +8,6 @@ interface PtySessionOptions {
   socketPath?: string | null;
   platform?: NodeJS.Platform;
   spawn?: typeof pty.spawn;
-  adminTerminal?: boolean;
   fastWindowsPty?: boolean;
 }
 
@@ -29,8 +16,6 @@ interface PtyStartOptions {
   rows?: number;
   onData?: (data: string) => void;
   onExit?: (event: { exitCode: number; signal?: number }) => void;
-  onReady?: () => void;
-  onError?: (error: Error) => void;
 }
 
 class PtySession {
@@ -44,10 +29,9 @@ class PtySession {
   readonly cwd: string;
   readonly socketPath: string | null | undefined;
   readonly platform: NodeJS.Platform;
-  readonly adminTerminal: boolean;
   readonly fastWindowsPty: boolean;
   private readonly spawnPty: typeof pty.spawn;
-  terminal: PtyTerminal | null;
+  terminal: IPty | null;
   startedAt: string | null;
 
   constructor({
@@ -57,7 +41,6 @@ class PtySession {
     socketPath,
     platform = process.platform,
     spawn: spawnPty = pty.spawn,
-    adminTerminal = false,
     fastWindowsPty = false,
   }: PtySessionOptions = {}) {
     if (typeof command !== 'string' || command.length === 0)
@@ -69,7 +52,6 @@ class PtySession {
     this.cwd = cwd;
     this.socketPath = socketPath;
     this.platform = platform;
-    this.adminTerminal = adminTerminal;
     this.fastWindowsPty = fastWindowsPty;
     this.spawnPty = spawnPty;
     this.terminal = null;
@@ -93,34 +75,8 @@ class PtySession {
     return Math.min(PtySession.MAX_DIMENSION, Math.max(PtySession.MIN_DIMENSION, numeric));
   }
 
-  start({ cols, rows, onData, onExit, onReady, onError }: PtyStartOptions): this {
+  start({ cols, rows, onData, onExit }: PtyStartOptions): this {
     if (this.terminal) throw new Error('PTY session already started');
-    if (this.adminTerminal) {
-      if (this.platform !== 'win32')
-        throw new Error('Administrator PTYs are only supported on Windows');
-      const terminal = new ElevatedPty(
-        { command: this.command, args: this.args, cwd: this.cwd, socketPath: this.socketPath },
-        PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
-        PtySession.clampDimension(rows, PtySession.DEFAULT_ROWS),
-      );
-      this.terminal = terminal;
-      this.startedAt = new Date().toISOString();
-      terminal.start({
-        cols: terminal.cols,
-        rows: terminal.rows,
-        onData: onData || (() => {}),
-        onExit: (event) => {
-          this.terminal = null;
-          onExit?.(event);
-        },
-        onReady,
-        onError: (error) => {
-          this.terminal = null;
-          onError?.(error);
-        },
-      });
-      return this;
-    }
     // The Herdr UI needs the bundled ConPTY's Kitty and mouse reporting.
     this.terminal = this.spawnPty(this.command, this.args, {
       name: 'xterm-256color',
@@ -143,7 +99,6 @@ class PtySession {
         onExit(event);
       });
     }
-    onReady?.();
     return this;
   }
 

@@ -38,7 +38,6 @@ export class HerdrClientAdapter extends RelaySocket {
   protected handleServerMessage(msg: ServerJsonMessage): void {
     switch (msg.type) {
       case 'ready': {
-        if (this.rejectUnsupportedAdminTerminal(msg.adminTerminalSupported)) break;
         this.reconnectAttempts = 0;
         this.setState('connected');
         this.currentRole = msg.role;
@@ -83,7 +82,6 @@ export class HerdrClientAdapter extends RelaySocket {
       }
 
       case 'session_restarted': {
-        if (this.rejectUnsupportedAdminTerminal(msg.adminTerminalSupported)) break;
         this.setState('reconnecting', 'Herdr session is restarting', 'session_restarted');
         this.emit(
           'sessionRestarted',
@@ -185,17 +183,6 @@ export class HerdrClientAdapter extends RelaySocket {
     }
   }
 
-  private rejectUnsupportedAdminTerminal(supported?: boolean): boolean {
-    if (!this.config.adminTerminal || supported === true) return false;
-    this.emit('error', {
-      code: 'admin_terminal_unsupported',
-      message:
-        'Upgrade the relay and Windows host connector before opening an administrator terminal.',
-    });
-    this.disconnect();
-    return true;
-  }
-
   public sendHello(): void {
     const msg: ClientHelloMessage = {
       type: 'hello',
@@ -204,7 +191,6 @@ export class HerdrClientAdapter extends RelaySocket {
       cols: this.terminalCols,
       rows: this.terminalRows,
       capabilities: ['host_handoff'],
-      ...(this.config.adminTerminal ? { adminTerminal: true } : {}),
     };
 
     if (this.config.token) {
@@ -270,5 +256,10 @@ export class HerdrClientAdapter extends RelaySocket {
   /** Ask the paired workstation to start its Herdr; see `ClientHerdrStartMessage`. */
   public sendHerdrStart(): void {
     this.sendJson({ type: 'herdr_start' });
+  }
+
+  /** Open an elevated PowerShell as a tab of the workstation's Herdr. */
+  public sendAdminTabOpen(): void {
+    this.sendJson({ type: 'admin_tab_open' });
   }
 }

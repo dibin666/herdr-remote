@@ -20,9 +20,6 @@ export function buildConnectionConfig(
     wsUrl: profile?.wsUrl ?? source.wsUrl,
     token: (profile?.token ?? source.token) || undefined,
     pairCode: (profile?.pairCode ?? source.pairCode) || undefined,
-    adminTerminal:
-      typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('adminTerminal') === '1',
     clientId: source.clientId,
     autoReconnect: profile?.autoReconnect ?? source.autoReconnect,
     reconnectIntervalMs: 2000,
