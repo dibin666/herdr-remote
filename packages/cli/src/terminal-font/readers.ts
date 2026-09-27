@@ -8,8 +8,10 @@ import {
   dataHome,
   expandHome,
   type FontSetting,
+  localAppData,
   pointsToPx,
   positiveNumber,
+  roamingAppData,
 } from './deps.js';
 import { familyForPostScriptName } from './files.js';
 import {
@@ -61,7 +63,70 @@ function systemMonospaceFont(deps: Deps): FontSetting | null {
   );
 }
 
+function settingsObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function windowsTerminalProfileFont(profile: unknown): { family: string | null; size?: number } {
+  const values = settingsObject(profile);
+  const font = settingsObject(values?.font);
+  return {
+    family: firstCssFamily(font?.face) || firstCssFamily(values?.fontFace),
+    size: positiveNumber(font?.size) || positiveNumber(values?.fontSize),
+  };
+}
+
+function readWindowsTerminalFont(deps: Deps): FontSetting | null {
+  const local = localAppData(deps);
+  let settings: Record<string, unknown> | null = null;
+  for (const file of [
+    path.join(
+      local,
+      'Packages',
+      'Microsoft.WindowsTerminal_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json',
+    ),
+    path.join(
+      local,
+      'Packages',
+      'Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json',
+    ),
+    path.join(local, 'Microsoft', 'Windows Terminal', 'settings.json'),
+  ]) {
+    settings = parseJsonc(deps.readFile(file));
+    if (settings) break;
+  }
+  if (!settings) return null;
+
+  const profiles = settings.profiles;
+  const profileSettings = settingsObject(profiles);
+  const list = Array.isArray(profiles)
+    ? profiles
+    : Array.isArray(profileSettings?.list)
+      ? profileSettings.list
+      : [];
+  const guidOf = (profile: unknown) => String(settingsObject(profile)?.guid || '').toLowerCase();
+  const currentId = String(deps.env.WT_PROFILE_ID || '').toLowerCase();
+  const defaultId = String(settings.defaultProfile || '').toLowerCase();
+  const selected =
+    (currentId ? list.find((profile) => guidOf(profile) === currentId) : undefined) ||
+    (defaultId ? list.find((profile) => guidOf(profile) === defaultId) : undefined);
+  const selectedFont = windowsTerminalProfileFont(selected);
+  const defaults = windowsTerminalProfileFont(profileSettings?.defaults);
+  // These are Windows Terminal's own defaults when settings omit the values.
+  const family = selectedFont.family || defaults.family || 'Cascadia Mono';
+  const size = selectedFont.size || defaults.size || 12;
+  return { family, sizePx: pointsToPx(size) };
+}
+
 export const READERS: Record<string, (deps: Deps) => FontSetting | null> = {
+  'windows-terminal': readWindowsTerminalFont,
+
   'gnome-terminal': (deps) => {
     const id = parseGVariantString(
       gsettingsGet(deps, 'org.gnome.Terminal.ProfilesList', 'default'),
@@ -152,6 +217,9 @@ export const READERS: Record<string, (deps: Deps) => FontSetting | null> = {
 
   alacritty: (deps) => {
     const candidates = [
+      ...(deps.platform === 'win32'
+        ? [path.join(roamingAppData(deps), 'alacritty', 'alacritty.toml')]
+        : []),
       path.join(configHome(deps), 'alacritty', 'alacritty.toml'),
       path.join(configHome(deps), 'alacritty.toml'),
       path.join(deps.home, '.alacritty.toml'),
@@ -254,7 +322,9 @@ export const READERS: Record<string, (deps: Deps) => FontSetting | null> = {
     const base =
       deps.platform === 'darwin'
         ? path.join(deps.home, 'Library', 'Application Support')
-        : configHome(deps);
+        : deps.platform === 'win32'
+          ? roamingAppData(deps)
+          : configHome(deps);
     for (const product of ['Code', 'Cursor', 'Code - Insiders', 'VSCodium', 'Windsurf']) {
       const settings = parseJsonc(deps.readFile(path.join(base, product, 'User', 'settings.json')));
       if (!settings) continue;
@@ -267,7 +337,13 @@ export const READERS: Record<string, (deps: Deps) => FontSetting | null> = {
         14;
       if (family) return { family, sizePx };
     }
-    return { family: deps.platform === 'darwin' ? 'Menlo' : 'Droid Sans Mono', sizePx: 14 };
+    const family =
+      deps.platform === 'darwin'
+        ? 'Menlo'
+        : deps.platform === 'win32'
+          ? 'Consolas'
+          : 'Droid Sans Mono';
+    return { family, sizePx: 14 };
   },
 
   iterm2: (deps) => {

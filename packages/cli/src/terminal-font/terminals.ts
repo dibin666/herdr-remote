@@ -66,6 +66,8 @@ export function identifyTerminal({
   if (env.TILIX_ID) return 'tilix';
   if (env.GNOME_TERMINAL_SCREEN || env.GNOME_TERMINAL_SERVICE) return 'gnome-terminal';
   if (/^rxvt-unicode/.test(env.TERM || '')) return 'urxvt';
+  // WT_SESSION is inherited by nested terminals, so specific terminal markers win first.
+  if (env.WT_SESSION) return 'windows-terminal';
   // Last: a terminal started from xterm inherits this too.
   if (env.XTERM_VERSION) return 'xterm';
   return null;

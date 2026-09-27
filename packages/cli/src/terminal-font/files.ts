@@ -13,7 +13,7 @@ import {
   MAX_TERMINAL_FONT_BYTES,
   TERMINAL_FONT_STYLES,
 } from 'herdr-remote-relay/protocol';
-import { type Deps, type FontDeps, GENERIC_FAMILIES, withDefaults } from './deps.js';
+import { type Deps, type FontDeps, GENERIC_FAMILIES, localAppData, withDefaults } from './deps.js';
 
 /** A face as announced, plus where it is on this machine. */
 export type LocalFontFace = HostFontFace & { path: string; mtimeMs: number };
@@ -136,12 +136,16 @@ function readSfntNames(
   }
 }
 
-function macFontFiles(deps: Deps): string[] {
-  const roots = [
-    path.join(deps.home, 'Library', 'Fonts'),
-    '/Library/Fonts',
-    '/System/Library/Fonts',
-  ];
+function fontFolderFiles(deps: Deps): string[] {
+  const roots =
+    deps.platform === 'darwin'
+      ? [path.join(deps.home, 'Library', 'Fonts'), '/Library/Fonts', '/System/Library/Fonts']
+      : deps.platform === 'win32'
+        ? [
+            path.join(deps.env.WINDIR || deps.env.SystemRoot || 'C:\\Windows', 'Fonts'),
+            path.join(localAppData(deps), 'Microsoft', 'Windows', 'Fonts'),
+          ]
+        : [];
   const files: string[] = [];
   const walk = (directory: string, depth: number) => {
     let entries: fs.Dirent[];
@@ -176,7 +180,7 @@ export function familyForPostScriptName(postscript: string, deps: Deps): string 
   if (listed.status === 0 && listed.stdout.trim())
     return listed.stdout.trim().split('\n')[0].split(',')[0].trim();
   if (deps.platform !== 'darwin') return null;
-  for (const file of macFontFiles(deps)) {
+  for (const file of fontFolderFiles(deps)) {
     const names = readSfntNames(file);
     if (names?.postscript === postscript) return names.family;
   }
@@ -213,9 +217,9 @@ function locateFaceFiles(family: string, deps: Deps): Partial<Record<HostFontSty
     if (!file || !names.includes(family.toLowerCase()) || Number(index) !== 0) continue;
     located[style] = file;
   }
-  if (fontconfig || deps.platform !== 'darwin') return located;
+  if (fontconfig || (deps.platform !== 'darwin' && deps.platform !== 'win32')) return located;
 
-  for (const file of macFontFiles(deps)) {
+  for (const file of fontFolderFiles(deps)) {
     const names = readSfntNames(file);
     if (!names || names.family?.toLowerCase() !== family.toLowerCase()) continue;
     const style = styleOfSubfamily(names.subfamily);
