@@ -1,11 +1,8 @@
 // Fitting the terminal grid to its box, and telling the host the new size.
 //
-// Visual-only vs PTY geometry:
-// - The PTY grid (cols x rows) is strictly governed by the physical container dimensions
-//   (window/layout viewport) and a stable baseline geometry (DEFAULT_BASE_FONT_SIZE = 13).
-// - Changing local font size / font family / theme in settings is a purely visual renderer adjustment:
-//   it updates xterm options and refreshes the canvas/DOM without recalculating PTY columns/rows
-//   or dispatching PTY resize frames.
+// The grid is the box divided by the cell the renderer draws, so a new box or
+// a new font is a new grid for the host. A visual zoom (pinch, a DPR change)
+// only repaints: the host keeps its grid.
 
 import type { Terminal } from '@xterm/xterm';
 import { type RefObject, useCallback, useRef } from 'react';
@@ -69,9 +66,25 @@ export function useTerminalFit({
   const lastZoomSnapshotRef = useRef<VisualZoomSnapshot | null>(null);
   const firstResizeVerifiedRef = useRef<boolean>(false);
 
-  /** Debounced, change-gated PTY resize notification. */
+  /** Tell the host the waiting grid, unless it is the one it already has. */
+  const flushResize = useCallback(() => {
+    const pending = pendingResizeRef.current;
+    pendingResizeRef.current = null;
+    if (!pending) return;
+    if (
+      pending.cols === lastSentDimensionsRef.current.cols &&
+      pending.rows === lastSentDimensionsRef.current.rows
+    ) {
+      return;
+    }
+    lastSentDimensionsRef.current = pending;
+    sendResizeRef.current(pending.cols, pending.rows);
+    onResizedRef.current();
+  }, [sendResizeRef, onResizedRef]);
+
+  /** Debounced, change-gated PTY resize notification; `now` skips the wait. */
   const notifyResize = useCallback(
-    (cols: number, rows: number) => {
+    (cols: number, rows: number, now = false) => {
       if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) return;
       if (
         cols === lastSentDimensionsRef.current.cols &&
@@ -81,29 +94,24 @@ export function useTerminalFit({
       }
 
       pendingResizeRef.current = { cols, rows };
+      if (now) {
+        if (resizeNotifyTimerRef.current) clearTimeout(resizeNotifyTimerRef.current);
+        resizeNotifyTimerRef.current = null;
+        flushResize();
+        return;
+      }
       if (resizeNotifyTimerRef.current) return;
 
       resizeNotifyTimerRef.current = setTimeout(() => {
         resizeNotifyTimerRef.current = null;
-        const pending = pendingResizeRef.current;
-        pendingResizeRef.current = null;
-        if (!pending) return;
-        if (
-          pending.cols === lastSentDimensionsRef.current.cols &&
-          pending.rows === lastSentDimensionsRef.current.rows
-        ) {
-          return;
-        }
-        lastSentDimensionsRef.current = pending;
-        sendResizeRef.current(pending.cols, pending.rows);
-        onResizedRef.current();
+        flushResize();
       }, RESIZE_NOTIFY_DEBOUNCE_MS);
     },
-    [sendResizeRef, onResizedRef],
+    [flushResize],
   );
 
   const handleFit = useCallback(
-    (force = false) => {
+    (force = false, now = false) => {
       const term = termRef.current;
       const container = containerRef.current;
       const surface = surfaceRef.current;
@@ -189,7 +197,7 @@ export function useTerminalFit({
 
       if (isActiveRef.current && (boxChanged || force || gridChanged)) {
         lastBoxRef.current = { width: box.width, height: box.height };
-        notifyResize(fit.cols, fit.rows);
+        notifyResize(fit.cols, fit.rows, now);
       }
 
       try {
@@ -258,6 +266,13 @@ export function useTerminalFit({
     }
   }, []);
 
+  /**
+   * Fit now and tell the host at once, without the debounce. For a change that
+   * arrives with a new connection: the session starts at the grid the window
+   * has when it connects, so the grid has to be right before that.
+   */
+  const fitNow = useCallback(() => handleFitRef.current(true, true), []);
+
   /** Start from the box the terminal was created for. */
   const seedFit = useCallback((box: Box) => {
     lastBoxRef.current = { width: box.width, height: box.height };
@@ -280,5 +295,5 @@ export function useTerminalFit({
     }
   }, []);
 
-  return { requestFit, scheduleBoundedFit, seedFit, cancelPendingFits };
+  return { requestFit, scheduleBoundedFit, fitNow, seedFit, cancelPendingFits };
 }
