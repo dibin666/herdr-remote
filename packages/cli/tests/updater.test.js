@@ -428,6 +428,55 @@ test("any other npm failure is not retried, and npm's own words come back", asyn
   assert.match(result.summary, /EACCES: permission denied/);
 });
 
+const EBUSY = [
+  'npm error code EBUSY',
+  'npm error syscall rename',
+  'npm error EBUSY: resource busy or locked, rename',
+].join('\n');
+
+// Windows refuses to rename a directory any process works in, and nothing can
+// find every such process: the release is copied over the package instead.
+test('on Windows, a package directory npm cannot rename is updated in place', async () => {
+  const npm = fakeNpm([{ code: 1, stderr: EBUSY }]);
+  const inPlace = [];
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    version: '0.2.16',
+    spawnImpl: npm.spawnImpl,
+    platform: 'win32',
+    inPlace: async (args) => {
+      inPlace.push(args);
+      return { ok: true, output: 'added 1 package' };
+    },
+    readInstalledVersion: () => '0.2.16',
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(inPlace, [npm.calls[0]]);
+});
+
+test('an in-place update is only for Windows, and only when the directory is held', async () => {
+  for (const [platform, stderr] of [
+    ['linux', EBUSY],
+    ['win32', 'npm error code E404'],
+  ]) {
+    let inPlace = false;
+    const result = await performUpdate({
+      installKindImpl: () => 'npm',
+      version: '0.2.16',
+      spawnImpl: fakeNpm([{ code: 1, stderr }]).spawnImpl,
+      platform,
+      inPlace: async () => {
+        inPlace = true;
+        return { ok: true, output: '' };
+      },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(inPlace, false, platform);
+  }
+});
+
 test('npm reporting success while the old version stays installed is not success', async () => {
   const npm = fakeNpm([{ code: 0 }]);
   const result = await performUpdate({
