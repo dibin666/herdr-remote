@@ -13,6 +13,11 @@ herdr-remote
 
 Running `herdr-remote` without arguments launches the setup wizard and configuration TUI.
 
+Native Windows 10/11 is supported with Node.js 22+; install Herdr from PowerShell with
+`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`.
+Herdr's Windows plugin support is in preview; on the first LAN launch, allow `node.exe`
+through Windows Defender Firewall on private networks.
+
 ## Connection Modes
 
 - **This machine only** *(default)*: Local workstation browser (127.0.0.1).
@@ -43,15 +48,20 @@ herdr-remote plugin link
 ## Configuration
 
 - Settings: `~/.config/herdr-remote/config.json`
+- Windows settings: `%APPDATA%\herdr-remote\config.json`
 - Runtime state: `~/.local/state/herdr-remote/runtime.json` (mode `0600`)
+- Windows runtime state: `%LOCALAPPDATA%\herdr-remote\runtime.json`
 
 ## Locating Herdr
 
 The `herdr` binary is looked up in `HERDR_BIN_PATH`, then `PATH`, then the usual
 install directories (`~/.local/bin`, `~/.cargo/bin`, `~/bin`, `/opt/homebrew/bin`,
 `/usr/local/bin`, …). `herdr-remote keepalive install` writes the binary it found
-and the current `PATH` into the systemd unit or launchd agent, because a service
-manager does not inherit your shell's environment.
+and the current `PATH` into the systemd unit, launchd agent, or Windows service
+(`windows-service`), because a service manager does not inherit your shell's environment.
+
+On Windows, only `herdr.exe` is searched for, including `%LOCALAPPDATA%\Programs\Herdr\bin`,
+`~\.cargo\bin`, and `~\scoop\shims`.
 
 `herdr-remote status --json` reports `host.herdrCommand` and `host.herdrCommandFound`.
 If it was not found, set `HERDR_BIN_PATH` to the full path and reinstall the
