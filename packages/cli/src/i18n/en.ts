@@ -242,6 +242,22 @@ const en = {
   'update.mirrorBehind': '{registries} still has an older version; installing from {source}',
   'update.cannot.source': 'Source checkout — update with git',
   'update.cannot.linked': 'Linked package — managed by npm link',
+  'relayUpdate.check': 'Relay {version}: check for updates',
+  'relayUpdate.checking': 'Relay: checking npm…',
+  'relayUpdate.upToDate': 'Relay up to date ({version})',
+  'relayUpdate.available':
+    'Relay {latest} available, installed {installed} (press Enter to install)',
+  'relayUpdate.needsCli': 'Relay {latest} needs a newer herdr-remote: update herdr-remote first',
+  'relayUpdate.updating': 'Installing relay {version}…',
+  'relayUpdate.updatingRetry':
+    'Installing relay {version}… (npm has not caught up yet, attempt {attempt})',
+  'relayUpdate.restart':
+    'Relay {version} installed, {running} still running (press Enter to restart)',
+  'relayUpdate.restarting': 'Restarting herdr-remote…',
+  'relayUpdate.restarted': 'herdr-remote restarted; the relay now runs {version}.',
+  'relayUpdate.errorNotApplied': 'npm finished, but relay {installed} is still installed',
+  'relayUpdate.banner':
+    'Relay {latest} is out (installed {current}). Press 7 and Enter on the relay row to install.',
 };
 
 export type MessageKey = keyof typeof en;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
+import { useRelayUpdate } from './useRelayUpdate.js';
 import { Message, Panel, Row, Selectable } from '../components/common.js';
 import {
   canSelfUpdate,
@@ -71,7 +72,12 @@ export function About({ ctx }: { ctx: AppContext }) {
     }
   })();
 
-  const options = [...languageOptions, { id: 'update', label: updateLabel }];
+  const relay = useRelayUpdate(ctx);
+  const options = [
+    ...languageOptions,
+    { id: 'update', label: updateLabel },
+    ...(relay.visible ? [{ id: 'relay-update', label: relay.label }] : []),
+  ];
 
   /** Show a check's answer, whether this screen asked or the TUI did on opening. */
   const applyCheck = (result: UpdateCheck) => {
@@ -184,6 +190,10 @@ export function About({ ctx }: { ctx: AppContext }) {
   };
 
   const activate = (id: string) => {
+    if (id === 'relay-update') {
+      relay.activate();
+      return;
+    }
     if (id === 'update') {
       activateUpdate();
       return;
@@ -235,11 +245,28 @@ export function About({ ctx }: { ctx: AppContext }) {
         {sourceNote ? (
           <Text color={theme.muted}>{`  ${t('update.mirrorBehind', sourceNote)}`}</Text>
         ) : null}
+        {relay.visible ? (
+          <Selectable
+            selected={selected === 'relay-update'}
+            onSelect={() => {
+              setSelected('relay-update');
+              relay.activate();
+            }}
+            onHover={() => setSelected('relay-update')}
+          >
+            {relay.label}
+          </Selectable>
+        ) : null}
       </Box>
 
       <Row label={t('about.version')}>
         <Text color={theme.muted}>{currentVersion()}</Text>
       </Row>
+      {relay.visible ? (
+        <Row label={t('about.relayPackage')}>
+          <Text color={theme.muted}>{relay.installed ?? '?'}</Text>
+        </Row>
+      ) : null}
       <Row label={t('about.configPath')}>
         <Text color={theme.muted}>{configPath()}</Text>
       </Row>

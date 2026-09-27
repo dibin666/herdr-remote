@@ -6,7 +6,7 @@
 
 import { OFFICIAL_RELAY_URL, configExists, loadConfig } from '../config.js';
 import { configPath, stateDir } from '../paths.js';
-import { bindAddress, resolveAdminOrigin } from '../relay-urls.js';
+import { bindAddress, resolveAdminOrigin, runsLocalRelay } from '../relay-urls.js';
 import { MIN_HERDR_VERSION, herdrVersion } from '../herdr-command.js';
 import { createTranslator, detectLocale } from '../i18n/index.js';
 import { listReachableAddresses } from '../net-interfaces.js';
@@ -29,15 +29,22 @@ import * as keepalive from '../keepalive/index.js';
 import {
   canSelfUpdate,
   checkForUpdate,
+  compareVersions,
   currentVersion,
   updateChecksEnabled,
   installKind,
   performUpdate,
 } from '../updater.js';
+import {
+  checkForRelayUpdate,
+  installedRelayVersion,
+  performRelayUpdate,
+  type RelayUpdateCheck,
+} from '../relay-updater.js';
 
 import type { AccessMode, Config } from '../config.js';
 
-export type { AccessMode, Config };
+export type { AccessMode, Config, RelayUpdateCheck };
 export type { Locale } from '../i18n/index.js';
 export type { NetworkAddress } from '../net-interfaces.js';
 /** Screens only call `t(key, values)`; the full Translate type lives in i18n. */
@@ -90,10 +97,15 @@ export {
   selectedMode,
   canSelfUpdate,
   checkForUpdate,
+  compareVersions,
   currentVersion,
   updateChecksEnabled,
   installKind,
   performUpdate,
+  checkForRelayUpdate,
+  installedRelayVersion,
+  performRelayUpdate,
+  runsLocalRelay,
   bindAddress,
   configExists,
   configPath,
