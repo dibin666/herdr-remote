@@ -25,6 +25,15 @@ model behave in a browser: window titles follow each client's own view, activati
 the background no longer resizes somebody else's focused pane, and a large paste no longer
 drops the client.
 
+Native Windows 10/11 is supported with Node.js 22+. Install Herdr from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+Herdr's Windows plugin support is in preview. On the first launch in LAN mode, Windows
+Defender Firewall asks whether to allow `node.exe`; allow it on private networks.
+
 ## Screenshots
 
 ### Desktop browser
@@ -153,7 +162,8 @@ herdr-remote --lang zh|en
 
 ## Configuration
 
-Settings: `~/.config/herdr-remote/config.json`
+Settings: `~/.config/herdr-remote/config.json`; on Windows:
+`%APPDATA%\herdr-remote\config.json`
 
 ```json
 {
@@ -165,7 +175,7 @@ Settings: `~/.config/herdr-remote/config.json`
 ```
 
 Authentication tokens and secrets are stored in `~/.local/state/herdr-remote/runtime.json`
-(mode `0600`).
+(mode `0600`). On Windows they are stored in `%LOCALAPPDATA%\herdr-remote\runtime.json`.
 
 ## Security
 

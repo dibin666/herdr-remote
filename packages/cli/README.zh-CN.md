@@ -13,6 +13,11 @@ herdr-remote
 
 直接运行 `herdr-remote` 即可启动向导并进入配置 TUI。
 
+已支持 Windows 10/11 原生运行（需 Node.js 22+），请在 PowerShell 中执行
+`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` 安装 Herdr。
+Herdr 的 Windows 插件功能仍处于 preview 阶段；首次以局域网模式启动时，请在 Windows
+Defender 防火墙提示中允许 `node.exe` 通过专用网络通信。
+
 ## 访问模式
 
 - **仅本机** *(默认)*：仅本机浏览器可访问 (127.0.0.1)。
@@ -43,14 +48,19 @@ herdr-remote plugin link
 ## 配置路径
 
 - 配置文件：`~/.config/herdr-remote/config.json`
+- Windows 配置文件：`%APPDATA%\herdr-remote\config.json`
 - 运行状态：`~/.local/state/herdr-remote/runtime.json` (权限 `0600`)
+- Windows 运行状态：`%LOCALAPPDATA%\herdr-remote\runtime.json`
 
 ## herdr 命令的查找方式
 
 依次查找 `HERDR_BIN_PATH`、`PATH`，以及常见安装目录（`~/.local/bin`、`~/.cargo/bin`、
 `~/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 等）。服务管理器不会继承 shell 环境，
 因此 `herdr-remote keepalive install` 会把找到的可执行文件路径和当前 `PATH` 写入
-systemd unit 或 launchd plist。
+systemd unit、launchd plist 或 Windows 服务（`windows-service`）。
+
+Windows 上只查找 `herdr.exe`，还会搜索 `%LOCALAPPDATA%\Programs\Herdr\bin`、
+`~\.cargo\bin` 和 `~\scoop\shims`。
 
 `herdr-remote status --json` 会输出 `host.herdrCommand` 与 `host.herdrCommandFound`。
 若显示未找到，请将 `HERDR_BIN_PATH` 设为完整路径后重新安装保活服务。

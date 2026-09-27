@@ -18,6 +18,15 @@ herdr-remote
 
 需要 Herdr 0.9.1 或更高版本。每个浏览器窗口驱动各自的 Herdr 客户端，客户端视图从 0.9.0 起才与工作站本机终端相互独立；而 0.9.1 才让这套模型在浏览器里真正可用：窗口标题跟随各自客户端的视图、后台激活机器不再改变他人聚焦窗格的尺寸、大段粘贴也不再断开客户端。
 
+现已支持 Windows 10/11 原生运行，需要 Node.js 22+。在 PowerShell 中执行以下命令安装 Herdr：
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+Herdr 的 Windows 插件功能仍处于 preview 阶段。首次以局域网模式启动时，Windows Defender
+防火墙会询问是否允许 `node.exe` 通信；请在专用网络上允许。
+
 ## 截图
 
 ### 桌面浏览器
@@ -134,7 +143,8 @@ herdr-remote --lang zh|en
 
 ## 配置文件
 
-配置文件路径：`~/.config/herdr-remote/config.json`
+配置文件路径：`~/.config/herdr-remote/config.json`；Windows 路径：
+`%APPDATA%\herdr-remote\config.json`
 
 ```json
 {
@@ -145,7 +155,8 @@ herdr-remote --lang zh|en
 }
 ```
 
-主机身份令牌与密钥单独保存在 `~/.local/state/herdr-remote/runtime.json`（权限 `0600`）。
+主机身份令牌与密钥单独保存在 `~/.local/state/herdr-remote/runtime.json`（权限 `0600`）；
+Windows 路径为 `%LOCALAPPDATA%\herdr-remote\runtime.json`。
 
 ## 安全机制
 

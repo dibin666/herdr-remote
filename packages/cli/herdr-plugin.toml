@@ -3,7 +3,7 @@ name = "Herdr Remote Web"
 version = "0.2.21"
 min_herdr_version = "0.9.1"
 description = "Browser access to Herdr workspaces via local or self-hosted relay"
-platforms = ["linux", "macos"]
+platforms = ["linux", "macos", "windows"]
 
 # No [[build]] steps: this package is installed from npm with its TUI bundle and
 # web assets already built. Herdr should never compile anything on the user's
