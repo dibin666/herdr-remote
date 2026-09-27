@@ -6,6 +6,17 @@ import {
   preferredLanAddress,
 } from '../src/net-interfaces.js';
 
+function interfaceInfo(address) {
+  return {
+    address,
+    netmask: '255.255.255.0',
+    family: 'IPv4',
+    mac: '00:00:00:00:00:00',
+    internal: false,
+    cidr: `${address}/24`,
+  };
+}
+
 test('the Tailscale CGNAT range is recognised by address', () => {
   // Interface names differ per platform (tailscale0 on Linux, utunN on macOS),
   // so 100.64.0.0/10 is the portable signal.
@@ -56,4 +67,25 @@ test('excluding loopback leaves only addresses another device could reach', () =
   const preferred = preferredLanAddress();
   if (addresses.length === 0) assert.equal(preferred, null);
   else assert.equal(preferred, addresses[0].address);
+});
+
+test('Windows virtual and link-local interfaces rank below Wi-Fi', () => {
+  const interfaces = {
+    'vEthernet (WSL)': [interfaceInfo('172.24.80.1')],
+    'vEthernet (Default Switch)': [interfaceInfo('172.20.224.1')],
+    'VMware Network Adapter VMnet8': [interfaceInfo('192.168.88.1')],
+    'VirtualBox Host-Only Network': [interfaceInfo('192.168.56.1')],
+    Ethernet: [interfaceInfo('169.254.12.34')],
+    'Wi-Fi': [interfaceInfo('192.168.1.42')],
+  };
+  const addresses = listReachableAddresses({ interfaces });
+  const byName = Object.fromEntries(addresses.map((entry) => [entry.name, entry]));
+
+  assert.equal(byName['vEthernet (WSL)'].kind, 'virtual');
+  assert.equal(byName['vEthernet (Default Switch)'].kind, 'virtual');
+  assert.equal(byName['VMware Network Adapter VMnet8'].kind, 'virtual');
+  assert.equal(byName['VirtualBox Host-Only Network'].kind, 'virtual');
+  assert.equal(byName.Ethernet.kind, 'virtual');
+  assert.equal(byName['Wi-Fi'].kind, 'lan');
+  assert.equal(preferredLanAddress(interfaces), '192.168.1.42');
 });
