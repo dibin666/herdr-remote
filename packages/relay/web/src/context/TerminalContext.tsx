@@ -14,6 +14,7 @@ import {
   useReducer,
   useRef,
 } from 'react';
+import type { ClientRole } from '@protocol/messages';
 import { isServerErrorCode, type Language, type Translate, translate } from '@/shared/i18n';
 import type { HerdrClientAdapter } from '@/connection/clientAdapter';
 import type { ConnectionConfig } from '@/connection/types';
@@ -96,11 +97,14 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
   const { updateStatus, ignoredUpdate, ignoreUpdate, receiveUpdateStatus, forgetUpdateStatus } =
     useUpdateNotices(addToast, tRef);
-  const input = useTerminalInput({ adapterRef, role: session.role, addToast, tRef });
+  // Observing is this window's own choice: the relay gives every paired window
+  // input, and holding it back here is what makes the window only watch.
+  const role: ClientRole = settings.observerMode ? 'viewer' : session.role;
+  const input = useTerminalInput({ adapterRef, role, addToast, tRef });
   const { uploadProgress, uploadImage, resetUploadProgress, abortUpload, completeUpload } =
     useImageUpload({
       adapterRef,
-      role: session.role,
+      role,
       connectionState: session.connectionState,
       warnViewerMode: input.warnViewerMode,
       addToast,
@@ -350,7 +354,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const connectionValue = useMemo<ConnectionContextValue>(
     () => ({
       ...session,
-      isController: session.role === 'controller',
+      role,
+      isController: role === 'controller',
       agentProfile: resolveProfile(session.agentStatus?.focusedAgent, 'auto'),
       reportShellProfile: (profile: ShellProfile) => dispatch({ type: 'shellProfile', profile }),
       adapter,
@@ -366,6 +371,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     }),
     [
       session,
+      role,
       adapter,
       connect,
       disconnect,

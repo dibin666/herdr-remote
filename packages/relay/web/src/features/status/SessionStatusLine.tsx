@@ -1,9 +1,10 @@
 import type React from 'react';
 import { useSettings, useConnection } from '@/context/TerminalContext';
 import { describeConnection } from '@/connection/connectionStatus';
-import { Badge, Segments, StatusDot, StatusLine } from '@/shared/ui';
+import { Segments, StatusDot, StatusLine } from '@/shared/ui';
 import { AgentStatusChip, agentStatusHasContent } from '@/features/agents/AgentStatusChip';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
+import { ControlModeSwitch } from './ControlModeSwitch';
 import { UpdateChip, useUpdateNoticeVisible } from './UpdateNotice';
 
 interface SessionStatusLineProps {
@@ -23,7 +24,7 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
   onAddProfile = () => {},
 }) => {
   const { settings, t } = useSettings();
-  const { connectionState, role, hostId, assignedClientId, sharedWindowCount, rttMs, agentStatus } =
+  const { connectionState, hostId, assignedClientId, sharedWindowCount, rttMs, agentStatus } =
     useConnection();
   const status = describeConnection(connectionState, t);
   const connected = connectionState === 'connected';
@@ -43,11 +44,7 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
               // Nothing is being controlled while the session is down, so the
               // line says nothing about it rather than claiming a role that has
               // no session to apply to.
-              connected ? (
-                <Badge key="role" tone={role === 'controller' ? 'ok' : 'warn'}>
-                  {role === 'controller' ? t('role.sharedControl') : t('common.viewer')}
-                </Badge>
-              ) : null,
+              connected ? <ControlModeSwitch key="role" compact className="h-full w-auto" /> : null,
               connected && sharedWindowCount > 1 ? (
                 <span key="windows" className="text-tui-muted">
                   {t('role.sharedWindows', { count: sharedWindowCount })}

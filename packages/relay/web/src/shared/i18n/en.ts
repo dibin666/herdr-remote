@@ -69,14 +69,14 @@ export const en = {
   },
   role: {
     controllerMode: 'Controller mode active',
-    viewerMode: 'Viewer mode',
     controlActive: 'Full Control',
-    viewerReadOnly: 'Viewer',
     viewerWithController: 'Viewer (Active: {controllerId})',
-    /** Every paired window types into one shared terminal. */
+    /** This window types into its terminal. */
     sharedControl: 'Full control',
-    sharedControlDesc: 'Every paired window shares this terminal and may type into it.',
     sharedWindows: '{count} windows',
+    modeLabel: 'Input mode',
+    controlHint: 'Keys, paste and clicks go to the terminal',
+    observerHint: 'Watch only: input is held back, scrolling still works',
     thisWindow: 'Window',
     claimControl: 'Claim Control',
     claimControlTitle: 'Claim terminal control',
@@ -620,7 +620,7 @@ export const en = {
     pairedSuccess: 'Paired successfully',
     sessionEnded: 'Session ended',
     controlReleased: 'Control released',
-    viewerModeWarning: 'In viewer mode. Click "Claim Control" first.',
+    viewerModeWarning: 'This window is in viewer mode. Switch to Full control to type.',
     clientIdCopied: 'Client ID copied: {id}',
     pairingLinkCopied: 'Pairing link copied',
     switchedLanguage: 'Language switched to {lang}',

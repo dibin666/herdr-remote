@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TerminalProvider } from '@/context/TerminalContext';
-import { RoleControlBadge } from '@/features/status/RoleControlBadge';
+import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { StatusBanner } from '@/features/status/StatusBanner';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { OnboardingView } from '@/features/pairing/OnboardingView';
@@ -13,15 +13,16 @@ describe('UI Components', () => {
     localStorage.clear();
   });
 
-  it('renders RoleControlBadge with offline status when disconnected', () => {
+  it('offers full control and observing even before a connection', () => {
     render(
       <TerminalProvider>
-        <RoleControlBadge />
+        <ControlModeSwitch />
       </TerminalProvider>,
     );
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText(/Offline/i)).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Input mode' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Full control' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Viewer' })).not.toBeChecked();
   });
 
   it('renders OnboardingView with pairing steps and command copy', () => {
