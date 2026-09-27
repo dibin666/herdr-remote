@@ -19,6 +19,11 @@ import {
 const BROKER_PING_TIMEOUT_MS = 1_000;
 const BROKER_START_TIMEOUT_MS = 5_000;
 const BROKER_START_POLL_MS = 250;
+const BROKER_TASK_END_TIMEOUT_MS = 10_000;
+/** Time for a stopping broker's goodbye to reach the caller before the process ends. */
+const BROKER_EXIT_GRACE_MS = 1_000;
+
+type PtySpawn = typeof import('node-pty').spawn;
 
 interface BrokerMessage extends Record<string, unknown> {
   type?: string;
@@ -98,32 +103,69 @@ Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Silent
   );
 }
 
-export function adminBrokerStatus(): Promise<boolean> {
+/** Send the broker one request and read the type of its one reply, or null without one. */
+function requestAdminBroker(type: 'ping' | 'shutdown'): Promise<string | null> {
   let broker: ReturnType<typeof connectAdminBroker>;
   try {
     broker = connectAdminBroker();
   } catch {
-    return Promise.resolve(false);
+    return Promise.resolve(null);
   }
   const { socket, token } = broker;
   return new Promise((resolve) => {
     let settled = false;
     let response = '';
-    const finish = (available: boolean) => {
+    const finish = (reply: string | null) => {
       if (settled) return;
       settled = true;
       socket.destroy();
-      resolve(available);
+      resolve(reply);
     };
-    socket.setTimeout(BROKER_PING_TIMEOUT_MS, () => finish(false));
+    socket.setTimeout(BROKER_PING_TIMEOUT_MS, () => finish(null));
     socket.setEncoding('utf8');
-    socket.on('connect', () => sendAdminBrokerMessage(socket, { type: 'ping', token }));
+    socket.on('connect', () => sendAdminBrokerMessage(socket, { type, token }));
     socket.on('data', (chunk: string) => {
       response += chunk;
-      if (response.includes('\n')) finish(response.includes('"type":"pong"'));
+      const newline = response.indexOf('\n');
+      if (newline < 0) return;
+      try {
+        finish(String(JSON.parse(response.slice(0, newline)).type));
+      } catch {
+        finish(null);
+      }
     });
-    socket.on('error', () => finish(false));
+    socket.on('error', () => finish(null));
   });
+}
+
+export async function adminBrokerStatus(): Promise<boolean> {
+  return (await requestAdminBroker('ping')) === 'pong';
+}
+
+/**
+ * Ask the broker to exit so its task can start it on a new release. It stays
+ * while an administrator terminal is open: that terminal may be the one asking.
+ * A broker from before this request answers neither way.
+ */
+export async function stopAdminBroker(): Promise<'stopped' | 'busy' | 'unavailable'> {
+  const reply = await requestAdminBroker('shutdown');
+  return reply === 'bye' ? 'stopped' : reply === 'busy' ? 'busy' : 'unavailable';
+}
+
+/** Start the broker's task now, which the account that registered it may do unelevated. */
+export function startAdminBrokerTask(t: Translate): void {
+  if (process.platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
+  runPowerShell(
+    `
+$ErrorActionPreference = 'Stop'
+$taskName = ${powershellQuote(adminBrokerTaskName())}
+# A broker that was just stopped may still be ending, and IgnoreNew drops a start until it has.
+$deadline = [DateTime]::UtcNow.AddMilliseconds(${BROKER_TASK_END_TIMEOUT_MS})
+while ((Get-ScheduledTask -TaskName $taskName).State -eq 'Running' -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds ${BROKER_START_POLL_MS} }
+Start-ScheduledTask -TaskName $taskName
+`,
+    t,
+  );
 }
 
 /** The task starts the broker a moment after it is registered; wait for it to answer. */
@@ -142,7 +184,11 @@ function writeError(socket: net.Socket, error: unknown): void {
   socket.end();
 }
 
-function startBrokerPty(socket: net.Socket, message: BrokerMessage): PtySession {
+function startBrokerPty(
+  socket: net.Socket,
+  message: BrokerMessage,
+  spawn: PtySpawn | undefined,
+): PtySession {
   if (typeof message.command !== 'string' || !message.command || message.command.length > 4096)
     throw new Error('Invalid administrator terminal command.');
   if (path.basename(message.command).toLowerCase() !== 'powershell.exe')
@@ -171,6 +217,7 @@ function startBrokerPty(socket: net.Socket, message: BrokerMessage): PtySession 
     platform: 'win32',
     // A plain PowerShell prompt does not need the Herdr UI's Kitty or mouse modes.
     fastWindowsPty: true,
+    spawn,
   });
   pty.start({
     cols: PtySession.clampDimension(message.cols, PtySession.DEFAULT_COLS),
@@ -192,8 +239,16 @@ function startBrokerPty(socket: net.Socket, message: BrokerMessage): PtySession 
 }
 
 /** Listen on loopback and publish the endpoint; every request must carry its token. */
-export function serveAdminBroker(): net.Server {
+export function serveAdminBroker({
+  spawn,
+  onShutdown = () => {},
+}: {
+  /** Starts the PowerShell; tests have none to start. */
+  spawn?: PtySpawn;
+  onShutdown?: () => void;
+} = {}): net.Server {
   let token = '';
+  const sessions = new Set<PtySession>();
   const server = net.createServer((socket) => {
     socket.setEncoding('utf8');
     let pending = '';
@@ -228,12 +283,23 @@ export function serveAdminBroker(): net.Server {
             socket.end();
             return;
           }
+          if (message.type === 'shutdown') {
+            const busy = sessions.size > 0;
+            sendAdminBrokerMessage(socket, { type: busy ? 'busy' : 'bye' });
+            socket.end();
+            if (!busy) {
+              server.close();
+              onShutdown();
+            }
+            return;
+          }
           if (message.type !== 'start') {
             writeError(socket, new Error('Expected an administrator terminal start request.'));
             return;
           }
           try {
-            pty = startBrokerPty(socket, message);
+            pty = startBrokerPty(socket, message, spawn);
+            sessions.add(pty);
           } catch (error) {
             writeError(socket, error);
             return;
@@ -253,8 +319,13 @@ export function serveAdminBroker(): net.Server {
         }
       }
     });
-    socket.on('close', () => pty?.kill());
-    socket.on('error', () => pty?.kill());
+    const release = () => {
+      if (!pty) return;
+      pty.kill();
+      sessions.delete(pty);
+    };
+    socket.on('close', release);
+    socket.on('error', release);
   });
   listenAdminBroker(server, (port) => {
     token = publishAdminBrokerEndpoint(port);
@@ -265,7 +336,9 @@ export function serveAdminBroker(): net.Server {
 function runAdminBroker(): void {
   if (process.platform !== 'win32')
     throw new Error('Administrator PTYs are only supported on Windows.');
-  serveAdminBroker().on('error', (error) => {
+  serveAdminBroker({
+    onShutdown: () => setTimeout(() => process.exit(0), BROKER_EXIT_GRACE_MS).unref(),
+  }).on('error', (error) => {
     process.stderr.write(`herdr-remote administrator broker: ${error.message}\n`);
   });
 }

@@ -95,6 +95,7 @@ const en = {
   'adminBroker.windowsOnly': 'The administrator terminal broker only runs on Windows.',
   'adminBroker.needsElevation':
     'Open the Windows TUI and choose Set up admin terminal access. Approve the one-time Windows prompt under the same account as Herdr Remote.',
+  'adminBroker.busy': 'An admin terminal is open; close it before restarting the broker.',
   'adminBroker.title': 'Admin terminal broker',
   'adminBroker.checking': 'Checking…',
   'adminBroker.ready': 'Ready',
@@ -282,6 +283,11 @@ const en = {
   'update.notRunning':
     'Services were not running and were left stopped. Start them with: herdr-remote start',
   'update.restartFailed': 'Installed, but the services did not restart: {message}',
+  'update.brokerRestarted': 'Admin terminal broker restarted.',
+  'update.brokerRestartFailed':
+    'The admin terminal broker did not start again. Sign out of Windows and back in, or run herdr-remote admin-broker restart.',
+  'update.brokerBusy':
+    'An admin terminal is open, so the broker keeps running the previous release. Close admin terminals, then run herdr-remote admin-broker restart.',
   'update.errorBusy':
     "A process still holds the herdr-remote folder; an admin terminal broker set up by an older release does. In an administrator PowerShell run: Get-ScheduledTask -TaskName 'HerdrRemoteAdminBroker-*' | Stop-ScheduledTask. Then run herdr-remote update again here, and afterwards herdr-remote admin-broker install as administrator.",
   'relayUpdate.check': 'Relay {version}: check for updates',

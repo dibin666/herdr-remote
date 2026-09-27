@@ -34,7 +34,7 @@ Commands:
   url                  Print browser access URL
   run [--daemon]       Run services in foreground (keep-alive)
   update [--json]      Install the latest release and restart services
-  admin-broker install | uninstall | status (Windows)
+  admin-broker install | uninstall | restart | status (Windows)
   admin-shell          Elevated PowerShell in this terminal (Windows)
   keepalive <action>   install | uninstall | restart | status
   plugin <action>      link | unlink | status  (Herdr plugin)
@@ -282,6 +282,10 @@ async function main(argv = process.argv.slice(2)) {
       } else if (action === 'uninstall') {
         broker.uninstallAdminBroker(t);
         printJson({ installed: false });
+      } else if (action === 'restart') {
+        if ((await broker.stopAdminBroker()) === 'busy') throw new Error(t('adminBroker.busy'));
+        broker.startAdminBrokerTask(t);
+        printJson({ available: await broker.waitForAdminBroker() });
       } else if (action === 'status') {
         printJson({ available: await broker.adminBrokerStatus() });
       } else {

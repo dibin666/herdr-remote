@@ -13,6 +13,8 @@ function harness({
   running = true,
   install = { ok: true, installed: '1.1.0' },
   restart = { ok: true, message: '' },
+  broker = 'unavailable',
+  brokerBack = true,
 } = {}) {
   const calls = [];
   const lines = [];
@@ -34,6 +36,14 @@ function harness({
     restartInstalled: () => {
       calls.push('restart with the installed release');
       return restart;
+    },
+    stopBroker: async () => {
+      calls.push(`ask the broker to stop: ${broker}`);
+      return broker;
+    },
+    startBroker: async () => {
+      calls.push('start the broker');
+      return brokerBack;
     },
     report: (line) => lines.push(line),
   };
@@ -58,6 +68,7 @@ test('Windows stops the services before npm replaces their files', async () => {
 
   assert.deepEqual(calls, [
     'stop',
+    'ask the broker to stop: unavailable',
     'install herdr-remote 1.1.0',
     'restart with the installed release',
   ]);
@@ -77,7 +88,12 @@ test('a failed install on Windows brings the old services back and names the loc
 
   const outcome = await runUpdate(t, options);
 
-  assert.deepEqual(calls, ['stop', 'install herdr-remote 1.1.0', 'start']);
+  assert.deepEqual(calls, [
+    'stop',
+    'ask the broker to stop: unavailable',
+    'install herdr-remote 1.1.0',
+    'start',
+  ]);
   assert.equal(outcome.ok, false);
   assert.equal(outcome.restarted, false);
   assert.ok(lines.includes(t('update.errorBusy')));
@@ -88,7 +104,7 @@ test('services that were not running are left stopped', async () => {
 
   const outcome = await runUpdate(t, options);
 
-  assert.deepEqual(calls, ['install herdr-remote 1.1.0']);
+  assert.deepEqual(calls, ['ask the broker to stop: unavailable', 'install herdr-remote 1.1.0']);
   assert.equal(outcome.restarted, false);
   assert.ok(lines.includes(t('update.notRunning')));
 });
@@ -139,4 +155,61 @@ test('a restart that fails after the install is reported as a failure', async ()
   assert.equal(outcome.ok, false);
   assert.equal(outcome.installed, '1.1.0');
   assert.ok(lines.includes(t('update.restartFailed', { message: 'port in use' })));
+});
+
+test('Windows restarts the admin broker so its task runs the new release', async () => {
+  const { options, calls, lines } = harness({ platform: 'win32', broker: 'stopped' });
+
+  const outcome = await runUpdate(t, options);
+
+  assert.deepEqual(calls, [
+    'stop',
+    'ask the broker to stop: stopped',
+    'install herdr-remote 1.1.0',
+    'restart with the installed release',
+    'start the broker',
+  ]);
+  assert.equal(outcome.adminBroker, 'restarted');
+  assert.ok(lines.includes(t('update.brokerRestarted')));
+});
+
+test('a broker stopped for a failed install is started again', async () => {
+  const { options, calls } = harness({
+    platform: 'win32',
+    broker: 'stopped',
+    install: { ok: false, errorKey: 'update.errorFailed', output: 'npm error ETIMEDOUT' },
+  });
+
+  await runUpdate(t, options);
+
+  assert.deepEqual(calls.slice(-2), ['start', 'start the broker']);
+});
+
+test('a broker serving an open admin terminal is left running and the user told', async () => {
+  const { options, calls, lines } = harness({ platform: 'win32', broker: 'busy' });
+
+  const outcome = await runUpdate(t, options);
+
+  assert.ok(!calls.includes('start the broker'));
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.adminBroker, 'busy');
+  assert.ok(lines.includes(t('update.brokerBusy')));
+});
+
+test('a broker that does not come back is reported without failing the update', async () => {
+  const { options, lines } = harness({ platform: 'win32', broker: 'stopped', brokerBack: false });
+
+  const outcome = await runUpdate(t, options);
+
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.adminBroker, 'failed');
+  assert.ok(lines.includes(t('update.brokerRestartFailed')));
+});
+
+test('only Windows has an admin broker to stop', async () => {
+  const { options, calls } = harness({ platform: 'darwin' });
+
+  await runUpdate(t, options);
+
+  assert.ok(!calls.some((call) => call.includes('broker')));
 });

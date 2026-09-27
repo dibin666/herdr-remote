@@ -8,12 +8,13 @@ import {
   adminBrokerStatus,
   adminBrokerTaskScript,
   serveAdminBroker,
+  stopAdminBroker,
 } from '../src/connector/admin-broker.js';
 import { PACKAGE_ROOT } from '../src/paths.js';
 import { isolateState } from './helpers.js';
 
-async function startBroker(t) {
-  const server = serveAdminBroker();
+async function startBroker(t, options) {
+  const server = serveAdminBroker(options);
   t.onTestFinished(() => new Promise((resolve) => server.close(resolve)));
   await once(server, 'listening');
   return JSON.parse(
@@ -70,4 +71,49 @@ test('the broker task runs outside the package, which npm renames to update it',
   const directory = match[1].replaceAll("''", "'");
   assert.notEqual(path.resolve(directory), path.resolve(PACKAGE_ROOT));
   assert.equal(directory, process.env.HERDR_REMOTE_STATE_DIR);
+});
+
+test('an idle broker exits when asked, so its task can start the new release', async (t) => {
+  isolateState(t);
+  let shutdowns = 0;
+  await startBroker(t, { onShutdown: () => (shutdowns += 1) });
+
+  assert.equal(await stopAdminBroker(), 'stopped');
+  assert.equal(shutdowns, 1);
+  assert.equal(await adminBrokerStatus(), false);
+});
+
+test('a broker with an open administrator terminal stays, as that terminal may be asking', async (t) => {
+  isolateState(t);
+  let shutdowns = 0;
+  const terminal = {
+    pid: 4321,
+    onData() {},
+    onExit() {},
+    write() {},
+    resize() {},
+    kill() {},
+  };
+  const { port, token } = await startBroker(t, {
+    spawn: () => terminal,
+    onShutdown: () => (shutdowns += 1),
+  });
+  const session = net.createConnection({ host: '127.0.0.1', port });
+  t.onTestFinished(() => session.destroy());
+  session.setEncoding('utf8');
+  await once(session, 'connect');
+  session.write(
+    `${JSON.stringify({ type: 'start', token, command: 'powershell.exe', args: ['-NoLogo', '-NoProfile'], cwd: 'C:\\' })}\n`,
+  );
+  const [started] = await once(session, 'data');
+  assert.match(started, /"type":"started"/);
+
+  assert.equal(await stopAdminBroker(), 'busy');
+  assert.equal(shutdowns, 0);
+  assert.equal(await adminBrokerStatus(), true);
+});
+
+test('stopping reports unavailable when no broker has published an endpoint', async (t) => {
+  isolateState(t);
+  assert.equal(await stopAdminBroker(), 'unavailable');
 });
