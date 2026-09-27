@@ -70,6 +70,8 @@ export class UpdateReport {
           updateAvailable: compareVersions(result.latest, running) > 0,
           // Updated on disk, still running the old code: a restart finishes it.
           restartPending: compareVersions(installed, running) > 0,
+          // Older connectors leave this out, and their windows keep the npm steps.
+          updateCommand: true,
         });
       })
       .catch(() => {

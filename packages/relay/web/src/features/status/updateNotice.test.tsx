@@ -118,6 +118,17 @@ describe('herdr-remote update notice', () => {
     expect(screen.getByTestId('update-chip')).toHaveTextContent('0.3.1');
   });
 
+  it('offers the one command when the workstation has herdr-remote update', () => {
+    const session = mount();
+    session.report({ updateCommand: true });
+
+    fireEvent.click(screen.getByTestId('update-chip'));
+    const modal = screen.getByTestId('update-modal');
+    expect(within(modal).getByText('herdr-remote update')).toBeInTheDocument();
+    expect(modal).not.toHaveTextContent('npm install -g');
+    expect(modal).not.toHaveTextContent('herdr-remote restart');
+  });
+
   it('still skips a release that an older build was told to skip', () => {
     localStorage.setItem('herdr-remote.ignoredUpdate', '0.3.0');
     const session = mount();

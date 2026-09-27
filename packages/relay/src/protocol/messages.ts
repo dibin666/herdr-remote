@@ -242,6 +242,8 @@ export interface ServerUpdateStatusMessage {
   latest: string;
   updateAvailable: boolean;
   restartPending: boolean;
+  /** The workstation has `herdr-remote update`, which installs and restarts in one step. */
+  updateCommand: boolean;
 }
 
 /** The workstation re-read its terminal font; sent to every window. */

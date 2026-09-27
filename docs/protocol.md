@@ -518,17 +518,21 @@ the npm registries each time a window opens (at most once a minute) and sends:
   "installed": "0.2.16",
   "latest": "0.2.17",
   "updateAvailable": true,
-  "restartPending": false
+  "restartPending": false,
+  "updateCommand": true
 }
 ```
 
 `current` is the version the connector is running; `installed` is the one on
 disk, ahead of it when an update was installed but herdr-remote not restarted
-(`restartPending`). Every registry the machine is configured with is asked at
+(`restartPending`). `updateCommand` says the workstation has `herdr-remote
+update`, which installs and restarts in one step; the browser then offers that
+rather than the npm command and a restart, and connectors older than it leave
+the field out. Every registry the machine is configured with is asked at
 once and the newest answer wins, so a mirror that has not synced a release yet
 cannot hide it. A failed check sends nothing.
 
-The relay accepts only release-shaped version strings and the two flags,
+The relay accepts only release-shaped version strings and the three flags,
 broadcasts the result to every window of that host, and replays the last one
 to windows that open later. The browser shows it as a chip on the status line
 with the steps to update, and toasts each release once per page.
