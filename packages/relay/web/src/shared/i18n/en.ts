@@ -153,6 +153,10 @@ export const en = {
   pairing: {
     title: 'Relay Connection & Pairing',
     addTitle: 'Add Herdr Instance',
+    addSubtitle: 'A pairing code is all it takes',
+    advancedTitle: 'Advanced',
+    advancedHint: 'another relay, or a device token',
+    pairAndConnect: 'Pair & Connect',
     displayNameLabel: 'Host Name',
     displayNamePlaceholder: 'e.g. Workstation',
     displayNameHelp: 'This name is stored only in this browser.',

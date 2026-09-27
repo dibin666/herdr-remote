@@ -19,8 +19,6 @@ import { WS_CLIENT_PATH } from '@protocol/messages';
 interface PairingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Opened from the profile switcher to create a new saved connection. */
-  isAddMode?: boolean;
 }
 
 const STATE_TONE: Record<string, StatusLevel> = {
@@ -38,20 +36,9 @@ const STATE_TONE: Record<string, StatusLevel> = {
  * bracketed checkbox for the boolean, and the actions on the status line at the
  * bottom where a terminal program keeps them.
  */
-export const PairingModal: React.FC<PairingModalProps> = ({
-  isOpen,
-  onClose,
-  isAddMode = false,
-}) => {
-  const {
-    settings,
-    updateSettings,
-    t,
-    activeProfile,
-    activeProfileId,
-    addProfileAndConnect,
-    renameProfile,
-  } = useSettings();
+export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) => {
+  const { settings, updateSettings, t, activeProfile, activeProfileId, renameProfile } =
+    useSettings();
   const { connect, disconnect, connectionState, hostId } = useConnection();
   const { addToast } = useToasts();
 
@@ -67,13 +54,13 @@ export const PairingModal: React.FC<PairingModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setWsUrl(settings.wsUrl);
-      setToken(isAddMode ? '' : settings.token);
-      setPairCode(isAddMode ? '' : settings.pairCode);
+      setToken(settings.token);
+      setPairCode(settings.pairCode);
       setClientId(settings.clientId);
-      setDisplayName(isAddMode ? '' : activeProfile?.displayName || '');
+      setDisplayName(activeProfile?.displayName || '');
       setAutoReconnect(settings.autoReconnect);
     }
-  }, [isOpen, isAddMode, settings, activeProfile]);
+  }, [isOpen, settings, activeProfile]);
 
   if (!isOpen) return null;
 
@@ -90,25 +77,18 @@ export const PairingModal: React.FC<PairingModalProps> = ({
       addToast('warning', t('pairing.credentialsRequired'));
       return;
     }
-    if (isAddMode) {
-      addProfileAndConnect({
-        ...connection,
-        displayName: displayName.trim() || undefined,
-      });
-    } else {
-      updateSettings(connection);
-      if (activeProfileId && displayName.trim()) renameProfile(activeProfileId, displayName);
-      // `disconnect` clears the adapter's handlers synchronously, so the new
-      // connection can start immediately without a close-event race or timer.
-      disconnect();
-      connect({
-        wsUrl: connection.wsUrl,
-        token: connection.token || undefined,
-        pairCode: connection.pairCode || undefined,
-        clientId: connection.clientId,
-        autoReconnect,
-      });
-    }
+    updateSettings(connection);
+    if (activeProfileId && displayName.trim()) renameProfile(activeProfileId, displayName);
+    // `disconnect` clears the adapter's handlers synchronously, so the new
+    // connection can start immediately without a close-event race or timer.
+    disconnect();
+    connect({
+      wsUrl: connection.wsUrl,
+      token: connection.token || undefined,
+      pairCode: connection.pairCode || undefined,
+      clientId: connection.clientId,
+      autoReconnect,
+    });
     onClose();
   };
 
@@ -133,7 +113,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isAddMode ? t('pairing.addTitle') : t('pairing.title')}
+      title={t('pairing.title')}
       subtitle={t('pairing.subtitle')}
       closeLabel={t('common.closeDialog')}
       hints={[

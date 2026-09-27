@@ -9,6 +9,7 @@ import { OnboardingView } from '@/features/pairing/OnboardingView';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { VirtualKeyboardHelper } from '@/features/keyboard/VirtualKeyboardHelper';
 import { PairingModal } from '@/features/pairing/PairingModal';
+import { AddHostModal } from '@/features/pairing/AddHostModal';
 import { SettingsModal, type SettingsTab } from '@/features/settings/SettingsModal';
 import { loadSettings } from '@/features/settings/storage';
 import { ToastContainer } from './ToastContainer';
@@ -25,7 +26,7 @@ import { applyDocumentTheme } from '@/features/terminal/theme';
 function AppContent() {
   const [currentView, setCurrentView] = useState<'terminal' | 'admin'>('terminal');
   const [isPairingOpen, setIsPairingOpen] = useState(false);
-  const [isPairingAddMode, setIsPairingAddMode] = useState(false);
+  const [isAddHostOpen, setIsAddHostOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
   const openSettings = (tab?: SettingsTab) => {
@@ -63,20 +64,22 @@ function AppContent() {
 
   // Modal Escape key listener (scoped to open modals/sheets, strictly never intercepts Ctrl/Alt/Meta)
   useEffect(() => {
-    const isAnyModalOpen = isPairingOpen || isSettingsOpen || isVirtualKeyboardOpen;
+    const isAnyModalOpen =
+      isPairingOpen || isAddHostOpen || isSettingsOpen || isVirtualKeyboardOpen;
     if (!isAnyModalOpen) return;
 
     return attachWebUIShortcuts(
       {
         onCloseModals: () => {
           setIsPairingOpen(false);
+          setIsAddHostOpen(false);
           setIsSettingsOpen(false);
           setIsVirtualKeyboardOpen(false);
         },
       },
       { isModalOpen: isAnyModalOpen },
     );
-  }, [isPairingOpen, isSettingsOpen, isVirtualKeyboardOpen]);
+  }, [isPairingOpen, isAddHostOpen, isSettingsOpen, isVirtualKeyboardOpen]);
 
   // Detect URL path or hash (/admin or #admin) and query parameters on mount
   useEffect(() => {
@@ -135,15 +138,8 @@ function AppContent() {
     };
   }, [updateSettings, addProfileAndConnect]);
 
-  const openPairing = (addNew = false) => {
-    setIsPairingAddMode(addNew);
-    setIsPairingOpen(true);
-  };
-
-  const closePairing = () => {
-    setIsPairingOpen(false);
-    setIsPairingAddMode(false);
-  };
+  const openPairing = () => setIsPairingOpen(true);
+  const openAddHost = () => setIsAddHostOpen(true);
 
   const handleNavigate = (view: 'terminal' | 'admin') => {
     setCurrentView(view);
@@ -182,6 +178,7 @@ function AppContent() {
   useEffect(() => {
     if (!lastPairedAt) return;
     setIsPairingOpen(false);
+    setIsAddHostOpen(false);
     setIsTerminalMounted(true);
     setCurrentView('terminal');
   }, [lastPairedAt]);
@@ -221,7 +218,7 @@ function AppContent() {
         <Header
           currentView={currentView}
           onNavigate={handleNavigate}
-          onOpenPairing={() => openPairing(false)}
+          onOpenPairing={openPairing}
           onOpenSettings={() => openSettings()}
           onToggleVirtualKeyboard={() => setIsVirtualKeyboardOpen(!isVirtualKeyboardOpen)}
           isVirtualKeyboardOpen={isVirtualKeyboardOpen}
@@ -272,7 +269,7 @@ function AppContent() {
           >
             <AdminDashboard
               onBackToTerminal={() => handleNavigate('terminal')}
-              onOpenPairing={() => openPairing(false)}
+              onOpenPairing={openPairing}
               showBack={isMobileShell}
             />
           </div>
@@ -281,9 +278,9 @@ function AppContent() {
         {/* Phone chrome: a reserved top bar plus an overlaid control sheet */}
         {isMobileShell && isTerminalActive && (
           <MobileTerminalShell
-            onOpenPairing={() => openPairing(false)}
+            onOpenPairing={openPairing}
             onOpenSettings={() => openSettings()}
-            onAddProfile={() => openPairing(true)}
+            onAddProfile={openAddHost}
           />
         )}
       </div>
@@ -292,11 +289,12 @@ function AppContent() {
           uses its own compact bottom bar for switching and latency, while the
           remaining controls stay in the sheet. */}
       {!isMobileShell && currentView !== 'admin' && (
-        <SessionStatusLine onAddProfile={() => openPairing(true)} />
+        <SessionStatusLine onAddProfile={openAddHost} />
       )}
 
       {/* Modals & Floating Overlays */}
-      <PairingModal isOpen={isPairingOpen} isAddMode={isPairingAddMode} onClose={closePairing} />
+      <PairingModal isOpen={isPairingOpen} onClose={() => setIsPairingOpen(false)} />
+      <AddHostModal isOpen={isAddHostOpen} onClose={() => setIsAddHostOpen(false)} />
       <SettingsModal
         isOpen={isSettingsOpen}
         initialTab={settingsTab}
