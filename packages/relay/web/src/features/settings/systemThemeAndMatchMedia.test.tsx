@@ -56,7 +56,7 @@ describe('Dark-only Herdr chrome, host-owned terminal colors', () => {
     const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.sessionView) || '{}');
     expect(stored.theme).toBeUndefined();
     expect(stored.colorMode).toBeUndefined();
-    expect(stored.fontSize).toBe(17);
+    expect(stored.instances[settings.activeProfileId].fontSize).toBe(17);
   });
 
   it('drops legacy theme / colorMode from localStorage and never writes them back', () => {

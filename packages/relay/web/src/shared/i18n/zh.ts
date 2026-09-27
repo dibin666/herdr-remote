@@ -173,6 +173,7 @@ export const zh: TranslationSchema = {
   settings: {
     title: '终端设置',
     subtitle: '界面、字体、输入与提醒',
+    subtitleInstance: '仅对 {name} 生效',
     tabGeneral: '通用',
     sectionInterface: '界面',
     sectionFont: '字体',
@@ -208,6 +209,7 @@ export const zh: TranslationSchema = {
     agentAlertNotify: '系统通知',
     agentAlertNotifyDesc: '页面在后台时通知（仅 HTTPS）',
     languageLabel: '显示语言',
+    languageHint: '所有实例共用',
     resetDefaults: '恢复默认设置',
     resetDefaultsToast: '设置已恢复默认',
     fontSizeFollowHost: '与宿主机终端同字号（{size}px）',

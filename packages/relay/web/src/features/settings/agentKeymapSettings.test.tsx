@@ -94,7 +94,7 @@ describe('Agent keymap settings', () => {
     webSocketInstances.length = 0;
   });
 
-  it('opens tab 3, validates shortcut edits, and stores a rebind globally', async () => {
+  it('opens tab 3, validates shortcut edits, and keeps a rebind for every window', async () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
@@ -110,19 +110,13 @@ describe('Agent keymap settings', () => {
     fireEvent.change(details, { target: { value: 'ctrl+e' } });
 
     expect(screen.getByTestId('agent-setting-row-details')).toHaveTextContent('^E');
-    expect(
-      JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}').agentKeymaps.claude.actions
-        .details.keys,
-    ).toBe('ctrl+e');
+    // A cleared sessionStorage is a newly opened window.
     sessionStorage.clear();
     expect(loadSettings().agentKeymaps.claude.actions?.details?.keys).toBe('ctrl+e');
 
     fireEvent.change(details, { target: { value: 'ctrl+unknown' } });
     expect(details).toHaveAttribute('aria-invalid', 'true');
-    expect(
-      JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}').agentKeymaps.claude.actions
-        .details.keys,
-    ).toBe('ctrl+e');
+    expect(loadSettings().agentKeymaps.claude.actions?.details?.keys).toBe('ctrl+e');
     expect(
       screen
         .getAllByRole('alert')
