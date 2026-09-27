@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { type ChildProcess, type SpawnOptions, spawn } from 'node:child_process';
-import { inspectSocket } from './socket-discovery.js';
+import { herdrEndpoint, inspectSocket } from './socket-discovery.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 
 /** A Unix socket either accepts at once or is dead; this only guards a hang. */
@@ -82,7 +82,7 @@ function probeHerdrServer(
     // is slow, not absent; starting another server would only fight it.
     const timer = setTimeout(() => finish({ state: 'running' }), timeout);
     if (typeof timer.unref === 'function') timer.unref();
-    socket = connect(socketPath);
+    socket = connect(herdrEndpoint(socketPath));
     socket.once('connect', () => finish({ state: 'running' }));
     socket.once('error', (error: NodeJS.ErrnoException) =>
       finish(

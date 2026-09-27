@@ -28,6 +28,7 @@ export interface HerdrLookup {
   env?: NodeJS.ProcessEnv;
   home?: string;
   directories?: string[];
+  platform?: NodeJS.Platform;
 }
 
 /** Where Herdr was found, and how; see `findHerdrCommand`. */
@@ -74,11 +75,10 @@ function expandHome(directory: string, home: string): string {
   return directory;
 }
 
-/** Windows keeps the executable bit in the extension instead of the mode. */
-function candidateNames(base = COMMAND_NAME): string[] {
-  return process.platform === 'win32'
-    ? [base, `${base}.exe`, `${base}.cmd`, `${base}.bat`]
-    : [base];
+/** Windows only publishes Herdr as an executable; shell scripts need a shell. */
+function candidateNames(base = COMMAND_NAME, platform = process.platform): string[] {
+  if (platform !== 'win32') return [base];
+  return [/\.exe$/i.test(base) ? base : `${base}.exe`];
 }
 
 function isExecutableFile(candidate: string): boolean {
@@ -108,7 +108,23 @@ function findOnSearchPath(searchPath: string | undefined, names = candidateNames
   return null;
 }
 
-function fallbackDirectories(home = os.homedir()): string[] {
+function fallbackDirectories(
+  home = os.homedir(),
+  platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  if (platform === 'win32') {
+    return [
+      path.join(
+        env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'),
+        'Programs',
+        'Herdr',
+        'bin',
+      ),
+      path.join(home, '.cargo', 'bin'),
+      path.join(home, 'scoop', 'shims'),
+    ];
+  }
   return FALLBACK_DIRECTORIES.map((directory) => expandHome(directory, home));
 }
 
@@ -125,15 +141,23 @@ function looksLikePath(value: string): boolean {
  * treated as absent rather than fatal: a stale override left behind by a
  * moved install is precisely the case we are trying to survive.
  */
-function resolveOverride(value: string | undefined, searchPath: string | undefined): string | null {
+function resolveOverride(
+  value: string | undefined,
+  searchPath: string | undefined,
+  platform: NodeJS.Platform,
+): string | null {
   const trimmed = String(value || '').trim();
   if (!trimmed) return null;
   if (looksLikePath(trimmed)) {
     const absolute = path.resolve(trimmed);
     if (isExecutableFile(absolute)) return absolute;
-    return findInDirectory(absolute);
+    if (platform === 'win32' && path.extname(absolute) === '') {
+      const executable = `${absolute}.exe`;
+      if (isExecutableFile(executable)) return executable;
+    }
+    return findInDirectory(absolute, candidateNames(COMMAND_NAME, platform));
   }
-  return findOnSearchPath(searchPath, candidateNames(trimmed));
+  return findOnSearchPath(searchPath, candidateNames(trimmed, platform));
 }
 
 /**
@@ -149,14 +173,16 @@ function resolveOverride(value: string | undefined, searchPath: string | undefin
 function findHerdrCommand({
   env = process.env,
   home = os.homedir(),
-  directories = fallbackDirectories(home),
+  platform = process.platform,
+  directories = fallbackDirectories(home, platform, env),
 }: HerdrLookup = {}): HerdrCommand {
-  const override = resolveOverride(env.HERDR_BIN_PATH, env.PATH);
+  const names = candidateNames(COMMAND_NAME, platform);
+  const override = resolveOverride(env.HERDR_BIN_PATH, env.PATH, platform);
   if (override) return { command: override, source: 'env', found: true };
-  const onPath = findOnSearchPath(env.PATH);
+  const onPath = findOnSearchPath(env.PATH, names);
   if (onPath) return { command: onPath, source: 'path', found: true };
   for (const directory of directories) {
-    const found = findInDirectory(directory);
+    const found = findInDirectory(directory, names);
     if (found) return { command: found, source: 'fallback', found: true };
   }
   return { command: COMMAND_NAME, source: 'unresolved', found: false };
@@ -251,7 +277,8 @@ function herdrOutdatedMessage(version: string): string {
 function herdrNotFoundMessage({
   env = process.env,
   home = os.homedir(),
-  directories = fallbackDirectories(home),
+  platform = process.platform,
+  directories = fallbackDirectories(home, platform, env),
 }: HerdrLookup = {}): string {
   const override = String(env.HERDR_BIN_PATH || '').trim();
   const parts = [`Herdr executable "${COMMAND_NAME}" was not found.`];

@@ -8,11 +8,23 @@ function defaultSocketPath(
 ): string {
   if (env.HERDR_SOCKET_PATH) return env.HERDR_SOCKET_PATH;
   if (platform === 'win32') {
-    const appData = env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(appData, 'herdr', 'herdr.sock');
+    const configHome =
+      env.XDG_CONFIG_HOME ||
+      env.APPDATA ||
+      (env.USERPROFILE && path.join(env.USERPROFILE, 'AppData', 'Roaming')) ||
+      path.join(os.homedir(), 'AppData', 'Roaming');
+    return path.join(configHome, 'herdr', 'herdr.sock');
   }
   const configHome = env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   return path.join(configHome, 'herdr', 'herdr.sock');
+}
+
+/**
+ * On Windows, Herdr uses this path itself as the GenericNamespaced pipe name;
+ * the file only contains the `pid:nanos` marker.
+ */
+function herdrEndpoint(socketPath: string, platform = process.platform): string {
+  return platform === 'win32' ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 }
 
 function resolveSocketPath(
@@ -40,9 +52,11 @@ function inspectSocket(
   }
   try {
     const stat = fs.statSync(socketPath);
+    // Herdr leaves an ordinary marker file on Windows and connects through the pipe named by its path.
     if (process.platform !== 'win32' && !stat.isSocket()) {
       return { ok: false, reason: 'path is not a Unix socket', path: socketPath };
     }
+    // Windows has no per-process uid to compare, so ownership checks naturally skip there.
     if (
       options.requireOwner !== false &&
       typeof process.getuid === 'function' &&
@@ -67,4 +81,4 @@ function inspectSocket(
   }
 }
 
-export { defaultSocketPath, resolveSocketPath, inspectSocket };
+export { defaultSocketPath, herdrEndpoint, resolveSocketPath, inspectSocket };

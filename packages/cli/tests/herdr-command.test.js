@@ -77,6 +77,70 @@ test('PATH is searched before the well-known directories and resolves to an abso
   assert.equal(resolveHerdrCommand({ env: { PATH: path.join(home, 'opt', 'bin') }, home }), onPath);
 });
 
+test('Windows PATH finds herdr.exe', (t) => {
+  const home = tempDir(t, 'herdr-command-win-path-');
+  const pathDirectory = path.join(home, 'path');
+  const emptyDirectory = path.join(home, 'empty');
+  const binary = makeInstall(pathDirectory, { name: 'herdr.exe' });
+  fs.mkdirSync(emptyDirectory);
+
+  const found = findHerdrCommand({
+    env: { PATH: [pathDirectory, emptyDirectory].join(path.delimiter) },
+    home,
+    platform: 'win32',
+    directories: [],
+  });
+
+  assert.deepEqual(found, { command: binary, source: 'path', found: true });
+});
+
+test('Windows PATH ignores extensionless and shell-script commands', (t) => {
+  const home = tempDir(t, 'herdr-command-win-unsupported-');
+  const pathDirectory = path.join(home, 'path');
+  makeInstall(pathDirectory, { name: 'herdr' });
+  makeInstall(pathDirectory, { name: 'herdr.cmd' });
+
+  const found = findHerdrCommand({
+    env: { PATH: pathDirectory },
+    home,
+    platform: 'win32',
+    directories: [],
+  });
+
+  assert.equal(found.found, false);
+  assert.equal(found.source, 'unresolved');
+});
+
+test('Windows fallback directories follow Herdr install locations', (t) => {
+  const home = tempDir(t, 'herdr-command-win-fallback-');
+  const localAppData = path.join(home, 'local-data');
+
+  assert.deepEqual(fallbackDirectories(home, 'win32', { LOCALAPPDATA: localAppData }), [
+    path.join(localAppData, 'Programs', 'Herdr', 'bin'),
+    path.join(home, '.cargo', 'bin'),
+    path.join(home, 'scoop', 'shims'),
+  ]);
+  assert.deepEqual(fallbackDirectories(home, 'win32', {}), [
+    path.join(home, 'AppData', 'Local', 'Programs', 'Herdr', 'bin'),
+    path.join(home, '.cargo', 'bin'),
+    path.join(home, 'scoop', 'shims'),
+  ]);
+});
+
+test('Windows HERDR_BIN_PATH adds .exe to an extensionless path', (t) => {
+  const home = tempDir(t, 'herdr-command-win-override-');
+  const binary = makeInstall(path.join(home, 'custom'), { name: 'herdr.exe' });
+
+  const found = findHerdrCommand({
+    env: { HERDR_BIN_PATH: path.join(home, 'custom', 'herdr'), PATH: '' },
+    home,
+    platform: 'win32',
+    directories: [],
+  });
+
+  assert.deepEqual(found, { command: binary, source: 'env', found: true });
+});
+
 // This is the systemd --user case from issue #1: the unit's PATH has none of
 // the directories the user installed into.
 test('a minimal PATH still finds a ~/.local/bin install', (t) => {
