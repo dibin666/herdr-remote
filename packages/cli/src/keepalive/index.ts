@@ -2,9 +2,8 @@
 //
 // "Start the services" and "keep the services running" are different problems:
 // a detached spawn dies with the first crash and never comes back. This module
-// hands supervision to the platform's service manager where one exists
-// (systemd --user on Linux, launchd on macOS) and falls back to a detached copy
-// of our own supervisor where neither does.
+// hands supervision to the platform's manager where one exists (systemd --user,
+// launchd, or Task Scheduler) and falls back to a detached supervisor elsewhere.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -15,6 +14,7 @@ import { detached } from './detached.js';
 import { launchd } from './launchd.js';
 import { systemd } from './systemd.js';
 import { windowsService } from './windows-service.js';
+import { windowsTask } from './windows-task.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
 
 export { serviceEnvironment, servicePath } from './environment.js';
@@ -47,7 +47,7 @@ export function detectManager(
   platform = process.platform,
 ): Exclude<KeepaliveManager, 'auto'> {
   if (preference && preference !== 'auto') return preference;
-  if (platform === 'win32') return 'windows-service';
+  if (platform === 'win32') return 'windows-task';
   if (platform === 'linux') {
     // `systemctl --user` needs a user bus; containers and bare TTY logins often
     // have systemd installed but no session bus, where it would fail at runtime.
@@ -70,12 +70,21 @@ function managerOf(config: Config) {
 }
 
 /** The backend for `config`. With keep-alive off, uninstalling still cleans up the fallback. */
-function backendOf(config: Config): KeepaliveBackend {
-  const manager = managerOf(config);
+function configuredBackend(manager: Exclude<KeepaliveManager, 'auto'>): KeepaliveBackend {
   if (manager === 'systemd') return systemd;
   if (manager === 'launchd') return launchd;
+  if (manager === 'windows-task') return windowsTask;
   if (manager === 'windows-service') return windowsService;
   return detached;
+}
+
+function backendOf(config: Config): KeepaliveBackend {
+  const manager = managerOf(config);
+  if (manager === 'windows-task') {
+    if (windowsTask.status().installed) return windowsTask;
+    if (windowsService.status().installed) return windowsService;
+  }
+  return configuredBackend(manager);
 }
 
 export function status(config = loadConfig()): KeepaliveStatus {
@@ -86,7 +95,7 @@ export function status(config = loadConfig()): KeepaliveStatus {
 
 export async function install(config = loadConfig()) {
   if (managerOf(config) === 'none') throw new Error('keep-alive is disabled in the configuration');
-  const backend = backendOf(config);
+  const backend = configuredBackend(managerOf(config));
   return { manager: backend.name, ...(await backend.install()) };
 }
 

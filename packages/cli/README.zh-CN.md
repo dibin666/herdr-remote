@@ -55,9 +55,9 @@ herdr-remote plugin link
 ## herdr 命令的查找方式
 
 依次查找 `HERDR_BIN_PATH`、`PATH`，以及常见安装目录（`~/.local/bin`、`~/.cargo/bin`、
-`~/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 等）。服务管理器不会继承 shell 环境，
+`~/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 等）。后台管理器不会继承 shell 环境，
 因此 `herdr-remote keepalive install` 会把找到的可执行文件路径和当前 `PATH` 写入
-systemd unit、launchd plist 或 Windows 服务（`windows-service`）。
+systemd unit、launchd plist、Windows 登录任务（`windows-task`）或 Windows 服务（`windows-service`）。
 
 Windows 上只查找 `herdr.exe`，还会搜索 `%LOCALAPPDATA%\Programs\Herdr\bin`、
 `~\.cargo\bin` 和 `~\scoop\shims`。

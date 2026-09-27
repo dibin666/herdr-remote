@@ -149,6 +149,9 @@ export function Keepalive({ ctx }: { ctx: AppContext }) {
         {current?.manager === 'supervisor' ? (
           <Text color={theme.warn}>{t('keepalive.fallbackNote')}</Text>
         ) : null}
+        {current?.manager === 'windows-task' ? (
+          <Text color={theme.muted}>{t('keepalive.windowsTaskNote')}</Text>
+        ) : null}
         {current?.manager === 'windows-service' ? (
           <Text color={theme.warn}>{t('keepalive.serviceNote')}</Text>
         ) : null}

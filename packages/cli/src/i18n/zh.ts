@@ -141,8 +141,9 @@ const zh: Record<MessageKey, string> = {
   'keepalive.enableLinger': '开启开机自启',
   'keepalive.lingerDone': '已为 {username} 开启开机自启。',
   'keepalive.fallbackNote': '无系统服务管理器，使用后台守护进程，重启后不自动恢复。',
+  'keepalive.windowsTaskNote': '在你的账户登录后启动，无需密码或管理员权限；登录前不会运行。',
   'keepalive.serviceNote':
-    '以你的账户作为 Windows 服务运行，开机后、登录前自动启动。安装或移除需要管理员权限。',
+    '以你的账户作为 Windows 服务运行，在登录前启动。安装或移除需要管理员权限，Windows 也可能要求账户密码。',
   'keepalive.serviceWindowHint': '请在随后打开的管理员窗口中完成安装。',
   'keepalive.elevationCancelled': '未授予管理员权限，未安装服务。',
   'keepalive.passwordPrompt':

@@ -121,7 +121,7 @@ Herdr 的 Windows 插件功能仍处于 preview 阶段。首次以局域网模�
 
 - **Linux**：systemd 用户单元（开启 `loginctl enable-linger` 后注销也保持运行）
 - **macOS**：LaunchAgent
-- **Windows**：通过 WinSW 安装 Windows 服务，以你的账户运行并在开机时启动。安装时先尝试空密码；若 Windows 拒绝，再输入 Windows 账户密码（不是 PIN）。选择 `supervisor` 可免管理员权限和密码，但只在你登录期间运行。
+- **Windows**：任务计划程序会在你的账户登录后启动 Herdr Remote，无需密码或管理员权限；登录前不会运行。若需要在登录前启动，可选择 `windows-service`，该方式需要管理员权限，Windows 也可能要求账户密码。
 - **其他系统**：内置守护进程
 
 ```bash

@@ -134,7 +134,8 @@ test('PowerShell elevation uses UTF-16LE and escapes single quotes in paths', ()
 });
 
 test('Windows detection and keep-alive log hints use the Windows manager', () => {
-  assert.equal(detectManager('auto', 'win32'), 'windows-service');
+  assert.equal(detectManager('auto', 'win32'), 'windows-task');
+  assert.equal(detectManager('windows-service', 'win32'), 'windows-service');
   assert.equal(detectManager('supervisor', 'win32'), 'supervisor');
   assert.equal(detectManager('none', 'win32'), 'none');
   const logFile = path.join(os.tmpdir(), 'herdr-remote', 'supervisor.log');
