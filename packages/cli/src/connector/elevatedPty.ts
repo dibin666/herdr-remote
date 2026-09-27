@@ -1,9 +1,9 @@
-import net from 'node:net';
+import type net from 'node:net';
 import {
   ADMIN_BROKER_MAX_MESSAGE_BYTES,
-  adminBrokerPipePath,
+  connectAdminBroker,
   sendAdminBrokerMessage,
-} from './adminBrokerPipe.js';
+} from './adminBrokerEndpoint.js';
 
 const BROKER_CONNECT_TIMEOUT_MS = 5_000;
 
@@ -60,7 +60,14 @@ export class ElevatedPty {
     this.exitListener = onExit;
     this.readyListener = onReady || null;
     this.errorListener = onError || null;
-    const socket = net.createConnection(adminBrokerPipePath());
+    let broker: ReturnType<typeof connectAdminBroker>;
+    try {
+      broker = connectAdminBroker();
+    } catch (error) {
+      this.fail(error as Error);
+      return;
+    }
+    const { socket, token } = broker;
     this.socket = socket;
     socket.setEncoding('utf8');
     socket.setTimeout(BROKER_CONNECT_TIMEOUT_MS, () => {
@@ -71,6 +78,7 @@ export class ElevatedPty {
       socket.setTimeout(0);
       sendAdminBrokerMessage(socket, {
         type: 'start',
+        token,
         ...this.options,
         cols: this.cols,
         rows: this.rows,
