@@ -143,6 +143,10 @@ export const zh: TranslationSchema = {
   pairing: {
     title: 'Relay 连接与配对',
     addTitle: '添加 Herdr 实例',
+    addSubtitle: '只需输入配对码',
+    advancedTitle: '高级选项',
+    advancedHint: '其他 Relay 或已有设备 Token',
+    pairAndConnect: '配对并连接',
     displayNameLabel: '主机名称',
     displayNamePlaceholder: '例如：工作电脑',
     displayNameHelp: '名称仅保存在此浏览器中。',
