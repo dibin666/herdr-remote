@@ -18,6 +18,7 @@ import { cliEntryPoint } from './keepalive/environment.js';
 import { servicesRunning, startAll, stopAll } from './lifecycle.js';
 import { checkForRelayUpdate, performRelayUpdate, type RelayUpdateCheck } from './relay-updater.js';
 import { checkForUpdate, performUpdate, type UpdateCheck } from './updater.js';
+import { heldByAnotherProcess } from './updater/in-place.js';
 
 const RESTART_TIMEOUT_MS = 120_000;
 
@@ -148,7 +149,7 @@ export async function runUpdate(t: Translate, options: UpdateOptions = {}): Prom
       t(result.errorKey ?? 'update.errorFailed', { version, installed: result.installed ?? '' }),
     );
     if (result.summary) report(t('update.errorFailedDetail', { message: result.summary }));
-    if (platform === 'win32' && /\b(EBUSY|EPERM)\b/.test(result.output ?? '')) {
+    if (platform === 'win32' && heldByAnotherProcess(result.output)) {
       report(t('update.errorBusy'));
     }
     const { errorKey, summary } = result;

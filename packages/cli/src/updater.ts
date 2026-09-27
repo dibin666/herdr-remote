@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PACKAGE_ROOT } from './paths.js';
+import { heldByAnotherProcess, installInPlace } from './updater/in-place.js';
 import { runNpm, type NpmRun, type SpawnLike } from './updater/npm.js';
 
 const PACKAGE_NAME = 'herdr-remote';
@@ -360,6 +361,8 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  *   version although its dist-tag already points at it: npm answers ETARGET.
  *   That is a wait, not a failure, so it is retried a few times, then the next
  *   registry that carries the version is tried.
+ * - On Windows, when something holds the package directory so npm cannot
+ *   rename it, the release is copied over it instead.
  * - Success is what is on disk afterwards, not npm's exit code.
  */
 async function performUpdate({
@@ -378,6 +381,8 @@ async function performUpdate({
   sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
   readInstalledVersion = installedVersionOnDisk,
   onAttempt = () => {},
+  platform = process.platform,
+  inPlace = installInPlace,
 }: {
   spawnImpl?: SpawnLike;
   timeoutMs?: number;
@@ -390,6 +395,8 @@ async function performUpdate({
   sleep?: (ms: number) => Promise<unknown>;
   readInstalledVersion?: () => string | null;
   onAttempt?: (progress: { registry: string; attempt: number }) => void;
+  platform?: NodeJS.Platform;
+  inPlace?: (args: string[], run: (args: string[]) => Promise<NpmRun>) => Promise<NpmRun>;
 } = {}): Promise<UpdateResult> {
   const kind = installKindImpl();
   if (kind !== 'npm') return { ok: false, errorKey: `update.cannot.${kind}` };
@@ -410,7 +417,9 @@ async function performUpdate({
       onAttempt({ registry: source, attempt });
       const args = ['install', '-g', spec, '--prefer-online'];
       if (source) args.push('--registry', source);
-      const result = await runNpm(spawnImpl, args, timeoutMs);
+      let result = await runNpm(spawnImpl, args, timeoutMs);
+      if (!result.ok && platform === 'win32' && heldByAnotherProcess(result.output))
+        result = await inPlace(args, (stagedArgs) => runNpm(spawnImpl, stagedArgs, timeoutMs));
       if (result.ok) {
         const installed = readInstalledVersion();
         if (target && installed && compareVersions(installed, target) < 0) {
