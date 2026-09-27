@@ -16,6 +16,7 @@ import {
   setField,
   stateDir,
   type UpdateCheck,
+  whileServicesStopped,
 } from '../api.js';
 
 type UpdateState =
@@ -127,13 +128,15 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const runUpdate = async (latest: string) => {
     setUpdate({ phase: 'updating', latest, attempt: 1 });
-    const result = await performUpdate({
-      registry: checkRef.current.registry,
-      sources: checkRef.current.sources,
-      version: latest,
-      onAttempt: ({ attempt }: { attempt: number }) =>
-        setUpdate({ phase: 'updating', latest, attempt }),
-    });
+    const result = await whileServicesStopped(ctx.config, () =>
+      performUpdate({
+        registry: checkRef.current.registry,
+        sources: checkRef.current.sources,
+        version: latest,
+        onAttempt: ({ attempt }: { attempt: number }) =>
+          setUpdate({ phase: 'updating', latest, attempt }),
+      }),
+    );
     if (!result.ok) {
       const params = { version: latest, installed: result.installed ?? '' };
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed', params });

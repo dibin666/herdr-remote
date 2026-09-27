@@ -7,6 +7,8 @@
 
 import { type Config, loadConfig } from './config.js';
 import * as keepalive from './keepalive/index.js';
+import { pidAlive } from './lib/process.js';
+import { readRuntime } from './runtime.js';
 import { restartServices, startServices, statusServices, stopServices } from './service.js';
 
 function managerInUse(config: Config) {
@@ -52,6 +54,31 @@ function restartAll(config = loadConfig()) {
   return { ...restartServices(), managed: false };
 }
 
+/** Release Windows service binaries while npm replaces their package files. */
+async function whileServicesStopped<T>(
+  config: Config,
+  task: () => T | Promise<T>,
+  {
+    platform = process.platform,
+    isRunning = () => Boolean(managerInUse(config)?.active || pidAlive(readRuntime().hostPid)),
+    stop = stopAll,
+    start = startAll,
+  }: {
+    platform?: NodeJS.Platform;
+    isRunning?: () => boolean;
+    stop?: (config: Config) => unknown;
+    start?: (config: Config) => unknown;
+  } = {},
+): Promise<T> {
+  if (platform !== 'win32' || !isRunning()) return task();
+  await stop(config);
+  try {
+    return await task();
+  } finally {
+    await start(config);
+  }
+}
+
 /** Service status plus the keep-alive picture, which is what the TUI shows. */
 async function fullStatus(config = loadConfig()) {
   const [services, keepaliveStatus] = [await statusServices(), keepalive.status(config)];
@@ -62,4 +89,4 @@ async function fullStatus(config = loadConfig()) {
   };
 }
 
-export { startAll, stopAll, restartAll, fullStatus, managerInUse };
+export { startAll, stopAll, restartAll, fullStatus, managerInUse, whileServicesStopped };

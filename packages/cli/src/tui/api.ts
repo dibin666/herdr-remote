@@ -24,7 +24,7 @@ import {
 import { extractPairingCode, requestJson } from '../relay-client.js';
 import { ensureRuntime, regenerateHostIdentity, setRelayPassword } from '../runtime.js';
 import { pair, readLogTail } from '../service.js';
-import { fullStatus, restartAll, startAll, stopAll } from '../lifecycle.js';
+import { fullStatus, restartAll, startAll, stopAll, whileServicesStopped } from '../lifecycle.js';
 import * as keepalive from '../keepalive/index.js';
 import {
   canSelfUpdate,
@@ -131,6 +131,7 @@ export {
   startAll,
   stateDir,
   stopAll,
+  whileServicesStopped,
 };
 
 /** The command that starts a matching relay, ready to paste on the server. */
