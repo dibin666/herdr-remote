@@ -23,7 +23,7 @@ import { clampFontSize } from '@/features/terminal/terminalLayout';
 import { applyDocumentTheme, resolveTerminalFontFamily } from '@/features/terminal/theme';
 import { useHostFont } from '@/features/hostFont/useHostFont';
 import { installWakeListeners } from '@/connection/wakeListeners';
-import { buildConnectionConfig, getWindowConnectionProfile } from './connectionConfig';
+import { buildConnectionConfig } from './connectionConfig';
 import { INITIAL_SESSION, sessionReducer } from './session';
 import { useHerdrLaunch } from './useHerdrLaunch';
 import { useHerdrAdapter } from './useHerdrAdapter';
@@ -33,7 +33,6 @@ import { useProfiles } from './useProfiles';
 import { useTerminalInput } from './useTerminalInput';
 import { useToastQueue } from './useToastQueue';
 import { useUpdateNotices } from './useUpdateNotices';
-import { useWindowConnectionOverrides } from './useWindowConnectionOverrides';
 import type {
   ConnectionContextValue,
   SettingsContextValue,
@@ -56,11 +55,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [session, dispatch] = useReducer(sessionReducer, INITIAL_SESSION);
   const adapterRef = useRef<HerdrClientAdapter | null>(null);
   const hasEstablishedConnectionRef = useRef(false);
-  const {
-    profileId: requestedProfileId,
-    requestedProfileIdRef,
-    clearProfileOverride,
-  } = useWindowConnectionOverrides();
 
   useEffect(() => {
     applyDocumentTheme();
@@ -86,8 +80,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     noteReadyProfile,
   } = useProfiles((next) => {
     resetConnectionPresentation();
-    adapterRef.current?.reconnectWith(buildConnectionConfig(next, requestedProfileIdRef.current));
-  }, clearProfileOverride);
+    adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+  });
 
   const t = useCallback<Translate>(
     (key, params) => translate(settings.language, key, params),
@@ -114,130 +108,122 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       sendPasteFile: input.sendPasteFile,
     });
 
-  const adapter = useHerdrAdapter(
-    adapterRef,
-    () => buildConnectionConfig(settings, requestedProfileIdRef.current),
-    {
-      stateChange: (state, detail, code) => {
-        // The relay speaks English to its logs. Where it named a reason, this
-        // interface says the same thing in its own language and keeps the
-        // server's sentence only for reasons it has never heard of.
-        const described = isServerErrorCode(code) ? t(`serverErrors.${code}`) : detail;
-        dispatch({ type: 'stateChange', state, detail: described, code });
-        if (state === 'connected') {
-          addToast('success', t('toasts.connected'));
-        } else if (state === 'error') {
-          addToast('error', described || t('toasts.connectionError'));
-        }
-        if (state !== 'connected') forgetHerdrLaunch();
-      },
-      ready: (message) => {
-        // A relay restart cannot preserve the old PTY. Reset before accepting
-        // the new stream so output from the previous profile/session is never
-        // painted into this connection.
-        const resetTerminal = hasEstablishedConnectionRef.current;
-        if (resetTerminal) clearPendingOutput();
-        hasEstablishedConnectionRef.current = true;
-        forgetHerdrLaunch();
-        // Another workstation may be on another release; the relay replays this
-        // one's answer right after `ready`.
-        forgetUpdateStatus();
-        dispatch({ type: 'ready', message, resetTerminal });
-        noteReadyProfile(message);
-      },
-      hostReconnecting: (code) => {
-        dispatch({
-          type: 'hostReconnecting',
-          code: code || 'host_reconnecting',
-          detail: t(`serverErrors.${isServerErrorCode(code) ? code : 'host_reconnecting'}`),
-        });
-        clearPendingOutput();
-      },
-      sessionRestarted: (
-        _cols,
-        _rows,
-        palette,
+  const adapter = useHerdrAdapter(adapterRef, () => buildConnectionConfig(settings), {
+    stateChange: (state, detail, code) => {
+      // The relay speaks English to its logs. Where it named a reason, this
+      // interface says the same thing in its own language and keeps the
+      // server's sentence only for reasons it has never heard of.
+      const described = isServerErrorCode(code) ? t(`serverErrors.${code}`) : detail;
+      dispatch({ type: 'stateChange', state, detail: described, code });
+      if (state === 'connected') {
+        addToast('success', t('toasts.connected'));
+      } else if (state === 'error') {
+        addToast('error', described || t('toasts.connectionError'));
+      }
+      if (state !== 'connected') forgetHerdrLaunch();
+    },
+    ready: (message) => {
+      // A relay restart cannot preserve the old PTY. Reset before accepting
+      // the new stream so output from the previous profile/session is never
+      // painted into this connection.
+      const resetTerminal = hasEstablishedConnectionRef.current;
+      if (resetTerminal) clearPendingOutput();
+      hasEstablishedConnectionRef.current = true;
+      forgetHerdrLaunch();
+      // Another workstation may be on another release; the relay replays this
+      // one's answer right after `ready`.
+      forgetUpdateStatus();
+      dispatch({ type: 'ready', message, resetTerminal });
+      noteReadyProfile(message);
+    },
+    hostReconnecting: (code) => {
+      dispatch({
+        type: 'hostReconnecting',
+        code: code || 'host_reconnecting',
+        detail: t(`serverErrors.${isServerErrorCode(code) ? code : 'host_reconnecting'}`),
+      });
+      clearPendingOutput();
+    },
+    sessionRestarted: (
+      _cols,
+      _rows,
+      palette,
+      hostname,
+      platform,
+      shellProfile,
+      adminTerminalSupported,
+    ) => {
+      clearPendingOutput();
+      dispatch({
+        type: 'sessionRestarted',
         hostname,
+        palette,
         platform,
         shellProfile,
         adminTerminalSupported,
-      ) => {
-        clearPendingOutput();
-        dispatch({
-          type: 'sessionRestarted',
-          hostname,
-          palette,
-          platform,
-          shellProfile,
-          adminTerminalSupported,
-        });
-        noteReadyProfile({ hostId: adapterRef.current?.getHostId(), hostname });
-      },
-      roleChange: (role, controllerId, hostId, assignedClientId) => {
-        dispatch({ type: 'roleChange', role, controllerId, hostId, assignedClientId });
-      },
-      controlGranted: () => {
-        dispatch({ type: 'controlGranted' });
-        addToast('success', t('toasts.controlGranted'));
-      },
-      paired: (payload) => {
-        // Persist the token in the profile that initiated pairing, never in a
-        // global singleton that would overwrite another Herdr connection.
-        const next = savePairedProfile(payload);
-        addToast('success', t('toasts.pairedSuccess'));
-        // Signals the UI to leave the pairing screen. A toast alone is not enough
-        // feedback: the code is single-use, so a page that still shows the input
-        // invites the user to retype a code that can no longer work.
-        dispatch({ type: 'paired', at: Date.now() });
-        // Reconnect with the new token. This has to be atomic: the previous
-        // disconnect-then-reconnect-on-a-timer left the pairing socket closing
-        // while its replacement was already connecting, and the late close event
-        // spawned a second live session (one controller, one viewer, two PTYs).
-        adapterRef.current?.reconnectWith(
-          buildConnectionConfig(next, requestedProfileIdRef.current),
-        );
-      },
-      exit: (code, reason) => {
-        addToast(
-          'info',
-          `${t('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code != null ? ` (${code})` : ''}`,
-        );
-      },
-      error: (err) => {
-        if (handleLaunchError(err)) return;
-        // Belongs to a font transfer, which reports it in its own dialog.
-        if (err.code === 'host_font_unavailable') return;
-        abortUpload();
-        const message = isServerErrorCode(err.code)
-          ? t(`serverErrors.${err.code}`)
-          : err.message || `[${err.code}]`;
-        addToast('error', message);
-      },
-      pasteFileReady: (path) => {
-        completeUpload();
-        input.notifyPasteFileReady(path);
-      },
-      rttUpdate: (rttMs) => dispatch({ type: 'rtt', rttMs }),
-      peerCount: (count) => dispatch({ type: 'peerCount', count }),
-      sessionReady: () => {
-        dispatch({ type: 'sessionReady' });
-        forgetHerdrLaunch();
-      },
-      // Deliberately state and not a toast: this changes whenever an agent picks
-      // up or finishes work, and a notification per change would be the flood the
-      // status bar exists to replace.
-      agentStatus: (status) => dispatch({ type: 'agentStatus', status }),
-      updateStatus: receiveUpdateStatus,
-      // Single lifetime subscription: survives TerminalView unmount/hide so no
-      // PTY output is lost while the user is on another view.
-      binaryData: receiveOutput,
+      });
+      noteReadyProfile({ hostId: adapterRef.current?.getHostId(), hostname });
     },
-  );
+    roleChange: (role, controllerId, hostId, assignedClientId) => {
+      dispatch({ type: 'roleChange', role, controllerId, hostId, assignedClientId });
+    },
+    controlGranted: () => {
+      dispatch({ type: 'controlGranted' });
+      addToast('success', t('toasts.controlGranted'));
+    },
+    paired: (payload) => {
+      // Persist the token in the profile that initiated pairing, never in a
+      // global singleton that would overwrite another Herdr connection.
+      const next = savePairedProfile(payload);
+      addToast('success', t('toasts.pairedSuccess'));
+      // Signals the UI to leave the pairing screen. A toast alone is not enough
+      // feedback: the code is single-use, so a page that still shows the input
+      // invites the user to retype a code that can no longer work.
+      dispatch({ type: 'paired', at: Date.now() });
+      // Reconnect with the new token. This has to be atomic: the previous
+      // disconnect-then-reconnect-on-a-timer left the pairing socket closing
+      // while its replacement was already connecting, and the late close event
+      // spawned a second live session (one controller, one viewer, two PTYs).
+      adapterRef.current?.reconnectWith(buildConnectionConfig(next));
+    },
+    exit: (code, reason) => {
+      addToast(
+        'info',
+        `${t('toasts.sessionEnded')}${reason ? `: ${reason}` : ''}${code != null ? ` (${code})` : ''}`,
+      );
+    },
+    error: (err) => {
+      if (handleLaunchError(err)) return;
+      // Belongs to a font transfer, which reports it in its own dialog.
+      if (err.code === 'host_font_unavailable') return;
+      abortUpload();
+      const message = isServerErrorCode(err.code)
+        ? t(`serverErrors.${err.code}`)
+        : err.message || `[${err.code}]`;
+      addToast('error', message);
+    },
+    pasteFileReady: (path) => {
+      completeUpload();
+      input.notifyPasteFileReady(path);
+    },
+    rttUpdate: (rttMs) => dispatch({ type: 'rtt', rttMs }),
+    peerCount: (count) => dispatch({ type: 'peerCount', count }),
+    sessionReady: () => {
+      dispatch({ type: 'sessionReady' });
+      forgetHerdrLaunch();
+    },
+    // Deliberately state and not a toast: this changes whenever an agent picks
+    // up or finishes work, and a notification per change would be the flood the
+    // status bar exists to replace.
+    agentStatus: (status) => dispatch({ type: 'agentStatus', status }),
+    updateStatus: receiveUpdateStatus,
+    // Single lifetime subscription: survives TerminalView unmount/hide so no
+    // PTY output is lost while the user is on another view.
+    binaryData: receiveOutput,
+  });
 
-  const { activeProfileId, activeProfile } = getWindowConnectionProfile(
-    settings,
-    requestedProfileId,
-  );
+  const { activeProfileId } = settings;
+  const activeProfile = settings.profiles.find((profile) => profile.id === activeProfileId);
 
   const { hostFont, loadHostFont, declineHostFont, syncHostFont, ensureHostGlyphs } =
     useHostFont(adapter);
@@ -273,8 +259,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Keep the live adapter's credentials in step with saved settings.
   useEffect(() => {
-    adapterRef.current?.updateConfig(buildConnectionConfig(settings, requestedProfileId));
-  }, [settings, requestedProfileId]);
+    adapterRef.current?.updateConfig(buildConnectionConfig(settings));
+  }, [settings]);
 
   // Reconnect the moment the page comes back, rather than when the backoff
   // next allows: see wakeListeners.ts.
