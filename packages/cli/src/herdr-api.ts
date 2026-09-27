@@ -7,7 +7,8 @@
  * phone can answer "does anything need me?" without navigating a TUI through a
  * 40-column viewport.
  *
- * The wire format is newline-delimited JSON over the Unix socket:
+ * The wire format is newline-delimited JSON over the Unix socket or, on
+ * Windows, the named pipe it names:
  *
  *   request   {"id":"…","method":"session.snapshot","params":{}}
  *   response  {"id":"…","result":{…}}  or  {"id":"…","error":{"code","message"}}
@@ -29,6 +30,7 @@
  */
 
 import net from 'node:net';
+import { herdrEndpoint } from './socket-discovery.js';
 
 /** How long one question waits, connection included. */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -96,7 +98,7 @@ function requestHerdr<T = unknown>(
     if (typeof timer.unref === 'function') timer.unref();
 
     try {
-      socket = connect(socketPath);
+      socket = connect(herdrEndpoint(socketPath));
     } catch (error) {
       finish(error as Error);
       return;
@@ -182,7 +184,7 @@ function subscribeHerdr(
     if (closed) return;
     let current: net.Socket;
     try {
-      current = connect(socketPath);
+      current = connect(herdrEndpoint(socketPath));
     } catch {
       scheduleReconnect();
       return;
