@@ -33,13 +33,13 @@ herdr-remote update [--json]  # 安装最新版本并重启服务
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url
-herdr-remote admin-broker install | uninstall | status # Windows
+herdr-remote admin-broker install | uninstall | restart | status # Windows
 herdr-remote keepalive install | uninstall | restart | status
 herdr-remote plugin link | unlink | status
 herdr-remote --lang zh|en
 ```
 
-在 Windows 上，可在 TUI 的「保活」页面注册以当前账户最高权限运行的计划任务并启动 broker。选择「设置管理员终端」，使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示；之后，WebUI 的“管理员”按钮会在 Herdr 中新建一个管理员 PowerShell 标签页，不再重复弹出 UAC。也可以使用 `admin-broker install` 和 `admin-broker uninstall` 命令管理任务，使用 `admin-broker status` 检查 broker。
+在 Windows 上，可在 TUI 的「保活」页面注册以当前账户最高权限运行的计划任务并启动 broker。选择「设置管理员终端」，使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示；之后，WebUI 的“管理员”按钮会在 Herdr 中新建一个管理员 PowerShell 标签页，不再重复弹出 UAC。也可以使用 `admin-broker install` 和 `admin-broker uninstall` 命令管理任务，使用 `admin-broker status` 检查 broker。`herdr-remote update` 会让 broker 以新版本重启（有管理员终端开着时除外），之后也可以用 `admin-broker restart` 重启，无需提权。
 
 ## Herdr 插件
 

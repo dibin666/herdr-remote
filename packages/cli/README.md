@@ -33,7 +33,7 @@ herdr-remote update [--json]  # Install the latest release and restart services
 herdr-remote status [--json]
 herdr-remote pair [--json]
 herdr-remote url
-herdr-remote admin-broker install | uninstall | status # Windows
+herdr-remote admin-broker install | uninstall | restart | status # Windows
 herdr-remote keepalive install | uninstall | restart | status
 herdr-remote plugin link | unlink | status
 herdr-remote --lang zh|en
@@ -44,7 +44,8 @@ privileges and start it for the signed-in account. Choose **Set up admin termina
 approve the one-time Windows prompt under the same account as Herdr Remote; the WebUI's Admin
 button then opens an elevated PowerShell as a new Herdr tab without another UAC prompt. The CLI
 `admin-broker install` and `admin-broker uninstall` commands are also available for administrators.
-Use `admin-broker status` to check the broker.
+Use `admin-broker status` to check the broker. `herdr-remote update` restarts the broker on the new
+release unless an admin terminal is open; `admin-broker restart` does it later, without elevation.
 
 ## Herdr Plugin
 

@@ -96,6 +96,7 @@ const zh: Record<MessageKey, string> = {
   'adminBroker.windowsOnly': '管理员终端 broker 只支持 Windows。',
   'adminBroker.needsElevation':
     '请打开 Windows TUI 并选择“设置管理员终端”，使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示。',
+  'adminBroker.busy': '有管理员终端开着，请先关闭再重启 broker。',
   'adminBroker.title': '管理员终端 broker',
   'adminBroker.checking': '正在检查…',
   'adminBroker.ready': '已就绪',
@@ -278,6 +279,11 @@ const zh: Record<MessageKey, string> = {
   'update.restarting': '正在用新版本重启服务…',
   'update.notRunning': '服务之前没有运行，保持停止。需要时执行：herdr-remote start',
   'update.restartFailed': '已安装，但服务没能重启：{message}',
+  'update.brokerRestarted': '管理员终端 broker 已重启。',
+  'update.brokerRestartFailed':
+    '管理员终端 broker 没有重新启动。重新登录 Windows，或运行 herdr-remote admin-broker restart。',
+  'update.brokerBusy':
+    '有管理员终端开着，broker 继续运行旧版本。关闭所有管理员终端后运行 herdr-remote admin-broker restart。',
   'update.errorBusy':
     "仍有进程占用 herdr-remote 的安装目录，旧版本设置的管理员终端 broker 会这样。先在管理员 PowerShell 中执行：Get-ScheduledTask -TaskName 'HerdrRemoteAdminBroker-*' | Stop-ScheduledTask，再回到这里重新运行 herdr-remote update，最后以管理员身份运行 herdr-remote admin-broker install。",
   'relayUpdate.check': 'Relay {version}：检查更新',
