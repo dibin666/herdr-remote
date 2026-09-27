@@ -254,9 +254,13 @@ Every window paired to a workstation gets a PTY of its own:
 A browser may set `adminTerminal: true` in `hello`. The relay records that flag
 for this window and forwards it on that window's `session_start`; it never
 accepts an executable path or credentials from the browser. On Windows, the
-host connector asks the per-user elevated broker over a local named pipe to
-start a fixed PowerShell shell. Herdr credentials and the socket path are not
-part of this terminal session. The broker is installed once from the Windows
+host connector asks the per-user elevated broker to start a fixed PowerShell
+shell. The broker listens on a random `127.0.0.1` port and writes that port and
+a fresh token to `admin-broker.json` in the state directory, which only this
+Windows account can read; every request must carry the token. It does not use a
+named pipe: a pipe created by an elevated process admits only Administrators,
+so the connector's standard token would be refused. Herdr credentials and the
+socket path are not part of this terminal session. The broker is installed once from the Windows
 TUI's Keep-alive page under the same Windows account that runs Herdr Remote; later
 browser requests use the broker to start standalone elevated PowerShell sessions
 without another UAC prompt. The Windows connector advertises `admin_sessions`,

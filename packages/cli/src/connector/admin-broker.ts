@@ -4,15 +4,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Translate } from '../i18n/index.js';
 import { PtySession } from '../pty-session.js';
-import { PACKAGE_ROOT } from '../paths.js';
+import { PACKAGE_ROOT, stateDir } from '../paths.js';
 import {
   ADMIN_BROKER_MAX_MESSAGE_BYTES,
-  adminBrokerPipePath,
   adminBrokerTaskName,
+  adminBrokerTokenMatches,
+  connectAdminBroker,
+  listenAdminBroker,
+  publishAdminBrokerEndpoint,
   sendAdminBrokerMessage,
-} from './adminBrokerPipe.js';
+} from './adminBrokerEndpoint.js';
 
 const BROKER_PING_TIMEOUT_MS = 1_000;
+const BROKER_START_TIMEOUT_MS = 5_000;
+const BROKER_START_POLL_MS = 250;
 
 interface BrokerMessage extends Record<string, unknown> {
   type?: string;
@@ -46,7 +51,8 @@ function runPowerShell(script: string, t: Translate): void {
 export function installAdminBroker(t: Translate): void {
   if (process.platform !== 'win32') throw new Error(t('adminBroker.windowsOnly'));
   const brokerPath = fileURLToPath(import.meta.url);
-  const brokerCommand = `& ${powershellQuote(process.execPath)} ${powershellQuote(brokerPath)}`;
+  // Pinned so the broker publishes its endpoint where this install's callers look.
+  const brokerCommand = `$env:HERDR_REMOTE_STATE_DIR = ${powershellQuote(stateDir())}; & ${powershellQuote(process.execPath)} ${powershellQuote(brokerPath)}`;
   const encodedBrokerCommand = Buffer.from(brokerCommand, 'utf16le').toString('base64');
   const powershell = path.join(
     process.env.SystemRoot || 'C:\\Windows',
@@ -84,11 +90,16 @@ Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Silent
 }
 
 export function adminBrokerStatus(): Promise<boolean> {
-  if (process.platform !== 'win32') return Promise.resolve(false);
+  let broker: ReturnType<typeof connectAdminBroker>;
+  try {
+    broker = connectAdminBroker();
+  } catch {
+    return Promise.resolve(false);
+  }
+  const { socket, token } = broker;
   return new Promise((resolve) => {
     let settled = false;
     let response = '';
-    const socket = net.createConnection(adminBrokerPipePath());
     const finish = (available: boolean) => {
       if (settled) return;
       settled = true;
@@ -97,13 +108,23 @@ export function adminBrokerStatus(): Promise<boolean> {
     };
     socket.setTimeout(BROKER_PING_TIMEOUT_MS, () => finish(false));
     socket.setEncoding('utf8');
-    socket.on('connect', () => sendAdminBrokerMessage(socket, { type: 'ping' }));
+    socket.on('connect', () => sendAdminBrokerMessage(socket, { type: 'ping', token }));
     socket.on('data', (chunk: string) => {
       response += chunk;
       if (response.includes('\n')) finish(response.includes('"type":"pong"'));
     });
     socket.on('error', () => finish(false));
   });
+}
+
+/** The task starts the broker a moment after it is registered; wait for it to answer. */
+export async function waitForAdminBroker(): Promise<boolean> {
+  const deadline = Date.now() + BROKER_START_TIMEOUT_MS;
+  while (!(await adminBrokerStatus())) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, BROKER_START_POLL_MS));
+  }
+  return true;
 }
 
 function writeError(socket: net.Socket, error: unknown): void {
@@ -161,9 +182,9 @@ function startBrokerPty(socket: net.Socket, message: BrokerMessage): PtySession 
   return pty;
 }
 
-function runAdminBroker(): void {
-  if (process.platform !== 'win32')
-    throw new Error('Administrator PTYs are only supported on Windows.');
+/** Listen on loopback and publish the endpoint; every request must carry its token. */
+export function serveAdminBroker(): net.Server {
+  let token = '';
   const server = net.createServer((socket) => {
     socket.setEncoding('utf8');
     let pending = '';
@@ -189,6 +210,10 @@ function runAdminBroker(): void {
         }
         if (firstMessage) {
           firstMessage = false;
+          if (!adminBrokerTokenMatches(token, message.token)) {
+            writeError(socket, new Error('Administrator terminal request was not authorized.'));
+            return;
+          }
           if (message.type === 'ping') {
             sendAdminBrokerMessage(socket, { type: 'pong' });
             socket.end();
@@ -222,8 +247,16 @@ function runAdminBroker(): void {
     socket.on('close', () => pty?.kill());
     socket.on('error', () => pty?.kill());
   });
-  server.listen(adminBrokerPipePath());
-  server.on('error', (error) => {
+  listenAdminBroker(server, (port) => {
+    token = publishAdminBrokerEndpoint(port);
+  });
+  return server;
+}
+
+function runAdminBroker(): void {
+  if (process.platform !== 'win32')
+    throw new Error('Administrator PTYs are only supported on Windows.');
+  serveAdminBroker().on('error', (error) => {
     process.stderr.write(`herdr-remote administrator broker: ${error.message}\n`);
   });
 }

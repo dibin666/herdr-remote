@@ -266,7 +266,7 @@ async function main(argv = process.argv.slice(2)) {
       const action = positional[1] || 'status';
       if (action === 'install') {
         broker.installAdminBroker(t);
-        printJson({ installed: true, available: await broker.adminBrokerStatus() });
+        printJson({ installed: true, available: await broker.waitForAdminBroker() });
       } else if (action === 'uninstall') {
         broker.uninstallAdminBroker(t);
         printJson({ installed: false });
