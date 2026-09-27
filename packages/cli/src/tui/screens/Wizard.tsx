@@ -125,12 +125,20 @@ export function Wizard({ ctx, onDone }: { ctx: AppContext; onDone: () => void })
       let keepaliveInstalled = false;
       if (installKeepalive) {
         try {
-          keepalive.install(finalConfig);
+          if (keepalive.detectManager(finalConfig.keepalive.manager) === 'windows-service')
+            ctx.notify((t) => t('keepalive.serviceWindowHint'), 'info');
+          await keepalive.install(finalConfig);
           keepaliveInstalled = true;
         } catch (error) {
           // Keep-alive is a convenience; a container without systemd should not
           // block a working setup.
-          ctx.notify((t) => t('keepalive.failed', { message: (error as Error).message }), 'error');
+          if ((error as Error & { code?: string }).code === 'ELEVATION_CANCELLED')
+            ctx.notify((t) => t('keepalive.elevationCancelled'), 'info');
+          else
+            ctx.notify(
+              (t) => t('keepalive.failed', { message: (error as Error).message }),
+              'error',
+            );
         }
       }
       if (startNow && !keepaliveInstalled) startAll(finalConfig);

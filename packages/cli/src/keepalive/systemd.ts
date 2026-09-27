@@ -101,7 +101,7 @@ export const systemd: KeepaliveBackend = {
     };
   },
 
-  install() {
+  async install() {
     const unitPath = systemdUnitPath();
     ensureDir(path.dirname(unitPath));
     fs.writeFileSync(unitPath, renderSystemdUnit({ environment: serviceEnvironment() }), {
@@ -115,7 +115,7 @@ export const systemd: KeepaliveBackend = {
     return { ok: true, unitPath, hint: `loginctl enable-linger ${os.userInfo().username}` };
   },
 
-  uninstall() {
+  async uninstall() {
     const unitPath = systemdUnitPath();
     systemctl(['disable', '--now', SYSTEMD_UNIT_NAME]);
     fs.rmSync(unitPath, { force: true });

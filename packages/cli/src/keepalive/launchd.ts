@@ -111,7 +111,7 @@ export const launchd: KeepaliveBackend = {
     };
   },
 
-  install() {
+  async install() {
     const plistPath = launchdPlistPath();
     ensureDir(path.dirname(plistPath));
     ensureDir(stateDir());
@@ -128,7 +128,7 @@ export const launchd: KeepaliveBackend = {
     return { ok: true, unitPath: plistPath };
   },
 
-  uninstall() {
+  async uninstall() {
     const plistPath = launchdPlistPath();
     launchctlQuietly(['bootout', serviceTarget()]);
     fs.rmSync(plistPath, { force: true });

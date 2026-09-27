@@ -30,7 +30,14 @@ export type AccessMode = (typeof ACCESS_MODES)[number];
 const OFFICIAL_RELAY_URL = 'wss://herdr-remote.564616.xyz';
 const LANGUAGES = ['auto', 'zh', 'en'] as const;
 type LanguagePreference = (typeof LANGUAGES)[number];
-const KEEPALIVE_MANAGERS = ['auto', 'systemd', 'launchd', 'supervisor', 'none'] as const;
+const KEEPALIVE_MANAGERS = [
+  'auto',
+  'systemd',
+  'launchd',
+  'supervisor',
+  'windows-service',
+  'none',
+] as const;
 export type KeepaliveManager = (typeof KEEPALIVE_MANAGERS)[number];
 
 /** A configuration after `validate`: every field present and in range. */
