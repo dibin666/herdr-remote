@@ -3,9 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ensureDir } from 'herdr-remote-relay/state';
-import { pidAlive } from '../lib/process.js';
+import { processStart, stillRunning } from '../lib/process.js';
 
-function readOwner(lockPath: string): { pid?: unknown } | null {
+function readOwner(lockPath: string): { pid?: unknown; processStart?: unknown } | null {
   try {
     return JSON.parse(fs.readFileSync(lockPath, 'utf8'));
   } catch {
@@ -22,7 +22,9 @@ function lockError(message: string, code: string): NodeJS.ErrnoException {
 
 /**
  * Take the lock, or throw `HOST_ALREADY_RUNNING` when a live process holds it.
- * A lock left by a dead process is removed and taken over.
+ * A lock left by a dead process is removed and taken over — including one whose
+ * pid a reboot handed to an unrelated process, which would otherwise keep every
+ * later connector standing down.
  */
 export function acquireHostLock(lockPath: string, hostId: string): number {
   ensureDir(path.dirname(lockPath));
@@ -31,13 +33,18 @@ export function acquireHostLock(lockPath: string, hostId: string): number {
       const fd = fs.openSync(lockPath, 'wx', 0o600);
       fs.writeFileSync(
         fd,
-        `${JSON.stringify({ pid: process.pid, hostId, startedAt: new Date().toISOString() })}\n`,
+        `${JSON.stringify({
+          pid: process.pid,
+          processStart: processStart(process.pid),
+          hostId,
+          startedAt: new Date().toISOString(),
+        })}\n`,
       );
       return fd;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       const owner = readOwner(lockPath);
-      if (owner && pidAlive(owner.pid)) {
+      if (owner && stillRunning([owner]).length > 0) {
         throw lockError(
           `another host connector is already running (pid ${owner.pid})`,
           'HOST_ALREADY_RUNNING',

@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { writeJsonAtomic } from 'herdr-remote-relay/state';
+import { detached } from '../src/keepalive/detached.js';
+import { pidAlive } from '../src/lib/process.js';
+import { stateDir } from '../src/paths.js';
+import { isolateState } from './helpers.js';
 import {
   detectManager,
   escapeXml,
@@ -145,4 +151,22 @@ test('auto detection never returns a manager the platform cannot provide', () =>
   assert.ok(['systemd', 'launchd', 'supervisor'].includes(detected));
   if (process.platform !== 'linux') assert.notEqual(detected, 'systemd');
   if (process.platform !== 'darwin') assert.notEqual(detected, 'launchd');
+});
+
+test('a fallback supervisor pid that now names another process is neither running nor stopped', (t) => {
+  isolateState(t);
+  const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    stdio: 'ignore',
+  });
+  t.onTestFinished(() => bystander.kill('SIGKILL'));
+  // The pid file outlives a reboot, the process it named does not.
+  writeJsonAtomic(path.join(stateDir(), 'supervisor.pid'), {
+    pid: bystander.pid,
+    processStart: 'an-earlier-boot:1234',
+    startedAt: new Date().toISOString(),
+  });
+
+  assert.equal(detached.status().active, false);
+  detached.stop();
+  assert.equal(pidAlive(bystander.pid), true);
 });

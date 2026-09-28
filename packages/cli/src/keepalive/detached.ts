@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ensureDir, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
-import { pidAlive } from '../lib/process.js';
+import { processStart, stillRunning } from '../lib/process.js';
 import { logPath, stateDir } from '../paths.js';
 import { cliEntryPoint, serviceEnvironment } from './environment.js';
 import type { KeepaliveBackend, KeepaliveStatus } from './types.js';
@@ -14,14 +14,18 @@ function fallbackPidPath(): string {
   return path.join(stateDir(), 'supervisor.pid');
 }
 
-function readPid(): number | null {
-  const record = readJson<{ pid?: unknown }>(fallbackPidPath(), {});
-  return Number.isInteger(record.pid) ? (record.pid as number) : null;
+/**
+ * The supervisor the pid file names, if it is still that process. The file
+ * outlives a reboot; its pid alone would then name something unrelated.
+ */
+function runningPid(): number | null {
+  const record = readJson<{ pid?: unknown; processStart?: unknown }>(fallbackPidPath(), {});
+  return stillRunning([record]).length > 0 ? (record.pid as number) : null;
 }
 
 function start() {
-  const running = readPid();
-  if (pidAlive(running)) return { ok: true as const, alreadyRunning: true, pid: running };
+  const running = runningPid();
+  if (running !== null) return { ok: true as const, alreadyRunning: true, pid: running };
   ensureDir(stateDir());
   const logFd = fs.openSync(logPath('supervisor'), 'a');
   try {
@@ -34,7 +38,11 @@ function start() {
       stdio: ['ignore', logFd, logFd],
     });
     child.unref();
-    writeJsonAtomic(fallbackPidPath(), { pid: child.pid, startedAt: new Date().toISOString() });
+    writeJsonAtomic(fallbackPidPath(), {
+      pid: child.pid,
+      processStart: child.pid ? processStart(child.pid) : null,
+      startedAt: new Date().toISOString(),
+    });
     return { ok: true as const, pid: child.pid, note: 'this fallback does not survive a reboot' };
   } finally {
     fs.closeSync(logFd);
@@ -42,8 +50,8 @@ function start() {
 }
 
 function stopAndForget() {
-  const pid = readPid();
-  if (pid !== null && pidAlive(pid)) {
+  const pid = runningPid();
+  if (pid !== null) {
     try {
       process.kill(pid, 'SIGTERM');
     } catch {
@@ -66,8 +74,8 @@ export const detached: KeepaliveBackend = {
   name: 'supervisor',
 
   status(): KeepaliveStatus {
-    const pid = readPid();
-    const alive = pidAlive(pid);
+    const pid = runningPid();
+    const alive = pid !== null;
     return {
       manager: 'supervisor',
       installed: alive,

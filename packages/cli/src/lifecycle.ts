@@ -7,8 +7,7 @@
 
 import { type Config, loadConfig } from './config.js';
 import * as keepalive from './keepalive/index.js';
-import { pidAlive } from './lib/process.js';
-import { readRuntime } from './runtime.js';
+import { managedPids, readRuntime } from './runtime.js';
 import { restartServices, startServices, statusServices, stopServices } from './service.js';
 
 function managerInUse(config: Config) {
@@ -56,7 +55,9 @@ function restartAll(config = loadConfig()) {
 
 /** Whether the host connector is up, under a keep-alive manager or detached. */
 function servicesRunning(config = loadConfig()): boolean {
-  return Boolean(managerInUse(config)?.active || pidAlive(readRuntime().hostPid));
+  if (managerInUse(config)?.active) return true;
+  const state = readRuntime();
+  return managedPids(state).some(({ pid }) => pid === state.hostPid);
 }
 
 /** Stop Windows keep-alive processes while npm replaces their package files. */

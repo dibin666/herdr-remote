@@ -96,3 +96,28 @@ test('a process an earlier start left behind is stopped before children start', 
   assert.equal(count(events, 'reclaim'), 1);
   await waitFor(() => !pidAlive(stray.pid));
 });
+
+test('a pid recorded before a reboot is left alone, whatever holds it now', async (t) => {
+  const { instance, events } = supervisor(t, []);
+  // After a reboot the same boot-time services land on the same pids again.
+  const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    stdio: 'ignore',
+  });
+  t.onTestFinished(() => bystander.kill('SIGKILL'));
+  updateRuntime((current) => {
+    current.supervisorPid = bystander.pid;
+    current.managedPids = [
+      {
+        name: 'supervisor',
+        pid: bystander.pid,
+        processStart: 'an-earlier-boot:1234',
+        startedAt: new Date().toISOString(),
+      },
+    ];
+  });
+
+  await instance.start();
+
+  assert.equal(count(events, 'reclaim'), 0);
+  assert.equal(pidAlive(bystander.pid), true);
+});
