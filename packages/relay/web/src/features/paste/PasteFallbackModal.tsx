@@ -25,7 +25,7 @@
  */
 
 import type React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Modal, Button } from '@/shared/ui';
 import { useSettings, useToasts } from '@/context/TerminalContext';
 import { extractImageFromClipboardEvent, extractImageFromFileList } from '@/shared/lib/clipboard';
@@ -53,17 +53,6 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Reset inputs whenever the modal is opened
-  useEffect(() => {
-    if (isOpen) {
-      setTextValue('');
-      setImageState(null);
-      setIsCompressing(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
-    }
-  }, [isOpen]);
 
   const processImageBlob = async (blob: Blob) => {
     if (blob.size === 0) {
