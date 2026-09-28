@@ -528,6 +528,63 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     expect(screen.queryByText('长按此处粘贴，然后按发送')).toBeNull();
   });
 
+  it('keeps what is typed the instant the paste box opens', async () => {
+    vi.spyOn(clipboardModule, 'readClipboardText').mockResolvedValue({
+      ok: false,
+      reason: 'insecure',
+    });
+    renderMobileTerminal();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    const term = xtermInstances[0];
+    act(() => {
+      // @ts-expect-error test event
+      terminalCtx?.adapter?.emit('controlGranted');
+    });
+    const container = document.querySelector('#terminal-container') as HTMLElement;
+    const touch = (type: string) =>
+      container.dispatchEvent(
+        new PointerEvent(type, {
+          clientX: 100,
+          clientY: 100,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    act(() => touch('pointerdown'));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 520));
+    });
+    act(() => touch('pointerup'));
+
+    // Type into the box in the same moment it appears, before React has run
+    // the effects of the render that showed it. The box used to clear itself
+    // in one of those effects, wiping this text: a flaky test on a busy CI.
+    const typed = new Promise<void>((resolve) => {
+      const observer = new MutationObserver(() => {
+        const box = screen.queryByPlaceholderText('长按此处粘贴，然后按发送');
+        if (!box) return;
+        observer.disconnect();
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
+          box,
+          'git pull origin main',
+        );
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    fireEvent.click(screen.getByRole('menuitem', { name: /粘贴/i }));
+    await typed;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    expect(term.paste).toHaveBeenCalledWith('git pull origin main');
+  });
+
   it('shows toast and does NOT open PasteFallbackModal when readClipboardText returns "empty"', async () => {
     vi.spyOn(clipboardModule, 'readClipboardText').mockResolvedValue({
       ok: false,

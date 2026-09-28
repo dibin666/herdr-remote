@@ -343,7 +343,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
         />
       )}
 
-      {isTouchDevice && (
+      {/* Mounted only while open, so each opening starts empty. Clearing it in
+          an effect on open raced a paste made the instant it appeared. */}
+      {isTouchDevice && paste.isPasteFallbackOpen && (
         <PasteFallbackModal
           isOpen={paste.isPasteFallbackOpen}
           onClose={paste.closePasteFallback}
