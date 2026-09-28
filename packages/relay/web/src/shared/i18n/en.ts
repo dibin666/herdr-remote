@@ -169,7 +169,7 @@ export const en = {
     credentialsRequired: 'Enter a pairing code or device token.',
     pairCodeLabel: 'Pairing Code',
     pairCodeNote: '(6-char code)',
-    pairCodePlaceholder: 'e.g. A1B2C3',
+    pairCodePlaceholder: 'e.g. A2B3C4',
     pairCodeHelp: 'Run "herdr-remote pair" on host.',
     repairNote: '(only to pair again)',
     editAdvancedHint: 'relay, token, client ID',
