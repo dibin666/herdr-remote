@@ -14,7 +14,6 @@ import {
   MIN_HERDR_VERSION,
   resolveHerdrCommand,
 } from './herdr-command.js';
-import { pidAlive } from './lib/process.js';
 import { preferredLanAddress } from './net-interfaces.js';
 import { logPath, PACKAGE_ROOT, stateDir } from './paths.js';
 import { healthUrl, hostHeaders, requestJson, waitForHost, waitForRelay } from './relay-client.js';
@@ -163,16 +162,18 @@ export function startServices() {
   const state = ensureRuntime();
   const next: RuntimeState = { ...state };
   const specs = serviceSpecs(config, state);
+  const running = managedPids(next);
+  const isRunning = (pid: number | null | undefined) => running.some((entry) => entry.pid === pid);
 
   for (const spec of specs) {
     const field = PID_FIELDS[spec.name];
-    if (pidAlive(next[field])) continue;
+    if (isRunning(next[field])) continue;
     next[field] = spawnDetached(spec) ?? null;
     recordManagedPid(next, spec.name, next[field]);
   }
   // A relay that is no longer part of the plan (switched to remote mode) must
   // not be left running on the old port.
-  if (!specs.some((spec) => spec.name === 'relay') && pidAlive(next.relayPid)) {
+  if (!specs.some((spec) => spec.name === 'relay') && isRunning(next.relayPid)) {
     try {
       process.kill(next.relayPid as number, 'SIGTERM');
     } catch {
@@ -184,20 +185,21 @@ export function startServices() {
   next.startedAt = next.startedAt || new Date().toISOString();
   next.mode = config.relay.mode;
   writeRuntime(next);
+  const live = managedPids(next);
   return {
     ok: true,
     mode: config.relay.mode,
     relay: {
       local: runsLocalRelay(config),
       pid: next.relayPid || null,
-      alive: pidAlive(next.relayPid),
+      alive: live.some(({ pid }) => pid === next.relayPid),
       bind: runsLocalRelay(config) ? bindAddress(config) : null,
       port: config.relay.port,
       remoteUrl: config.relay.remoteUrl || null,
     },
     host: {
       pid: next.hostPid || null,
-      alive: pidAlive(next.hostPid),
+      alive: live.some(({ pid }) => pid === next.hostPid),
       socketPath: resolveSocketPath(config.herdr.socketPath),
     },
     publicUrl: resolvePublicUrl(config, preferredLanAddress()),
@@ -240,6 +242,7 @@ export function restartServices() {
 export async function statusServices() {
   const config = loadConfig();
   const state = readRuntime();
+  const live = managedPids(state);
   const lanAddress = preferredLanAddress();
   let health: { ok?: boolean; message?: string; [key: string]: unknown };
   try {
@@ -262,7 +265,7 @@ export async function statusServices() {
     relay: {
       local: runsLocalRelay(config),
       pid: state.relayPid || null,
-      alive: runsLocalRelay(config) ? pidAlive(state.relayPid) : null,
+      alive: runsLocalRelay(config) ? live.some(({ pid }) => pid === state.relayPid) : null,
       bind: runsLocalRelay(config) ? bindAddress(config) : null,
       port: config.relay.port,
       remoteUrl: config.relay.remoteUrl || null,
@@ -270,7 +273,7 @@ export async function statusServices() {
     },
     host: {
       pid: state.hostPid || null,
-      alive: pidAlive(state.hostPid),
+      alive: live.some(({ pid }) => pid === state.hostPid),
       hostId: state.hostId || null,
       socketPath,
       socketExists: Boolean(socketPath) && fs.existsSync(socketPath),

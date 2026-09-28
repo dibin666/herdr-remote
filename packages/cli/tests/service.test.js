@@ -1,13 +1,15 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { pidAlive } from '../src/lib/process.js';
 import { managedPids, recordManagedPid } from '../src/runtime.js';
 import { stopServices } from '../src/service.js';
 import { runtimeStatePath } from '../src/paths.js';
 import { writeJsonAtomic, readJson } from 'herdr-remote-relay/state';
-import { isolateState } from './helpers.js';
+import { isolateState, tempDir } from './helpers.js';
 
 // A pid that is certainly not running: above the kernel maximum.
 const DEAD_PID = 4194304;
@@ -65,25 +67,27 @@ test('the ledger keeps pids another writer would have overwritten', () => {
   state.relayPid = null;
   state.hostPid = null;
 
-  const tracked = managedPids(state);
+  const tracked = managedPids(state).map(({ pid, name }) => ({ pid, name }));
   assert.deepEqual(tracked, [{ pid: process.pid, name: 'relay' }]);
 });
 
-test('managedPids merges the legacy fields with the ledger and de-duplicates', () => {
+test('managedPids trusts only ledger entries that still name the process recorded', () => {
   const state = {
+    // Bare numbers cannot say which process they were taken from.
     supervisorPid: process.pid,
     relayPid: process.pid,
-    hostPid: DEAD_PID,
     managedPids: [
-      { name: 'relay', pid: process.pid },
-      { name: 'host', pid: DEAD_PID },
+      { name: 'relay', pid: process.pid, processStart: 'an-earlier-boot:1234' },
+      { name: 'host', pid: process.pid },
     ],
   };
-  const tracked = managedPids(state);
-  assert.equal(tracked.length, 1);
-  assert.equal(tracked[0].pid, process.pid);
-  // The supervisor entry wins the name, because it must be stopped first.
-  assert.equal(tracked[0].name, 'supervisor');
+  assert.deepEqual(managedPids(state), []);
+
+  recordManagedPid(state, 'supervisor', process.pid);
+  assert.deepEqual(
+    managedPids(state).map(({ pid, name }) => ({ pid, name })),
+    [{ pid: process.pid, name: 'supervisor' }],
+  );
 });
 
 test('stopServices stops everything in the ledger, including strays', async (t) => {
@@ -96,6 +100,9 @@ test('stopServices stops everything in the ledger, including strays', async (t) 
   const stray = spawnSleeper();
 
   const state = { supervisorPid: supervisor, relayPid: relay, hostPid: host };
+  recordManagedPid(state, 'supervisor', supervisor);
+  recordManagedPid(state, 'relay', relay);
+  recordManagedPid(state, 'host', host);
   recordManagedPid(state, 'relay', stray);
   writeJsonAtomic(runtimeStatePath(), state);
 
@@ -115,6 +122,49 @@ test('stopServices stops everything in the ledger, including strays', async (t) 
   assert.equal(after.hostPid, null);
   assert.equal(after.supervisorPid, null);
   assert.deepEqual(after.managedPids, []);
+});
+
+test('stopServices leaves alone a process that inherited a recorded pid', async (t) => {
+  isolateState(t);
+  const bystander = spawnSleeper();
+  t.onTestFinished(() => {
+    try {
+      process.kill(bystander, 'SIGKILL');
+    } catch {
+      // The assertion below already failed if it is gone.
+    }
+  });
+  writeJsonAtomic(runtimeStatePath(), {
+    supervisorPid: bystander,
+    hostPid: bystander,
+    managedPids: [
+      { name: 'supervisor', pid: bystander, processStart: 'an-earlier-boot:1234' },
+      { name: 'host', pid: bystander },
+    ],
+  });
+
+  const result = stopServices();
+
+  assert.deepEqual(result.stopped, []);
+  assert.equal(await waitForExit(bystander, 300), false, 'the bystander must survive');
+});
+
+test('stopServices still stops what an older release recorded without start tokens', async (t) => {
+  isolateState(t);
+  // An older release recorded bare pids; its relay runs herdr-remote-relay.js.
+  const script = path.join(tempDir(t), 'herdr-remote-relay.js');
+  fs.writeFileSync(script, 'setInterval(() => {}, 1000);\n');
+  const relay = spawn(process.execPath, [script], { stdio: 'ignore' });
+  t.onTestFinished(() => relay.kill('SIGKILL'));
+  writeJsonAtomic(runtimeStatePath(), {
+    relayPid: relay.pid,
+    managedPids: [{ name: 'relay', pid: relay.pid, startedAt: new Date().toISOString() }],
+  });
+
+  const result = stopServices();
+
+  assert.deepEqual(result.stopped, [{ name: 'relay', pid: relay.pid }]);
+  assert.equal(await waitForExit(relay.pid), true);
 });
 
 test('stopServices is harmless when nothing is running', async (t) => {

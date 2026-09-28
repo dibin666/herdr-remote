@@ -12,7 +12,7 @@ import {
 } from './runtime.js';
 import { type ServiceSpec, baseEnvironment, serviceSpecs } from './service.js';
 import { EXIT_REPLACED, EXIT_AUTH_FAILED } from './exit-codes.js';
-import { pidAlive } from './lib/process.js';
+import { pidAlive, stillRunning } from './lib/process.js';
 
 const MIN_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 30_000;
@@ -92,6 +92,10 @@ class Supervisor {
    * spawned died with EADDRINUSE and retried forever, while the orphaned host
    * connector and ours both claimed the same host id on the relay and kicked
    * each other off — which is what browsers saw as an endless reconnect.
+   *
+   * Only ledger entries whose start token still matches are touched: the
+   * ledger survives a reboot, and its pids then belong to whatever the new
+   * boot started.
    */
   async reclaimStrays({ timeoutMs = 5000 } = {}): Promise<{ name: string; pid: number }[]> {
     const strays = managedPids().filter((entry) => entry.pid !== process.pid);
@@ -120,8 +124,8 @@ class Supervisor {
         setTimeout(resolve, 100);
       });
     }
-    for (const { pid, name } of strays) {
-      if (!pidAlive(pid)) continue;
+    // Checked again before the harder signal, in case the number moved on meanwhile.
+    for (const { pid, name } of stillRunning(strays)) {
       this.emit({
         type: 'reclaim',
         name,
@@ -322,9 +326,7 @@ class Supervisor {
         current.relayPid = null;
         current.hostPid = null;
         current.startedAt = null;
-        current.managedPids = (current.managedPids || []).filter(
-          (entry) => entry && pidAlive(entry.pid),
-        );
+        current.managedPids = stillRunning((current.managedPids || []).filter(Boolean));
       });
     } catch {
       // The runtime file is advisory; stopping must finish even if it cannot be written.

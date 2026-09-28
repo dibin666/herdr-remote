@@ -17,6 +17,7 @@ import {
   FRAME_TYPE_OUTPUT,
   FRAME_V2_MAGIC,
 } from 'herdr-remote-relay/protocol';
+import { tempDir } from './helpers.js';
 
 function makeConnector(lockPath, overrides = {}) {
   return new HostConnector({
@@ -69,6 +70,22 @@ test('host connector uses a stale-safe single-instance lock', () => {
     first.releaseLock();
     second.releaseLock();
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('a lock whose pid now belongs to another process is taken over', (t) => {
+  const directory = tempDir(t, 'herdr-remote-host-lock-');
+  const lockPath = path.join(directory, 'connector.lock');
+  // A reboot or a crash leaves the lock behind, and its pid can be live again
+  // as some unrelated process; standing down for that would never recover.
+  for (const owner of [
+    { pid: process.ppid, hostId: 'host-test', processStart: 'an-earlier-boot:1234' },
+    { pid: process.ppid, hostId: 'host-test' },
+  ]) {
+    fs.writeFileSync(lockPath, `${JSON.stringify(owner)}\n`);
+    const connector = makeConnector(lockPath);
+    connector.acquireLock();
+    connector.releaseLock();
   }
 });
 

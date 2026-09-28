@@ -3,7 +3,7 @@
 // Every read and write of that file goes through here.
 
 import { ensureDir, randomToken, readJson, writeJsonAtomic } from 'herdr-remote-relay/state';
-import { pidAlive } from './lib/process.js';
+import { processStart, stillRunning } from './lib/process.js';
 import { configDir, runtimeStatePath, stateDir } from './paths.js';
 
 const RUNTIME_VERSION = 2;
@@ -11,6 +11,8 @@ const RUNTIME_VERSION = 2;
 interface ManagedPid {
   name: string;
   pid: number;
+  /** Tells this process apart from any later one given the same pid; see `processStarts`. */
+  processStart: string;
   startedAt: string;
 }
 
@@ -106,33 +108,35 @@ export function recordManagedPid(
   name: string,
   pid: unknown,
 ): Partial<RuntimeState> {
-  const existing = Array.isArray(state.managedPids) ? state.managedPids : [];
-  const kept = existing.filter((entry) => entry && entry.pid !== pid && pidAlive(entry.pid));
-  // Only track something that is actually running: a pid that already exited
-  // would sit in the ledger until its number is recycled by an unrelated
-  // process, which we would then happily signal.
-  if (Number.isInteger(pid) && pidAlive(pid)) {
-    kept.push({ name, pid: pid as number, startedAt: new Date().toISOString() });
+  const existing = Array.isArray(state.managedPids) ? state.managedPids.filter(Boolean) : [];
+  const kept = stillRunning(existing.filter((entry) => entry.pid !== pid));
+  // Only track something that is actually running, and together with its start
+  // token: the ledger outlives a reboot, and a bare pid it kept would then name
+  // whichever unrelated process got that number next — which we would signal.
+  const start = Number.isInteger(pid) ? processStart(pid as number) : null;
+  if (start) {
+    kept.push({
+      name,
+      pid: pid as number,
+      processStart: start,
+      startedAt: new Date().toISOString(),
+    });
   }
   state.managedPids = kept;
   return state;
 }
 
-/** Every process we believe we started, alive right now. */
-export function managedPids(state = readRuntime()): { pid: number; name: string }[] {
-  const pids = new Map<number, string>();
-  // Supervisor first and never overwritten: `stopServices` relies on the order
-  // to signal it before its children, and one pid can appear under several
-  // fields.
-  for (const [name, pid] of [
-    ['supervisor', state.supervisorPid],
-    ['host', state.hostPid],
-    ['relay', state.relayPid],
-  ] as const) {
-    if (pidAlive(pid) && !pids.has(pid as number)) pids.set(pid as number, name);
-  }
+/**
+ * Every process we started that is still running, and still that process.
+ *
+ * Only the ledger counts. `supervisorPid`, `relayPid` and `hostPid` are bare
+ * numbers that survive a reboot, and trusting them would signal whichever
+ * unrelated process inherited one.
+ */
+export function managedPids(state = readRuntime()): ManagedPid[] {
+  const unique = new Map<number, ManagedPid>();
   for (const entry of state.managedPids || []) {
-    if (entry && pidAlive(entry.pid) && !pids.has(entry.pid)) pids.set(entry.pid, entry.name);
+    if (entry && !unique.has(entry.pid)) unique.set(entry.pid, entry);
   }
-  return [...pids].map(([pid, name]) => ({ pid, name }));
+  return stillRunning([...unique.values()]);
 }
