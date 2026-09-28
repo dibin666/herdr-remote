@@ -92,6 +92,21 @@ function validHostId(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
 }
 
+/**
+ * What a person reads off one screen and types on another: six characters,
+ * without 0/O or 1/I/L to confuse. Cutting base64 and dropping its `-` and `_`
+ * made one code in seven shorter than six, and some too short to pair at all.
+ */
+const PAIR_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const PAIR_CODE_LENGTH = 6;
+
+function newPairCode(): string {
+  let code = '';
+  for (let i = 0; i < PAIR_CODE_LENGTH; i += 1)
+    code += PAIR_CODE_ALPHABET[crypto.randomInt(PAIR_CODE_ALPHABET.length)];
+  return code;
+}
+
 class AuthStore {
   readonly stateFile: string;
   readonly pairingTtlMs: number;
@@ -215,7 +230,7 @@ class AuthStore {
     this.cleanup(now);
     let code: string;
     do {
-      code = randomToken(4).toUpperCase().replace(/[-_]/g, '').slice(0, 6);
+      code = newPairCode();
     } while (
       [...this.pairings.values()].some((pairing) => equalHash(pairing.codeHash, hash(code)))
     );

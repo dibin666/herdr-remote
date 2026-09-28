@@ -159,7 +159,7 @@ export const zh: TranslationSchema = {
     credentialsRequired: '请输入配对码或设备令牌。',
     pairCodeLabel: '配对码',
     pairCodeNote: '（6 位代码）',
-    pairCodePlaceholder: '例如：A1B2C3',
+    pairCodePlaceholder: '例如：A2B3C4',
     pairCodeHelp: '在主机运行 "herdr-remote pair" 获取。',
     repairNote: '（重新配对时填写）',
     editAdvancedHint: 'Relay 端点、Token、客户端 ID',

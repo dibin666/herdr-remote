@@ -30,6 +30,20 @@ test('pairing code is one-time and yields a renewable device token', () => {
   assert.equal(store.authenticateDevice(paired.token, now + 10).deviceId, paired.deviceId);
 });
 
+test('every pairing code is six characters a person can type, and pairs', (t) => {
+  const { store, directory } = makeStore({ maxDevices: 4 });
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const now = 3_000_000;
+  store.registerHost('host-1', 'host-secret-123456789', null, now);
+  // Codes used to be cut from base64 with `-` and `_` dropped: one in seven came
+  // out shorter than six, and about one in three thousand too short to pair.
+  for (let i = 0; i < 2000; i += 1) {
+    const { code } = store.startPairing('host-1', 'http://localhost', now);
+    assert.match(code, /^[A-HJKMNP-Z2-9]{6}$/);
+    assert.equal(store.completePairing(code, now + 1)?.hostId, 'host-1', code);
+  }
+});
+
 test('expired device tokens and pairings are removed', () => {
   const { store } = makeStore();
   const now = 2_000_000;
