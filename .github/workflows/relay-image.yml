@@ -23,7 +23,6 @@ on:
       - 'packages/relay/Dockerfile'
       - 'tsconfig.base.json'
       - '.dockerignore'
-      - '.github/workflows/relay-image.yml'
       # package-lock.json is deliberately absent. It moves whenever any
       # workspace version changes, so a CLI-only release would rebuild an image
       # whose contents are identical. A dependency change that does reach the
