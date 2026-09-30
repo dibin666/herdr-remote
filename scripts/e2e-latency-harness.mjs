@@ -15,6 +15,7 @@ import path from 'node:path';
 import { WebSocket } from 'ws';
 
 import { handleShellInput } from './lib/fake-shell.mjs';
+import { installLatencyControls } from './lib/latency-controls.mjs';
 
 // The relay's compiled output: `npm run build -w herdr-remote-relay` first.
 import { loadRelayConfig } from '../packages/relay/dist/relay-config.js';
@@ -45,6 +46,9 @@ if (!fs.existsSync(webIndexHtml)) {
 // 2. Configure mock host credentials and artificial delay
 const HOST_ID = 'mock-host-e2e';
 const HOST_TOKEN = 'mock-token-e2e-0123456789abcdef';
+const HOST_VERSION = JSON.parse(
+  fs.readFileSync(new URL('../packages/cli/package.json', import.meta.url), 'utf8'),
+).version;
 const DEFAULT_PORT = 8899;
 const TARGET_PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : DEFAULT_PORT;
 
@@ -221,6 +225,7 @@ async function main() {
           token: HOST_TOKEN,
           password: null,
           hostname: os.hostname(),
+          version: HOST_VERSION,
           platform: process.platform,
           arch: process.arch,
           terminalPalette: null,
@@ -344,6 +349,7 @@ async function main() {
 
   // Request pairing code
   const pairing = await requestPairing(boundPort);
+  installLatencyControls(relayServer, async () => (await requestPairing(boundPort)).pairUrl);
 
   // Print status
   const latencyDisplay =
@@ -355,12 +361,13 @@ async function main() {
   process.stdout.write('  Herdr Remote E2E Latency Harness\n');
   process.stdout.write(`${'='.repeat(64)}\n`);
   process.stdout.write(`  Relay Address:   http://127.0.0.1:${boundPort}\n`);
+  process.stdout.write(`  Test WebUI:      http://127.0.0.1:${boundPort}/__test__\n`);
   process.stdout.write(`  Pairing URL:     ${pairing.pairUrl}\n`);
   process.stdout.write(`  Pairing Code:    ${pairing.code}\n`);
   process.stdout.write(`  Latency Switch:  ${latencyDisplay}\n`);
   process.stdout.write(`${'='.repeat(64)}\n`);
   process.stdout.write('  Instructions:\n');
-  process.stdout.write('  1. Open the Pairing URL above in your browser.\n');
+  process.stdout.write('  1. Open Test WebUI to change latency live, or use the Pairing URL.\n');
   process.stdout.write('  2. Type characters to verify predictive echo and latency.\n');
   process.stdout.write('  3. Type "flood" and press Enter to test 2000-line burst.\n');
   process.stdout.write('  4. Press Ctrl+C in this terminal to stop and clean up.\n');

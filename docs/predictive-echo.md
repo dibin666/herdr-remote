@@ -12,6 +12,12 @@ Predictive echo only runs inside an identified editable input field. Recognized 
 
 `Auto` shows learned predictions when measured echo latency exceeds 40 ms. `Always On` removes the latency threshold; it still requires an identified input field and evidence of echoing. `Off` hides the overlay.
 
+## Local latency test WebUI
+
+Run `npm run build`, then `RELAY_DEV_LATENCY_MS=400 node scripts/e2e-latency-harness.mjs`. Open the printed **Test WebUI** address (normally `http://127.0.0.1:8899/__test__`). The panel offers presets and custom extra round-trip delays from 0 to 5000 ms; each direction receives half. Changes wait for queued frames to finish so switching to zero cannot reorder input. The terminal stays connected while changing latency.
+
+This uses a simulated shell. Type one character and wait for its echo, then type and backspace. Compare predictive echo modes in WebUI settings; Auto's smoothed latency needs several echoes to adjust. The latency panel and its HTTP routes are installed only by the test harness.
+
 ## Limits and validation
 
 An unfamiliar TUI input must first be recognized as editable before prediction can be enabled. A matching output character or moving cursor alone is insufficient. This conservative rule prioritizes keeping predictions out of non-input areas over predicting on every interface.

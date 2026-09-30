@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>预测回显测试 / Predictive echo test</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; height: 100dvh; display: flex; flex-direction: column; background: #101419; color: #e5edf5; font: 14px system-ui, sans-serif; }
+      header { padding: 12px 18px; border-bottom: 1px solid #344356; }
+      form { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+      label { display: flex; align-items: center; gap: 6px; }
+      select, input, button { padding: 7px 10px; border: 1px solid #526580; border-radius: 6px; background: #1b2635; color: inherit; font: inherit; }
+      input { width: 100px; } button { cursor: pointer; } :disabled { opacity: .5; }
+      output { color: #80e3ac; } p { margin: 8px 0 0; color: #a6b8cc; font-size: 12px; }
+      iframe { width: 100%; flex: 1; min-height: 0; border: 0; background: #101419; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <form id="controls">
+        <strong data-text="title"></strong>
+        <label><span data-text="preset"></span><select id="preset" aria-label="延迟档位 / Latency preset">
+          <option value="0">0 ms</option><option value="50">50 ms</option><option value="100">100 ms</option>
+          <option value="200">200 ms</option><option value="400">400 ms</option><option value="800">800 ms</option>
+          <option value="1500">1500 ms</option><option value="3000">3000 ms</option><option value="custom" data-text="custom"></option>
+        </select></label>
+        <label><span data-text="rtt"></span><input id="latency" type="number" min="0" step="1" required aria-label="往返延迟毫秒 / Round-trip latency in ms" />ms</label>
+        <button type="submit" data-text="apply"></button>
+        <output id="status" aria-live="polite"></output>
+        <button id="language" type="button">English</button>
+      </form>
+      <p data-text="hint"></p>
+    </header>
+    <iframe id="webui" title="Herdr Remote 测试 WebUI / Test WebUI" allow="clipboard-read; clipboard-write"></iframe>
+    <script type="module" src="/__test__/panel.js"></script>
+  </body>
+</html>
