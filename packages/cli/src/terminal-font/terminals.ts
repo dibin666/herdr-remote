@@ -28,6 +28,16 @@ const TERMINAL_PROCESSES: [RegExp, string][] = [
   [/^(urxvt|urxvtd|rxvt)$/, 'urxvt'],
 ];
 
+/** macOS app bundle ids, which every process an app starts inherits. */
+const BUNDLE_TERMINALS: Record<string, string> = {
+  'com.apple.Terminal': 'apple-terminal',
+  'com.googlecode.iterm2': 'iterm2',
+  'com.microsoft.VSCode': 'vscode',
+  'com.mitchellh.ghostty': 'ghostty',
+  'com.github.wez.wezterm': 'wezterm',
+  'net.kovidgoyal.kitty': 'kitty',
+};
+
 /**
  * The emulator a process runs under, from its own ancestry first.
  *
@@ -52,13 +62,18 @@ export function identifyTerminal({
     }
   }
 
+  // From Herdr 0.9.2 a pane says TERM_PROGRAM=herdr and loses the terminal's
+  // session markers, so a start from inside Herdr falls through to markers
+  // Herdr leaves alone: macOS's app bundle id, ITERM_PROFILE, KITTY_PID,
+  // WT_PROFILE_ID.
   const program = env.TERM_PROGRAM || '';
+  const bundle = env.__CFBundleIdentifier || '';
   if (program === 'vscode') return 'vscode';
-  if (program === 'iTerm.app' || env.ITERM_SESSION_ID) return 'iterm2';
+  if (program === 'iTerm.app' || env.ITERM_SESSION_ID || env.ITERM_PROFILE) return 'iterm2';
   if (program === 'Apple_Terminal') return 'apple-terminal';
   if (program === 'WezTerm' || env.WEZTERM_EXECUTABLE) return 'wezterm';
   if (program === 'ghostty' || env.GHOSTTY_RESOURCES_DIR) return 'ghostty';
-  if (env.KITTY_WINDOW_ID || env.TERM === 'xterm-kitty') return 'kitty';
+  if (env.KITTY_WINDOW_ID || env.KITTY_PID || env.TERM === 'xterm-kitty') return 'kitty';
   if (env.ALACRITTY_SOCKET || env.ALACRITTY_WINDOW_ID || env.ALACRITTY_LOG) return 'alacritty';
   if (/^foot/.test(env.TERM || '')) return 'foot';
   if (env.KONSOLE_VERSION || env.KONSOLE_DBUS_SESSION) return 'konsole';
@@ -66,8 +81,9 @@ export function identifyTerminal({
   if (env.TILIX_ID) return 'tilix';
   if (env.GNOME_TERMINAL_SCREEN || env.GNOME_TERMINAL_SERVICE) return 'gnome-terminal';
   if (/^rxvt-unicode/.test(env.TERM || '')) return 'urxvt';
+  if (Object.hasOwn(BUNDLE_TERMINALS, bundle)) return BUNDLE_TERMINALS[bundle];
   // WT_SESSION is inherited by nested terminals, so specific terminal markers win first.
-  if (env.WT_SESSION) return 'windows-terminal';
+  if (env.WT_SESSION || env.WT_PROFILE_ID) return 'windows-terminal';
   // Last: a terminal started from xterm inherits this too.
   if (env.XTERM_VERSION) return 'xterm';
   return null;

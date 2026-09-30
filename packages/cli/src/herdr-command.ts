@@ -55,8 +55,13 @@ export interface HerdrVersion {
  * machine in the background stops resizing somebody else's focused pane, and a
  * large paste no longer disconnects the client — and pasting is how an image
  * reaches an agent from a phone.
+ *
+ * 0.9.3 because a browser types through escape sequences: 0.9.2 stopped a tap
+ * on a pane from sending a stray Escape to a working agent and stopped mouse
+ * reports split across reads from leaking into the shell, and it also broke
+ * Escape followed by a key — Alt+B, Alt+F, Alt+Backspace — which 0.9.3 mends.
  */
-const MIN_HERDR_VERSION = '0.9.1';
+const MIN_HERDR_VERSION = '0.9.3';
 
 /** Where a user-level install lands, in the order we trust it. */
 const FALLBACK_DIRECTORIES = [
@@ -272,7 +277,7 @@ function herdrVersion({
 function herdrOutdatedMessage(version: string): string {
   return (
     `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. ` +
-    'Run "herdr update" — window titles, background machine activation and large pastes all ' +
+    'Run "herdr update" — window titles, large pastes, taps on a pane and Alt shortcuts all ' +
     'misbehave in browser windows before that release.'
   );
 }

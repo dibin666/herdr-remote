@@ -327,6 +327,39 @@ test('an acknowledged subscription resets the reconnect backoff', async (t) => {
   );
 });
 
+test('events_lost resubscribes and reports each fresh start, so the caller re-reads', async (t) => {
+  // Herdr 0.9.2+: a reader that fell behind gets `events_lost` under its own
+  // request id, then a closed socket. Whatever happened meanwhile is gone.
+  const herdr = await fakeHerdrSocket(t, (request, connection) => {
+    const started = { id: request.id, result: { type: 'subscription_started' } };
+    connection.write(`${JSON.stringify(started)}\n`);
+    if (herdr.connections === 1) {
+      const lost = { id: request.id, error: { code: 'events_lost', message: 'fell behind' } };
+      connection.end(`${JSON.stringify(lost)}\n`);
+    }
+  });
+
+  let subscription;
+  t.onTestFinished(() => subscription?.close());
+  const starts = await new Promise((resolve, reject) => {
+    let count = 0;
+    const timeout = setTimeout(() => reject(new Error('no second start')), 2_000);
+    subscription = subscribeHerdr(herdr.socketPath, [{ type: 'pane.focused' }], () => {}, {
+      retryBaseMs: 20,
+      onStarted: () => {
+        count += 1;
+        if (count === 2) {
+          clearTimeout(timeout);
+          resolve(count);
+        }
+      },
+    });
+  });
+
+  assert.equal(starts, 2);
+  assert.equal(herdr.connections, 2);
+});
+
 test('an error answer rejects with the code Herdr gave', async (t) => {
   const herdr = await fakeHerdrSocket(t, (request, connection) => {
     answer(connection, {

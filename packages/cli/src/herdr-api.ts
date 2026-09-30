@@ -151,17 +151,28 @@ function requestHerdr<T = unknown>(
  * They share a socket, but are separate NDJSON messages. A subscription never
  * starts or writes to a terminal, so an unavailable socket is only a reason to
  * retry this side channel.
+ *
+ * Events are not replayed across connections, and from Herdr 0.9.2 a reader
+ * that falls behind gets an `events_lost` error carrying the request id and a
+ * closed socket. Both end in a reconnect, and `onStarted` fires on every
+ * acknowledgement so the caller can re-read what it may have missed.
  */
 function subscribeHerdr(
   socketPath: string,
   subscriptions: { type: string }[],
   onEvent: (event: HerdrEvent) => void,
-  options: { connect?: Connect; retryBaseMs?: number; retryMaxMs?: number } = {},
+  options: {
+    connect?: Connect;
+    retryBaseMs?: number;
+    retryMaxMs?: number;
+    onStarted?: () => void;
+  } = {},
 ): HerdrSubscription {
   const {
     connect = net.connect as Connect,
     retryBaseMs = SUBSCRIBE_RETRY_BASE_MS,
     retryMaxMs = SUBSCRIBE_RETRY_MAX_MS,
+    onStarted,
   } = options;
   let socket: net.Socket | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
@@ -238,6 +249,7 @@ function subscribeHerdr(
           }
           acknowledged = true;
           retryCount = 0;
+          onStarted?.();
         } else if (
           acknowledged &&
           typeof message?.event === 'string' &&

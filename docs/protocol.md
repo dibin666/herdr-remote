@@ -117,7 +117,11 @@ Konsole, xfce4-terminal, kitty, Alacritty, Ghostty, foot and VS Code; `wezterm
 ls-fonts`; the binary preference files of iTerm2 and Terminal.app (whose font
 is an archived NSFont); and, for xterm and urxvt, the emulator's own command
 line (`-fa`/`-fs`/`-fn`/`-xrm`) over the X resource database. An xterm drawing
-with a bitmap core font reports nothing, since no browser can load one. Like the palette, the answer is captured where
+with a bitmap core font reports nothing, since no browser can load one. Inside
+a Herdr 0.9.2+ pane `TERM_PROGRAM` reads `herdr` and Herdr has removed the
+outer terminal's session markers, so a start from there relies on what Herdr
+leaves: `ITERM_PROFILE`, `KITTY_PID`, `WT_PROFILE_ID` and, on macOS, the app's
+`__CFBundleIdentifier`. Like the palette, the answer is captured where
 the terminal is still known, handed down in `HERDR_TERM_FONT_JSON`, and
 remembered in the state file. An unknown terminal yields `null`; the browser
 then keeps its own monospace stack.
@@ -264,11 +268,25 @@ moved the terminal UI into each client, and a client now carries its own focused
 tab and its own tab geometry. One PTY per window is what turns that into two
 windows that can genuinely look at different work.
 
-Herdr 0.9.1 is what made the model behave rather than merely exist, and is the
-minimum this project supports: window titles follow each client's own view
-instead of another client's selection, activating a machine in the background no
-longer resizes somebody else's focused pane, and a large paste no longer
-disconnects the client — which is the path an image takes from a phone.
+Herdr 0.9.1 is what made the model behave rather than merely exist: window
+titles follow each client's own view instead of another client's selection,
+activating a machine in the background no longer resizes somebody else's
+focused pane, and a large paste no longer disconnects the client — which is the
+path an image takes from a phone. The minimum this project supports is 0.9.3:
+0.9.2 stopped a tap on a pane from sending a stray Escape and stopped mouse
+reports split across reads from leaking into the shell, but broke Escape
+followed by a key, which is how a browser sends Alt+B, Alt+F and Alt+Backspace;
+0.9.3 mends it.
+
+Each PTY's outer terminal is the browser's xterm.js, not the terminal that
+started herdr-remote, so the host connector strips the variables that name an
+outer terminal (`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WT_SESSION`, `TMUX`, …)
+before it starts a Herdr client — the same list Herdr strips from its own
+panes. From 0.9.2 on a Herdr client reads them to decide whether it may hand
+images to its terminal as local files; a client that believed it was drawing
+in Ghostty would send the browser file paths instead of pixels. Herdr still
+forwards images to the browser as Kitty graphics, which xterm.js does not
+draw and discards.
 
 One caveat inherited from Herdr: when two windows sit on the *same* tab, that
 tab is sized by whichever client interacted with it last. Independent sizing
@@ -473,15 +491,21 @@ the hard way:
   once a second, busy no matter how rarely it asks anything. `herdr-api.js` is a
   function rather than a client for exactly this reason, and the `herdr` CLI
   connects per command too.
-- **Subscriptions do not help here.** `events.subscribe` is the one call that
-  keeps a connection open, but `pane.agent_status_changed` — the event that
-  tracks what this message reports — is scoped to a single `pane_id`, and the
-  whole-session pane events that need no target (`pane.updated`,
-  `pane.agent_detected`, …) stayed silent through minutes of continuous agent
-  work. A subscription would also need its own connection, since the one it
-  holds stops answering requests.
+- **Subscriptions cannot carry status.** `events.subscribe` is the one call
+  that keeps a connection open, but `pane.agent_status_changed` — the event
+  that tracks what this message reports — is still scoped to a single
+  `pane_id` in Herdr 0.9.3, and a request naming a pane that has gone is
+  rejected whole.
 
-Five-second polling is the whole mechanism.
+So polling carries status. A second connection subscribes to the session-wide
+`pane.focused`, `tab.focused`, `workspace.focused` and `pane.agent_detected`,
+which only trigger an earlier read (debounced by 150 ms): events invalidate the
+last snapshot, they are never applied to it, because Herdr's snapshots and
+events share no sequence. From Herdr 0.9.2 a subscriber that falls behind gets
+an `events_lost` error under its own request id and a closed socket; the host
+resubscribes, and every `subscription_started` — first, after `events_lost`,
+after a Herdr restart — triggers a read. Reads never overlap: one asked for
+while another is in flight runs once that one answers.
 
 Host to relay, sent only when the summary actually changed:
 

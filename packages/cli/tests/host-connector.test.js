@@ -177,6 +177,50 @@ test('agent focus events trigger a debounced snapshot read and stop with the wat
   assert.equal(reads, 2, 'events after stop do not start another read');
 });
 
+test('a restarted subscription and an event during a read each lead to a fresh read', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-agent-resync-'));
+  let onEvent;
+  let onStarted;
+  let reads = 0;
+  let release;
+  const connector = makeConnector(path.join(directory, 'connector.lock'), {
+    subscribeHerdr(_socketPath, _subscriptions, callback, options) {
+      onEvent = callback;
+      onStarted = options.onStarted;
+      return { close() {} };
+    },
+    async requestHerdr() {
+      reads += 1;
+      // The first answer is held until the test lets it go.
+      if (reads === 1) await new Promise((resolve) => (release = resolve));
+      const status = reads === 1 ? 'working' : 'blocked';
+      return { snapshot: { agents: [{ pane_id: 'w1:p1', agent_status: status }] } };
+    },
+  });
+  t.onTestFinished(() => {
+    connector.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  const sent = captureSocket(connector);
+  const statuses = () =>
+    sent.filter((m) => m.type === 'agent_status').map((m) => m.agents[0]?.status);
+
+  connector.setClientCount(1);
+  await new Promise((resolve) => setImmediate(resolve));
+  onEvent({ event: 'pane_agent_detected', data: { pane_id: 'w1:p1' } });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(reads, 1, 'the event waits for the read in flight');
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(reads, 2, 'the answer that may predate the event is followed by another read');
+  assert.deepEqual(statuses(), ['working', 'blocked']);
+
+  // After events_lost or a Herdr restart the subscription starts over.
+  onStarted();
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(reads, 3);
+});
+
 // Issue #1: a missing Herdr used to reach execvp(3) inside the PTY child, which
 // exited at once. The session_exit made the relay close the browser's socket,
 // and the browser reconnected into the same failure forever.

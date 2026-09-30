@@ -168,6 +168,29 @@ test('Windows Terminal is detected after more specific inherited terminal marker
   );
 });
 
+test('a start from inside a Herdr pane still finds the terminal Herdr runs in', () => {
+  // Herdr 0.9.2+ panes: TERM_PROGRAM=herdr and TERM=xterm-256color, with the
+  // outer terminal's session markers removed. What Herdr leaves must decide.
+  const pane = { TERM_PROGRAM: 'herdr', TERM_PROGRAM_VERSION: '0.9.3', TERM: 'xterm-256color' };
+  const inPane = (extra) => identifyTerminal({ env: { ...pane, ...extra }, ancestry: [] });
+
+  assert.equal(inPane({ ITERM_PROFILE: 'Default' }), 'iterm2');
+  assert.equal(inPane({ KITTY_PID: '4242' }), 'kitty');
+  assert.equal(
+    inPane({ WT_PROFILE_ID: '{61c54bbd-c2c6-5271-96e7-009a87ff44bf}' }),
+    'windows-terminal',
+  );
+  assert.equal(inPane({ __CFBundleIdentifier: 'com.apple.Terminal' }), 'apple-terminal');
+  assert.equal(inPane({ __CFBundleIdentifier: 'com.microsoft.VSCode' }), 'vscode');
+  // A specific terminal's own marker outranks the app that launched it.
+  assert.equal(
+    inPane({ __CFBundleIdentifier: 'com.microsoft.VSCode', GHOSTTY_RESOURCES_DIR: '/g' }),
+    'ghostty',
+  );
+  assert.equal(inPane({ __CFBundleIdentifier: 'constructor' }), null);
+  assert.equal(inPane({}), null);
+});
+
 test('Windows Terminal reads a profile by case-insensitive GUID and supports JSONC', () => {
   const local = '/windows/local';
   const [stable] = windowsTerminalSettingsPaths(local);

@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   FALLBACK_DIRECTORIES,
-  MIN_HERDR_VERSION,
   fallbackDirectories,
   findHerdrCommand,
   herdrNotFoundMessage,
@@ -235,14 +234,14 @@ function makeVersionStub(directory, line, { status = 0 } = {}) {
 
 test('the version is read from the install and compared against the minimum', (t) => {
   const home = tempDir(t, 'herdr-command-');
-  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.1');
+  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.3');
 
   const installed = herdrVersion({ command: binary });
 
   assert.deepEqual(installed, {
     command: binary,
-    version: '0.9.1',
-    raw: 'herdr 0.9.1',
+    version: '0.9.3',
+    raw: 'herdr 0.9.3',
     supported: true,
     ok: true,
   });
@@ -250,11 +249,11 @@ test('the version is read from the install and compared against the minimum', (t
 
 test('an older install is reported as unsupported, not as missing', (t) => {
   const home = tempDir(t, 'herdr-command-');
-  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.0');
+  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.2');
 
   const installed = herdrVersion({ command: binary });
 
-  assert.equal(installed.version, '0.9.0');
+  assert.equal(installed.version, '0.9.2');
   assert.equal(installed.supported, false);
   assert.equal(installed.ok, true);
 });
@@ -279,14 +278,14 @@ test('version parsing and comparison cover the shapes Herdr prints', () => {
   assert.equal(parseHerdrVersion('herdr 0.10.0-preview.2'), '0.10.0');
   assert.equal(parseHerdrVersion('nothing here'), null);
 
-  assert.equal(meetsMinimum('0.9.1'), true);
+  assert.equal(meetsMinimum('0.9.3'), true);
   assert.equal(meetsMinimum('0.10.0'), true);
   assert.equal(meetsMinimum('1.0.0'), true);
-  assert.equal(meetsMinimum('0.9.0'), false);
+  // 0.9.2 breaks Escape followed by a key, which is how a browser sends Alt.
+  assert.equal(meetsMinimum('0.9.2'), false);
   assert.equal(meetsMinimum('0.8.9'), false);
   // Ten is not "older than nine": the comparison is numeric, not lexical.
   assert.equal(meetsMinimum('0.9.10'), true);
-  assert.equal(MIN_HERDR_VERSION, '0.9.1');
 });
 
 test('the not-found message names the override and the directories tried', (t) => {

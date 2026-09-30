@@ -186,7 +186,7 @@ const en = {
   'herdr.cliMissing': 'Command herdr not found. Set HERDR_BIN_PATH to its full path.',
   'herdr.version': 'Herdr version',
   'herdr.versionOutdated':
-    'Herdr {version} is older than {minimum}. Run "herdr update": window titles, background machine activation and large pastes misbehave in browser windows before that release.',
+    'Herdr {version} is older than {minimum}. Run "herdr update": window titles, large pastes, taps on a pane and Alt shortcuts misbehave in browser windows before that release.',
 
   'about.title': 'Language & about',
   'about.language': 'Interface language',

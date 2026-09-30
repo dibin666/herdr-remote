@@ -31,6 +31,7 @@ export interface AgentWatchOptions {
     socketPath: string,
     subscriptions: { type: string }[],
     onEvent: (event: HerdrEvent) => void,
+    options: { onStarted?: () => void },
   ) => HerdrSubscription;
 }
 
@@ -42,7 +43,10 @@ export interface AgentWatchOptions {
  *
  * A long-lived subscription provides fast refreshes on pane and workspace
  * focus changes; the five-second poll still repairs missed events and a
- * restarted Herdr server. Both paths only read the side-channel snapshot.
+ * restarted Herdr server. Both paths only read the side-channel snapshot, and
+ * events only invalidate it: Herdr's snapshots and events share no sequence,
+ * so each (re)started subscription and each event mid-read asks for a fresh
+ * read rather than patching the last one.
  */
 export class AgentWatch {
   private readonly socketPath: string;
@@ -53,6 +57,7 @@ export class AgentWatch {
   private debounceTimer: NodeJS.Timeout | null = null;
   private subscription: HerdrSubscription | null = null;
   private pending = false;
+  private stale = false;
   private lastSummary: AgentSummary | null = null;
 
   constructor(options: AgentWatchOptions, send: (payload: unknown) => void) {
@@ -67,8 +72,11 @@ export class AgentWatch {
     this.pollTimer = setInterval(() => this.read(), AGENT_STATUS_POLL_MS);
     this.pollTimer.unref?.();
     try {
-      this.subscription = this.subscribe(this.socketPath, AGENT_STATUS_SUBSCRIPTIONS, () =>
-        this.scheduleRead(),
+      this.subscription = this.subscribe(
+        this.socketPath,
+        AGENT_STATUS_SUBSCRIPTIONS,
+        () => this.scheduleRead(),
+        { onStarted: () => this.scheduleRead() },
       );
     } catch {
       // A missing or restarting Herdr server leaves the regular poll in place.
@@ -89,6 +97,7 @@ export class AgentWatch {
       this.subscription.close();
       this.subscription = null;
     }
+    this.stale = false;
     this.lastSummary = null;
   }
 
@@ -110,8 +119,13 @@ export class AgentWatch {
    * Herdr's server not running is an ordinary state, not news.
    */
   private async read(): Promise<void> {
-    if (this.pending || !this.pollTimer) return;
+    if (!this.pollTimer) return;
+    if (this.pending) {
+      this.stale = true;
+      return;
+    }
     this.pending = true;
+    this.stale = false;
     let snapshot: HerdrSessionSnapshot | null | undefined;
     try {
       const result = await this.request<{ snapshot?: HerdrSessionSnapshot } | null>(
@@ -124,6 +138,8 @@ export class AgentWatch {
       return;
     } finally {
       this.pending = false;
+      // Something changed while this answer was in flight; it may predate it.
+      if (this.stale) this.scheduleRead();
     }
     // Stopped while the answer was in flight; the browser it was for is gone.
     if (!this.pollTimer) return;

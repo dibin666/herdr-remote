@@ -19,6 +19,30 @@ interface PtyStartOptions {
   onExit?: (event: { exitCode: number; signal?: number }) => void;
 }
 
+/**
+ * Variables that name the terminal this process was started from. The Herdr
+ * client's outer terminal is the browser's xterm.js, and from Herdr 0.9.2 the
+ * client reads these to pick image transports: one that believes it runs in
+ * Ghostty, kitty or WezTerm hands images over as local file paths no browser
+ * can open. Herdr strips the same list from its own panes.
+ */
+const OUTER_TERMINAL_ENV = [
+  'TERM_PROGRAM',
+  'TERM_PROGRAM_VERSION',
+  'ITERM_SESSION_ID',
+  'LC_TERMINAL',
+  'LC_TERMINAL_VERSION',
+  'WEZTERM_PANE',
+  'KITTY_WINDOW_ID',
+  'WT_SESSION',
+  'TMUX',
+  'TMUX_PANE',
+  'STY',
+  'ZELLIJ',
+  'ZELLIJ_SESSION_NAME',
+  'ZELLIJ_PANE_ID',
+];
+
 class PtySession {
   static DEFAULT_COLS = 100;
   static DEFAULT_ROWS = 30;
@@ -59,11 +83,15 @@ class PtySession {
     this.startedAt = null;
   }
 
-  static childEnv(socketPath: string | null | undefined): NodeJS.ProcessEnv {
-    const env = { ...process.env };
+  static childEnv(
+    socketPath: string | null | undefined,
+    source: NodeJS.ProcessEnv = process.env,
+  ): NodeJS.ProcessEnv {
+    const env = { ...source };
     for (const key of Object.keys(env)) {
       if (key.startsWith('HERDR_')) delete env[key];
     }
+    for (const key of OUTER_TERMINAL_ENV) delete env[key];
     if (socketPath) env.HERDR_SOCKET_PATH = socketPath;
     env.TERM = 'xterm-256color';
     env.COLORTERM = 'truecolor';
