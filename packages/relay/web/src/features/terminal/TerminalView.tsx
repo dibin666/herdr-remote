@@ -84,6 +84,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     isController,
     connectionState,
     hostPalette,
+    herdrPrefixKeys,
     terminalResetVersion,
     agentStatus,
     platform,
@@ -137,6 +138,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     mode: settings.predictiveEcho,
     connectionState,
     observeKeyInput,
+    herdrPrefixKeys,
   });
 
   /**

@@ -41,6 +41,8 @@ export interface RelayHost {
   connectedAtMs: number;
   terminalPalette: HostTerminalPalette | null;
   terminalFont: HostTerminalFont | null;
+  /** Sanitized `keys.prefix` of the host's Herdr; absent when the host did not say. */
+  herdrPrefixKeys?: string[];
   /** The latest agent summary, replayed to a window that joins late. */
   agentStatus: ServerAgentStatusMessage | null;
   /** Whether the workstation's herdr-remote is behind; replayed the same way. */

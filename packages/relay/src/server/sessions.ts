@@ -93,6 +93,7 @@ export function startSession(
       terminalPalette: host.terminalPalette || null,
       terminalFont: host.terminalFont || null,
       hostVersion: host.version,
+      ...(host.herdrPrefixKeys ? { herdrPrefixKeys: host.herdrPrefixKeys } : {}),
     });
   }
 }

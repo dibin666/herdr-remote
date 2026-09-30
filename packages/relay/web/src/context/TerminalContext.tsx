@@ -164,6 +164,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       shellProfile,
       adminTerminalSupported,
       hostVersion,
+      herdrPrefixKeys,
     ) => {
       clearPendingOutput();
       dispatch({
@@ -174,6 +175,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         shellProfile,
         adminTerminalSupported,
         hostVersion,
+        herdrPrefixKeys,
       });
       noteHostVersion(hostVersion, hostname);
       noteReadyProfile({ hostId: adapterRef.current?.getHostId(), hostname });

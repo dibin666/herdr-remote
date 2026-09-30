@@ -10,9 +10,6 @@ import { overlayItems } from './predictionOverlay';
 import { PredictionKeys } from './predictionKeys';
 import { predictableWidth } from './wideChars';
 
-/** Herdr's prefix key: whatever follows goes to Herdr, not to the pane. */
-const HERDR_PREFIX = 0x02;
-
 /**
  * Predictive local echo state machine inspired by Mosh.
  *
@@ -63,11 +60,12 @@ export class PredictiveEcho extends PredictionKeys {
       return;
     }
 
+    const prefix = this.herdrPrefix();
     // A bare Escape is how vim-style editors, Claude Code's included, leave
     // insert mode; the keys that follow are commands until an echo says
     // otherwise. Without vim mode it only interrupts or clears, and the field
-    // is as trustworthy as it was.
-    if (isLoneEscape(text)) {
+    // is as trustworthy as it was. (Unless Escape is itself a prefix key.)
+    if (isLoneEscape(text) && !prefix.startsAt(text, 0)) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
       this.freeze('escape', { demote: field?.modal !== false });
       return;
@@ -80,14 +78,18 @@ export class PredictiveEcho extends PredictionKeys {
     }
 
     const chars = Array.from(text);
+    let offset = 0;
     for (let index = 0; index < chars.length; index++) {
       const char = chars[index];
       const codePoint = char.codePointAt(0);
       if (codePoint === undefined) {
         continue;
       }
+      const at = offset;
+      offset += char.length;
 
-      if (codePoint === HERDR_PREFIX) {
+      // Herdr's prefix key: whatever follows goes to Herdr, not to the pane.
+      if (prefix.startsAt(text, at)) {
         this.awaitingPrefixCommand = true;
         this.freeze('Herdr prefix', { demote: true });
         return;

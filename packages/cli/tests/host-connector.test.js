@@ -1,5 +1,7 @@
 // No test here may ask npm whether a newer herdr-remote exists.
 process.env.HERDR_REMOTE_UPDATE_CHECK = '0';
+// Nor may the hello read the Herdr config of whatever machine runs the tests.
+process.env.HERDR_CONFIG_PATH = os.devNull;
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -467,6 +469,43 @@ test('the host hello names the herdr-remote release it runs', async (t) => {
   const message = await hello;
   assert.equal(message.type, 'host_hello');
   assert.equal(message.version, '9.8.7');
+});
+
+test("the host hello names the keys that start its Herdr's prefix mode, read afresh each time", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-host-prefix-'));
+  const configPath = path.join(directory, 'config.toml');
+  const previous = process.env.HERDR_CONFIG_PATH;
+  process.env.HERDR_CONFIG_PATH = configPath;
+  const relay = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+  await new Promise((resolve) => relay.once('listening', resolve));
+  const connector = makeConnector(path.join(directory, 'connector.lock'), {
+    relayUrl: `ws://127.0.0.1:${relay.address().port}/ws/host`,
+  });
+  t.onTestFinished(async () => {
+    connector.stop();
+    process.env.HERDR_CONFIG_PATH = previous;
+    await new Promise((resolve) => relay.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const nextHello = () =>
+    new Promise((resolve) =>
+      relay.once('connection', (socket) =>
+        socket.once('message', (raw) => resolve({ socket, message: JSON.parse(raw.toString()) })),
+      ),
+    );
+
+  const firstHello = nextHello();
+  connector.connect();
+  const first = await firstHello;
+  assert.deepEqual(first.message.herdrPrefixKeys, ['ctrl+b'], 'no config file: Herdr defaults');
+
+  // Herdr's config changes; the connector's next connection to the relay reports it.
+  fs.writeFileSync(configPath, '[keys]\nprefix = ["ctrl+space", "ctrl+s"]\n');
+  const secondHello = nextHello();
+  first.socket.close();
+  const second = await secondHello;
+  assert.deepEqual(second.message.herdrPrefixKeys, ['ctrl+space', 'ctrl+s']);
 });
 
 test('clientCount=0 sends transport keepalive heartbeat and ping', (t) => {

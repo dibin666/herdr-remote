@@ -4,12 +4,7 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import {
-  CAPABILITY,
-  PROTOCOL_VERSION,
-  type RelayToHostMessage,
-  unpackStreamFrame,
-} from 'herdr-remote-relay/protocol';
+import { type RelayToHostMessage, unpackStreamFrame } from 'herdr-remote-relay/protocol';
 import type { RawData } from 'ws';
 import { WebSocket } from 'ws';
 import { type Config, loadConfig } from '../config.js';
@@ -23,6 +18,7 @@ import { randomToken } from 'herdr-remote-relay/state';
 import { openAdminTabFor } from './admin-tab.js';
 import { AgentWatch, type AgentWatchOptions } from './agent-watch.js';
 import { FontServer, type FontServerOptions } from './font-server.js';
+import { hostHello } from './host-hello.js';
 import { acquireHostLock, releaseHostLock } from './lock.js';
 import { Sessions, type SessionsOptions } from './sessions.js';
 import { UpdateReport, type UpdateReportOptions } from './update-report.js';
@@ -219,29 +215,17 @@ export class HostConnector {
       }
       ws.isAlive = true;
       this.authFailure = false;
-      sendJson(ws, {
-        type: 'host_hello',
-        protocol: PROTOCOL_VERSION,
-        hostId: this.hostId,
-        token: this.hostToken,
-        password: this.relayPassword || null,
-        hostname: os.hostname(),
-        platform: process.platform,
-        ...(process.platform === 'win32' &&
-        (process.env.MSYSTEM || /(?:^|[\\/])(?:bash|sh)(?:\.exe)?$/i.test(process.env.SHELL || ''))
-          ? { shellProfile: 'git-bash' }
-          : {}),
-        arch: process.arch,
-        version: this.updates.runningVersion,
-        terminalPalette: this.terminalPalette || null,
-        terminalFont: this.font.publicFont(),
-        capabilities: [
-          CAPABILITY.hostHandoff,
-          CAPABILITY.idleHeartbeat,
-          CAPABILITY.binaryFrameV2,
-          ...(process.platform === 'win32' ? [CAPABILITY.adminTabs] : []),
-        ],
-      });
+      sendJson(
+        ws,
+        hostHello({
+          hostId: this.hostId,
+          token: this.hostToken,
+          password: this.relayPassword,
+          version: this.updates.runningVersion,
+          terminalPalette: this.terminalPalette,
+          terminalFont: this.font.publicFont(),
+        }),
+      );
       // The relay sends host_ready with the current browser count. No business
       // heartbeat is started until that message says somebody is watching.
     });

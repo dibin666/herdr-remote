@@ -72,6 +72,12 @@ export interface PredictiveEchoOptions {
    * a guess for characters whose width the layers may disagree on.
    */
   charWidth?: (codePoint: number) => number;
+  /**
+   * The keys that put Herdr into prefix mode, as Herdr's config spells them
+   * (`ctrl+space`). Read at call time; without it, or before the host has
+   * said, Herdr's default `ctrl+b` is assumed.
+   */
+  getHerdrPrefixKeys?: () => readonly string[] | undefined;
   now?: () => number;
 }
 

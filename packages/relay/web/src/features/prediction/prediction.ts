@@ -30,9 +30,14 @@ export function shouldShowPredictiveEcho(
 
 /**
  * The prediction machinery for `term`. `getTerminal` is read at call time, so
- * a disposed terminal stops being consulted.
+ * a disposed terminal stops being consulted; so is `getHerdrPrefixKeys`, since
+ * the host names its Herdr's prefix keys only once it has said hello.
  */
-export function attachPrediction(term: Terminal, getTerminal: () => Terminal | null) {
+export function attachPrediction(
+  term: Terminal,
+  getTerminal: () => Terminal | null,
+  getHerdrPrefixKeys: () => readonly string[] | undefined,
+) {
   // Predictions are only made where the caret is in an input field; see
   // inputField.ts for how one is recognised on Herdr's composited screen.
   const screenState = attachScreenState(term);
@@ -70,6 +75,7 @@ export function attachPrediction(term: Terminal, getTerminal: () => Terminal | n
   const predictor = new PredictiveEcho({
     getTerminal,
     getField: fieldProbe.detect,
+    getHerdrPrefixKeys,
     // The width xterm will draw a character at, as the guess for ones whose width may differ elsewhere.
     charWidth:
       typeof unicode?.wcwidth === 'function'
