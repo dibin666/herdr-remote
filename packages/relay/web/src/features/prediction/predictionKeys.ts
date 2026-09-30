@@ -155,9 +155,8 @@ export abstract class PredictionKeys extends PredictionState {
         const trailing = line?.getCell(cursor.col - 1);
         const width: 1 | 2 = trailing && trailing.getWidth?.() === 0 ? 2 : 1;
         const col = cursor.col - width;
-        // Erasing text the server drew is only predicted inside the field, never
-        // its first character (a placeholder or suggestion may reappear there),
-        // and only at the end of the text, where nothing shifts left to fill the gap.
+        // The first editable cell belongs to the input too; the prompt before it does not.
+        // Only erase at the end of the text, where nothing shifts left to fill the gap.
         let restIsBlank = true;
         for (let x = cursor.col; x < field.endCol && restIsBlank; x++) {
           restIsBlank =
@@ -165,7 +164,7 @@ export abstract class PredictionKeys extends PredictionState {
             normalizeBlank(line?.getCell(x)?.getChars() ?? '') === ' ';
         }
         const erased = normalizeBlank(line?.getCell(col)?.getChars() ?? '');
-        if (col > field.startCol && restIsBlank && erased !== ' ') {
+        if (col >= field.startCol && restIsBlank && erased !== ' ') {
           // A character the server has echoed but not yet moved past is
           // what this backspace deletes: it must not be painted back.
           this.predictions = this.predictions.filter(

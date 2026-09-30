@@ -172,6 +172,13 @@ export abstract class PredictionState {
     return this.srtt;
   }
 
+  /** Schedule a redraw even if no more input or output arrives. */
+  getExpiryDelayMs(): number | null {
+    if (this.predictions.length === 0) return null;
+    const oldest = Math.min(...this.predictions.map((p) => p.sentAt));
+    return Math.max(1, oldest + this.predictionTimeout() - this.now() + 1);
+  }
+
   /** The last decisions that ended, refused or discarded predictions, newest last. */
   getTrace(): ReadonlyArray<PredictionTraceEntry> {
     return this.trace;

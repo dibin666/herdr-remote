@@ -38,8 +38,7 @@ export function attachPrediction(
   getTerminal: () => Terminal | null,
   getHerdrPrefixKeys: () => readonly string[] | undefined,
 ) {
-  // Predictions are only made where the caret is in an input field; see
-  // inputField.ts for how one is recognised on Herdr's composited screen.
+  // Echo confidence only applies inside an identified editable field.
   const screenState = attachScreenState(term);
   const fieldProbe = new FieldProbe({
     getScreen: () => {

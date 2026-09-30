@@ -1,11 +1,8 @@
 /**
  * Finds the text input field the cursor is in, if any.
  *
- * Predictive echo is only safe where a keystroke is known to come back as the
- * same character at the caret: a shell prompt, or an agent's input box.
- * Everywhere else — Herdr's own menus, an agent's permission prompt, vim in
- * normal mode, less — the same key moves a selection or runs a command, and a
- * predicted character would be a lie.
+ * Prediction requires an identified editable field. Echoes alone cannot tell
+ * an input box from output text or menu labels, so unknown layouts stay off.
  *
  * Herdr composites every pane onto one screen, so none of the usual terminal
  * signals (alternate screen, mouse or keypad modes) describe the pane: they

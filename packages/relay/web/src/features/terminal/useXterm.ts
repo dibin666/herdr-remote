@@ -203,7 +203,7 @@ export function useXterm({
       onRendererSwapped: (kind) => {
         container.dataset.renderer = kind;
         onRendererKind(kind);
-        // The DOM renderer cannot draw predicted cells; nothing is predicted on screen there.
+        // Keep the same predictions when the canvas falls back to DOM rendering.
         prediction.overlayRef.current?.attach(null);
         refresh(term);
       },
