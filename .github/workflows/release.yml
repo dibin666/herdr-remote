@@ -213,6 +213,10 @@ jobs:
         if: steps.plan.outputs.cli == 'true'
         run: .github/scripts/pack-release.sh dist/release
 
+      - name: Verify installed release
+        if: steps.plan.outputs.cli == 'true'
+        run: bash .github/scripts/verify-release.sh dist/release/herdr-remote.tgz
+
       # Written back before the release is published, so the tag the GitHub
       # Release points at already exists on the remote. `[skip ci]` is what
       # stops this push from starting the workflow again.
