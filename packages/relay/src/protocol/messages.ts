@@ -137,6 +137,11 @@ export interface ServerReadyMessage {
   clientCount?: number;
   /** The workstation's herdr-remote release; null when it is too old to say. */
   hostVersion?: string | null;
+  /**
+   * The keys that put the workstation's Herdr into prefix mode, lowercase,
+   * like `ctrl+b`. Left out when the host is too old to say.
+   */
+  herdrPrefixKeys?: string[];
 }
 
 export interface ServerPairedMessage {
@@ -182,6 +187,8 @@ export interface ServerSessionRestartedMessage {
   terminalFont?: HostTerminalFont | null;
   /** As in `ready`: the host may have come back on another release. */
   hostVersion?: string | null;
+  /** As in `ready`: the host may have come back with another Herdr config. */
+  herdrPrefixKeys?: string[];
 }
 
 export interface ServerExitMessage {
@@ -322,6 +329,11 @@ export interface HostHelloMessage {
   version?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
+  /**
+   * The keys `keys.prefix` in the workstation's Herdr config names, as the
+   * host read them. The relay sanitizes them; older connectors leave them out.
+   */
+  herdrPrefixKeys?: string[];
   capabilities?: string[];
 }
 

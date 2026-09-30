@@ -26,6 +26,7 @@ The host connects to `/ws/host` and sends:
   "arch": "x64",
   "version": "0.2.31",
   "capabilities": ["host_handoff", "idle_heartbeat"],
+  "herdrPrefixKeys": ["ctrl+space", "ctrl+s"],
   "terminalPalette": {
     "background": "#222226",
     "foreground": "#ffffff",
@@ -60,6 +61,19 @@ workstation remains reachable only by whoever holds its host token.
 0.2.31 leave it out. The relay keeps it only if it is release-shaped and reports
 it to windows as `hostVersion` and to the status endpoints as each host's
 `version` — see [Update status](#update-status-update_status).
+
+`herdrPrefixKeys` lists the keys that put the workstation's Herdr into prefix
+mode (`keys.prefix` in its `config.toml`, which may be one key or several). The
+browser needs them because whatever is typed after a prefix key is a Herdr
+command, not text, and predictive echo must not draw it. The connector reads
+the file Herdr reads — `HERDR_CONFIG_PATH`, else `herdr/config.toml` in the
+same config home as the socket — on every connection, and reports `["ctrl+b"]`,
+Herdr's own default, when the file, the key or every entry is missing or
+unreadable. Each entry is a Herdr key combo, lowercase and without spaces
+(`ctrl+space`, `alt+a`, `f12`), at most 32 characters of printable ASCII; the
+list holds at most 8 distinct entries. The relay applies the same rules to
+what it receives, drops entries that break them, and leaves the field out
+when nothing is left. Connectors that predate it send no field.
 
 The relay responds with `host_ready` and an optional `clientCount`. It also
 sends `client_count` whenever the number of attached browser windows changes.
@@ -209,7 +223,9 @@ the number of windows now sharing this terminal. It also carries the host's
 `platform` and optional `shellProfile` so the browser can select platform-
 specific shell controls, and `hostVersion`, the host's herdr-remote release or
 `null` when its connector is too old to say. `session_restarted` repeats it,
-since a host that comes back may have been updated.
+since a host that comes back may have been updated. Both also carry
+`herdrPrefixKeys` (the sanitized list above) when the host sent one; a window
+without it assumes `["ctrl+b"]`.
 
 JSON frames carry control messages. Binary frames carry raw terminal input from
 any attached window, or raw ANSI output from the host. The relay adds a small

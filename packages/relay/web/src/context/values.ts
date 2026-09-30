@@ -67,6 +67,8 @@ export interface ConnectionContextValue {
   hostVersion?: string | null;
   shellProfile: ShellProfile;
   reportShellProfile: (profile: ShellProfile) => void;
+  /** The keys that put the workstation's Herdr into prefix mode; undefined until it says. */
+  herdrPrefixKeys?: string[];
   assignedClientId?: string;
   isController: boolean;
   /** How many windows currently connect to this host, this one included. */

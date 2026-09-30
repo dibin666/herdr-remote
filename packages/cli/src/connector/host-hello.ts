@@ -1,8 +1,9 @@
 // The first message a workstation sends the relay: who it is, what it runs,
-// and the facts about its terminal that a browser cannot learn itself.
+// and the facts about its terminal and Herdr that a browser cannot learn itself.
 
 import os from 'node:os';
 import { CAPABILITY, PROTOCOL_VERSION } from 'herdr-remote-relay/protocol';
+import { readHerdrPrefixKeys } from './herdr-prefix-keys.js';
 
 export interface HostHelloIdentity {
   hostId: string;
@@ -13,6 +14,7 @@ export interface HostHelloIdentity {
   terminalFont: unknown;
 }
 
+/** Built afresh for each connection, so a reconnect reports the config as it is now. */
 export function hostHello(identity: HostHelloIdentity) {
   return {
     type: 'host_hello',
@@ -30,6 +32,7 @@ export function hostHello(identity: HostHelloIdentity) {
     version: identity.version,
     terminalPalette: identity.terminalPalette || null,
     terminalFont: identity.terminalFont,
+    herdrPrefixKeys: readHerdrPrefixKeys(),
     capabilities: [
       CAPABILITY.hostHandoff,
       CAPABILITY.idleHeartbeat,

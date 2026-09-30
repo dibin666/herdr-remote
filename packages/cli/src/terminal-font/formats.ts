@@ -187,10 +187,24 @@ export function parseJsonc(text: unknown): Record<string, unknown> | null {
   }
 }
 
+/** `line` up to a `#` that starts a comment, not one inside a string. */
+function withoutTomlComment(line: string): string {
+  let quote = '';
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (quote) {
+      if (char === '\\' && quote === '"') i += 1;
+      else if (char === quote) quote = '';
+    } else if (char === '"' || char === "'") quote = char;
+    else if (char === '#') return line.slice(0, i);
+  }
+  return line;
+}
+
 /**
- * Just enough TOML for Alacritty's font keys: tables, dotted keys, strings,
- * numbers, inline tables and (possibly multi-line) string arrays. Returns a
- * flat `dotted.key → value` map.
+ * Just enough TOML for Alacritty's font keys and Herdr's `keys.prefix`:
+ * tables, dotted keys, strings, numbers, inline tables and (possibly
+ * multi-line) string arrays. Returns a flat `dotted.key → value` map.
  */
 export function parseTomlSubset(text: unknown): Record<string, TomlValue> {
   const values: Record<string, TomlValue> = {};
@@ -242,11 +256,13 @@ export function parseTomlSubset(text: unknown): Record<string, TomlValue> {
     const equals = line.indexOf('=');
     if (equals === -1) continue;
     let rawValue = line.slice(equals + 1);
-    // An array may span lines; gather it before assigning.
-    if (rawValue.trim().startsWith('[') && !rawValue.includes(']')) {
+    if (rawValue.trim().startsWith('[')) {
+      // A comment inside an array may hold quotes or a `]` of its own.
+      rawValue = withoutTomlComment(rawValue);
+      // An array may span lines; gather it before assigning.
       while (index + 1 < lines.length && !rawValue.includes(']')) {
         index += 1;
-        rawValue += ` ${lines[index].trim()}`;
+        rawValue += ` ${withoutTomlComment(lines[index]).trim()}`;
       }
     }
     assign(table, line.slice(0, equals), rawValue);

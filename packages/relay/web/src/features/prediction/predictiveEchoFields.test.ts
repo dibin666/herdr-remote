@@ -17,18 +17,24 @@ const now = () => currentTime;
 const encoder = new TextEncoder();
 const type = (echo: PredictiveEcho, text: string) => echo.handleUserInput(encoder.encode(text));
 
-function setup(fixture: string) {
+function setup(fixture: string, herdrPrefixKeys?: string[]) {
   let screen: TestScreen = screenFromFixture(loadScreenFixture(fixture));
+  let prefixKeys = herdrPrefixKeys;
   const tracker = new InputFieldTracker();
   const echo = new PredictiveEcho({
     getTerminal: () => screen,
     getField: () => tracker.detect(screen, screen.cursor),
+    getHerdrPrefixKeys: () => prefixKeys,
     now,
   });
   return {
     echo,
     get screen() {
       return screen;
+    },
+    /** The host names its Herdr's prefix keys (or takes them back). */
+    setPrefixKeys(keys: string[] | undefined) {
+      prefixKeys = keys;
     },
     show(next: string) {
       screen = screenFromFixture(loadScreenFixture(next));
@@ -443,6 +449,63 @@ describe('PredictiveEcho outside input fields', () => {
     type(t.echo, '\x02');
     type(t.echo, 'c');
     expect(t.echo.getVisiblePredictions()).toEqual([]);
+    expect(t.echo.getState()).toBe('tentative');
+  });
+});
+
+describe('PredictiveEcho with a Herdr prefix other than Ctrl+B', () => {
+  /** A trusted field, then `bytes` as the browser sends them. */
+  function press(t: ReturnType<typeof setup>, bytes: string) {
+    type(t.echo, 'e');
+    t.remoteEcho('e');
+    expect(t.echo.getState()).toBe('confident');
+    type(t.echo, bytes);
+  }
+
+  it.each([
+    ['ctrl+space', '\x00'],
+    ['ctrl+s', '\x13'],
+    ['alt+a', '\x1ba'],
+    ['f12', '\x1b[24~'],
+    // xterm.js sends the single control byte for Ctrl+Shift+X; a toolbar sends CSI-u.
+    ['ctrl+shift+x', '\x18'],
+    ['ctrl+shift+x', '\x1b[120;6u'],
+    ['ctrl+alt+x', '\x1b\x18'],
+    ['ctrl+minus', '\x1f'],
+  ])('gives up on the key after %s (%j), and demotes', (combo, bytes) => {
+    const t = setup('desktop-fish-empty', [combo]);
+    press(t, bytes);
+    expect(t.echo.getState()).toBe('tentative');
+    type(t.echo, 'c');
+    expect(t.echo.getVisiblePredictions()).toEqual([]);
+    expect(t.echo.getState()).toBe('tentative');
+  });
+
+  it('takes every prefix in the list, and only those', () => {
+    const keys = ['ctrl+space', 'ctrl+s'];
+    const space = setup('desktop-fish-empty', keys);
+    press(space, '\x00');
+    expect(space.echo.getState()).toBe('tentative');
+    const s = setup('desktop-fish-empty', keys);
+    press(s, '\x13');
+    expect(s.echo.getState()).toBe('tentative');
+
+    // Ctrl+B is an ordinary control key here: it ends the run but leaves the field trusted.
+    const b = setup('desktop-fish-empty', keys);
+    press(b, '\x02');
+    expect(b.echo.getState()).toBe('confident');
+  });
+
+  it('keeps Ctrl+B when no listed prefix is one this window can encode', () => {
+    const t = setup('desktop-fish-empty', ['super+b', 'ctrl+nonsense', 'ctrl+a ctrl+b']);
+    press(t, '\x02');
+    expect(t.echo.getState()).toBe('tentative');
+  });
+
+  it('follows the host when it names its prefix after the terminal is up', () => {
+    const t = setup('desktop-fish-empty');
+    t.setPrefixKeys(['ctrl+s']);
+    press(t, '\x13');
     expect(t.echo.getState()).toBe('tentative');
   });
 });

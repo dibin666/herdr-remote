@@ -9,6 +9,7 @@ import {
   type HostHelloMessage,
   type HostMessage,
   PROTOCOL_VERSION,
+  sanitizeHerdrPrefixKeys,
   sanitizeTerminalFont,
   sanitizeTerminalPalette,
   unpackStreamFrame,
@@ -54,6 +55,7 @@ function createHostRecord(
   clients = new Set<string>(),
 ): RelayHost {
   const capabilities: unknown[] = Array.isArray(message.capabilities) ? message.capabilities : [];
+  const herdrPrefixKeys = sanitizeHerdrPrefixKeys(message.herdrPrefixKeys);
   return {
     id: message.hostId,
     ws,
@@ -68,6 +70,7 @@ function createHostRecord(
     terminalPalette: sanitizeTerminalPalette(message.terminalPalette),
     /** Family, size and fetchable files of the workstation's terminal font. */
     terminalFont: sanitizeTerminalFont(message.terminalFont),
+    ...(herdrPrefixKeys ? { herdrPrefixKeys } : {}),
     /** The latest workstation snapshot is replayed when a browser joins late. */
     agentStatus: null,
     /** Whether the workstation's herdr-remote is behind; replayed the same way. */

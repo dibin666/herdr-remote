@@ -17,17 +17,21 @@ export function usePredictiveEcho({
   mode,
   connectionState,
   observeKeyInput,
+  herdrPrefixKeys,
 }: {
   termRef: RefObject<Terminal | null>;
   rendererRef: RefObject<AttachedRenderer | null>;
   mode: 'auto' | 'always' | 'off';
   connectionState: ConnectionState;
   observeKeyInput: (observer: (bytes: Uint8Array) => void) => () => void;
+  /** The keys that put the workstation's Herdr into prefix mode; undefined until it says. */
+  herdrPrefixKeys: readonly string[] | undefined;
 }) {
   const predictorRef = useRef<PredictiveEcho | null>(null);
   const overlayRef = useRef<PredictionLayer | null>(null);
   const fieldProbeRef = useRef<FieldProbe | null>(null);
   const modeRef = useLatest(mode);
+  const herdrPrefixKeysRef = useLatest(herdrPrefixKeys);
 
   /** Draw the predictions still pending, when the mode and the link call for them. */
   const sync = useCallback(() => {
@@ -68,13 +72,17 @@ export function usePredictiveEcho({
   /** Start predicting on `term`; returns its screen state for the renderer. */
   const attach = useCallback(
     (term: Terminal) => {
-      const parts = attachPrediction(term, () => termRef.current);
+      const parts = attachPrediction(
+        term,
+        () => termRef.current,
+        () => herdrPrefixKeysRef.current,
+      );
       fieldProbeRef.current = parts.fieldProbe;
       predictorRef.current = parts.predictor;
       overlayRef.current = parts.overlay;
       return parts;
     },
-    [termRef],
+    [termRef, herdrPrefixKeysRef],
   );
 
   const detach = useCallback(() => {

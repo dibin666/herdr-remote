@@ -195,6 +195,7 @@ export function handleClientConnection(
         terminalFont: host.terminalFont || null,
         clientCount: host.clients.size,
         hostVersion: host.version,
+        ...(host.herdrPrefixKeys ? { herdrPrefixKeys: host.herdrPrefixKeys } : {}),
       });
       if (host.agentStatus) jsonSend(ws, host.agentStatus);
       if (host.updateStatus) jsonSend(ws, host.updateStatus);

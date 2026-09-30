@@ -24,6 +24,12 @@ export interface SessionState {
    */
   hostVersion?: string | null;
   assignedClientId?: string;
+  /**
+   * The keys that put the workstation's Herdr into prefix mode, as its config
+   * spells them. Undefined when the host is too old to say; windows then
+   * assume Herdr's default `ctrl+b`.
+   */
+  herdrPrefixKeys?: string[];
   /** The host terminal's own colors, or null when the host could not report them. */
   hostPalette: HostTerminalPalette | null;
   rttMs: number | null;
@@ -68,6 +74,7 @@ export type SessionEvent =
       adminTerminalSupported?: boolean;
       palette?: HostTerminalPalette | null;
       hostVersion?: string | null;
+      herdrPrefixKeys?: string[];
     }
   | {
       type: 'roleChange';
@@ -94,6 +101,7 @@ const HOST_PRESENTATION = {
   platform: undefined,
   adminTerminalSupported: undefined,
   hostVersion: undefined,
+  herdrPrefixKeys: undefined,
   shellProfile: 'posix',
   hostPalette: null,
   rttMs: null,
@@ -124,6 +132,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         platform: message.platform,
         adminTerminalSupported: message.adminTerminalSupported,
         hostVersion: message.hostVersion,
+        herdrPrefixKeys: message.herdrPrefixKeys,
         shellProfile: defaultShellProfile(message.platform, message.shellProfile),
         assignedClientId: message.clientId || state.assignedClientId,
         // The workstation tells us what its terminal looks like; nothing here
@@ -140,6 +149,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         platform: event.platform,
         adminTerminalSupported: event.adminTerminalSupported,
         hostVersion: event.hostVersion,
+        herdrPrefixKeys: event.herdrPrefixKeys,
         shellProfile: defaultShellProfile(event.platform, event.shellProfile),
         hostPalette: event.palette || null,
         terminalResetVersion: state.terminalResetVersion + 1,

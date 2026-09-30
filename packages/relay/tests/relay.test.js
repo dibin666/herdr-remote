@@ -1054,6 +1054,83 @@ test('a host with no terminal to ask leaves the browser on its own defaults', as
   host.close();
 });
 
+/** The `ready` a browser gets from a host whose hello also carries `extra`. */
+async function readyForHello(t, extra) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-prefix-'));
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.onTestFinished(async () => relay.close());
+
+  const host = await openWebSocket(`${wsBase}/ws/host`);
+  t.onTestFinished(() => host.close());
+  host.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-1',
+      token: 'host-token-123456789',
+      ...extra,
+    }),
+  );
+  await nextMessage(host, (message) => message.type === 'host_ready');
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  t.onTestFinished(() => client.close());
+  const ready = nextMessage(client, (message) => message.type === 'ready');
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'phone',
+      cols: 80,
+      rows: 24,
+    }),
+  );
+  return (await ready).value;
+}
+
+test("the host's Herdr prefix keys reach the browser with ready, cleaned up", async (t) => {
+  const ready = await readyForHello(t, {
+    herdrPrefixKeys: [
+      'Ctrl+Space',
+      ' ctrl + s ',
+      'ctrl+s',
+      42,
+      null,
+      'x'.repeat(100),
+      'ctrl+\u00e9',
+      'ctrl+a\u0000',
+      '',
+      'alt+a',
+    ],
+  });
+  assert.deepEqual(ready.herdrPrefixKeys, ['ctrl+space', 'ctrl+s', 'alt+a']);
+});
+
+test('the relay passes on no more than a handful of Herdr prefix keys', async (t) => {
+  const keys = Array.from({ length: 20 }, (_, index) => `ctrl+f${index + 1}`);
+  const ready = await readyForHello(t, { herdrPrefixKeys: keys });
+  assert.deepEqual(ready.herdrPrefixKeys, keys.slice(0, 8));
+});
+
+test('a host that names no usable Herdr prefix key leaves it out of ready', async (t) => {
+  for (const extra of [
+    {},
+    { herdrPrefixKeys: [] },
+    { herdrPrefixKeys: 'ctrl+s' },
+    { herdrPrefixKeys: { 0: 'ctrl+s' } },
+    { herdrPrefixKeys: ['ctrl+\u00e9', 7, ''] },
+  ]) {
+    const ready = await readyForHello(t, extra);
+    assert.equal(Object.hasOwn(ready, 'herdrPrefixKeys'), false, JSON.stringify(extra));
+  }
+});
+
 // Two tabs of one browser share a client id, because that id is persisted per
 // browser profile. The relay used to close whichever session already held it,
 // so the two tabs evicted each other in a loop that never converged: each
@@ -1154,6 +1231,7 @@ test('a capable host reconnects without dropping its authorized browser', async 
     hostId: 'host-1',
     token: 'host-token-123456789',
     capabilities: ['host_handoff', 'idle_heartbeat'],
+    herdrPrefixKeys: ['ctrl+space'],
   };
 
   const host = await openWebSocket(`${wsBase}/ws/host`);
@@ -1197,6 +1275,7 @@ test('a capable host reconnects without dropping its authorized browser', async 
   const reset = (await restarted).value;
   assert.equal(typeof session.streamId, 'string');
   assert.equal(reset.streamId, session.streamId);
+  assert.deepEqual(reset.herdrPrefixKeys, ['ctrl+space']);
   assert.notEqual(relay.hosts.get('host-1').ws, host);
   assert.equal(relay.hosts.get('host-1').ws.readyState, WebSocket.OPEN);
   assert.equal(relay.clients.size, 1);

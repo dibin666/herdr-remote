@@ -18,6 +18,7 @@ import {
   type ResetOptions,
 } from './predictionModel';
 import { predictableWidth } from './wideChars';
+import { type HerdrPrefixKeys, prefixKeysResolver } from './herdrPrefix';
 
 /** Fields whose confidence is remembered, so hopping between two panes does not re-learn each time. */
 const MAX_CONFIDENT_FIELDS = 8;
@@ -30,6 +31,8 @@ export abstract class PredictionState {
   protected readonly getTerminal: () => PredictionTerminal | null;
   protected readonly getFieldOption: (() => PredictionField | null) | undefined;
   protected readonly charWidth: ((codePoint: number) => number) | undefined;
+  /** Where the keys that start a Herdr command sit in what the user typed. */
+  protected readonly herdrPrefix: () => HerdrPrefixKeys;
   protected readonly now: () => number;
   protected readonly textDecoder = new TextDecoder('utf-8');
 
@@ -70,6 +73,7 @@ export abstract class PredictionState {
     this.getTerminal = options.getTerminal;
     this.getFieldOption = options.getField;
     this.charWidth = options.charWidth;
+    this.herdrPrefix = prefixKeysResolver(options.getHerdrPrefixKeys);
     this.now =
       options.now ??
       (typeof performance !== 'undefined' && typeof performance.now === 'function'

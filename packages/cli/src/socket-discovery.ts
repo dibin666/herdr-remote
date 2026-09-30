@@ -3,8 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 
 /**
- * Herdr's own config directory, resolved as Herdr does: `XDG_CONFIG_HOME`
- * first on every platform, then the platform's home for it.
+ * Herdr's own config directory, resolved as Herdr does (`XDG_CONFIG_HOME`
+ * first on every platform, then the platform's home for it), so the socket
+ * and `config.toml` are found wherever Herdr put them.
  */
 function herdrConfigDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform): string {
   if (platform === 'win32') {
@@ -24,6 +25,14 @@ function defaultSocketPath(
   platform = process.platform,
 ): string {
   return env.HERDR_SOCKET_PATH || path.join(herdrConfigDir(env, platform), 'herdr.sock');
+}
+
+/** The `config.toml` Herdr reads; `HERDR_CONFIG_PATH` names it outright. */
+function herdrConfigPath(
+  env: NodeJS.ProcessEnv = process.env,
+  platform = process.platform,
+): string {
+  return env.HERDR_CONFIG_PATH || path.join(herdrConfigDir(env, platform), 'config.toml');
 }
 
 /**
@@ -88,4 +97,4 @@ function inspectSocket(
   }
 }
 
-export { defaultSocketPath, herdrEndpoint, resolveSocketPath, inspectSocket };
+export { defaultSocketPath, herdrConfigPath, herdrEndpoint, resolveSocketPath, inspectSocket };
