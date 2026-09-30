@@ -9,7 +9,8 @@
 # registry at install time. Instead the relay's own tarball is unpacked into the
 # CLI's `node_modules/` and the manifest is rewritten to pin and bundle it; a
 # second `npm pack` then produces a tarball that installs from one file.
-# `ws` stays an ordinary dependency of both packages and resolves normally.
+# The relay dependency `ws` must also be present: npm treats bundled dependency
+# subtrees as complete and will not reliably install missing transitive packages.
 #
 # Assets written to <dist-dir> (each tarball also under a versionless name, so
 # `releases/latest/download/<name>.tgz` is a stable URL):
@@ -54,7 +55,10 @@ RELEASE_RELAY_VERSION="$relay_version" node -e '
   const file = "'"$stage"'/package/package.json";
   const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
   pkg.dependencies["herdr-remote-relay"] = process.env.RELEASE_RELAY_VERSION;
-  pkg.bundleDependencies = ["herdr-remote-relay"];
+  pkg.bundleDependencies = ["herdr-remote-relay", "ws"];
+  const path = require("node:path");
+  fs.cpSync(path.dirname(require.resolve("ws/package.json")),
+    path.join(path.dirname(file), "node_modules/ws"), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
 '
 
@@ -83,8 +87,9 @@ RELEASE_CLI_VERSION="$cli_version" RELEASE_RELAY_VERSION="$relay_version" node -
 # Listed into a variable first: `grep -q` closing the pipe early would make
 # `tar` fail under pipefail even when the file is there.
 contents="$(tar -tzf "$dist/herdr-remote-$cli_version.tgz")"
-if ! grep -qx 'package/node_modules/herdr-remote-relay/package.json' <<<"$contents"; then
-  echo "::error::the CLI tarball does not contain the bundled relay"
+if ! grep -qx 'package/node_modules/herdr-remote-relay/package.json' <<<"$contents" || \
+  ! grep -qx 'package/node_modules/ws/index.js' <<<"$contents"; then
+  echo "::error::the CLI tarball does not contain the complete bundled relay runtime"
   exit 1
 fi
 
