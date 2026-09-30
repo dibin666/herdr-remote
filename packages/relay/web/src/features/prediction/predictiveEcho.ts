@@ -18,7 +18,7 @@ import { predictableWidth } from './wideChars';
  * before the round trip completes.
  *
  * To limit incorrect guesses while leaving the authoritative buffer untouched:
- * 1. Predictions stay within a detected field or an observed cursor region.
+ * 1. Predictions stay within an identified editable field.
  * 2. Predictions in a field stay invisible until one of them has been confirmed by
  *    authentic server output in that same field.
  * 3. A prediction is settled once the server's caret has moved past it: the cell
@@ -164,6 +164,11 @@ export class PredictiveEcho extends PredictionKeys {
     if (terminal && caret && this.predictions.length > 0) {
       this.settle(terminal, caret);
     }
+    if (this.field && this.getFieldOption && !this.getFieldOption()) {
+      // Returning from a menu must not reuse confidence earned before leaving the input.
+      this.reset('left input field', { suppress: false, demote: true });
+      this.field = null;
+    }
     this.updateSuppression(caret);
   }
 
@@ -254,15 +259,7 @@ export class PredictiveEcho extends PredictionKeys {
         // passed (a backspace it has processed, a redraw): stop painting it.
         continue;
       }
-      if (field?.observed && matches && !settled) {
-        // TUI redraws may contain the typed letters without consuming any input.
-        remaining.push(p);
-      } else if (matches && (settled || !unchanged)) {
-        if (field?.observed && (unchanged || caret.row !== p.row || p.kind !== 'char')) {
-          // Traversing existing text or clearing a cell cannot establish echo behaviour.
-          if (!settled) remaining.push(p);
-          continue;
-        }
+      if (matches && (settled || !unchanged)) {
         if (!p.echoed) this.confirm(p, field);
         if (settled) {
           // Settled: what the cell shows now is how the program draws typed text.

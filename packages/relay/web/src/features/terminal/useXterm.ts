@@ -211,10 +211,7 @@ export function useXterm({
     overlay.attach(renderer.canvas);
     // Text typed into an input field, echoed or predicted, fades in and out.
     renderer.canvas?.setTypingZoneProvider(() => {
-      const predictor = prediction.predictorRef.current;
-      const field =
-        fieldProbe.detect() ??
-        (predictor?.getState() === 'confident' ? fieldProbe.detectCandidate() : null);
+      const field = fieldProbe.detect();
       return field && { row: field.row, startCol: field.startCol, endCol: field.endCol };
     });
     // Herdr closed a frame whose pieces the renderer held back: draw it whole, now.

@@ -38,7 +38,7 @@ export function attachPrediction(
   getTerminal: () => Terminal | null,
   getHerdrPrefixKeys: () => readonly string[] | undefined,
 ) {
-  // Recognized shapes supply editing bounds; other UIs learn from real echoes.
+  // Echo confidence only applies inside an identified editable field.
   const screenState = attachScreenState(term);
   const fieldProbe = new FieldProbe({
     getScreen: () => {
@@ -73,7 +73,7 @@ export function attachPrediction(
   )._core?.unicodeService;
   const predictor = new PredictiveEcho({
     getTerminal,
-    getField: fieldProbe.detectCandidate,
+    getField: fieldProbe.detect,
     getHerdrPrefixKeys,
     // The width xterm will draw a character at, as the guess for ones whose width may differ elsewhere.
     charWidth:

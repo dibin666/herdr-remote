@@ -312,7 +312,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
           rendererKind={rendererKind}
           predictiveEcho={settings.predictiveEcho}
           predictor={prediction.predictorRef.current}
-          field={prediction.fieldProbeRef.current?.detectCandidate() ?? null}
+          field={prediction.fieldProbeRef.current?.detect() ?? null}
           renderer={rendererRef.current}
         />
       )}

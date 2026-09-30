@@ -39,8 +39,6 @@ export interface PredictionTerminal {
  */
 export interface PredictionField {
   key: string;
-  /** Candidate learned from echo behaviour, without application-specific boundaries. */
-  observed?: boolean;
   /** Absolute row and column of the caret. */
   row: number;
   caretCol: number;

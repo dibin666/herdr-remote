@@ -9,7 +9,7 @@ afterEach(() => vi.useRealTimers());
 it('removes unacknowledged predictions even when the server and user go silent', () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
   const screen = createTestScreen(80, 12);
-  screen.write(5, 0, 'Message: ');
+  screen.write(5, 0, 'host ~ $ ');
   screen.setCursor(9, 5);
   const term = screen as unknown as Terminal;
   const { result, unmount } = renderHook(() =>
