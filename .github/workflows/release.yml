@@ -28,17 +28,12 @@ name: release
 #
 # Only the newest commit on master releases. Runs queue (concurrency below), so
 # by the time an older run starts, master has usually moved on; the `guard` job
-# makes it stand down rather than ship code that is already superseded.
+# makes it stand down rather than ship code that is already superseded. Every
+# master push runs the planner so a docs commit cannot strand a pending release.
 
 on:
   push:
     branches: [master]
-    paths:
-      - 'packages/cli/**'
-      - 'packages/relay/**'
-      - 'tsconfig.base.json'
-      - '.github/workflows/release.yml'
-      - '.github/scripts/**'
   workflow_dispatch:
     inputs:
       packages:
@@ -139,11 +134,23 @@ jobs:
           cache: npm
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Resume an interrupted publication
+        id: resume
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/resume-release.sh
+
       - name: Plan the release
         id: plan
         env:
           BEFORE_SHA: ${{ github.event.before }}
-        run: .github/scripts/plan-release.sh "${{ inputs.packages || 'auto' }}"
+        run: |
+          if [ "${{ steps.resume.outputs.resume }}" = true ]; then
+            echo 'cli=true' >> "$GITHUB_OUTPUT"
+            echo 'relay=${{ steps.resume.outputs.relay }}' >> "$GITHUB_OUTPUT"
+          else
+            .github/scripts/plan-release.sh "${{ inputs.packages || 'auto' }}"
+          fi
 
       # The bump happens *before* the install, and that order is deliberate.
       # `npm version` updates the workspace manifest and the root lockfile
@@ -153,11 +160,11 @@ jobs:
       # was asked to change. `--no-git-tag-version` leaves the commit and the tag
       # to the record step, where they can carry every package released here.
       - name: Bump herdr-remote-relay
-        if: steps.plan.outputs.relay == 'true'
+        if: steps.plan.outputs.relay == 'true' && steps.resume.outputs.resume != 'true'
         run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote-relay --no-git-tag-version
 
       - name: Bump herdr-remote
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.plan.outputs.cli == 'true' && steps.resume.outputs.resume != 'true'
         run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
 
       - name: Sync herdr-plugin.toml version
@@ -212,83 +219,20 @@ jobs:
       - name: Record the release
         id: record
         if: steps.plan.outputs.cli == 'true'
-        run: |
-          set -euo pipefail
+        env:
+          RELEASE_BASE: ${{ needs.guard.outputs.ref }}
+          RELAY_RELEASED: ${{ steps.plan.outputs.relay }}
+          RESUME_RELEASE: ${{ steps.resume.outputs.resume }}
+        run: bash .github/scripts/record-release.sh
 
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-          released=()
-          if [ "${{ steps.plan.outputs.relay }}" = "true" ]; then
-            released+=("herdr-remote-relay@$(node -p "require('./packages/relay/package.json').version")")
-          fi
-          released+=("herdr-remote@$(node -p "require('./packages/cli/package.json').version")")
-
-          # Only the manifests and the lockfile: an install may leave other
-          # things behind (npm marks `bin` entries executable, for one), and
-          # none of it belongs in a release commit.
-          git add package-lock.json packages/cli/package.json packages/relay/package.json packages/cli/herdr-plugin.toml
-          if git diff --cached --quiet; then
-            echo "No version change to record — the release was already recorded."
-            exit 0
-          fi
-
-          git commit -m "Release ${released[*]} [skip ci]"
-
-          for release in "${released[@]}"; do
-            git tag -a "${release/@/-v}" -m "$release"
-          done
-
-          # Another run may have landed while this one was building; rebasing
-          # keeps the bump on top rather than failing. `autostash` makes that
-          # true unconditionally: nothing left in the working tree by the
-          # install may be allowed to fail the bookkeeping.
-          git -c rebase.autostash=true pull --rebase origin master
-          git push origin HEAD:master --follow-tags
-
-      # The primary channel. Retried because it is one network call that, if it
-      # fails transiently, would otherwise leave a recorded version with no
-      # release. A failed attempt may have created the release without every
-      # asset, so a retry uploads into it instead of creating it again.
-      - name: Create the GitHub Release
-        if: steps.plan.outputs.cli == 'true'
+      - name: Publish the GitHub Release
+        if: steps.record.outputs.recorded == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELAY_RELEASED: ${{ steps.plan.outputs.relay }}
         run: |
-          set -euo pipefail
-
           cli="$(node -p "require('./packages/cli/package.json').version")"
           relay="$(node -p "require('./packages/relay/package.json').version")"
-          tag="herdr-remote-v$cli"
-
-          if [ "$RELAY_RELEASED" = "true" ]; then
-            relay_note="herdr-remote-relay $relay (new in this release)"
-          else
-            relay_note="herdr-remote-relay $relay (unchanged)"
-          fi
-          notes="- herdr-remote $cli
-          - $relay_note
-
-          Install from the release assets: \`herdr-remote.tgz\` is the CLI with the relay bundled, \`herdr-remote-relay.tgz\` is the relay alone, and \`latest.json\` names the newest version."
-
-          assets=(dist/release/*)
-
-          for attempt in 1 2 3 4 5; do
-            if gh release view "$tag" >/dev/null 2>&1; then
-              cmd=(gh release upload "$tag" --clobber "${assets[@]}")
-            else
-              cmd=(gh release create "$tag" --verify-tag --latest \
-                --title "herdr-remote $cli" --notes "$notes" "${assets[@]}")
-            fi
-            if "${cmd[@]}"; then
-              exit 0
-            fi
-            echo "::warning::GitHub Release attempt $attempt failed"
-            sleep $((attempt * 10))
-          done
-          echo "::error::could not create the GitHub Release for $tag"
-          exit 1
+          bash .github/scripts/publish-release.sh "$cli" "$relay"
 
       # Backup channel, after the release is already live. Each publish skips
       # versions npm has, and reports any failure as a warning (see the
@@ -296,7 +240,7 @@ jobs:
       # already install. The relay goes first so the registry never holds a
       # CLI whose bundled relay it lacks as a standalone package.
       - name: Publish herdr-remote-relay to npm (backup)
-        if: steps.plan.outputs.relay == 'true'
+        if: steps.record.outputs.recorded == 'true' && steps.plan.outputs.relay == 'true'
         continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -305,7 +249,7 @@ jobs:
           .github/scripts/publish-if-new.sh "dist/release/herdr-remote-relay-$relay.tgz"
 
       - name: Publish herdr-remote to npm (backup)
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.record.outputs.recorded == 'true'
         continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -314,7 +258,7 @@ jobs:
           .github/scripts/publish-if-new.sh "dist/release/herdr-remote-$cli.tgz"
 
       - name: Summary
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.record.outputs.recorded == 'true'
         run: |
           cli="$(node -p "require('./packages/cli/package.json').version")"
           relay="$(node -p "require('./packages/relay/package.json').version")"
