@@ -1,7 +1,7 @@
 name: ci
 
 # The gate every change passes before it reaches master. A push to master
-# publishes (see npm-publish.yml), so this has to be green on the pull request,
+# releases (see release.yml), so this has to be green on the pull request,
 # not after the merge.
 
 on:

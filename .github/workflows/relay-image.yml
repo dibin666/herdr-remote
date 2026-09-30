@@ -14,7 +14,7 @@ on:
   push:
     branches: [master]
     # The image only contains the relay and the web UI it serves, so a commit
-    # that touches the CLI, the docs or the npm workflow has nothing to rebuild.
+    # that touches the CLI, the docs or the release workflow has nothing to rebuild.
     # Skipping those keeps the version sequence meaningful: every published tag
     # corresponds to a real change in what the image runs.
     paths:

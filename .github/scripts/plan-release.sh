@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Decide which npm packages this push should release.
+# Decide which packages this push should release.
 #
 # The question is deliberately "has this package changed since it was last
 # released", not "has the version field been edited": the version is now the
@@ -15,6 +15,10 @@
 # so the push's own range is used instead (`github.event.before`, falling back
 # to the previous commit). That keeps the first run after this workflow lands
 # from releasing both packages merely because it has no history.
+#
+# A relay release always carries a CLI release: the CLI tarball bundles the
+# relay, so a relay change only reaches users inside a new CLI. The reverse does
+# not hold — a CLI-only change leaves the relay version alone.
 #
 # Writes `cli=true|false` and `relay=true|false` to $GITHUB_OUTPUT, and prints
 # what it decided and why.
@@ -32,13 +36,22 @@ PACKAGES=(
   "relay:packages/relay:herdr-remote-relay"
 )
 
-# One decision, stated in the log and handed to the workflow. Run outside
-# Actions — by hand, to see what a push would do — it just prints.
+# Decisions are held back until every package has been looked at, because the
+# relay's answer can change the CLI's. Run outside Actions — by hand, to see
+# what a push would do — the result is just printed.
+declare -A decision=()
 emit() {
-  echo "$1=$2"
-  if [ -n "${GITHUB_OUTPUT:-}" ]; then
-    echo "$1=$2" >> "$GITHUB_OUTPUT"
-  fi
+  decision[$1]=$2
+}
+
+flush() {
+  local key
+  for key in cli relay; do
+    echo "$key=${decision[$key]:-false}"
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+      echo "$key=${decision[$key]:-false}" >> "$GITHUB_OUTPUT"
+    fi
+  done
 }
 
 # The commit a package is compared against when it has never been tagged.
@@ -116,3 +129,10 @@ for entry in "${PACKAGES[@]}"; do
     echo "  $name: unchanged since $base — skipping"
   fi
 done
+
+if [ "${decision[relay]:-false}" = "true" ] && [ "${decision[cli]:-false}" != "true" ]; then
+  emit cli true
+  echo "  herdr-remote: bundles the relay being released — will release"
+fi
+
+flush
