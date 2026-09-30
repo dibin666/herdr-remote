@@ -117,7 +117,11 @@ Konsole, xfce4-terminal, kitty, Alacritty, Ghostty, foot and VS Code; `wezterm
 ls-fonts`; the binary preference files of iTerm2 and Terminal.app (whose font
 is an archived NSFont); and, for xterm and urxvt, the emulator's own command
 line (`-fa`/`-fs`/`-fn`/`-xrm`) over the X resource database. An xterm drawing
-with a bitmap core font reports nothing, since no browser can load one. Like the palette, the answer is captured where
+with a bitmap core font reports nothing, since no browser can load one. Inside
+a Herdr 0.9.2+ pane `TERM_PROGRAM` reads `herdr` and Herdr has removed the
+outer terminal's session markers, so a start from there relies on what Herdr
+leaves: `ITERM_PROFILE`, `KITTY_PID`, `WT_PROFILE_ID` and, on macOS, the app's
+`__CFBundleIdentifier`. Like the palette, the answer is captured where
 the terminal is still known, handed down in `HERDR_TERM_FONT_JSON`, and
 remembered in the state file. An unknown terminal yields `null`; the browser
 then keeps its own monospace stack.
