@@ -4,6 +4,11 @@ import { defineConfig } from 'vitest/config';
 // own config for environment, setup files and timeouts.
 export default defineConfig({
   test: {
-    projects: ['packages/relay', 'packages/cli', 'packages/relay/web'],
+    projects: [
+      'packages/relay',
+      'packages/cli',
+      'packages/relay/web',
+      { test: { name: 'scripts', include: ['scripts/**/*.test.mjs'], environment: 'node' } },
+    ],
   },
 });

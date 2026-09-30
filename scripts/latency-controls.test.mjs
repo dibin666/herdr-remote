@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import { test } from 'vitest';
-import { installLatencyControls } from '../../../scripts/lib/latency-controls.mjs';
-import { enqueueDelayedSend } from '../src/server/transport';
-import { postJson } from './helpers.js';
+import { installLatencyControls } from './lib/latency-controls.mjs';
+import { enqueueDelayedSend } from '../packages/relay/src/server/transport';
+import { postJson } from '../packages/relay/tests/helpers.js';
 
 async function start(t) {
   const relay = {
