@@ -2,11 +2,11 @@
  * The browser tab's name, taken from the terminal the window is watching.
  *
  * Herdr sets its window title with OSC 2, which xterm surfaces as
- * `onTitleChange`. Reading it only became honest with Herdr 0.9.1: before that
- * release a client's title could follow another client's selection, so a tab
- * would have announced work the window was not showing. With one Herdr client
- * per browser window, the title now names that window's own view — which is the
- * one thing that tells two identical-looking tabs apart.
+ * `onTitleChange`. Reading it only became honest with Herdr 0.9.1 (still so on
+ * 0.9.3): before that release a client's title could follow another client's
+ * selection, so a tab would have announced work the window was not showing.
+ * With one Herdr client per browser window, the title now names that window's
+ * own view — which is the one thing that tells two identical-looking tabs apart.
  */
 
 import { formatAttentionPrefix, type AttentionCounts } from './agentAttention';

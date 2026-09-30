@@ -27,7 +27,7 @@ const CtxProbe: React.FC<{ onReady: (ctx: ReturnType<typeof useTerminal>) => voi
 /**
  * The tab is named after this window's own Herdr client.
  *
- * Herdr 0.9.1 is what makes that name trustworthy — before it, a client's
+ * Herdr 0.9.1 and later make that name trustworthy — before it, a client's
  * window title could follow another client's selection — so these tests pin the
  * two things that decide what a tab says: what survives sanitizing, and what a
  * window falls back to when there is no session title to show.

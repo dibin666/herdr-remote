@@ -10,7 +10,7 @@
  * Herdr composites every pane onto one screen, so none of the usual terminal
  * signals (alternate screen, mouse or keypad modes) describe the pane: they
  * are Herdr's own. What it does forward is the focused pane's cursor. The
- * rules below were fitted to screens captured from Herdr 0.9.1 by
+ * rules below were fitted to screens captured from Herdr 0.9.3 by
  * `scripts/capture-herdr-screens.mjs` (fixtures in `test/fixtures/screens`):
  *
  * - Claude Code draws its input between two full-width `─` rules, prompt `❯ `
