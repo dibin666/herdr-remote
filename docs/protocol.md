@@ -264,11 +264,25 @@ moved the terminal UI into each client, and a client now carries its own focused
 tab and its own tab geometry. One PTY per window is what turns that into two
 windows that can genuinely look at different work.
 
-Herdr 0.9.1 is what made the model behave rather than merely exist, and is the
-minimum this project supports: window titles follow each client's own view
-instead of another client's selection, activating a machine in the background no
-longer resizes somebody else's focused pane, and a large paste no longer
-disconnects the client — which is the path an image takes from a phone.
+Herdr 0.9.1 is what made the model behave rather than merely exist: window
+titles follow each client's own view instead of another client's selection,
+activating a machine in the background no longer resizes somebody else's
+focused pane, and a large paste no longer disconnects the client — which is the
+path an image takes from a phone. The minimum this project supports is 0.9.3:
+0.9.2 stopped a tap on a pane from sending a stray Escape and stopped mouse
+reports split across reads from leaking into the shell, but broke Escape
+followed by a key, which is how a browser sends Alt+B, Alt+F and Alt+Backspace;
+0.9.3 mends it.
+
+Each PTY's outer terminal is the browser's xterm.js, not the terminal that
+started herdr-remote, so the host connector strips the variables that name an
+outer terminal (`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WT_SESSION`, `TMUX`, …)
+before it starts a Herdr client — the same list Herdr strips from its own
+panes. From 0.9.2 on a Herdr client reads them to decide whether it may hand
+images to its terminal as local files; a client that believed it was drawing
+in Ghostty would send the browser file paths instead of pixels. Herdr still
+forwards images to the browser as Kitty graphics, which xterm.js does not
+draw and discards.
 
 One caveat inherited from Herdr: when two windows sit on the *same* tab, that
 tab is sized by whichever client interacted with it last. Independent sizing

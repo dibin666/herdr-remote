@@ -19,11 +19,13 @@ herdr-remote
 The first run opens a setup wizard; after that the relay and host connector run in the
 background.
 
-Requires Herdr 0.9.1 or newer. Each browser window drives its own Herdr client, which is only
+Requires Herdr 0.9.3 or newer. Each browser window drives its own Herdr client, which is only
 independent from the workstation's own terminal from 0.9.0 on, and 0.9.1 is what makes that
 model behave in a browser: window titles follow each client's own view, activating a machine in
 the background no longer resizes somebody else's focused pane, and a large paste no longer
-drops the client.
+drops the client. A browser types through escape sequences, so 0.9.3 matters too: tapping a
+pane no longer sends a stray Escape to a working agent, and Alt shortcuts such as Alt+B, Alt+F
+and Alt+Backspace — broken in 0.9.2 — work again.
 
 Native Windows 10/11 is supported with Node.js 22+. Install Herdr from PowerShell:
 
