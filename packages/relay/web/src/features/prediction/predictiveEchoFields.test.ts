@@ -343,13 +343,25 @@ describe("PredictiveEcho in Claude Code's input box", () => {
     expect(t.echo.getVisiblePredictions()).toEqual([]);
   });
 
-  it('never predicts erasing the first character of the field', () => {
-    const t = setup('desktop-claude-empty');
-    type(t.echo, 'a');
-    t.remoteEcho('a');
-    type(t.echo, '\x7f');
-    expect(t.echo.getVisiblePredictions()).toEqual([]);
-  });
+  it.each(['a', '你'])(
+    'predicts erasing the last remaining character %s without touching the prompt',
+    (char) => {
+      const t = setup('desktop-claude-empty');
+      type(t.echo, char);
+      t.remoteEcho(char);
+      const field = t.echo.getField()!;
+      type(t.echo, '\x7f');
+      expect(t.echo.getOverlayItems()).toContainEqual({
+        row: field.row,
+        col: field.startCol,
+        char: ' ',
+        width: char === '你' ? 2 : 1,
+        kind: 'erase',
+      });
+      type(t.echo, '\x7f');
+      expect(t.echo.getOverlayItems().every((item) => item.col >= field.startCol)).toBe(true);
+    },
+  );
 
   it('ends the run quietly when the box grows upwards as the text wraps', () => {
     const t = setup('mobile-claude-empty'); // rules at 23 and 25, input row 24
