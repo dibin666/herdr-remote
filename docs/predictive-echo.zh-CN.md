@@ -14,6 +14,8 @@
 
 ## 本地延迟测试 WebUI
 
+要使用你系统中的**真实终端和智能体**，运行 `npm run build`，再运行 `RELAY_DEV_LATENCY_MS=200 node scripts/real-terminal-preview.mjs`。它读取本机配置，连接已经运行的 Herdr 服务，预览使用独立凭据和状态目录。打开 `http://127.0.0.1:8899/__test__` 进行配对和延迟调整。Ctrl+C 停止预览连接器与中继，原有 Herdr 服务继续运行。
+
 运行 `npm run build`，然后运行 `RELAY_DEV_LATENCY_MS=400 node scripts/e2e-latency-harness.mjs`。打开输出中的 **Test WebUI** 地址，通常为 `http://127.0.0.1:8899/__test__`。顶部面板提供预设档位和 0–5000 毫秒的自定义额外往返延迟，两个方向各增加一半。切换前等待已有帧发送完成，避免降到零延迟时输入乱序；切换期间终端连接保持不变。
 
 测试使用模拟 shell。先输入一个字符并等待回显，再连续输入和退格。可在 WebUI 设置中对比预测模式；“自动”的平滑延迟估计需要几次回显更新。延迟面板及其 HTTP 路由只由测试脚本安装。

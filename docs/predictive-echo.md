@@ -14,6 +14,8 @@ Predictive echo only runs inside an identified editable input field. Recognized 
 
 ## Local latency test WebUI
 
+To use your **real system terminals and agents**, run `npm run build`, then `RELAY_DEV_LATENCY_MS=200 node scripts/real-terminal-preview.mjs`. This connects to the existing Herdr server using the workstation's configuration, with separate preview credentials and state. Open `http://127.0.0.1:8899/__test__` for the latency panel and pairing. Ctrl+C stops the preview connector and relay; the existing Herdr server stays running.
+
 Run `npm run build`, then `RELAY_DEV_LATENCY_MS=400 node scripts/e2e-latency-harness.mjs`. Open the printed **Test WebUI** address (normally `http://127.0.0.1:8899/__test__`). The panel offers presets and custom extra round-trip delays from 0 to 5000 ms; each direction receives half. Changes wait for queued frames to finish so switching to zero cannot reorder input. The terminal stays connected while changing latency.
 
 This uses a simulated shell. Type one character and wait for its echo, then type and backspace. Compare predictive echo modes in WebUI settings; Auto's smoothed latency needs several echoes to adjust. The latency panel and its HTTP routes are installed only by the test harness.

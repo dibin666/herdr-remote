@@ -6,6 +6,8 @@ const copy = {
     rtt: '额外往返延迟',
     apply: '应用',
     hint: '模拟终端 · 两个方向各增加一半延迟。先输入一个字符等回显，再连续输入和退格。可在 WebUI 设置中切换预测“自动 / 始终开启 / 关闭”进行对比；自动模式的延迟估计需要几次回显更新。',
+    realHint:
+      '真实系统终端 · 已连接本机 Herdr 工作区，按键直接发送到当前终端。两个方向各增加一半延迟；可在 WebUI 设置中切换预测模式。',
     active: '当前：',
     pending: '正在等待旧输入完成并切换…',
     failed: '设置失败：',
@@ -17,6 +19,8 @@ const copy = {
     rtt: 'Added round-trip delay',
     apply: 'Apply',
     hint: 'Simulated terminal · Half the delay is added in each direction. Type one character and wait for its echo, then type and backspace. Compare Auto / Always On / Off in WebUI settings; Auto needs a few echoes to update its latency estimate.',
+    realHint:
+      'Real system terminal · Connected to the local Herdr workspace. Keys go directly to the focused terminal. Half the delay is added in each direction; change prediction mode in WebUI settings.',
     active: 'Active: ',
     pending: 'Waiting for queued input, then switching…',
     failed: 'Could not apply: ',
@@ -25,6 +29,7 @@ const copy = {
 let language = new URL(location.href).searchParams.get('lang') === 'en' ? 'en' : 'zh';
 let currentMs = 0;
 let busy = false;
+let terminalMode = 'simulated';
 const controls = document.querySelector('#controls');
 const preset = document.querySelector('#preset');
 const input = document.querySelector('#latency');
@@ -33,6 +38,8 @@ const render = () => {
   document.documentElement.lang = language;
   for (const node of document.querySelectorAll('[data-text]'))
     node.textContent = copy[language][node.dataset.text];
+  if (terminalMode === 'real')
+    document.querySelector('[data-text="hint"]').textContent = copy[language].realHint;
   document.querySelector('#language').textContent = language === 'zh' ? 'English' : '中文';
   status.textContent = busy ? copy[language].pending : `${copy[language].active}${currentMs} ms`;
 };
@@ -91,6 +98,7 @@ document.querySelector('#language').addEventListener('click', () => {
 render();
 try {
   const state = await request('/__test__/state');
+  terminalMode = state.terminalMode;
   currentMs = state.latencyMs;
   input.max = String(state.maxLatencyMs);
   reflect();

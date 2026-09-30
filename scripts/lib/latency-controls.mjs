@@ -6,7 +6,7 @@ const DRAIN_TIMEOUT_MS = 16_000;
 const POLL_INTERVAL_MS = 10;
 
 /** Test-only HTTP routes around the existing relay, never installed by the production entrypoint. */
-export function installLatencyControls(relay, getPairUrl) {
+export function installLatencyControls(relay, getPairUrl, { terminalMode = 'simulated' } = {}) {
   const original = relay.server.listeners('request');
   for (const listener of original) relay.server.off('request', listener);
   let changing = false;
@@ -48,7 +48,11 @@ export function installLatencyControls(relay, getPairUrl) {
         });
         res.end(fs.readFileSync(new URL('./latency-panel.mjs', import.meta.url)));
       } else if (req.method === 'GET' && url.pathname === '/__test__/state') {
-        reply(res, 200, { latencyMs: relay.devLatencyMs, maxLatencyMs: MAX_LATENCY_MS });
+        reply(res, 200, {
+          latencyMs: relay.devLatencyMs,
+          maxLatencyMs: MAX_LATENCY_MS,
+          terminalMode,
+        });
       } else if (req.method === 'POST' && url.pathname === '/__test__/pair') {
         const pairing = new URL(await getPairUrl());
         pairing.pathname = '/__test__/webui';
