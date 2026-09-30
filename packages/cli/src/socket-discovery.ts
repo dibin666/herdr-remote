@@ -2,21 +2,28 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-function defaultSocketPath(
-  env: NodeJS.ProcessEnv = process.env,
-  platform = process.platform,
-): string {
-  if (env.HERDR_SOCKET_PATH) return env.HERDR_SOCKET_PATH;
+/**
+ * Herdr's own config directory, resolved as Herdr does: `XDG_CONFIG_HOME`
+ * first on every platform, then the platform's home for it.
+ */
+function herdrConfigDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform): string {
   if (platform === 'win32') {
     const configHome =
       env.XDG_CONFIG_HOME ||
       env.APPDATA ||
       (env.USERPROFILE && path.join(env.USERPROFILE, 'AppData', 'Roaming')) ||
       path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(configHome, 'herdr', 'herdr.sock');
+    return path.join(configHome, 'herdr');
   }
   const configHome = env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  return path.join(configHome, 'herdr', 'herdr.sock');
+  return path.join(configHome, 'herdr');
+}
+
+function defaultSocketPath(
+  env: NodeJS.ProcessEnv = process.env,
+  platform = process.platform,
+): string {
+  return env.HERDR_SOCKET_PATH || path.join(herdrConfigDir(env, platform), 'herdr.sock');
 }
 
 /**
