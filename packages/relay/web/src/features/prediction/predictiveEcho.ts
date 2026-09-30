@@ -17,8 +17,8 @@ import { predictableWidth } from './wideChars';
  * of 150ms or more. Typing feels sluggish unless characters are rendered speculatively
  * before the round trip completes.
  *
- * To guarantee that the user never sees phantom characters or corrupted screens:
- * 1. Nothing is predicted unless the caret sits in an input field.
+ * To limit incorrect guesses while leaving the authoritative buffer untouched:
+ * 1. Predictions stay within a detected field or an observed cursor region.
  * 2. Predictions in a field stay invisible until one of them has been confirmed by
  *    authentic server output in that same field.
  * 3. A prediction is settled once the server's caret has moved past it: the cell
@@ -254,7 +254,15 @@ export class PredictiveEcho extends PredictionKeys {
         // passed (a backspace it has processed, a redraw): stop painting it.
         continue;
       }
-      if (matches && (settled || !unchanged)) {
+      if (field?.observed && matches && !settled) {
+        // TUI redraws may contain the typed letters without consuming any input.
+        remaining.push(p);
+      } else if (matches && (settled || !unchanged)) {
+        if (field?.observed && (unchanged || caret.row !== p.row || p.kind !== 'char')) {
+          // Traversing existing text or clearing a cell cannot establish echo behaviour.
+          if (!settled) remaining.push(p);
+          continue;
+        }
         if (!p.echoed) this.confirm(p, field);
         if (settled) {
           // Settled: what the cell shows now is how the program draws typed text.
@@ -300,7 +308,8 @@ export class PredictiveEcho extends PredictionKeys {
       } else {
         // Prediction error: remote host displayed something different (e.g. password masking,
         // modal vim mode, auto-completion, or a word wrapped onto the next row).
-        this.mismatch(`cell shows ${JSON.stringify(actual)} for ${JSON.stringify(p.char)}`);
+        // Tentative input may be a password; diagnostics must not reveal its characters.
+        this.mismatch('echo differs from prediction');
         return;
       }
     }
@@ -315,7 +324,7 @@ export class PredictiveEcho extends PredictionKeys {
 
   /**
    * Returns predictions currently eligible for rendering.
-   * Returns empty array when in tentative state to guarantee zero false visual echoes.
+   * Tentative guesses stay hidden until server output supports them.
    */
   getVisiblePredictions(): ReadonlyArray<VisiblePrediction> {
     this.pruneExpired();

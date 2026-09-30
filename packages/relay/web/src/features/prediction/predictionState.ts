@@ -37,6 +37,7 @@ export abstract class PredictionState {
   protected readonly textDecoder = new TextDecoder('utf-8');
 
   protected readonly confidentKeys = new Set<string>();
+  private observedEvidence: { key: string; count: number } | null = null;
   /** How each field draws typed text, learned from its echoes. */
   protected readonly fieldStyles = new Map<string, CellStyle>();
   protected field: PredictionField | null = null;
@@ -123,10 +124,11 @@ export abstract class PredictionState {
     const shouldDemote = typeof options === 'object' && options?.demote === true;
     this.note(`reset: ${reason ?? 'unspecified'}`);
 
-    if (shouldDemote) {
+    if (shouldDemote || this.field?.observed) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
       if (field) {
         this.confidentKeys.delete(field.key);
+        this.observedEvidence = null;
       }
     }
 
@@ -152,6 +154,7 @@ export abstract class PredictionState {
   /** Forgets every field's confidence, for when the screen is replaced wholesale. */
   forgetConfidence(): void {
     this.confidentKeys.clear();
+    this.observedEvidence = null;
     this.fieldStyles.clear();
     this.field = null;
   }
@@ -170,6 +173,13 @@ export abstract class PredictionState {
 
   getEchoSrttMs(): number | null {
     return this.srtt;
+  }
+
+  /** Schedule a redraw even if no more input or output arrives. */
+  getExpiryDelayMs(): number | null {
+    if (this.predictions.length === 0) return null;
+    const oldest = Math.min(...this.predictions.map((p) => p.sentAt));
+    return Math.max(1, oldest + this.predictionTimeout() - this.now() + 1);
   }
 
   /** The last decisions that ended, refused or discarded predictions, newest last. */
@@ -229,10 +239,11 @@ export abstract class PredictionState {
     this.predictedCursor = null;
     this.note(`freeze: ${reason}${options.demote ? ' (demote)' : ''}`);
 
-    if (options.demote) {
+    if (options.demote || this.field?.observed) {
       const field = this.field ?? this.getFieldOption?.() ?? null;
       if (field) {
         this.confidentKeys.delete(field.key);
+        this.observedEvidence = null;
       }
     }
 
@@ -352,7 +363,14 @@ export abstract class PredictionState {
     // A frozen prediction was typed before a key that may have switched
     // modes (Esc into vim normal mode); its echo vouches for nothing after.
     if (field && !p.frozenFrom) {
-      this.markConfident(field.key);
+      if (field.observed) {
+        const count =
+          this.observedEvidence?.key === field.key ? this.observedEvidence.count + 1 : 1;
+        this.observedEvidence = { key: field.key, count };
+        if (count >= 2) this.markConfident(field.key);
+      } else {
+        this.markConfident(field.key);
+      }
     }
     // A cleared cell looks the same whichever backspace cleared it, and one
     // still on its way from before the run may have: only a character proves
@@ -389,6 +407,7 @@ export abstract class PredictionState {
   }
 
   protected mismatch(reason: string): void {
+    this.observedEvidence = null;
     this.mismatches++;
     this.note(`mismatch: ${reason}`);
     this.predictions = [];
@@ -428,6 +447,10 @@ export abstract class PredictionState {
 
     if (fresh.length !== this.predictions.length) {
       this.note('expired without an echo');
+      if (this.field?.observed) {
+        this.confidentKeys.delete(this.field.key);
+        this.observedEvidence = null;
+      }
       this.predictions = fresh;
       if (this.predictions.length === 0) {
         this.predictedCursor = null;

@@ -9,6 +9,7 @@ import {
 } from '@/features/terminal/render/cell';
 import type { OverlayCell, PaintOverlay } from '@/features/terminal/render/paintOverlay';
 import type { OverlayItem } from './predictionModel';
+import { DomPredictionTarget } from './predictionDom';
 
 /** What the layer draws into: the canvas renderer, while it is the one in use. */
 export interface OverlayTarget {
@@ -40,12 +41,17 @@ export interface PredictionLayerOptions {
 export class PredictionLayer {
   private items: ReadonlyArray<OverlayItem> = [];
   private target: OverlayTarget | null = null;
+  private domTarget: DomPredictionTarget | null = null;
   private readonly provider = () => this.paint();
 
   constructor(private readonly options: PredictionLayerOptions) {}
 
-  /** Draws through `target` from now on; null when the terminal fell back to the DOM renderer. */
+  /** A null canvas target uses a DOM overlay with the same predicted cells. */
   attach(target: OverlayTarget | null): void {
+    if (!target) {
+      const terminal = this.options.getTerminal();
+      if (terminal) target = this.domTarget ??= new DomPredictionTarget(terminal);
+    }
     if (this.target === target) return;
     this.target?.setOverlayProvider(null);
     this.target = target;
@@ -71,7 +77,10 @@ export class PredictionLayer {
   }
 
   dispose(): void {
-    this.attach(null);
+    this.target?.setOverlayProvider(null);
+    this.target = null;
+    this.domTarget?.dispose();
+    this.domTarget = null;
     this.items = [];
   }
 

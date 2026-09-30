@@ -38,8 +38,7 @@ export function attachPrediction(
   getTerminal: () => Terminal | null,
   getHerdrPrefixKeys: () => readonly string[] | undefined,
 ) {
-  // Predictions are only made where the caret is in an input field; see
-  // inputField.ts for how one is recognised on Herdr's composited screen.
+  // Recognized shapes supply editing bounds; other UIs learn from real echoes.
   const screenState = attachScreenState(term);
   const fieldProbe = new FieldProbe({
     getScreen: () => {
@@ -74,7 +73,7 @@ export function attachPrediction(
   )._core?.unicodeService;
   const predictor = new PredictiveEcho({
     getTerminal,
-    getField: fieldProbe.detect,
+    getField: fieldProbe.detectCandidate,
     getHerdrPrefixKeys,
     // The width xterm will draw a character at, as the guess for ones whose width may differ elsewhere.
     charWidth:

@@ -1,11 +1,9 @@
 /**
  * Finds the text input field the cursor is in, if any.
  *
- * Predictive echo is only safe where a keystroke is known to come back as the
- * same character at the caret: a shell prompt, or an agent's input box.
- * Everywhere else — Herdr's own menus, an agent's permission prompt, vim in
- * normal mode, less — the same key moves a selection or runs a command, and a
- * predicted character would be a lie.
+ * Recognized shapes supply boundaries and mode hints. Unknown layouts are
+ * candidates too: FieldProbe uses ObservedField, whose predictions stay hidden
+ * until changed cells and cursor movement demonstrate real character echoes.
  *
  * Herdr composites every pane onto one screen, so none of the usual terminal
  * signals (alternate screen, mouse or keypad modes) describe the pane: they
@@ -53,11 +51,14 @@ import {
   TOP_LEFT,
   TOP_RIGHT,
 } from './fieldScreen';
+import { ObservedField } from './observedField';
 
-type InputFieldKind = 'rule' | 'frame' | 'prompt';
+type InputFieldKind = 'rule' | 'frame' | 'prompt' | 'observed';
 
 export interface InputField {
   kind: InputFieldKind;
+  /** No recognized boundary: require changed cells and cursor movement to learn. */
+  observed?: boolean;
   /**
    * Identity of the field; confidence earned in one field is not lent to
    * another. It names the pane and the kind of field, never the rows the
@@ -437,6 +438,8 @@ export interface FieldProbeOptions {
  */
 export class FieldProbe {
   private readonly tracker = new InputFieldTracker();
+  private readonly observed = new ObservedField();
+  private candidate: InputField | null = null;
   private cached: InputField | null | undefined;
   private lastComplete: InputField | null = null;
 
@@ -448,9 +451,18 @@ export class FieldProbe {
       const screen = this.options.getScreen();
       const cursor = this.options.getCursor();
       this.cached = screen && cursor ? this.tracker.detect(screen, cursor) : null;
+      if (this.cached) this.observed.reset();
+      this.candidate =
+        this.cached ?? (screen && cursor ? this.observed.detect(screen, cursor) : null);
       this.lastComplete = this.cached;
     }
     return this.cached;
+  };
+
+  /** Unknown UIs can earn confidence from echoes without matching a prompt shape. */
+  readonly detectCandidate = (): InputField | null => {
+    this.detect();
+    return this.candidate;
   };
 
   /** The screen changed; the next `detect` scans again. */
@@ -460,6 +472,8 @@ export class FieldProbe {
 
   reset(): void {
     this.tracker.reset();
+    this.observed.reset();
+    this.candidate = null;
     this.cached = undefined;
     this.lastComplete = null;
   }

@@ -30,19 +30,25 @@ export function usePredictiveEcho({
   const predictorRef = useRef<PredictiveEcho | null>(null);
   const overlayRef = useRef<PredictionLayer | null>(null);
   const fieldProbeRef = useRef<FieldProbe | null>(null);
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef = useLatest(mode);
   const herdrPrefixKeysRef = useLatest(herdrPrefixKeys);
 
   /** Draw the predictions still pending, when the mode and the link call for them. */
   const sync = useCallback(() => {
+    if (expiryTimerRef.current !== null) clearTimeout(expiryTimerRef.current);
+    expiryTimerRef.current = null;
     const predictor = predictorRef.current;
     const overlay = overlayRef.current;
     if (!predictor || !overlay) return;
+    const items = predictor.getOverlayItems();
+    const delayMs = predictor.getExpiryDelayMs();
+    if (delayMs !== null) expiryTimerRef.current = setTimeout(sync, delayMs);
     if (!shouldShowPredictiveEcho(modeRef.current, predictor.getEchoSrttMs())) {
       overlay.clear();
       return;
     }
-    overlay.sync(predictor.getOverlayItems());
+    overlay.sync(items);
   }, [modeRef]);
 
   /** Drops every prediction, and everything learned about where the fields are. */
@@ -86,11 +92,20 @@ export function usePredictiveEcho({
   );
 
   const detach = useCallback(() => {
+    if (expiryTimerRef.current !== null) clearTimeout(expiryTimerRef.current);
+    expiryTimerRef.current = null;
     overlayRef.current?.dispose();
     overlayRef.current = null;
     predictorRef.current = null;
     fieldProbeRef.current = null;
   }, []);
+
+  useEffect(
+    () => () => {
+      if (expiryTimerRef.current !== null) clearTimeout(expiryTimerRef.current);
+    },
+    [],
+  );
 
   // Keys from the on-screen toolbars go out through the context, not through
   // xterm, so they reach the predictor here.
