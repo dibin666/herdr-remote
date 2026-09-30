@@ -6,40 +6,23 @@
 [![node](https://img.shields.io/node/v/herdr-remote)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/herdr-remote)](./LICENSE)
 
-Your [Herdr](https://herdr.dev) workspaces in any browser, phone included. See which coding
-agents are working, waiting for you or finished, answer them from wherever you are, and keep
-typing into the same terminals you left on the workstation.
+Your [Herdr](https://herdr.dev) workspaces in any browser, phone included. See which coding agents are working, waiting for you, or finished, answer them from wherever you are, and keep typing into the same terminals you left on the workstation.
+
+## Quick Start
+
+### Requirements
+
+- Node.js ≥ 22
+- [Herdr](https://herdr.dev) ≥ 0.9.3
+
+### Installation
 
 ```bash
 npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote.tgz
 herdr-remote
 ```
 
-The first run opens a setup wizard; after that the relay and host connector run in the
-background.
-
-Releases are published to [GitHub Releases](https://github.com/dibin666/herdr-remote/releases)
-first, where a release installs the moment it is out, and to npm as a fallback
-(`npm install -g herdr-remote`), which can take a while to catch up. The tarball bundles the
-relay, and `herdr-remote update` (or the About tab in the TUI) updates from GitHub, falling
-back to npm where GitHub cannot be reached.
-
-Requires Herdr 0.9.3 or newer. Each browser window drives its own Herdr client, which is only
-independent from the workstation's own terminal from 0.9.0 on, and 0.9.1 is what makes that
-model behave in a browser: window titles follow each client's own view, activating a machine in
-the background no longer resizes somebody else's focused pane, and a large paste no longer
-drops the client. A browser types through escape sequences, so 0.9.3 matters too: tapping a
-pane no longer sends a stray Escape to a working agent, and Alt shortcuts such as Alt+B, Alt+F
-and Alt+Backspace — broken in 0.9.2 — work again.
-
-Native Windows 10/11 is supported with Node.js 22+. Install Herdr from PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
-```
-
-Herdr's Windows plugin support is in preview. On the first launch in LAN mode, Windows
-Defender Firewall asks whether to allow `node.exe`; allow it on private networks.
+The first run launches a setup wizard, after which the services run in the background.
 
 ## Screenshots
 
@@ -48,165 +31,34 @@ Defender Firewall asks whether to allow `node.exe`; allow it on private networks
 | Your workspace in a browser tab | Terminal preferences |
 | :---: | :---: |
 | ![Herdr workspace with three Claude Code agents in the browser](docs/screenshots/en/workspace.png) | ![Terminal preferences dialog](docs/screenshots/en/settings.png) |
-| Every pane, tab and agent Herdr draws. The status line counts agents that are blocked, done or working, and the key bar carries the focused agent's own shortcuts. | Use the workstation's terminal font and size, turn on predictive echo for slow links, and choose how waiting agents get your attention. |
 | **Several workstations in one browser** | **Relay dashboard** |
 | ![Herdr instance switcher](docs/screenshots/en/switcher.png) | ![Relay operator dashboard](docs/screenshots/en/admin.png) |
-| Pair more than one Herdr and switch between them from the status line. Names and credentials stay in this browser. | With the admin token, a relay shows its workstations, their paired devices and its traffic, and can revoke a device. |
 
 ### Phone
 
 | Pair | Answer an agent | Copy from the terminal | Session controls |
 | :---: | :---: | :---: | :---: |
 | ![Pairing screen on a phone](docs/screenshots/en/phone-pair.png) | ![Claude Code permission prompt on a phone](docs/screenshots/en/phone-approve.png) | ![Long-press copy menu](docs/screenshots/en/phone-copy.png) | ![Session controls sheet](docs/screenshots/en/phone-menu.png) |
-| Type the 6-character code, or open the link in the QR code. | A blocked agent's prompt, answered with the key bar. | Long-press to copy a selection, a line or the whole screen, or to paste. | Workstation, connection, language, settings and key bar in one sheet. |
 
-### Workstation
+### Workstation Configuration TUI
 
 | Status at a glance | Pair a device |
 | :---: | :---: |
 | ![herdr-remote configuration TUI, overview](docs/screenshots/en/tui-overview.png) | ![herdr-remote configuration TUI, pairing code and QR code](docs/screenshots/en/tui-pair.png) |
-| `herdr-remote` shows the relay, host connector, Herdr socket and keep-alive service. | A single-use code and QR code, valid for 10 minutes. |
 
 ## Features
 
-**The basics**
-
-- **Herdr in a browser.** Every paired window drives its own Herdr client over one low-latency
-  ANSI stream, so a phone and a laptop can look at different workspaces at the same time.
-- **One-time pairing.** A 6-character code or a QR code; the device token it issues works for that
-  one workstation only.
-- **Built for phones.** A touch key bar with Esc, Tab, Ctrl, Alt, arrows, symbols and F-keys,
-  long-press copy and paste, and every other control in one sheet.
-- **Four ways to connect.** This machine only, your LAN or Tailnet, the official relay, or a relay
-  you host yourself.
-- **Setup and services.** A bilingual configuration TUI, and a keep-alive service under systemd,
-  launchd or a built-in supervisor.
-
-**The highlights**
-
-- **Agent status everywhere.** Counts of blocked, finished and working agents in the status line
-  and, if you want, in the tab title, as a vibration, a chime or a system notification.
-- **Agent shortcut keys.** The key bar follows the agent in the focused pane (Claude Code, Codex,
-  Gemini CLI and 21 more), and each agent's keys can be rearranged or rebound.
-- **The workstation's look.** The browser draws with the workstation terminal's colours, font and
-  size; a device without the font loads it over the relay, CJK characters as they appear.
-- **Predictive echo.** On a slow link your typing shows before the echo comes back.
-- **Windows shell support.** The key bar recognizes CMD, PowerShell and Git Bash. Set up the
-  administrator broker once in the Windows TUI under Keep-alive and approve the Windows prompt;
-  after that, the WebUI's Admin button opens an elevated PowerShell as a new Herdr tab without
-  another UAC prompt.
-- **Images from the phone.** A photo or screenshot is saved on the workstation and its path is
-  typed into the agent's prompt.
-- **Several workstations** in one browser, and a **relay dashboard** for whoever runs the relay.
-
-## Packages
-
-| Package | Target | Description |
-|---|---|---|
-| **`herdr-remote`** | Workstation | Herdr plugin, host connector, and configuration TUI |
-| **`herdr-remote-relay`** | Anywhere | Standalone WebSocket relay and WebUI assets |
-
-`herdr-remote` runs a local relay automatically unless configured to use an external one.
-
-## Connection Modes
-
-| Mode | Reachability | External Server |
-|---|---|---|
-| **This machine only** *(default)* | Local workstation browser | No |
-| **Local network / Tailscale** | Devices on LAN or Tailnet | No |
-| **Official relay** | Internet | No (`wss://herdr-remote.564616.xyz`) |
-| **Self-hosted relay** | Internet | Yes ([Guide](docs/self-hosted-relay.md) · [中文](docs/self-hosted-relay.zh-CN.md)) |
-
-Reading a workstation on a 40-column screen is worth a few settings of Herdr's own: see
-[Herdr on a phone screen](docs/herdr-on-a-phone.md).
-
-## Pairing
-
-1. Open the **Pair a device** tab in the TUI, or run `herdr-remote pair`.
-2. Scan the QR code, or open the Web UI and enter the 6-character code.
-3. Codes expire after 10 minutes and work once.
-
-To add another workstation to the same browser, choose **Add Herdr instance** in the switcher at
-the left of the status line and enter that workstation's code. Only the active workstation keeps a
-connection open, which keeps relay traffic down.
-
-## Configuration TUI
-
-Run `herdr-remote` without arguments. It speaks English and Chinese and follows `$LANG` unless
-told otherwise.
-
-| Key | Action |
-|---|---|
-| `↑` `↓` | Move |
-| `↵` | Select or edit |
-| `←` `→` or `1`–`7` | Switch tab |
-| `s` | Save |
-| `r` | Refresh status |
-| `m` | Toggle mouse |
-| `q` | Quit |
-
-## Keep-Alive Service
-
-Install the background service from the **Keep-alive** tab or the CLI:
-
-- **Linux**: systemd user unit (`loginctl enable-linger` keeps it running after logout)
-- **macOS**: LaunchAgent
-- **Windows**: a Task Scheduler task starts under your account when you sign in, without asking for a password or administrator rights. It does not run before sign-in. Select `windows-service` if it must start before sign-in; that option needs administrator rights and Windows may require your account password.
-- **Anything else**: a built-in supervisor process
-
-```bash
-herdr-remote keepalive install | uninstall | restart | status
-```
-
-## CLI Reference
-
-```bash
-herdr-remote                      # Configuration TUI
-herdr-remote start | stop | restart
-herdr-remote update [--json]      # Install the latest release and restart services
-herdr-remote status [--json]
-herdr-remote pair [--json]
-herdr-remote url
-herdr-remote keepalive install | uninstall | restart | status
-herdr-remote plugin link | unlink | status   # Register as a native Herdr plugin
-herdr-remote --lang zh|en
-```
-
-## Configuration
-
-Settings: `~/.config/herdr-remote/config.json`; on Windows:
-`%APPDATA%\herdr-remote\config.json`
-
-```json
-{
-  "ui":        { "language": "auto" },
-  "relay":     { "mode": "local", "port": 8787, "lanHost": "", "publicUrl": "", "remoteUrl": "" },
-  "herdr":     { "socketPath": null, "args": [], "autoStart": false },
-  "keepalive": { "manager": "auto" }
-}
-```
-
-Authentication tokens and secrets are stored in `~/.local/state/herdr-remote/runtime.json`
-(mode `0600`). On Windows they are stored in `%LOCALAPPDATA%\herdr-remote\runtime.json`.
-
-## Security
-
-- Device tokens are bound to one workstation. `/api/status` is workstation-scoped, ordinary users cannot enumerate other Herdr instances, and relay-wide status requires the operator token.
-- Relay brokers WebSocket streams without running shells or accessing local sockets directly.
-- Authentication tokens are hashed with SHA-256; terminal content is never written to disk.
-- Every paired window drives its own terminal with full input; pairing, not a control lease, is the permission boundary.
-- Pairing codes are single-use, rate-limited, and expire in 10 minutes.
-
-## Development
-
-```bash
-npm ci                            # Install (node-pty needs a build toolchain)
-npm run build                     # Build the relay, WebUI and CLI
-npm test                          # Every test suite; builds first
-npm run check                     # Biome, type check and knip
-npm run dev -w herdr-remote-web   # WebUI dev server, proxied to a relay on 127.0.0.1:8787
-node scripts/render-bench.mjs     # Frame cost of the terminal renderer (needs Playwright)
-```
+- **Independent Multi-Client Views**: Each paired window runs an independent Herdr client, allowing mobile devices and desktop browsers to navigate different workspaces simultaneously.
+- **Quick & Secure Pairing**: Connect via a 6-character one-time pairing code or QR code; device tokens are scoped strictly to the paired workstation.
+- **Mobile-First Experience**: Touch-friendly key bar with Esc, Tab, Ctrl, Alt, arrow keys, symbols, and F-keys, alongside long-press copy and quick paste.
+- **Agent Status Awareness**: Real-time tracking of blocked, running, and finished agents, with optional tab title badges, vibrations, audio chimes, and system notifications.
+- **Context-Aware Agent Shortcuts**: Key bar dynamically adapts to the active agent (supporting 24 agents including Claude Code, Codex, and Gemini CLI), with customizable order and keybindings.
+- **Native Terminal Styling**: Preserves workstation terminal color schemes, fonts, and sizes, with dynamic font streaming and predictive echo on high-latency links.
+- **Windows Shell Support**: Key bar recognizes CMD, PowerShell, and Git Bash, with quick creation of elevated terminal tabs in Herdr.
+- **Mobile Image Uploads**: Send photos or screenshots from your phone directly to the workstation, inserting local file paths straight into the agent prompt.
+- **Flexible Connection Modes**: Supports local-only, LAN / Tailscale, official public relay, or self-hosted relays.
+- **Multi-Workstation Management**: Manage and switch between multiple Herdr workstations from a single browser session, with an operator dashboard for relay administrators.
+- **Cross-Platform**: Runs on Linux, macOS, and Windows 10/11 with a bilingual TUI and background service supervisors.
 
 ## License
 
