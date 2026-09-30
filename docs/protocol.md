@@ -491,15 +491,21 @@ the hard way:
   once a second, busy no matter how rarely it asks anything. `herdr-api.js` is a
   function rather than a client for exactly this reason, and the `herdr` CLI
   connects per command too.
-- **Subscriptions do not help here.** `events.subscribe` is the one call that
-  keeps a connection open, but `pane.agent_status_changed` — the event that
-  tracks what this message reports — is scoped to a single `pane_id`, and the
-  whole-session pane events that need no target (`pane.updated`,
-  `pane.agent_detected`, …) stayed silent through minutes of continuous agent
-  work. A subscription would also need its own connection, since the one it
-  holds stops answering requests.
+- **Subscriptions cannot carry status.** `events.subscribe` is the one call
+  that keeps a connection open, but `pane.agent_status_changed` — the event
+  that tracks what this message reports — is still scoped to a single
+  `pane_id` in Herdr 0.9.3, and a request naming a pane that has gone is
+  rejected whole.
 
-Five-second polling is the whole mechanism.
+So polling carries status. A second connection subscribes to the session-wide
+`pane.focused`, `tab.focused`, `workspace.focused` and `pane.agent_detected`,
+which only trigger an earlier read (debounced by 150 ms): events invalidate the
+last snapshot, they are never applied to it, because Herdr's snapshots and
+events share no sequence. From Herdr 0.9.2 a subscriber that falls behind gets
+an `events_lost` error under its own request id and a closed socket; the host
+resubscribes, and every `subscription_started` — first, after `events_lost`,
+after a Herdr restart — triggers a read. Reads never overlap: one asked for
+while another is in flight runs once that one answers.
 
 Host to relay, sent only when the summary actually changed:
 
