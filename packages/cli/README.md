@@ -7,11 +7,13 @@ Web terminal client for [Herdr](https://herdr.dev) workspaces. Mobile-friendly U
 ## Installation & Usage
 
 ```bash
-npm install -g herdr-remote
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote.tgz
 herdr-remote
 ```
 
 Running `herdr-remote` without arguments launches the setup wizard and configuration TUI.
+Releases go to [GitHub Releases](https://github.com/dibin666/herdr-remote/releases) first and to
+npm as a fallback (`npm install -g herdr-remote`); `herdr-remote update` follows the same order.
 
 Native Windows 10/11 is supported with Node.js 22+; install Herdr from PowerShell with
 `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`.

@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { AppContext } from '../App.js';
 import { theme } from '../theme.js';
-import { useRelayUpdate } from './useRelayUpdate.js';
 import { Message, Panel, Row, Selectable } from '../components/common.js';
 import {
   canSelfUpdate,
+  cliTarballUrl,
   checkForUpdate,
   configPath,
   currentVersion,
   detectLocale,
   installKind,
+  installedRelayVersion,
   performUpdate,
+  runsLocalRelay,
   saveDraft,
   setField,
   stateDir,
@@ -29,18 +31,18 @@ type UpdateState =
   | { phase: 'error'; messageKey: string; params?: Record<string, string | number> };
 
 /** Where the last check found the release, reused by the install. */
-type CheckRef = { current: { registry: string; sources: string[] } };
+type CheckRef = { current: { source: string; sources: string[] } };
 
 /** `https://registry.npmmirror.com` → `registry.npmmirror.com`, for one line of text. */
-const registryHost = (registry: string) => registry.replace(/^https?:\/\//, '');
+const sourceHost = (source: string) => source.replace(/^https?:\/\//, '');
 
 export function About({ ctx }: { ctx: AppContext }) {
   const { t, draft } = ctx;
   const [selected, setSelected] = useState('auto');
   const [update, setUpdate] = useState<UpdateState>({ phase: 'idle' });
-  /** Why the install will come from somewhere other than npm's own registry. */
+  /** Why the install will come from somewhere other than where some sources said. */
   const [sourceNote, setSourceNote] = useState<{ registries: string; source: string } | null>(null);
-  const checkRef = useState<CheckRef>(() => ({ current: { registry: '', sources: [] } }))[0];
+  const checkRef = useState<CheckRef>(() => ({ current: { source: '', sources: [] } }))[0];
 
   const detected = detectLocale({ preference: 'auto' });
   const languageOptions = [
@@ -73,26 +75,21 @@ export function About({ ctx }: { ctx: AppContext }) {
     }
   })();
 
-  const relay = useRelayUpdate(ctx);
-  const options = [
-    ...languageOptions,
-    { id: 'update', label: updateLabel },
-    ...(relay.visible ? [{ id: 'relay-update', label: relay.label }] : []),
-  ];
+  const options = [...languageOptions, { id: 'update', label: updateLabel }];
 
   /** Show a check's answer, whether this screen asked or the TUI did on opening. */
   const applyCheck = (result: UpdateCheck) => {
-    checkRef.current = { registry: result.registry ?? '', sources: result.sources ?? [] };
-    // A mirror that has not synced the release yet used to be the whole
+    checkRef.current = { source: result.source ?? '', sources: result.sources ?? [] };
+    // A registry that has not synced the release yet used to be the whole
     // answer. It is still asked, and said to be behind.
     const behind = result.behind ?? [];
     setSourceNote(
-      result.updateAvailable && behind.length > 0 && result.registry
+      result.updateAvailable && behind.length > 0 && result.source
         ? {
             registries: behind
-              .map((entry) => `${registryHost(entry.registry)} ${entry.version ?? ''}`.trim())
+              .map((entry) => `${sourceHost(entry.source)} ${entry.version ?? ''}`.trim())
               .join(', '),
-            source: registryHost(result.registry),
+            source: sourceHost(result.source),
           }
         : null,
     );
@@ -115,7 +112,7 @@ export function About({ ctx }: { ctx: AppContext }) {
     const result: UpdateCheck = await checkForUpdate();
     if (!result.ok) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorNetwork' });
-      // Which registries were tried, and what each of them said. Without this
+      // Which sources were tried, and what each of them said. Without this
       // the row reads "could not reach npm registry" on a machine where
       // `npm install` works perfectly, and there is nothing to act on.
       const { message } = result;
@@ -130,7 +127,7 @@ export function About({ ctx }: { ctx: AppContext }) {
     setUpdate({ phase: 'updating', latest, attempt: 1 });
     const result = await whileServicesStopped(ctx.config, () =>
       performUpdate({
-        registry: checkRef.current.registry,
+        source: checkRef.current.source,
         sources: checkRef.current.sources,
         version: latest,
         onAttempt: ({ attempt }: { attempt: number }) =>
@@ -138,7 +135,11 @@ export function About({ ctx }: { ctx: AppContext }) {
       }),
     );
     if (!result.ok) {
-      const params = { version: latest, installed: result.installed ?? '' };
+      const params = {
+        version: latest,
+        installed: result.installed ?? '',
+        url: cliTarballUrl(latest),
+      };
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorFailed', params });
       // npm's own words: "update failed" alone is what left this unfixable.
       ctx.notify(
@@ -193,10 +194,6 @@ export function About({ ctx }: { ctx: AppContext }) {
   };
 
   const activate = (id: string) => {
-    if (id === 'relay-update') {
-      relay.activate();
-      return;
-    }
     if (id === 'update') {
       activateUpdate();
       return;
@@ -248,26 +245,14 @@ export function About({ ctx }: { ctx: AppContext }) {
         {sourceNote ? (
           <Text color={theme.muted}>{`  ${t('update.mirrorBehind', sourceNote)}`}</Text>
         ) : null}
-        {relay.visible ? (
-          <Selectable
-            selected={selected === 'relay-update'}
-            onSelect={() => {
-              setSelected('relay-update');
-              relay.activate();
-            }}
-            onHover={() => setSelected('relay-update')}
-          >
-            {relay.label}
-          </Selectable>
-        ) : null}
       </Box>
 
       <Row label={t('about.version')}>
         <Text color={theme.muted}>{currentVersion()}</Text>
       </Row>
-      {relay.visible ? (
+      {runsLocalRelay(ctx.config) ? (
         <Row label={t('about.relayPackage')}>
-          <Text color={theme.muted}>{relay.installed ?? '?'}</Text>
+          <Text color={theme.muted}>{installedRelayVersion() ?? '?'}</Text>
         </Row>
       ) : null}
       <Row label={t('about.configPath')}>

@@ -257,17 +257,16 @@ const zh: Record<MessageKey, string> = {
   'update.banner':
     'herdr-remote {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在更新一行按 Enter 安装。',
   'update.check': '检查更新',
-  'update.checking': '查询 npm 中…',
+  'update.checking': '查询 GitHub Releases 与 npm 中…',
   'update.upToDate': '已是最新（{version}）',
   'update.available': '新版本 {version} 可用（按 Enter 安装）',
   'update.updating': '安装 {version} 中…',
   'update.updatingRetry': '安装 {version} 中…（npm 尚未同步，第 {attempt} 次尝试）',
   'update.done': '已更新至 {version}',
   'update.restartHint': '更新已安装，重启 herdr-remote 生效。',
-  'update.errorNetwork': '所有 npm registry 均无法连接',
-  'update.errorNetworkDetail': '无 registry 应答：{message}',
-  'update.errorFailed':
-    '更新失败，可手动执行：npm install -g herdr-remote@{version} --prefer-online',
+  'update.errorNetwork': 'GitHub Releases 与所有 npm registry 均无法连接',
+  'update.errorNetworkDetail': '均无应答：{message}',
+  'update.errorFailed': '更新失败，可手动执行：npm install -g {url}',
   'update.errorFailedDetail': 'npm：{message}',
   'update.errorNotYetPublished':
     'npm 还没同步到 {version}（刚发布的几分钟内常见），稍后按 Enter 重试。',
@@ -286,20 +285,6 @@ const zh: Record<MessageKey, string> = {
     '有管理员终端开着，broker 继续运行旧版本。关闭所有管理员终端后运行 herdr-remote admin-broker restart。',
   'update.errorBusy':
     "仍有进程占用 herdr-remote 的安装目录，旧版本设置的管理员终端 broker 会这样。先在管理员 PowerShell 中执行：Get-ScheduledTask -TaskName 'HerdrRemoteAdminBroker-*' | Stop-ScheduledTask，再回到这里重新运行 herdr-remote update，最后以管理员身份运行 herdr-remote admin-broker install。",
-  'relayUpdate.check': 'Relay {version}：检查更新',
-  'relayUpdate.checking': 'Relay：查询 npm 中…',
-  'relayUpdate.upToDate': 'Relay 已是最新（{version}）',
-  'relayUpdate.available': 'Relay 新版本 {latest} 可用，当前 {installed}（按 Enter 安装）',
-  'relayUpdate.needsCli': 'Relay {latest} 需要更新 herdr-remote，请先更新上一行',
-  'relayUpdate.updating': '安装 relay {version} 中…',
-  'relayUpdate.updatingRetry': '安装 relay {version} 中…（npm 尚未同步，第 {attempt} 次尝试）',
-  'relayUpdate.restart': 'Relay {version} 已安装，运行中的仍是 {running}（按 Enter 重启生效）',
-  'relayUpdate.restarting': '正在重启 herdr-remote…',
-  'relayUpdate.restarted': 'herdr-remote 已重启，relay 现在运行 {version}。',
-  'relayUpdate.done': 'Relay 已更新至 {version}',
-  'relayUpdate.errorNotApplied': 'npm 已完成，但安装的仍是 relay {installed}',
-  'relayUpdate.banner':
-    'Relay {latest} 已发布（当前 {current}），按 7 进入「语言与关于」，在 Relay 一行按 Enter 安装。',
 };
 
 export default zh;

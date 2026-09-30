@@ -1,19 +1,32 @@
-// Self-update for the npm-installed CLI.
+// Self-update for the installed CLI.
 //
-// The update path is only meaningful for a package installed from npm. A source
-// checkout is managed by git and a linked development copy by the developer, so
-// this refuses to touch either: silently running `npm install -g` over a
-// checkout would replace the tree someone is working in.
+// Releases come from GitHub first and npm second: a GitHub Release installs the
+// moment it exists, while npm can take many minutes after publishing before a
+// version resolves. Both carry the same self-contained tarball, which bundles
+// the relay, so one install updates both.
+//
+// The update path is only meaningful for a package installed with npm. A
+// source checkout is managed by git and a linked development copy by the
+// developer, so this refuses to touch either: silently running `npm install -g`
+// over a checkout would replace the tree someone is working in.
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import {
+  cliTarballUrl,
+  GITHUB_RELEASES_URL,
+  LATEST_CLI_TARBALL_URL,
+  LATEST_RELEASE_MANIFEST_URL,
+} from 'herdr-remote-relay/protocol';
 import { PACKAGE_ROOT } from './paths.js';
 import { heldByAnotherProcess, installInPlace } from './updater/in-place.js';
 import { runNpm, type NpmRun, type SpawnLike } from './updater/npm.js';
 
 const PACKAGE_NAME = 'herdr-remote';
+const RELAY_PACKAGE = 'herdr-remote-relay';
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
 
 /**
@@ -38,16 +51,15 @@ export interface UpdateCheck {
   ok: boolean;
   current: string;
   latest?: string;
-  /** The preferred registry that carries `latest`. */
-  registry?: string;
-  /** Every registry that carries `latest`, preferred first. */
+  /** The preferred source that carries `latest`: GitHub Releases or an npm registry. */
+  source?: string;
+  /** Every source that carries `latest`, preferred first. */
   sources?: string[];
-  /** Registries still on an older release. */
-  behind?: { registry: string; version?: string }[];
+  /** Sources still on an older release. */
+  behind?: { source: string; version?: string }[];
   updateAvailable?: boolean;
   errorKey?: string;
   message?: string;
-  triedRegistries?: string[];
 }
 
 /** What `performUpdate` did. */
@@ -67,10 +79,20 @@ function currentVersion(): string {
   }
 }
 
+/** The relay bundled with this herdr-remote, read from disk: an update replaces it. */
+function installedRelayVersion(): string | null {
+  try {
+    const manifest = createRequire(import.meta.url).resolve(`${RELAY_PACKAGE}/package.json`);
+    return JSON.parse(fs.readFileSync(manifest, 'utf8')).version;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * How this copy got here.
  *
- * - `npm`      installed from the registry; updating is `npm install -g`.
+ * - `npm`      installed with npm, from a release tarball or a registry; updating is `npm install -g`.
  * - `linked`   `npm link`ed into a global tree from a working copy.
  * - `source`   run straight out of a checkout.
  *
@@ -213,19 +235,15 @@ async function fetchJson(
  */
 async function askRegistry(
   registry: string,
-  {
-    timeoutMs,
-    fetchImpl,
-    packageName,
-  }: { timeoutMs: number; fetchImpl: FetchLike; packageName: string },
+  { timeoutMs, fetchImpl }: { timeoutMs: number; fetchImpl: FetchLike },
 ): Promise<{ ok: true; latest: string } | { ok: false; message: string | null }> {
   type Body = { latest?: unknown; version?: unknown } | null | undefined;
   const endpoints = [
     {
-      url: `${registry}/-/package/${packageName}/dist-tags`,
+      url: `${registry}/-/package/${PACKAGE_NAME}/dist-tags`,
       read: (body: unknown) => (body as Body)?.latest,
     },
-    { url: `${registry}/${packageName}/latest`, read: (body: unknown) => (body as Body)?.version },
+    { url: `${registry}/${PACKAGE_NAME}/latest`, read: (body: unknown) => (body as Body)?.version },
   ];
   let message: string | null = null;
   for (const endpoint of endpoints) {
@@ -241,40 +259,66 @@ async function askRegistry(
   return { ok: false, message };
 }
 
+const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/** The newest GitHub Release, from the manifest every release carries. */
+async function askGithubReleases(
+  manifestUrl: string,
+  { timeoutMs, fetchImpl }: { timeoutMs: number; fetchImpl: FetchLike },
+): Promise<{ ok: true; latest: string } | { ok: false; message: string | null }> {
+  const attempt = await fetchJson(manifestUrl, { timeoutMs, fetchImpl });
+  if (!attempt.ok) return attempt;
+  const version = (attempt.body as { version?: unknown } | null)?.version;
+  if (typeof version === 'string' && VERSION_PATTERN.test(version)) {
+    return { ok: true, latest: version };
+  }
+  return { ok: false, message: 'release manifest has no version' };
+}
+
 /**
  * Ask what the current release is.
  *
  * Never throws: an update check is a convenience, and a machine that is offline
  * or behind a proxy should still get a working settings screen.
  *
- * Every registry is asked at once and the newest answer wins. Taking the first
- * answer let a mirror a few minutes (or hours) behind report the release before
- * last as current. `sources` lists the registries that already carry the
- * newest version, preferred order first, which is where an install should come
- * from; `behind` lists the ones that do not, so the screen can say why.
+ * GitHub Releases and every registry are asked at once and the newest answer
+ * wins. Taking the first answer let a mirror a few minutes (or hours) behind
+ * report the release before last as current. `sources` lists the ones that
+ * already carry the newest version, GitHub first, which is where an install
+ * should come from; `behind` lists the ones that do not, so the screen can say
+ * why. GitHub is not reachable from every network, which is what the
+ * registries are still asked for.
  */
 async function checkForUpdate({
   timeoutMs = 6000,
   fetchImpl = globalThis.fetch,
   registries = registryCandidates(),
-  // Another package this one installs, and the version of it on disk: the relay.
-  packageName = PACKAGE_NAME,
+  releaseManifest = LATEST_RELEASE_MANIFEST_URL as string | null,
   current = currentVersion(),
 }: {
   timeoutMs?: number;
   fetchImpl?: FetchLike;
   registries?: string[];
-  packageName?: string;
+  /** Null leaves GitHub out, for a registry-only check. */
+  releaseManifest?: string | null;
   current?: string;
 } = {}): Promise<UpdateCheck> {
-  const attempts = await Promise.all(
-    registries.map(async (registry) => ({
-      registry,
-      ...(await askRegistry(registry, { timeoutMs, fetchImpl, packageName })),
+  const attempts = await Promise.all([
+    ...(releaseManifest
+      ? [
+          askGithubReleases(releaseManifest, { timeoutMs, fetchImpl }).then((answer) => ({
+            source: GITHUB_RELEASES_URL,
+            ...answer,
+          })),
+        ]
+      : []),
+    ...registries.map(async (registry) => ({
+      source: registry,
+      ...(await askRegistry(registry, { timeoutMs, fetchImpl })),
     })),
-  );
+  ]);
   const answers = attempts.filter(
-    (attempt): attempt is { registry: string; ok: true; latest: string } => attempt.ok,
+    (attempt): attempt is { source: string; ok: true; latest: string } => attempt.ok,
   );
 
   if (answers.length === 0) {
@@ -286,9 +330,8 @@ async function checkForUpdate({
       current,
       errorKey: 'update.errorNetwork',
       message: attempts
-        .map((attempt) => `${attempt.registry}: ${'message' in attempt ? attempt.message : ''}`)
+        .map((attempt) => `${attempt.source}: ${'message' in attempt ? attempt.message : ''}`)
         .join('; '),
-      triedRegistries: registries,
     };
   }
 
@@ -297,16 +340,16 @@ async function checkForUpdate({
     .reduce((best, version) => (compareVersions(version, best) > 0 ? version : best));
   const sources = answers
     .filter((answer) => compareVersions(answer.latest, latest) === 0)
-    .map((answer) => answer.registry);
+    .map((answer) => answer.source);
   const behind = answers
     .filter((answer) => compareVersions(answer.latest, latest) < 0)
-    .map((answer) => ({ registry: answer.registry, version: answer.latest }));
+    .map((answer) => ({ source: answer.source, version: answer.latest }));
 
   return {
     ok: true,
     current,
     latest,
-    registry: sources[0],
+    source: sources[0],
     sources,
     behind,
     updateAvailable: compareVersions(latest, current) > 0,
@@ -345,8 +388,6 @@ function installedVersionOnDisk(): string | null {
   }
 }
 
-const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
-
 /**
  * Install a release over this one.
  *
@@ -354,13 +395,14 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  * npm's own message; npm's diagnostics are more useful than anything that could
  * be invented here.
  *
- * - The exact version the check found is installed, not `@latest`, from a
- *   registry that reported it, with `--prefer-online` so npm revalidates the
- *   package metadata it cached before the release existed.
+ * - The exact version the check found is installed, not `@latest`, from the
+ *   sources that reported it: GitHub's release tarball first, then registries,
+ *   asked with `--prefer-online` so npm revalidates the package metadata it
+ *   cached before the release existed.
  * - Right after a release, npm's view of the package can still lack the new
  *   version although its dist-tag already points at it: npm answers ETARGET.
  *   That is a wait, not a failure, so it is retried a few times, then the next
- *   registry that carries the version is tried.
+ *   source that carries the version is tried.
  * - On Windows, when something holds the package directory so npm cannot
  *   rename it, the release is copied over it instead.
  * - Success is what is on disk afterwards, not npm's exit code.
@@ -371,9 +413,10 @@ async function performUpdate({
   // Seam for tests: the suite runs from a checkout, where the guard below is
   // correctly the only reachable outcome.
   installKindImpl = installKind,
-  // The registries that reported `version`, preferred first. Empty means
-  // "whatever npm is configured with", which is right when no check has run.
-  registry = '',
+  // The sources that reported `version`, preferred first. Empty means GitHub,
+  // then whatever registry npm is configured with, which is right when no
+  // check has run.
+  source = '',
   sources = [],
   version = null,
   attempts = 3,
@@ -387,14 +430,14 @@ async function performUpdate({
   spawnImpl?: SpawnLike;
   timeoutMs?: number;
   installKindImpl?: () => InstallKind;
-  registry?: string;
+  source?: string;
   sources?: string[];
   version?: string | null;
   attempts?: number;
   retryDelayMs?: number;
   sleep?: (ms: number) => Promise<unknown>;
   readInstalledVersion?: () => string | null;
-  onAttempt?: (progress: { registry: string; attempt: number }) => void;
+  onAttempt?: (progress: { source: string; attempt: number }) => void;
   platform?: NodeJS.Platform;
   inPlace?: (args: string[], run: (args: string[]) => Promise<NpmRun>) => Promise<NpmRun>;
 } = {}): Promise<UpdateResult> {
@@ -402,21 +445,24 @@ async function performUpdate({
   if (kind !== 'npm') return { ok: false, errorKey: `update.cannot.${kind}` };
 
   const target = typeof version === 'string' && VERSION_PATTERN.test(version) ? version : null;
-  const spec = `${PACKAGE_NAME}@${target || 'latest'}`;
-  const registries: string[] = [];
-  for (const candidate of [registry, ...sources]) {
+  const candidates: string[] = [];
+  for (const candidate of [source, ...sources]) {
     const normalized = normalizeRegistry(candidate);
-    if (normalized && !registries.includes(normalized)) registries.push(normalized);
+    if (normalized && !candidates.includes(normalized)) candidates.push(normalized);
   }
-  if (registries.length === 0) registries.push('');
+  // '' is npm's own configured registry.
+  if (candidates.length === 0) candidates.push(GITHUB_RELEASES_URL, '');
 
   let last: NpmRun = { ok: false, output: '' };
   let notYetPublished = false;
-  for (const source of registries) {
+  for (const candidate of candidates) {
+    const github = candidate === GITHUB_RELEASES_URL;
+    const args = github
+      ? ['install', '-g', target ? cliTarballUrl(target) : LATEST_CLI_TARBALL_URL]
+      : ['install', '-g', `${PACKAGE_NAME}@${target || 'latest'}`, '--prefer-online'];
+    if (candidate && !github) args.push('--registry', candidate);
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      onAttempt({ registry: source, attempt });
-      const args = ['install', '-g', spec, '--prefer-online'];
-      if (source) args.push('--registry', source);
+      onAttempt({ source: candidate, attempt });
       let result = await runNpm(spawnImpl, args, timeoutMs);
       if (!result.ok && platform === 'win32' && heldByAnotherProcess(result.output))
         result = await inPlace(args, (stagedArgs) => runNpm(spawnImpl, stagedArgs, timeoutMs));
@@ -442,7 +488,7 @@ async function performUpdate({
         };
       }
       notYetPublished = isNotYetPublished(result.output);
-      if (!notYetPublished) break; // Not a wait: this registry will not do better.
+      if (!notYetPublished) break; // Not a wait: this source will not do better.
       if (attempt < attempts) await sleep(retryDelayMs);
     }
   }
@@ -463,6 +509,7 @@ export {
   currentVersion,
   installKind,
   installedVersionOnDisk,
+  installedRelayVersion,
   performUpdate,
   registryCandidates,
   updateChecksEnabled,

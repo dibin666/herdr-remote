@@ -125,7 +125,7 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste and http."
+                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste, http and release."
                 },
                 "patterns": [
                   {
@@ -152,7 +152,7 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste and http."
+                  "@protocol/frames": "frames needs Node's Buffer; the browser may only use messages, terminal, paste, http and release."
                 },
                 "patterns": [
                   {

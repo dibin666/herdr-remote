@@ -557,7 +557,8 @@ replace.
 ## Update status (`update_status`)
 
 Whether the workstation runs the newest herdr-remote. The host connector asks
-the npm registries each time a window opens (at most once a minute) and sends:
+GitHub Releases and the npm registries each time a window opens (at most once a
+minute) and sends:
 
 ```json
 {
@@ -574,11 +575,14 @@ the npm registries each time a window opens (at most once a minute) and sends:
 `current` is the version the connector is running; `installed` is the one on
 disk, ahead of it when an update was installed but herdr-remote not restarted
 (`restartPending`). `updateCommand` says the workstation has `herdr-remote
-update`, which installs and restarts in one step; the browser then offers that
-rather than the npm command and a restart, and connectors older than it leave
-the field out. Every registry the machine is configured with is asked at
-once and the newest answer wins, so a mirror that has not synced a release yet
-cannot hide it. A failed check sends nothing.
+`update`, which installs and restarts in one step; the browser then offers that
+rather than an `npm install -g <release tarball>` command and a restart, and
+connectors older than it leave the field out. GitHub Releases (the `latest.json`
+manifest on the newest release) and every registry the machine is configured
+with are asked at once and the newest answer wins, so npm, which can take many
+minutes after a release to serve it, or a mirror that has not synced cannot hide
+it. A failed check sends nothing. The addresses come from
+`packages/relay/src/protocol/release.ts`.
 
 The relay accepts only release-shaped version strings and the three flags,
 broadcasts the result to every window of that host, and replays the last one

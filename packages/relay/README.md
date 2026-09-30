@@ -11,9 +11,11 @@ Brokers WebSocket connections between browsers and workstation host connectors. 
 ## Installation
 
 ```bash
-npm install -g herdr-remote-relay
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote-relay.tgz
 herdr-remote-relay --public-url https://herdr.example.com --password <password>
 ```
+
+From npm instead: `npm install -g herdr-remote-relay` (it can lag a new release by a while).
 
 Requirements: Node.js 22+, TLS reverse proxy (nginx, Caddy, Cloudflare Tunnel).
 

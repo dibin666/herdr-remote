@@ -106,7 +106,10 @@ describe('herdr-remote update notice', () => {
     const modal = screen.getByTestId('update-modal');
     expect(modal).toHaveTextContent('workbox');
     expect(modal).toHaveTextContent('0.2.16');
-    expect(modal).toHaveTextContent('npm install -g herdr-remote@0.3.0 --prefer-online');
+    // From GitHub Releases, where a release installs the moment it is out.
+    expect(modal).toHaveTextContent(
+      'npm install -g https://github.com/dibin666/herdr-remote/releases/download/herdr-remote-v0.3.0/herdr-remote-0.3.0.tgz',
+    );
     expect(modal).toHaveTextContent('herdr-remote restart');
 
     fireEvent.click(screen.getByRole('button', { name: 'Skip this version' }));
@@ -201,7 +204,9 @@ describe('herdr-remote update notice', () => {
     const modal = screen.getByTestId('update-modal');
     expect(modal).toHaveTextContent('too old to tell');
     expect(modal).toHaveTextContent('Stop-Process');
-    expect(modal).toHaveTextContent('npm install -g herdr-remote@latest --prefer-online');
+    expect(modal).toHaveTextContent(
+      'npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote.tgz',
+    );
     // Not a release, so not one to ignore.
     expect(screen.queryByRole('button', { name: /Ignore/ })).not.toBeInTheDocument();
   });

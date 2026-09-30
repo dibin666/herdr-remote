@@ -7,11 +7,12 @@
 ## 安装与运行
 
 ```bash
-npm install -g herdr-remote
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote.tgz
 herdr-remote
 ```
 
 直接运行 `herdr-remote` 即可启动向导并进入配置 TUI。
+新版本先发布到 [GitHub Releases](https://github.com/dibin666/herdr-remote/releases)，npm 作为备用渠道（`npm install -g herdr-remote`）；`herdr-remote update` 按同样的顺序更新。
 
 已支持 Windows 10/11 原生运行（需 Node.js 22+），请在 PowerShell 中执行
 `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` 安装 Herdr。

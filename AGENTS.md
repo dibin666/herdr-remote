@@ -30,7 +30,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 
 ## 不变量
 
-- 线协议（消息类型、常量、校验）只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`），不能引用 `frames`。
+- 线协议（消息类型、常量、校验）以及发布地址只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`、`release`），不能引用 `frames`。
 - Herdr socket 路径和 host token 只存在于 host connector，绝不能发给浏览器。
 - 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli；web 的 `shared/` 不依赖 `features/`、`context/`、`app/`、`connection/`。这些由 `biome.json` 的 `noRestrictedImports` 检查。
 - push master 会自动发布：GitHub Release（主渠道，`herdr-remote-v<版本>`，含内置 relay 的 CLI 包、relay 包和 `latest.json`）、npm（备份渠道，失败只警告）和 relay 镜像，所以只通过 PR 合并。只有 master 上最新的提交会发布，较旧的运行会跳过。改了 relay 就一定会同时发布 CLI（CLI 内置 relay）。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。发布流程见 `.github/workflows/release.yml`，本地可用 `.github/scripts/pack-release.sh` 打包。

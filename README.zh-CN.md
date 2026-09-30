@@ -2,19 +2,20 @@
 
 *[English](README.md) · [简体中文](README.zh-CN.md)*
 
-[![herdr-remote on npm](https://img.shields.io/npm/v/herdr-remote?label=herdr-remote&color=0b7285)](https://www.npmjs.com/package/herdr-remote)
-[![herdr-remote-relay on npm](https://img.shields.io/npm/v/herdr-remote-relay?label=herdr-remote-relay&color=0b7285)](https://www.npmjs.com/package/herdr-remote-relay)
+[![latest release](https://img.shields.io/github/v/release/dibin666/herdr-remote?label=herdr-remote&color=0b7285)](https://github.com/dibin666/herdr-remote/releases/latest)
 [![node](https://img.shields.io/node/v/herdr-remote)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/herdr-remote)](./LICENSE)
 
 在任意浏览器（包括手机）里使用 [Herdr](https://herdr.dev) 工作区。随时看到哪些编码智能体在运行、在等你确认、已经完成，在哪里都能回应它们，并继续在工作站上那几个终端里输入。
 
 ```bash
-npm install -g herdr-remote
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote.tgz
 herdr-remote
 ```
 
 首次运行会打开配置向导，之后 relay 和主机连接器在后台运行。
+
+新版本首先发布到 [GitHub Releases](https://github.com/dibin666/herdr-remote/releases)，发布即可安装；同时发布到 npm 作为备用渠道（`npm install -g herdr-remote`），npm 可能要过一段时间才能装到新版本。安装包内置 relay，`herdr-remote update`（或 TUI 的「语言与关于」页）优先从 GitHub 更新，连不上 GitHub 时改用 npm。
 
 需要 Herdr 0.9.3 或更高版本。每个浏览器窗口驱动各自的 Herdr 客户端，客户端视图从 0.9.0 起才与工作站本机终端相互独立；而 0.9.1 才让这套模型在浏览器里真正可用：窗口标题跟随各自客户端的视图、后台激活机器不再改变他人聚焦窗格的尺寸、大段粘贴也不再断开客户端。浏览器靠转义序列输入，所以 0.9.3 同样必要：点按窗格不再向正在工作的 agent 发送多余的 Escape，0.9.2 中失灵的 Alt+B、Alt+F、Alt+Backspace 等 Alt 快捷键也恢复正常。
 

@@ -30,22 +30,16 @@ import * as keepalive from '../keepalive/index.js';
 import {
   canSelfUpdate,
   checkForUpdate,
-  compareVersions,
   currentVersion,
   updateChecksEnabled,
   installKind,
+  installedRelayVersion,
   performUpdate,
 } from '../updater.js';
-import {
-  checkForRelayUpdate,
-  installedRelayVersion,
-  performRelayUpdate,
-  type RelayUpdateCheck,
-} from '../relay-updater.js';
 
 import type { AccessMode, Config } from '../config.js';
 
-export type { AccessMode, Config, RelayUpdateCheck };
+export type { AccessMode, Config };
 export type { Locale } from '../i18n/index.js';
 export type { NetworkAddress } from '../net-interfaces.js';
 /** Screens only call `t(key, values)`; the full Translate type lives in i18n. */
@@ -88,6 +82,7 @@ export type Status = {
 export type Pairing = { code: string; pairUrl: string; expiresAt: number; hostId: string };
 
 export type { UpdateCheck } from '../updater.js';
+export { cliTarballUrl } from 'herdr-remote-relay/protocol';
 
 export {
   detectLocale,
@@ -98,14 +93,11 @@ export {
   selectedMode,
   canSelfUpdate,
   checkForUpdate,
-  compareVersions,
   currentVersion,
   updateChecksEnabled,
   installKind,
   performUpdate,
-  checkForRelayUpdate,
   installedRelayVersion,
-  performRelayUpdate,
   runsLocalRelay,
   bindAddress,
   configExists,

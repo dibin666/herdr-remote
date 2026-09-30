@@ -9,7 +9,6 @@ const t = createTranslator('en');
 function harness({
   platform = 'linux',
   cli = { ok: true, current: '1.0.0', latest: '1.1.0', updateAvailable: true, sources: [] },
-  relay = { ok: true, current: '0.3.0', latest: '0.3.0', updateAvailable: false },
   running = true,
   install = { ok: true, installed: '1.1.0' },
   restart = { ok: true, message: '' },
@@ -21,13 +20,8 @@ function harness({
   const options = {
     platform,
     checkCli: async () => cli,
-    checkRelay: async () => relay,
     installCli: async (check) => {
       calls.push(`install herdr-remote ${check.latest}`);
-      return install;
-    },
-    installRelay: async (check) => {
-      calls.push(`install relay ${check.latest}`);
       return install;
     },
     isRunning: () => running,
@@ -107,19 +101,6 @@ test('services that were not running are left stopped', async () => {
   assert.deepEqual(calls, ['ask the broker to stop: unavailable', 'install herdr-remote 1.1.0']);
   assert.equal(outcome.restarted, false);
   assert.ok(lines.includes(t('update.notRunning')));
-});
-
-test('with herdr-remote current, a newer relay in range is installed on its own', async () => {
-  const { options, calls } = harness({
-    cli: { ok: true, current: '1.0.0', latest: '1.0.0', updateAvailable: false },
-    relay: { ok: true, current: '0.3.0', latest: '0.3.4', updateAvailable: true },
-    install: { ok: true, installed: '0.3.4' },
-  });
-
-  const outcome = await runUpdate(t, options);
-
-  assert.deepEqual(calls, ['install relay 0.3.4', 'restart with the installed release']);
-  assert.equal(outcome.updated, 'relay');
 });
 
 test('nothing is installed or restarted when everything is current', async () => {

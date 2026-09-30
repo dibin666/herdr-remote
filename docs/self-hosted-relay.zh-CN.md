@@ -56,13 +56,15 @@ docker compose up -d
 docker build -f packages/relay/Dockerfile -t herdr-remote-relay .
 ```
 
-## npm
+## GitHub Releases 或 npm
 
 ```bash
-npm install -g herdr-remote-relay
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote-relay.tgz
 herdr-remote-relay --public-url https://herdr.example.com --password 你的密码 \
   --admin-token 你的长随机管理令牌 --trust-proxy
 ```
+
+每个版本发布后立即可从 GitHub Releases 安装；`npm install -g herdr-remote-relay` 从 npm 安装同一个包，npm 可能要过一段时间才能同步。
 
 包内 `deploy/systemd/` 有现成的 systemd 单元文件。
 

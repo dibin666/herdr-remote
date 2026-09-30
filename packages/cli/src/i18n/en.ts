@@ -261,16 +261,16 @@ const en = {
   'update.banner':
     'herdr-remote {latest} is out (running {current}). Press 7 and Enter on the update row to install.',
   'update.check': 'Check for updates',
-  'update.checking': 'Checking npm…',
+  'update.checking': 'Checking GitHub Releases and npm…',
   'update.upToDate': 'Up to date ({version})',
   'update.available': 'Update {version} available (press Enter to install)',
   'update.updating': 'Installing {version}…',
   'update.updatingRetry': 'Installing {version}… (npm has not caught up yet, attempt {attempt})',
   'update.done': 'Updated to {version}',
   'update.restartHint': 'Update installed. Restart herdr-remote to apply.',
-  'update.errorNetwork': 'Could not reach any npm registry',
-  'update.errorNetworkDetail': 'No registry answered: {message}',
-  'update.errorFailed': 'Update failed. Run: npm install -g herdr-remote@{version} --prefer-online',
+  'update.errorNetwork': 'Could not reach GitHub Releases or any npm registry',
+  'update.errorNetworkDetail': 'Nothing answered: {message}',
+  'update.errorFailed': 'Update failed. Run: npm install -g {url}',
   'update.errorFailedDetail': 'npm: {message}',
   'update.errorNotYetPublished':
     'npm has not caught up with {version} yet (common in the first minutes after a release). Press Enter to try again shortly.',
@@ -290,23 +290,6 @@ const en = {
     'An admin terminal is open, so the broker keeps running the previous release. Close admin terminals, then run herdr-remote admin-broker restart.',
   'update.errorBusy':
     "A process still holds the herdr-remote folder; an admin terminal broker set up by an older release does. In an administrator PowerShell run: Get-ScheduledTask -TaskName 'HerdrRemoteAdminBroker-*' | Stop-ScheduledTask. Then run herdr-remote update again here, and afterwards herdr-remote admin-broker install as administrator.",
-  'relayUpdate.check': 'Relay {version}: check for updates',
-  'relayUpdate.checking': 'Relay: checking npm…',
-  'relayUpdate.upToDate': 'Relay up to date ({version})',
-  'relayUpdate.available':
-    'Relay {latest} available, installed {installed} (press Enter to install)',
-  'relayUpdate.needsCli': 'Relay {latest} needs a newer herdr-remote: update herdr-remote first',
-  'relayUpdate.updating': 'Installing relay {version}…',
-  'relayUpdate.updatingRetry':
-    'Installing relay {version}… (npm has not caught up yet, attempt {attempt})',
-  'relayUpdate.restart':
-    'Relay {version} installed, {running} still running (press Enter to restart)',
-  'relayUpdate.restarting': 'Restarting herdr-remote…',
-  'relayUpdate.restarted': 'herdr-remote restarted; the relay now runs {version}.',
-  'relayUpdate.done': 'Relay updated to {version}',
-  'relayUpdate.errorNotApplied': 'npm finished, but relay {installed} is still installed',
-  'relayUpdate.banner':
-    'Relay {latest} is out (installed {current}). Press 7 and Enter on the relay row to install.',
 };
 
 export type MessageKey = keyof typeof en;
