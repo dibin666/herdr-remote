@@ -34,6 +34,21 @@ name: release
 on:
   push:
     branches: [master]
+    paths:
+      - 'packages/**'
+      - '!packages/**/*.md'
+      - 'scripts/**'
+      - '!scripts/**/*.md'
+      - '.github/**'
+      - '!.github/**/*.md'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
+      - 'biome.json'
+      - 'knip.json'
+      - 'vitest.config.mjs'
+      - '.dockerignore'
+      - '.nvmrc'
   workflow_dispatch:
     inputs:
       packages:

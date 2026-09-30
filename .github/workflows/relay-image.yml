@@ -19,6 +19,7 @@ on:
     # corresponds to a real change in what the image runs.
     paths:
       - 'packages/relay/**'
+      - '!packages/relay/**/*.md'
       - 'packages/relay/Dockerfile'
       - 'tsconfig.base.json'
       - '.dockerignore'
