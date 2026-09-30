@@ -2,8 +2,7 @@
 
 *[English](README.md) · [简体中文](README.zh-CN.md)*
 
-[![herdr-remote on npm](https://img.shields.io/npm/v/herdr-remote?label=herdr-remote&color=0b7285)](https://www.npmjs.com/package/herdr-remote)
-[![herdr-remote-relay on npm](https://img.shields.io/npm/v/herdr-remote-relay?label=herdr-remote-relay&color=0b7285)](https://www.npmjs.com/package/herdr-remote-relay)
+[![latest release](https://img.shields.io/github/v/release/dibin666/herdr-remote?label=herdr-remote&color=0b7285)](https://github.com/dibin666/herdr-remote/releases/latest)
 [![node](https://img.shields.io/node/v/herdr-remote)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/herdr-remote)](./LICENSE)
 
@@ -12,12 +11,18 @@ agents are working, waiting for you or finished, answer them from wherever you a
 typing into the same terminals you left on the workstation.
 
 ```bash
-npm install -g herdr-remote
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote.tgz
 herdr-remote
 ```
 
 The first run opens a setup wizard; after that the relay and host connector run in the
 background.
+
+Releases are published to [GitHub Releases](https://github.com/dibin666/herdr-remote/releases)
+first, where a release installs the moment it is out, and to npm as a fallback
+(`npm install -g herdr-remote`), which can take a while to catch up. The tarball bundles the
+relay, and `herdr-remote update` (or the About tab in the TUI) updates from GitHub, falling
+back to npm where GitHub cannot be reached.
 
 Requires Herdr 0.9.3 or newer. Each browser window drives its own Herdr client, which is only
 independent from the workstation's own terminal from 0.9.0 on, and 0.9.1 is what makes that

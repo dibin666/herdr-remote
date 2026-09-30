@@ -577,9 +577,9 @@ test('opening the TUI checks for a newer release and says so where it opens', as
       ok: true,
       current: '0.2.16',
       latest: '0.3.0',
-      registry: 'https://registry.npmjs.org',
-      sources: ['https://registry.npmjs.org'],
-      behind: [{ registry: 'https://registry.npmmirror.com', version: '0.2.16' }],
+      source: 'https://github.com/dibin666/herdr-remote/releases',
+      sources: ['https://github.com/dibin666/herdr-remote/releases'],
+      behind: [{ source: 'https://registry.npmjs.org', version: '0.2.16' }],
       updateAvailable: true,
     };
   };
@@ -598,7 +598,7 @@ test('opening the TUI checks for a newer release and says so where it opens', as
   assert.match(instance.lastFrame(), /新版本 0\.3\.0 可用（按 Enter 安装）/);
   assert.match(
     instance.lastFrame(),
-    /registry\.npmmirror\.com 0\.2\.16 仍是旧版本，将从 registry\.npmjs\.org 安装/,
+    /registry\.npmjs\.org 0\.2\.16 仍是旧版本，将从 github\.com\/dibin666\/herdr-remote\/releases 安装/,
   );
 });
 
@@ -650,138 +650,37 @@ test('a notice already on screen changes language with the interface', async (t)
   assert.equal(/配置已保存至/.test(instance.lastFrame()), false);
 });
 
-const relayChecker =
-  (result, calls = { count: 0 }) =>
-  async () => {
-    calls.count += 1;
-    return { ok: true, registry: 'https://registry.npmjs.org', sources: [], ...result };
-  };
-const upToDate = async () => ({
-  ok: true,
-  current: '0.3.0',
-  latest: '0.3.0',
-  updateAvailable: false,
-});
-
-test('a workstation running its own relay hears of a relay release, and can install it', async (t) => {
-  isolateState(t);
-  writeConfig({ ui: { language: 'zh' }, relay: { mode: 'local' } });
-  const { installedRelayVersion } = await import('../src/relay-updater.js');
-
-  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(
-    React.createElement(App, {
-      initialLanguage: 'zh',
-      needsWizard: false,
-      updateChecker: upToDate,
-      relayUpdateChecker: relayChecker({
-        current: '0.3.14',
-        latest: '0.3.99',
-        updateAvailable: true,
-      }),
-    }),
-  );
-  t.onTestFinished(() => instance.unmount());
-
-  assert.match(instance.lastFrame(), /Relay 0\.3\.99 已发布（当前 0\.3\.14）/);
-  instance.stdin.write('7');
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  const installed = installedRelayVersion().replace(/\./g, '\\.');
-  assert.match(
-    instance.lastFrame(),
-    new RegExp(`Relay 新版本 0\\.3\\.99 可用，当前 ${installed}（按 Enter 安装）`),
-  );
-  assert.match(instance.lastFrame(), new RegExp(`Relay 包\\s+${installed}`));
-});
-
-test('a workstation on a relay elsewhere is never asked about the relay', async (t) => {
-  isolateState(t);
-  writeConfig({
-    ui: { language: 'en' },
-    relay: { mode: 'remote', remoteUrl: 'https://relay.example.com' },
-  });
-  const calls = { count: 0 };
-
-  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(
-    React.createElement(App, {
-      initialLanguage: 'en',
-      needsWizard: false,
-      updateChecker: upToDate,
-      relayUpdateChecker: relayChecker(
-        { current: '0.3.14', latest: '0.3.99', updateAvailable: true },
-        calls,
-      ),
-    }),
-  );
-  t.onTestFinished(() => instance.unmount());
-
-  assert.equal(calls.count, 0);
-  instance.stdin.write('7');
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  assert.match(instance.lastFrame(), /Language & about/);
-  assert.doesNotMatch(
-    instance.lastFrame(),
-    /Relay package|Relay \S+: check for updates|Relay 0\.3\.99/,
-  );
-});
-
-test('a relay release this herdr-remote cannot take points at the herdr-remote update', async (t) => {
-  isolateState(t);
-  writeConfig({ ui: { language: 'en' }, relay: { mode: 'lan' } });
-
-  const [{ App }, React] = await Promise.all([loadTui(), import('react')]);
-  const instance = await mount(
-    React.createElement(App, {
-      initialLanguage: 'en',
-      needsWizard: false,
-      updateChecker: upToDate,
-      relayUpdateChecker: relayChecker({
-        current: '0.3.14',
-        latest: '0.4.0',
-        updateAvailable: false,
-        needsNewerCli: true,
-      }),
-    }),
-  );
-  t.onTestFinished(() => instance.unmount());
-
-  assert.doesNotMatch(instance.lastFrame(), /Relay 0\.4\.0 is out/);
-  instance.stdin.write('7');
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  assert.match(instance.lastFrame(), /Relay 0\.4\.0 needs a newer herdr-remote/);
-});
-
-test('a relay installed but not yet running offers the restart that switches to it', async (t) => {
+test('the About tab names the bundled relay only where this machine runs it', async (t) => {
   isolateState(t);
   const [{ About }, { createTranslator }, { installedRelayVersion }, React] = await Promise.all([
     import('../src/tui/screens/About.tsx'),
     import('../src/i18n/index.js'),
-    import('../src/relay-updater.js'),
+    import('../src/updater.js'),
     import('react'),
   ]);
-  const ctx = {
-    t: createTranslator('en'),
-    config: { relay: { mode: 'local' }, ui: { language: 'en' } },
-    draft: { relay: { mode: 'local' }, ui: { language: 'en' } },
-    status: { relay: { local: true, health: { ok: true, version: '0.0.1' } } },
-    editingId: null,
-    message: null,
-    updateCheck: null,
-    relayUpdateCheck: null,
-    notify: () => {},
-    run: () => {},
-    setUpdateCheck: () => {},
-    setRelayUpdateCheck: () => {},
+  const render = async (mode) => {
+    const config = {
+      relay: { mode, remoteUrl: 'https://relay.example.com' },
+      ui: { language: 'en' },
+    };
+    const ctx = {
+      t: createTranslator('en'),
+      config,
+      draft: config,
+      status: null,
+      editingId: null,
+      message: null,
+      updateCheck: null,
+      notify: () => {},
+      run: () => {},
+      setUpdateCheck: () => {},
+    };
+    const instance = await mount(React.createElement(About, { ctx }));
+    t.onTestFinished(() => instance.unmount());
+    return instance.lastFrame();
   };
-  const instance = await mount(React.createElement(About, { ctx }));
-  t.onTestFinished(() => instance.unmount());
 
   const installed = installedRelayVersion().replace(/\./g, '\\.');
-  assert.match(
-    instance.lastFrame(),
-    new RegExp(
-      `Relay ${installed} installed, 0\\.0\\.1 still running \\(press Enter to restart\\)`,
-    ),
-  );
+  assert.match(await render('local'), new RegExp(`Relay package\\s+${installed}`));
+  assert.doesNotMatch(await render('remote'), /Relay package/);
 });

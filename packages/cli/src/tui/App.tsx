@@ -3,7 +3,6 @@ import { Box, Text, useApp, useInput, type DOMElement } from 'ink';
 import { useMouse, useMouseTarget } from './mouse/index.js';
 import { theme } from './theme.js';
 import {
-  checkForRelayUpdate,
   checkForUpdate,
   createDraft,
   createTranslator,
@@ -12,11 +11,9 @@ import {
   fullStatus,
   loadConfig,
   requiresRestart,
-  runsLocalRelay,
   type Config,
   type Locale,
   type Status,
-  type RelayUpdateCheck,
   type Translate,
   type UpdateCheck,
   updateChecksEnabled,
@@ -61,9 +58,6 @@ export type AppContext = {
   /** The newest-release check made when the TUI opened; null until it answers. */
   updateCheck: UpdateCheck | null;
   setUpdateCheck: (next: UpdateCheck | null) => void;
-  /** The same for the relay, asked only when this machine runs its own. */
-  relayUpdateCheck: RelayUpdateCheck | null;
-  setRelayUpdateCheck: (next: RelayUpdateCheck | null) => void;
 };
 
 type TabId = 'overview' | 'pair' | 'services' | 'relay' | 'keepalive' | 'herdr' | 'about';
@@ -111,20 +105,16 @@ function Footer({ hints }: { hints: string[] }) {
 }
 
 type UpdateChecker = () => Promise<UpdateCheck>;
-type RelayUpdateChecker = () => Promise<RelayUpdateCheck>;
 
 export function App({
   initialLanguage,
   needsWizard,
   updateChecker = updateChecksEnabled() ? (checkForUpdate as UpdateChecker) : null,
-  relayUpdateChecker = updateChecksEnabled() ? (checkForRelayUpdate as RelayUpdateChecker) : null,
 }: {
   initialLanguage: string | null;
   needsWizard: boolean;
   /** Asked once when the TUI opens; null turns the check off. */
   updateChecker?: UpdateChecker | null;
-  /** Asked once when the TUI opens, if this machine runs its own relay. */
-  relayUpdateChecker?: RelayUpdateChecker | null;
 }) {
   const { exit } = useApp();
   const mouse = useMouse();
@@ -139,8 +129,6 @@ export function App({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [wizardDone, setWizardDone] = useState(!needsWizard);
   const [updateCheck, setUpdateCheck] = useState<UpdateCheck | null>(null);
-  const [relayUpdateCheck, setRelayUpdateCheck] = useState<RelayUpdateCheck | null>(null);
-  const localRelay = runsLocalRelay(config);
 
   // Every time the TUI opens: that is when someone is here to act on it.
   // Failure says nothing; the About tab can still be asked by hand.
@@ -156,20 +144,6 @@ export function App({
       cancelled = true;
     };
   }, [updateChecker]);
-
-  // A relay somewhere else is somebody else's to update.
-  useEffect(() => {
-    if (!relayUpdateChecker || !localRelay) return undefined;
-    let cancelled = false;
-    relayUpdateChecker()
-      .then((result) => {
-        if (!cancelled && result?.ok) setRelayUpdateCheck(result);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [relayUpdateChecker, localRelay]);
 
   const locale: Locale = useMemo(
     () => detectLocale({ preference: initialLanguage ?? draft.ui.language }),
@@ -261,8 +235,6 @@ export function App({
     message,
     updateCheck,
     setUpdateCheck,
-    relayUpdateCheck,
-    setRelayUpdateCheck,
   };
 
   useInput(
@@ -341,14 +313,6 @@ export function App({
         {updateCheck?.updateAvailable ? (
           <Text color={theme.warn}>
             {t('update.banner', { latest: updateCheck.latest ?? '', current: updateCheck.current })}
-          </Text>
-        ) : null}
-        {localRelay && relayUpdateCheck?.updateAvailable ? (
-          <Text color={theme.warn}>
-            {t('relayUpdate.banner', {
-              latest: relayUpdateCheck.latest ?? '',
-              current: relayUpdateCheck.current,
-            })}
           </Text>
         ) : null}
       </Box>

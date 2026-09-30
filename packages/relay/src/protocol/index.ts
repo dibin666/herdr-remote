@@ -7,4 +7,5 @@ export * from './terminal.js';
 export * from './herdr-keys.js';
 export * from './messages.js';
 export * from './paste.js';
+export * from './release.js';
 export type * from './http.js';

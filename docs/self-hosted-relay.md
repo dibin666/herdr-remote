@@ -56,13 +56,16 @@ from the `packages/relay/web` workspace:
 docker build -f packages/relay/Dockerfile -t herdr-remote-relay .
 ```
 
-## npm
+## GitHub Releases or npm
 
 ```bash
-npm install -g herdr-remote-relay
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote-relay.tgz
 herdr-remote-relay --public-url https://herdr.example.com --password your-password \
   --admin-token your-long-random-admin-token --trust-proxy
 ```
+
+Every release is on GitHub Releases the moment it is out; `npm install -g herdr-remote-relay`
+installs the same package from npm, which can take a while to catch up.
 
 A systemd unit is included: see `deploy/systemd/` in the package.
 

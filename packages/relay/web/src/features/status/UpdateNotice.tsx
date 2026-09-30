@@ -4,6 +4,7 @@ import { useSettings, useConnection, useToasts } from '@/context/TerminalContext
 import { copyText } from '@/shared/lib/clipboard';
 import { cn } from '@/shared/lib/cn';
 import { Button, GLYPH, Modal, Row } from '@/shared/ui';
+import { cliTarballUrl, LATEST_CLI_TARBALL_URL } from '@protocol/release';
 
 /**
  * The workstation's herdr-remote is behind the newest release.
@@ -176,7 +177,7 @@ const UpdateModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
               <Command command="herdr-remote update" />
             ) : (
               <>
-                <Command command={`npm install -g herdr-remote@${latest} --prefer-online`} />
+                <Command command={`npm install -g ${cliTarballUrl(latest)}`} />
                 <Command command="herdr-remote restart" />
               </>
             )}
@@ -230,7 +231,7 @@ const OutdatedModal: React.FC<{
             <Command command={WINDOWS_STOP_COMMAND} />
           </>
         ) : null}
-        <Command command="npm install -g herdr-remote@latest --prefer-online" />
+        <Command command={`npm install -g ${LATEST_CLI_TARBALL_URL}`} />
         <Command command="herdr-remote restart" />
         <p className="text-tui-sm leading-snug text-tui-faint">{t('update.restartNote')}</p>
       </div>

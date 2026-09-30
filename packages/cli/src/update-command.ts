@@ -7,6 +7,7 @@
 // described them.
 
 import { spawnSync } from 'node:child_process';
+import { cliTarballUrl } from 'herdr-remote-relay/protocol';
 import { type Config, loadConfig } from './config.js';
 import {
   startAdminBrokerTask,
@@ -16,7 +17,6 @@ import {
 import type { Translate } from './i18n/index.js';
 import { cliEntryPoint } from './keepalive/environment.js';
 import { servicesRunning, startAll, stopAll } from './lifecycle.js';
-import { checkForRelayUpdate, performRelayUpdate, type RelayUpdateCheck } from './relay-updater.js';
 import { checkForUpdate, performUpdate, type UpdateCheck } from './updater.js';
 import { heldByAnotherProcess } from './updater/in-place.js';
 
@@ -29,9 +29,7 @@ interface UpdateOptions {
   config?: Config;
   platform?: NodeJS.Platform;
   checkCli?: () => Promise<UpdateCheck>;
-  checkRelay?: () => Promise<RelayUpdateCheck>;
   installCli?: (check: UpdateCheck, onAttempt: OnAttempt) => Promise<InstallResult>;
-  installRelay?: (check: RelayUpdateCheck, onAttempt: OnAttempt) => Promise<InstallResult>;
   isRunning?: () => boolean;
   stop?: () => unknown;
   start?: () => unknown;
@@ -45,8 +43,12 @@ interface UpdateOptions {
 interface UpdateOutcome {
   ok: boolean;
   current: string;
-  /** What was installed: herdr-remote, or the relay it depends on alone. */
-  updated: 'cli' | 'relay' | null;
+  /**
+   * `'cli'` when a release was installed; the relay comes bundled with it.
+   * Kept a string for `update --json` readers written when the relay could be
+   * updated alone.
+   */
+  updated: 'cli' | null;
   installed?: string | null;
   restarted: boolean;
   /** The Windows admin broker, when it was running. */
@@ -71,19 +73,11 @@ export async function runUpdate(t: Translate, options: UpdateOptions = {}): Prom
   const {
     platform = process.platform,
     checkCli = () => checkForUpdate(),
-    checkRelay = () => checkForRelayUpdate(),
     installCli = (check, onAttempt) =>
       performUpdate({
-        registry: check.registry,
+        source: check.source,
         sources: check.sources,
         version: check.latest,
-        onAttempt,
-      }),
-    installRelay = (check, onAttempt) =>
-      performRelayUpdate({
-        registry: check.registry,
-        sources: check.sources,
-        relayVersion: check.latest ?? '',
         onAttempt,
       }),
     isRunning = () => servicesRunning(config()),
@@ -103,21 +97,19 @@ export async function runUpdate(t: Translate, options: UpdateOptions = {}): Prom
   } = options;
 
   report(t('update.checking'));
-  const [cli, relay] = await Promise.all([checkCli(), checkRelay()]);
+  const cli = await checkCli();
   const { current } = cli;
   if (!cli.ok) {
     report(t('update.errorNetworkDetail', { message: cli.message ?? '' }));
     return { ok: false, current, updated: null, restarted: false, errorKey: cli.errorKey };
   }
-  // A new herdr-remote brings the newest relay its range allows; only a
-  // current one needs the relay installed by itself.
-  const updated = cli.updateAvailable ? 'cli' : relay.ok && relay.updateAvailable ? 'relay' : null;
-  if (!updated) {
+  if (!cli.updateAvailable) {
     report(t('update.upToDate', { version: current }));
-    return { ok: true, current, updated, restarted: false };
+    return { ok: true, current, updated: null, restarted: false };
   }
 
-  const version = (updated === 'cli' ? cli.latest : relay.latest) ?? '';
+  const updated = 'cli';
+  const version = cli.latest ?? '';
   const wasRunning = isRunning();
   // Windows refuses to replace files a running process holds, as services
   // started by older releases do. Elsewhere they keep serving until the restart.
@@ -134,19 +126,22 @@ export async function runUpdate(t: Translate, options: UpdateOptions = {}): Prom
     report(t(back ? 'update.brokerRestarted' : 'update.brokerRestartFailed'));
     return back ? 'restarted' : 'failed';
   };
-  report(t(updated === 'cli' ? 'update.updating' : 'relayUpdate.updating', { version }));
+  report(t('update.updating', { version }));
   const onAttempt: OnAttempt = ({ attempt }) => {
     if (attempt > 1) report(t('update.updatingRetry', { version, attempt }));
   };
-  const result =
-    updated === 'cli' ? await installCli(cli, onAttempt) : await installRelay(relay, onAttempt);
+  const result = await installCli(cli, onAttempt);
 
   if (!result.ok) {
     // Nothing was replaced, so the old release starts as it was.
     if (stopped) start();
     const adminBroker = await restoreBroker();
     report(
-      t(result.errorKey ?? 'update.errorFailed', { version, installed: result.installed ?? '' }),
+      t(result.errorKey ?? 'update.errorFailed', {
+        version,
+        installed: result.installed ?? '',
+        url: cliTarballUrl(version),
+      }),
     );
     if (result.summary) report(t('update.errorFailedDetail', { message: result.summary }));
     if (platform === 'win32' && heldByAnotherProcess(result.output)) {
@@ -157,7 +152,7 @@ export async function runUpdate(t: Translate, options: UpdateOptions = {}): Prom
   }
 
   const installed = result.installed ?? version;
-  report(t(updated === 'cli' ? 'update.done' : 'relayUpdate.done', { version: installed }));
+  report(t('update.done', { version: installed }));
   let ok = true;
   let restarted = false;
   if (!wasRunning) {

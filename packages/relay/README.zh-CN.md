@@ -11,9 +11,11 @@
 ## 安装
 
 ```bash
-npm install -g herdr-remote-relay
+npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote-relay.tgz
 herdr-remote-relay --public-url https://herdr.example.com --password <密码>
 ```
+
+也可从 npm 安装：`npm install -g herdr-remote-relay`（新版本上线后 npm 可能要过一段时间才同步）。
 
 前置要求：Node.js 22+、TLS 反向代理（nginx、Caddy、Cloudflare Tunnel 等）。
 

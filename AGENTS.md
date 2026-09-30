@@ -30,7 +30,7 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 
 ## 不变量
 
-- 线协议（消息类型、常量、校验）只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`），不能引用 `frames`。
+- 线协议（消息类型、常量、校验）以及发布地址只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`、`release`），不能引用 `frames`。
 - Herdr socket 路径和 host token 只存在于 host connector，绝不能发给浏览器。
 - 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli；web 的 `shared/` 不依赖 `features/`、`context/`、`app/`、`connection/`。这些由 `biome.json` 的 `noRestrictedImports` 检查。
 - push master 会自动发布 npm 和镜像，所以只通过 PR 合并。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。
