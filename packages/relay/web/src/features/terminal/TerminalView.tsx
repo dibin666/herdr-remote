@@ -141,7 +141,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
 
   /**
    * What this window's own Herdr client calls itself, via OSC 2. Only this
-   * window's, which is what Herdr 0.9.1 guarantees; see `features/agents/documentTitle`.
+   * window's, which Herdr guarantees from 0.9.1 on; see `features/agents/documentTitle`.
    */
   const [terminalTitle, setTerminalTitle] = useState<string | null>(null);
 

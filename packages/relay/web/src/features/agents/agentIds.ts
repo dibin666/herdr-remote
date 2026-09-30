@@ -2,7 +2,7 @@
 
 import type { AgentProfileId } from './agentProfiles';
 
-/** Canonical IDs follow `Agent::agent_label()` in Herdr 0.9.1. */
+/** Canonical IDs follow `Agent::agent_label()` in Herdr 0.9.3. */
 export const HERDR_AGENT_IDS = [
   'pi',
   'claude',

@@ -22,7 +22,7 @@ type Expected = null | {
 };
 
 /**
- * What each screen captured from Herdr 0.9.1 should be read as. Expectations
+ * What each screen captured from Herdr 0.9.3 should be read as. Expectations
  * live here rather than in the fixtures so re-capturing screens can never
  * quietly rewrite them.
  */
@@ -54,8 +54,9 @@ const EXPECTED: Record<string, Expected> = {
   'desktop-herdr-help': null,
   'desktop-herdr-workspaces': null,
   'desktop-less': null,
-  'desktop-pi-empty': { kind: 'frame', startCol: 28, endCol: 117 },
-  'desktop-pi-typed': { kind: 'frame', startCol: 28, endCol: 117 },
+  // No scrollbar column on these screens, so pi's frame runs to the pane's last column.
+  'desktop-pi-empty': { kind: 'frame', startCol: 28, endCol: 118 },
+  'desktop-pi-typed': { kind: 'frame', startCol: 28, endCol: 118 },
   'desktop-pi-settings': null,
   'desktop-split-fish': { kind: 'prompt', startCol: 74, endCol: 119 },
   'desktop-split-claude': { kind: 'rule', startCol: 76, endCol: 119, vimInsert: true },
@@ -87,8 +88,8 @@ const EXPECTED: Record<string, Expected> = {
   'mobile-herdr-help': null,
   'mobile-herdr-workspaces': null,
   'mobile-less': null,
-  'mobile-pi-empty': { kind: 'frame', startCol: 2, endCol: 45 },
-  'mobile-pi-typed': { kind: 'frame', startCol: 2, endCol: 45 },
+  'mobile-pi-empty': { kind: 'frame', startCol: 2, endCol: 46 },
+  'mobile-pi-typed': { kind: 'frame', startCol: 2, endCol: 46 },
   'mobile-pi-settings': null,
   'mobile-vim-normal': null,
   'mobile-vim-insert': null,
@@ -181,14 +182,14 @@ describe('detectInputField on captured Herdr screens', () => {
 
   it('marks a caret that a word ending at the edge of the row above runs on into', () => {
     const screen = screenFromFixture(loadScreenFixture('mobile-codex-wrapped'));
-    // The caret is at the start of row 20; a word now reaches Codex's last cell.
-    screen.write(19, 2, `${'x '.repeat(21)}abc`);
+    // The caret is at the start of its row; a word on the row above now reaches Codex's last cell.
+    screen.write(screen.cursor.row - 1, 2, `${'x '.repeat(21)}abc`);
     expect(new InputFieldTracker().detect(screen, screen.cursor)!.midWord).toBe(true);
   });
 
   it('does not read indented text as a wrapped prompt across a blank row', () => {
     const screen = screenFromFixture(loadScreenFixture('mobile-codex-wrapped'));
-    screen.write(18, 0, ' '.repeat(48));
+    screen.write(screen.cursor.row - 2, 0, ' '.repeat(48));
     expect(detectInputField(screen, screen.cursor)).toBeNull();
   });
 
