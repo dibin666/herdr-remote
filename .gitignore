@@ -19,3 +19,6 @@ packages/relay/web/dist/
 
 # Local agent tooling caches (skill packs), not project sources.
 .agents/
+
+# Release assets produced by .github/scripts/pack-release.sh.
+/dist/

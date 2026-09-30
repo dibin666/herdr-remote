@@ -1,33 +1,34 @@
 #!/usr/bin/env bash
 #
-# Publish a workspace package only when its version is not already on the
+# Publish a release tarball to npm only when its version is not already on the
 # registry.
 #
-# Asking the registry rather than diffing the commit is what makes the workflow
-# safe to re-run: `npm publish` refuses a duplicate version with an error, which
-# would turn every re-run, revert or unrelated manifest edit into a red build.
-# Here an already-published version is simply nothing to do.
+# npm is the backup channel: the GitHub Release is what users update from, and
+# it already exists by the time this runs. So nothing here may fail the
+# release — a missing token, a registry outage or a rejected upload is reported
+# as a warning and the script exits 0. Asking the registry first also keeps
+# re-runs quiet: `npm publish` refuses a duplicate version with an error.
 #
-# Usage: publish-if-new.sh <package-directory>
+# Usage: publish-if-new.sh <tarball.tgz>
 
-set -euo pipefail
+set -uo pipefail
 
-directory="${1:?usage: publish-if-new.sh <package-directory>}"
-manifest="$directory/package.json"
+tarball="${1:?usage: publish-if-new.sh <tarball.tgz>}"
 
-if [ ! -f "$manifest" ]; then
-  echo "::error::no package.json in $directory"
-  exit 1
+if [ ! -f "$tarball" ]; then
+  echo "::warning::npm backup: no such tarball $tarball"
+  exit 0
 fi
 
-name="$(node -p "require('./$manifest').name")"
-version="$(node -p "require('./$manifest').version")"
+# The tarball is the source of truth for what gets published, so read the
+# identity from inside it rather than from the checkout.
+manifest="$(tar -xOzf "$tarball" package/package.json)"
+name="$(node -p 'JSON.parse(process.argv[1]).name' "$manifest")"
+version="$(node -p 'JSON.parse(process.argv[1]).version' "$manifest")"
 
 if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-  echo "::error::NPM_TOKEN is not configured for this repository"
-  echo "Create an npm *automation* token (it bypasses 2FA for CI) and add it as"
-  echo "the repository secret NPM_TOKEN."
-  exit 1
+  echo "::warning::npm backup skipped for $name@$version: NPM_TOKEN is not configured"
+  exit 0
 fi
 
 # `npm view <pkg>@<version> version` prints the version when it exists, prints
@@ -40,16 +41,17 @@ if ! published="$(npm view "$name@$version" version 2>/dev/null)"; then
 fi
 
 if [ -n "$published" ]; then
-  echo "$name@$version is already published — nothing to do."
+  echo "$name@$version is already on npm — nothing to do."
   exit 0
 fi
 
-echo "Publishing $name@$version"
+echo "Publishing $name@$version to npm"
 # `--tag latest` is npm's default, stated here so it stays true: this is the
-# version `npm install <name>` resolves to, and a silent default is easy to
-# lose to a future edit.
-npm publish -w "$name" --access public --tag latest
-echo "published=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+# version `npm install <name>` resolves to.
+if ! npm publish "$tarball" --access public --tag latest; then
+  echo "::warning::npm backup publish of $name@$version failed; the GitHub Release is unaffected"
+  exit 0
+fi
 
 # Confirm the registry agrees, rather than trusting the exit code alone.
 resolved="$(npm view "$name" dist-tags.latest 2>/dev/null || true)"

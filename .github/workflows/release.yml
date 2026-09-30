@@ -1,0 +1,276 @@
+name: release
+
+# Releases the two packages. The primary channel is a GitHub Release; npm is a
+# backup. A GitHub Release is installable the moment it exists, whereas a fresh
+# npm version can take many minutes to become installable, so updates would not
+# be real-time if npm stayed the source of truth.
+#
+# Deliberately separate from `relay image`: the container and the tarballs are
+# different artefacts on different schedules.
+#
+# What a run publishes: ONE GitHub Release, tagged `herdr-remote-v<cli>` and
+# titled `herdr-remote <cli>`, marked latest. Its assets are
+#   herdr-remote-<cli>.tgz / herdr-remote.tgz   self-contained CLI tarball with
+#                                               the relay bundled inside
+#   herdr-remote-relay-<relay>.tgz / herdr-remote-relay.tgz   plain relay
+#   latest.json                                 what clients read to find it
+# `herdr-remote-relay-v<relay>` tags are still created, purely as bookkeeping
+# for the next run's change detection; they get no GitHub Release of their own.
+# A relay release always carries a CLI release, since the CLI is how the relay
+# reaches users (see .github/scripts/plan-release.sh).
+#
+# The version is this workflow's *output*, not its input. Push a change to a
+# package and the workflow bumps that package's patch component, releases it,
+# and commits the new version back to master with a `PKG-vX.Y.Z` tag. Nobody
+# edits a version field by hand, and nothing is released twice: the tag records
+# what was last released, and the npm step still asks the registry before
+# uploading.
+#
+# Only the newest commit on master releases. Runs queue (concurrency below), so
+# by the time an older run starts, master has usually moved on; the `guard` job
+# makes it stand down rather than ship code that is already superseded. Every
+# master push runs the planner so a docs commit cannot strand a pending release.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Which packages to release (relay always brings cli along)'
+        required: false
+        default: auto
+        type: choice
+        options: [auto, cli, relay, both]
+      bump:
+        description: 'Which version component to increment'
+        required: false
+        default: patch
+        type: choice
+        options: [patch, minor, major]
+
+# Two concurrent runs would compute the same next version and race to push the
+# same commit. Queue them instead, and never cancel a run that may already have
+# released. (GitHub keeps only the newest *pending* run in a group, which fits
+# here; the guard covers the older run that was already waiting.)
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Decides whether this run is still allowed to release. It runs when the run
+  # actually starts, i.e. after any earlier release has finished and pushed.
+  guard:
+    name: check this is the newest commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.guard.outputs.release }}
+      ref: ${{ steps.guard.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A run whose commit is no longer the tip of master is stale, and is
+      # skipped (green, not failed). One exception: the release bookkeeping
+      # commit (`Release … [skip ci]`) that the previous run pushed on top of
+      # this commit is not newer *code*. Treating it as newer would leave this
+      # commit never released, so the run releases from the tip instead, which
+      # also carries the version bump this commit's checkout lacks.
+      - name: Compare with origin/master
+        id: guard
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin master
+          tip="$(git rev-parse FETCH_HEAD)"
+          sha="${{ github.sha }}"
+
+          release=false
+          ref="$sha"
+          if [ "$tip" = "$sha" ]; then
+            release=true
+          elif git merge-base --is-ancestor "$sha" "$tip"; then
+            newer="$(git log --format=%s "$sha..$tip" | grep -Ev '^Release .+ \[skip ci\]$' || true)"
+            if [ -z "$newer" ]; then
+              release=true
+              ref="$tip"
+            else
+              echo "master has moved on to ${tip:0:12} with newer changes; ${sha:0:12} is stale."
+            fi
+          else
+            echo "${sha:0:12} is not on master (tip is ${tip:0:12}); not releasing."
+          fi
+
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          {
+            if [ "$release" = true ]; then
+              echo "Releasing from \`${ref:0:12}\`."
+            else
+              echo "Skipped: \`${sha:0:12}\` is no longer the newest commit on master."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: release changed packages
+    needs: guard
+    if: needs.guard.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # commit the version bump, push its tags, create the GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.guard.outputs.ref }}
+          fetch-depth: 0 # release history lives in the tags
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resume an interrupted publication
+        id: resume
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/resume-release.sh
+
+      - name: Plan the release
+        id: plan
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "${{ steps.resume.outputs.resume }}" = true ]; then
+            echo 'cli=true' >> "$GITHUB_OUTPUT"
+            echo 'relay=${{ steps.resume.outputs.relay }}' >> "$GITHUB_OUTPUT"
+          else
+            .github/scripts/plan-release.sh "${{ inputs.packages || 'auto' }}"
+          fi
+
+      # The bump happens *before* the install, and that order is deliberate.
+      # `npm version` updates the workspace manifest and the root lockfile
+      # together, so the two never disagree — which is what `npm ci` refuses to
+      # install. Run afterwards, against a populated node_modules, it re-resolves
+      # the whole tree and rewrites far more of the lockfile than the version it
+      # was asked to change. `--no-git-tag-version` leaves the commit and the tag
+      # to the record step, where they can carry every package released here.
+      - name: Bump herdr-remote-relay
+        if: steps.plan.outputs.relay == 'true' && steps.resume.outputs.resume != 'true'
+        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote-relay --no-git-tag-version
+
+      - name: Bump herdr-remote
+        if: steps.plan.outputs.cli == 'true' && steps.resume.outputs.resume != 'true'
+        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
+
+      - name: Sync herdr-plugin.toml version
+        if: steps.plan.outputs.cli == 'true'
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const { version } = require("./packages/cli/package.json");
+            const file = "packages/cli/herdr-plugin.toml";
+            const toml = fs.readFileSync(file, "utf8");
+            const updated = toml.replace(/^version\s*=\s*"[^"]*"/m, `version = "${version}"`);
+            if (updated === toml && !toml.includes(`version = "${version}"`)) {
+              throw new Error(`Failed to update version in ${file}`);
+            }
+            fs.writeFileSync(file, updated);
+          '
+
+      # Everything here is skipped when neither package changed, so a docs or
+      # workflow commit costs one cheap run instead of a release. (The plan
+      # never reports relay without cli, so `cli` alone is the test.)
+      - name: Install dependencies
+        if: steps.plan.outputs.cli == 'true'
+        # A full install, unlike the image workflow's `--ignore-scripts` one:
+        # this workflow releases the CLI, whose test suite drives a real pty,
+        # so the native node-pty module has to be compiled. Skipping it here
+        # would ship a release validated only against the parts that need no
+        # compiler. The tarballs themselves are built by each package's
+        # `prepack`, which `npm pack` runs. No audit: npm's retiring audit
+        # endpoint once held a release here for five minutes.
+        run: npm ci --no-audit
+
+      # The same checks as ci.yml, so nothing is released that a pull request
+      # would have rejected.
+      - name: Check
+        if: steps.plan.outputs.cli == 'true'
+        run: npm run check
+
+      - name: Test
+        if: steps.plan.outputs.cli == 'true'
+        run: npm test
+
+      # Always both tarballs, even when only the CLI changed: the release
+      # carries a relay asset at the current relay version either way, and the
+      # CLI tarball bundles that same relay.
+      - name: Pack release assets
+        if: steps.plan.outputs.cli == 'true'
+        run: .github/scripts/pack-release.sh dist/release
+
+      # Written back before the release is published, so the tag the GitHub
+      # Release points at already exists on the remote. `[skip ci]` is what
+      # stops this push from starting the workflow again.
+      - name: Record the release
+        id: record
+        if: steps.plan.outputs.cli == 'true'
+        env:
+          RELEASE_BASE: ${{ needs.guard.outputs.ref }}
+          RELAY_RELEASED: ${{ steps.plan.outputs.relay }}
+          RESUME_RELEASE: ${{ steps.resume.outputs.resume }}
+        run: bash .github/scripts/record-release.sh
+
+      - name: Publish the GitHub Release
+        if: steps.record.outputs.recorded == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cli="$(node -p "require('./packages/cli/package.json').version")"
+          relay="$(node -p "require('./packages/relay/package.json').version")"
+          bash .github/scripts/publish-release.sh "$cli" "$relay"
+
+      # Backup channel, after the release is already live. Each publish skips
+      # versions npm has, and reports any failure as a warning (see the
+      # script): npm being slow or down must not fail a release that users can
+      # already install. The relay goes first so the registry never holds a
+      # CLI whose bundled relay it lacks as a standalone package.
+      - name: Publish herdr-remote-relay to npm (backup)
+        if: steps.record.outputs.recorded == 'true' && steps.plan.outputs.relay == 'true'
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          relay="$(node -p "require('./packages/relay/package.json').version")"
+          .github/scripts/publish-if-new.sh "dist/release/herdr-remote-relay-$relay.tgz"
+
+      - name: Publish herdr-remote to npm (backup)
+        if: steps.record.outputs.recorded == 'true'
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cli="$(node -p "require('./packages/cli/package.json').version")"
+          .github/scripts/publish-if-new.sh "dist/release/herdr-remote-$cli.tgz"
+
+      - name: Summary
+        if: steps.record.outputs.recorded == 'true'
+        run: |
+          cli="$(node -p "require('./packages/cli/package.json').version")"
+          relay="$(node -p "require('./packages/relay/package.json').version")"
+          {
+            echo "### GitHub Release"
+            echo
+            echo "- \`herdr-remote@$cli\` — [herdr-remote-v$cli](https://github.com/${{ github.repository }}/releases/tag/herdr-remote-v$cli)"
+            if [ "${{ steps.plan.outputs.relay }}" = "true" ]; then
+              echo "- \`herdr-remote-relay@$relay\` — bundled, new"
+            else
+              echo "- \`herdr-remote-relay@$relay\` — bundled, unchanged"
+            fi
+            echo
+            echo "npm backup publish is best-effort; see the two npm steps for warnings."
+          } >> "$GITHUB_STEP_SUMMARY"
