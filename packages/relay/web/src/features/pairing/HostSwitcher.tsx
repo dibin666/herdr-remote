@@ -82,6 +82,9 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
         // The desktop status line is one 20px row; a taller button stood out of
         // it and made the page 3px taller than the window.
         !mobile && !statusBar && 'h-full',
+        // On the desktop status line the name holds its width (up to the
+        // button's max) and the session ids beside it truncate instead.
+        !mobile && !statusBar && 'shrink-0',
       )}
     >
       <button
@@ -100,7 +103,7 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
         )}
       >
         <StatusDot level={statusLevel} />
-        <span className={cn('truncate text-tui-text', statusBar && 'min-w-0 flex-1')}>{label}</span>
+        <span className={cn('min-w-0 truncate text-tui-text', statusBar && 'flex-1')}>{label}</span>
         <span aria-hidden="true" className="shrink-0 text-tui-faint">
           {open ? GLYPH.chevronDown : GLYPH.chevronRight}
         </span>
