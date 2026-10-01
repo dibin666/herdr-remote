@@ -12,7 +12,7 @@ import { PROTOCOL_VERSION, WS_CLIENT_PATH, WS_HOST_PATH } from './protocol/index
 import { DEFAULTS, defaultStateDir, loadRelayConfig, type RelayConfig } from './relay-config.js';
 import { handleClientConnection } from './server/client-channel.js';
 import { handleHostConnection } from './server/host-channel.js';
-import { handleHttp } from './server/http-api.js';
+import { handleHttp, PUBLIC_DIR } from './server/http-api.js';
 import { heartbeat, sweep } from './server/maintenance.js';
 import { isAllowedOrigin } from './server/requests.js';
 import { detachClient, detachHost } from './server/sessions.js';
@@ -40,6 +40,8 @@ export interface RelayServerOptions {
   devLatencyMs?: number | string;
   metrics?: RelayMetrics;
   auth?: AuthStore;
+  /** The built web client to serve; defaults to the package's `web/dist`. */
+  publicDir?: string;
 }
 
 export type RelayAddress = { host: string; port: number } | { path: string };
@@ -63,6 +65,7 @@ class RelayServer implements RelayContext {
   trustProxy: boolean;
   devLatencyMs: number;
   devDelayMs: number;
+  publicDir: string;
   sendQueues = new WeakMap<RelaySocket, SendQueue>();
   activeDelayTimers = new Set<NodeJS.Timeout>();
   auth: AuthStore;
@@ -89,6 +92,7 @@ class RelayServer implements RelayContext {
     this.password = options.password ?? auth.password ?? null;
     this.adminToken = options.adminToken ?? auth.adminToken ?? null;
     this.trustProxy = Boolean(options.trustProxy ?? relay.trustProxy);
+    this.publicDir = path.resolve(options.publicDir ?? PUBLIC_DIR);
     // Development-only artificial latency switch for local responsiveness profiling.
     // When unset or 0, this incurs zero overhead and avoids entering the delayed path.
     // RELAY_DEV_LATENCY_MS specifies round-trip delay, so each one-way leg
