@@ -62,10 +62,12 @@ describe('Touch key bar layout', () => {
     renderToolbar();
 
     const fn = screen.getByRole('button', { name: /function keys/i });
-    expect(fn.textContent).toContain('▴');
+    expect(fn.textContent).toContain('\u{F0360}'); // nf-md-menu_up
 
     fireEvent.click(fn);
-    expect(screen.getByRole('button', { name: /function keys/i }).textContent).toContain('▾');
+    expect(screen.getByRole('button', { name: /function keys/i }).textContent).toContain(
+      '\u{F035D}', // nf-md-menu_down
+    );
     expect(screen.getByRole('button', { name: 'F7' })).toBeInTheDocument();
   });
 
@@ -132,12 +134,43 @@ describe('Touch key bar layout', () => {
     expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'F7' })).toBeInTheDocument();
     for (const button of buttons) {
-      const heights = button.className.split(/\s+/).filter((token) => /^h-\d+$/.test(token));
-      expect({ label: button.getAttribute('aria-label') ?? button.textContent, heights }).toEqual({
-        label: button.getAttribute('aria-label') ?? button.textContent,
+      const tokens = button.className.split(/\s+/);
+      const label = button.getAttribute('aria-label') ?? button.textContent;
+      expect({ label, heights: tokens.filter((token) => /^h-\d+$/.test(token)) }).toEqual({
+        label,
         heights: [height],
       });
     }
+  });
+
+  it('draws arrows, Enter and Shift as Nerd Font icons, not text symbols', () => {
+    renderToolbar();
+
+    const bar = screen.getByTestId('key-toolbar');
+    for (const name of ['Left (←)', 'Up (↑)', 'Down (↓)', 'Right (→)', 'Enter']) {
+      const key = within(bar).getByRole('button', { name });
+      expect(key.textContent).not.toMatch(/[←↑↓→⏎]/);
+      expect(key.textContent).toMatch(/[\u{E000}-\u{F8FF}\u{F0000}-\u{FFFFD}]/u);
+    }
+    expect(bar.textContent).not.toMatch(/[←↑↓→⏎⇧▾▴]/);
+  });
+
+  // Nerd Font glyphs are drawn at very different sizes (a menu caret is a third
+  // the height of an arrow); "每个按钮内部图标大小一致" asks for one size.
+  it('draws every icon in the same box, scaled from its own outline', () => {
+    renderToolbar();
+
+    const icons = Array.from(
+      screen.getByTestId('key-toolbar').querySelectorAll<HTMLElement>('[data-key-icon]'),
+    );
+    expect(icons.length).toBeGreaterThan(5);
+    for (const icon of icons) expect(icon.className).toContain('size-[1em]');
+    const fontSize = (name: string) => {
+      const icon = icons.find((candidate) => candidate.dataset.keyIcon === name);
+      return Number.parseFloat((icon!.firstElementChild as HTMLElement).style.fontSize);
+    };
+    // The small caret is enlarged until its long side matches the arrow's.
+    expect(fontSize('open') * 418).toBeCloseTo(fontSize('left') * 660, 5);
   });
 
   it('pins Enter outside the sideways strip so it can never scroll away', () => {

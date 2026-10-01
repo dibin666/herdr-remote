@@ -9,7 +9,11 @@ import { CAP_ACTIVE, CAP_BASE, CAP_COMMIT, CAP_IDLE, capSizes } from './caps';
 import { ChordsDrawer, FnKeysDrawer, SymbolsDrawer } from './KeyDrawers';
 import { ImageUploadButton, UploadFileInputs, UploadProgressBar } from './UploadControls';
 import { useKeySender } from './useKeySender';
+import { KeyIcon, KeyLabel } from './KeyLabel';
 import { AdminTerminalButton } from './AdminTerminalButton';
+
+/** Keys drawn as an icon alone, which makes them square. */
+const ICON_KEYS = new Set(['left', 'up', 'down', 'right', 'enter']);
 
 interface KeyToolbarProps {
   /**
@@ -76,7 +80,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             aria-label={t('virtualKeyboard.expandToolbar')}
             aria-expanded={false}
           >
-            <span aria-hidden="true">▴</span>
+            <KeyIcon name="open" />
             <span aria-hidden="true">{t('common.keyBar')}</span>
           </button>
         </div>
@@ -90,40 +94,25 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       ? settings.virtualKeys.filter((k) => k.enabled)
       : DEFAULT_TOOLBAR_KEYS;
 
-  /**
-   * What a cap says.
-   *
-   * The arrow and Enter keys are drawn with the same glyphs a terminal prints
-   * for them, so the bar reads as a keyboard and not as a toolbar of pictures.
-   */
+  /** What a cap says: its name, or a solid icon for arrows and Enter. */
   const renderKeyIconOrLabel = (keyDef: ToolbarKeyDef) => {
-    if (keyDef.id === 'left') return <span aria-hidden="true">←</span>;
-    if (keyDef.id === 'up') return <span aria-hidden="true">↑</span>;
-    if (keyDef.id === 'down') return <span aria-hidden="true">↓</span>;
-    if (keyDef.id === 'right') return <span aria-hidden="true">→</span>;
-    if (keyDef.id === 'enter') {
-      return (
-        <span className="flex items-center gap-1">
-          <span aria-hidden="true">⏎</span>
-          <span className="hidden sm:inline">{t('virtualKeyboard.keyEnter')}</span>
-        </span>
-      );
-    }
-    if (keyDef.id === 'drawer_chords') {
-      return <span>^C</span>;
-    }
+    if (keyDef.id === 'left') return <KeyIcon name="left" />;
+    if (keyDef.id === 'up') return <KeyIcon name="up" />;
+    if (keyDef.id === 'down') return <KeyIcon name="down" />;
+    if (keyDef.id === 'right') return <KeyIcon name="right" />;
+    if (keyDef.id === 'enter') return <KeyIcon name="enter" />;
+    if (keyDef.id === 'drawer_chords') return <span>^C</span>;
     if (keyDef.id === 'drawer_fn') {
-      // The drawer opens *above* this row, so the arrow points at where the
-      // keys will appear: up to open, down to put them away. It used to point
-      // right, at nothing, which is the one direction the drawer never uses.
+      // The drawer opens *above* this row, so the caret points at where the
+      // keys will appear: up to open, down to put them away.
       return (
-        <span className="flex items-center gap-0.5">
+        <>
           <span>Fn</span>
-          <span aria-hidden="true">{showFnKeys ? '▾' : '▴'}</span>
-        </span>
+          <KeyIcon name={showFnKeys ? 'close' : 'open'} />
+        </>
       );
     }
-    return <span>{keyDef.label}</span>;
+    return <KeyLabel text={keyDef.label} />;
   };
 
   const handleKeyClick = (keyDef: ToolbarKeyDef) => {
@@ -181,8 +170,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
 
   const renderKey = (keyDef: ToolbarKeyDef) => {
     const active = isKeyActive(keyDef);
-    const isSquare = ['left', 'up', 'down', 'right'].includes(keyDef.id);
-    const isDrawer = keyDef.type === 'drawer';
     const accessibleTitle = getLocalizedKeyTitle(keyDef, t);
 
     return (
@@ -192,7 +179,11 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         onClick={() => handleKeyClick(keyDef)}
         className={cn(
           CAP_BASE,
-          isSquare ? squareKeyClass : isDrawer ? drawerToggleClass : keyClass,
+          ICON_KEYS.has(keyDef.id)
+            ? squareKeyClass
+            : keyDef.type === 'drawer'
+              ? drawerToggleClass
+              : keyClass,
           keyDef.id === 'enter' ? CAP_COMMIT : active ? CAP_ACTIVE : CAP_IDLE,
         )}
         title={accessibleTitle}
@@ -259,17 +250,23 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               aria-label={t('virtualKeyboard.collapseToolbar')}
               aria-expanded={true}
             >
-              <span aria-hidden="true">▾</span>
+              <KeyIcon name="close" />
             </button>
 
             {configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
-            <AdminTerminalButton capHeight={capHeight} />
+            <AdminTerminalButton squareKeyClass={squareKeyClass} />
             <AgentKeyActions
-              capHeight={capHeight}
+              keyClass={keyClass}
+              squareKeyClass={squareKeyClass}
               onCustomize={onCustomize}
               sendCombo={sendCombo}
             />
-            <ImageUploadButton fileInputRef={fileInputRef} keyClass={keyClass} vibrate={vibrate} />
+            <ImageUploadButton
+              fileInputRef={fileInputRef}
+              keyClass={keyClass}
+              squareKeyClass={squareKeyClass}
+              vibrate={vibrate}
+            />
           </div>
           {moreToRight && (
             <span

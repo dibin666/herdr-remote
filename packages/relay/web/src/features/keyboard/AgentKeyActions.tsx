@@ -9,13 +9,16 @@ import {
 } from '@/features/agents/agentKeymaps';
 import { cn } from '@/shared/lib/cn';
 import { CAP_BASE, CHORD_TONE_CLASS } from './caps';
+import { KeyIcon, KeyLabel } from './KeyLabel';
 
 export function AgentKeyActions({
-  capHeight,
+  keyClass,
+  squareKeyClass,
   onCustomize,
   sendCombo,
 }: {
-  capHeight: string;
+  keyClass: string;
+  squareKeyClass: string;
   /** Opens settings on the agent keys tab, where the user picks what the bar shows. */
   onCustomize?: () => void;
   sendCombo: (combo: string) => void;
@@ -48,12 +51,14 @@ export function AgentKeyActions({
         type="button"
         data-testid={`agent-key-${item.id}`}
         onClick={() => sendCombo(item.combo)}
-        className={cn(CAP_BASE, capHeight, 'max-w-[10rem] gap-1 px-1.5', CHORD_TONE_CLASS[tone])}
+        className={cn(CAP_BASE, keyClass, 'font-bold', CHORD_TONE_CLASS[tone])}
         title={`${caption} ${label}`.trim()}
         aria-label={`${caption} ${label}`.trim()}
       >
-        <span className="font-bold">{caption}</span>
-        <span className="max-w-[5rem] truncate text-tui-sm opacity-70">{label}</span>
+        {/* The combo alone keeps every cap one size; what it does is in the
+            title and the accessible name. A custom key with no combo caption
+            yet shows its own label instead. */}
+        <KeyLabel text={caption || label} />
       </button>
     );
   };
@@ -78,13 +83,13 @@ export function AgentKeyActions({
           onClick={onCustomize}
           className={cn(
             CAP_BASE,
-            capHeight,
-            'px-1.5 text-tui-sm border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent',
+            squareKeyClass,
+            'border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent',
           )}
           title={t('agentKeymaps.customizeBar')}
           aria-label={t('agentKeymaps.customizeBar')}
         >
-          {t('agentKeymaps.customizeBarShort')}
+          <KeyIcon name="customize" />
         </button>
       )}
     </div>
