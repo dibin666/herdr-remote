@@ -7,8 +7,6 @@ import { StatusBanner } from '@/features/status/StatusBanner';
 import { TerminalView } from '@/features/terminal/TerminalView';
 import { OnboardingView } from '@/features/pairing/OnboardingView';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
-import { VirtualKeyboardHelper } from '@/features/keyboard/VirtualKeyboardHelper';
-import { PairingModal } from '@/features/pairing/PairingModal';
 import { AddHostModal } from '@/features/pairing/AddHostModal';
 import { SettingsModal, type SettingsTab } from '@/features/settings/SettingsModal';
 import { loadSettings } from '@/features/settings/storage';
@@ -25,7 +23,6 @@ import { applyDocumentTheme } from '@/features/terminal/theme';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<'terminal' | 'admin'>('terminal');
-  const [isPairingOpen, setIsPairingOpen] = useState(false);
   const [isAddHostOpen, setIsAddHostOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
@@ -33,7 +30,6 @@ function AppContent() {
     setSettingsTab(tab);
     setIsSettingsOpen(true);
   };
-  const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
   const { updateSettings, addProfileAndConnect, settings } = useSettings();
 
@@ -64,22 +60,19 @@ function AppContent() {
 
   // Modal Escape key listener (scoped to open modals/sheets, strictly never intercepts Ctrl/Alt/Meta)
   useEffect(() => {
-    const isAnyModalOpen =
-      isPairingOpen || isAddHostOpen || isSettingsOpen || isVirtualKeyboardOpen;
+    const isAnyModalOpen = isAddHostOpen || isSettingsOpen;
     if (!isAnyModalOpen) return;
 
     return attachWebUIShortcuts(
       {
         onCloseModals: () => {
-          setIsPairingOpen(false);
           setIsAddHostOpen(false);
           setIsSettingsOpen(false);
-          setIsVirtualKeyboardOpen(false);
         },
       },
       { isModalOpen: isAnyModalOpen },
     );
-  }, [isPairingOpen, isAddHostOpen, isSettingsOpen, isVirtualKeyboardOpen]);
+  }, [isAddHostOpen, isSettingsOpen]);
 
   // Detect URL path or hash (/admin or #admin) and query parameters on mount
   useEffect(() => {
@@ -138,7 +131,6 @@ function AppContent() {
     };
   }, [updateSettings, addProfileAndConnect]);
 
-  const openPairing = () => setIsPairingOpen(true);
   const openAddHost = () => setIsAddHostOpen(true);
 
   const handleNavigate = (view: 'terminal' | 'admin') => {
@@ -177,7 +169,6 @@ function AppContent() {
    */
   useEffect(() => {
     if (!lastPairedAt) return;
-    setIsPairingOpen(false);
     setIsAddHostOpen(false);
     setIsTerminalMounted(true);
     setCurrentView('terminal');
@@ -218,10 +209,7 @@ function AppContent() {
         <Header
           currentView={currentView}
           onNavigate={handleNavigate}
-          onOpenPairing={openPairing}
           onOpenSettings={() => openSettings()}
-          onToggleVirtualKeyboard={() => setIsVirtualKeyboardOpen(!isVirtualKeyboardOpen)}
-          isVirtualKeyboardOpen={isVirtualKeyboardOpen}
         />
       )}
 
@@ -239,12 +227,6 @@ function AppContent() {
             aria-hidden={!isTerminalActive}
           >
             <TerminalView isActive={isTerminalActive} />
-            {!isMobileShell && (
-              <VirtualKeyboardHelper
-                isOpen={isVirtualKeyboardOpen}
-                onClose={() => setIsVirtualKeyboardOpen(false)}
-              />
-            )}
             <KeyToolbar compact={isMobileShell} onCustomize={() => openSettings('agentKeymaps')} />
             <HerdrStartPrompt />
             <HostFontPrompt />
@@ -269,7 +251,7 @@ function AppContent() {
           >
             <AdminDashboard
               onBackToTerminal={() => handleNavigate('terminal')}
-              onOpenPairing={openPairing}
+              onOpenPairing={openAddHost}
               showBack={isMobileShell}
             />
           </div>
@@ -277,11 +259,7 @@ function AppContent() {
 
         {/* Phone chrome: a reserved top bar plus an overlaid control sheet */}
         {isMobileShell && isTerminalActive && (
-          <MobileTerminalShell
-            onOpenPairing={openPairing}
-            onOpenSettings={() => openSettings()}
-            onAddProfile={openAddHost}
-          />
+          <MobileTerminalShell onOpenSettings={() => openSettings()} onAddProfile={openAddHost} />
         )}
       </div>
 
@@ -293,7 +271,6 @@ function AppContent() {
       )}
 
       {/* Modals & Floating Overlays */}
-      <PairingModal isOpen={isPairingOpen} onClose={() => setIsPairingOpen(false)} />
       <AddHostModal isOpen={isAddHostOpen} onClose={() => setIsAddHostOpen(false)} />
       <SettingsModal
         isOpen={isSettingsOpen}

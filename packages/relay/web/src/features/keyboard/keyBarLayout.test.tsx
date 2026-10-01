@@ -178,32 +178,29 @@ describe('Header commands', () => {
   const renderHeader = () =>
     render(
       <TerminalProvider>
-        <Header
-          currentView="terminal"
-          onNavigate={() => {}}
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-          onToggleVirtualKeyboard={() => {}}
-          isVirtualKeyboardOpen={false}
-        />
+        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
-  it('says what it does in Chinese when the interface is Chinese', () => {
+  it('offers both languages by name and switches with one tap', () => {
     saveSettings({ language: 'zh' });
     renderHeader();
 
-    expect(screen.getByRole('button', { name: '快捷命令' }).textContent).toBe('命令');
-    expect(screen.getByRole('button', { name: '连接与配对' }).textContent).toBe('配对');
-    expect(screen.getByRole('button', { name: '终端设置' }).textContent).toBe('设置');
+    const zh = screen.getByRole('radio', { name: '中' });
+    const en = screen.getByRole('radio', { name: 'EN' });
+    expect(zh).toBeChecked();
+    fireEvent.click(en);
+    expect(screen.getByRole('radio', { name: 'EN' })).toBeChecked();
+    expect(screen.getByRole('button', { name: /terminal settings/i }).textContent).toBe('cfg');
   });
 
-  it('keeps the terse English words on an English interface', () => {
-    saveSettings({ language: 'en' });
+  it('has no command helper or pairing button', () => {
+    saveSettings({ language: 'zh' });
     renderHeader();
 
-    expect(screen.getByRole('button', { name: /quick command/i }).textContent).toBe('cmd');
-    expect(screen.getByRole('button', { name: /connection & pairing/i }).textContent).toBe('link');
-    expect(screen.getByRole('button', { name: /terminal settings/i }).textContent).toBe('cfg');
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).not.toEqual(
+      expect.arrayContaining(['命令', '配对']),
+    );
+    expect(screen.getByRole('button', { name: '终端设置' }).textContent).toBe('设置');
   });
 });

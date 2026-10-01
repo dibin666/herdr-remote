@@ -10,7 +10,6 @@ import { useCopyFeedback } from '@/context/useCopyFeedback';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
-  onOpenPairing: () => void;
   onOpenSettings: () => void;
   onAddProfile?: () => void;
 }
@@ -45,7 +44,6 @@ const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
 
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
-  onOpenPairing,
   onOpenSettings,
   onAddProfile = () => {},
 }) => {
@@ -180,16 +178,6 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         >
           <Cursor />
           <span className="truncate">{t('common.settings')}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={withoutFocusScroll(onOpenPairing)}
-          className={cn(actionRowClass, idleRowClass)}
-          aria-label={t('mobile.pairingAria')}
-        >
-          <Cursor />
-          <span className="truncate">{t('common.pairing')}</span>
         </button>
 
         <button

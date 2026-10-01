@@ -24,18 +24,3 @@ export function detectShellProfile(
   }
   return null;
 }
-
-export function quickCommands(profile: ShellProfile): string[] {
-  if (profile === 'cmd') return ['dir', 'cls', 'git status', 'cd', 'tasklist', 'exit', 'type'];
-  if (profile === 'powershell')
-    return [
-      'Get-ChildItem',
-      'Clear-Host',
-      'git status',
-      'Get-Location',
-      'Get-Process',
-      'exit',
-      'Get-Content',
-    ];
-  return ['ls -la', 'clear', 'git status', 'pwd', 'top', 'exit', 'cat'];
-}

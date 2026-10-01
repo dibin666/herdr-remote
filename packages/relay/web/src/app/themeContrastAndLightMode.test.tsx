@@ -5,7 +5,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { App } from './App';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { PairingModal } from '@/features/pairing/PairingModal';
+import { AddHostModal } from '@/features/pairing/AddHostModal';
 import { ToastContainer } from './ToastContainer';
 import { saveSettings } from '@/features/settings/storage';
 import * as themeModule from '@/features/terminal/theme';
@@ -63,11 +63,11 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
     expect(alert.className).toContain('border-l-tui-ok');
   });
 
-  it('renders settings and pairing dialogs on the dark surface', () => {
+  it('renders settings and add-instance dialogs on the dark surface', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-        <PairingModal isOpen={true} onClose={() => {}} />
+        <AddHostModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
 

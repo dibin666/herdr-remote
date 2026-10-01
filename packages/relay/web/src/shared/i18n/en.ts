@@ -8,21 +8,12 @@ export const en = {
     hostLabel: 'Host',
     clientIdLabel: 'ID:',
     copyClientIdTitle: 'Click to copy Client ID',
-    languageToggleTitle: 'Switch language (EN / 中文)',
-    pairingTitle: 'Connection & pairing',
+    languageToggleTitle: 'Interface language',
     settingsTitle: 'Terminal settings',
-    virtualKeyboardTitle: 'Quick command helper',
     latencyTitle: 'Round-trip latency (RTT)',
     mainNavigationAria: 'Main Navigation',
-    /**
-     * The words on the right of the program line. They are commands, so they
-     * are translated like every other word in the interface: a Chinese UI that
-     * still says `CMD LINK CFG` is a Chinese UI with English in it.
-     */
-    actionKeyboard: 'cmd',
-    actionPairing: 'link',
+    /** Translated like every other word: a Chinese UI saying `CFG` has English left in it. */
     actionSettings: 'cfg',
-    languageShort: 'en',
   },
   common: {
     connecting: 'Connecting...',
@@ -47,7 +38,6 @@ export const en = {
     settings: 'Settings',
     admin: 'Admin',
     terminal: 'Terminal',
-    pairing: 'Pairing',
     keyBar: 'Key bar',
     quickInput: 'Quick input',
     dismissNotification: 'Dismiss notification',
@@ -158,30 +148,19 @@ export const en = {
     clientIdLabel: 'Device Client Identifier',
   },
   pairing: {
-    title: 'Relay Connection & Pairing',
     addTitle: 'Add Herdr Instance',
     addSubtitle: 'A pairing code is all it takes',
     advancedTitle: 'Advanced',
     advancedHint: 'another relay, or a device token',
     pairAndConnect: 'Pair & Connect',
-    displayNameLabel: 'Host Name',
-    displayNamePlaceholder: 'e.g. Workstation',
     credentialsRequired: 'Enter a pairing code or device token.',
     pairCodeLabel: 'Pairing Code',
     pairCodeNote: '(6-char code)',
     pairCodePlaceholder: 'e.g. A2B3C4',
     pairCodeHelp: 'Run "herdr-remote pair" on host.',
-    repairNote: '(only to pair again)',
-    editAdvancedHint: 'relay, token, client ID',
     tokenLabel: 'Access Token',
     tokenNote: '(Device secret)',
-    tokenPlaceholder: 'Device token...',
     wsUrlLabel: 'Relay WebSocket Endpoint URL',
-    wsUrlPlaceholder: '/ws/client',
-    clientIdLabel: 'Client Identifier',
-    newIdButton: 'New ID',
-    autoReconnectLabel: 'Auto-reconnect',
-    saveAndConnect: 'Save & Connect',
   },
   settings: {
     title: 'Terminal Preferences',
@@ -361,11 +340,6 @@ export const en = {
   virtualKeyboard: {
     collapseToolbar: 'Collapse Toolbar',
     expandToolbar: 'Expand Toolbar',
-    helperTitle: 'Quick Commands',
-    closeHelper: 'Close Helper',
-    placeholder: 'Type command and press Enter...',
-    sendButton: 'Send',
-    clearInput: 'Clear Input',
     customizeTitle: 'Custom Key Toolbar',
     customizeDesc: 'Reorder, enable, or disable keys for your toolbar.',
     enabledKeysCount: '{count} keys enabled',
@@ -430,7 +404,6 @@ export const en = {
     terminalControlAria: 'Terminal control',
     inputControl: 'Input control',
     settingsAria: 'Terminal settings',
-    pairingAria: 'Connection & pairing',
     keybarAria: 'Toggle key toolbar',
     quickInputAria: 'Toggle quick commands',
     /** Legend over the sheet's action list. */
