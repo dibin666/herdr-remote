@@ -7,6 +7,7 @@ import { useConnection, useSettings, useTerminalIO, useUpload } from '@/context/
 import { cn } from '@/shared/lib/cn';
 import { Gauge } from '@/shared/ui';
 import { CAP_BASE, CAP_IDLE } from './caps';
+import { KeyIcon } from './KeyLabel';
 
 const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/*';
 
@@ -71,10 +72,12 @@ export function UploadProgressBar({ collapsed }: { collapsed: boolean }) {
 export function ImageUploadButton({
   fileInputRef,
   keyClass,
+  squareKeyClass,
   vibrate,
 }: {
   fileInputRef: RefObject<HTMLInputElement | null>;
   keyClass: string;
+  squareKeyClass: string;
   vibrate: () => void;
 }) {
   const { t } = useSettings();
@@ -103,7 +106,8 @@ export function ImageUploadButton({
       disabled={isUploading}
       className={cn(
         CAP_BASE,
-        keyClass,
+        // Square while it is an icon; the percentage needs a word's width.
+        isUploading ? keyClass : squareKeyClass,
         isUploading
           ? 'border-tui-border-dim bg-tui-surface opacity-60 cursor-not-allowed'
           : CAP_IDLE,
@@ -111,9 +115,7 @@ export function ImageUploadButton({
       title={isUploading ? uploadProgress.statusText : t('virtualKeyboard.uploadImageTitle')}
       aria-label={t('virtualKeyboard.uploadImage')}
     >
-      <span className="font-medium">
-        {isUploading ? `${uploadProgress.percent}%` : t('virtualKeyboard.image')}
-      </span>
+      {isUploading ? <span>{`${uploadProgress.percent}%`}</span> : <KeyIcon name="image" />}
     </button>
   );
 }

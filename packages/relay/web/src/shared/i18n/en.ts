@@ -246,7 +246,6 @@ export const en = {
       'Tap to choose which {profile} shortcuts appear on the key bar ({count} shown); base keys are on the Virtual Keys tab.',
     restoreBar: 'Restore default keys',
     customizeBar: 'Choose which shortcuts the key bar shows',
-    customizeBarShort: 'Edit',
     shortcutLabel: 'Shortcut',
     comboPlaceholder: 'e.g. ctrl+e or esc esc',
     invalidCombo: 'Invalid shortcut: {error}',
@@ -377,10 +376,8 @@ export const en = {
     badgeStart: 'START',
     badgeEnd: 'END',
     badgeKill: 'KILL',
-    keyEnter: 'Enter',
     uploadImage: 'Upload Image',
     uploadImageTitle: 'Select and upload image to terminal',
-    image: 'Image',
     uploadProgressReading: 'Reading...',
     uploadProgressProcessing: 'Compressing...',
     uploadProgressSending: 'Uploading...',
@@ -420,7 +417,6 @@ export const en = {
     takeoverControlAria: 'Takeover Control',
     claimControlAria: 'Claim Control',
     newAdminTerminal: 'Open an administrator PowerShell tab in Herdr',
-    adminShort: 'Admin',
     adminTerminalSetup:
       'On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access. Approve the one-time Windows prompt under the same account as Herdr Remote.',
     adminTerminalUpdate:
