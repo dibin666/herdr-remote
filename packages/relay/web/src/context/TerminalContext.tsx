@@ -267,12 +267,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       ? clampFontSize(hostFont.font.sizePx, settings.fontSize)
       : settings.fontSize;
 
-  // The interface around the terminal is drawn as terminal cells too; it uses
-  // the terminal's face so the two read as one screen. Sizes stay fixed.
-  useEffect(() => {
-    document.documentElement.style.setProperty('--tui-font', terminalFontFamily);
-  }, [terminalFontFamily]);
-
   // Keep the live adapter's credentials in step with saved settings.
   useEffect(() => {
     adapterRef.current?.updateConfig(buildConnectionConfig(settings));

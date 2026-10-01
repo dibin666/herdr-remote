@@ -53,7 +53,7 @@ The first run launches a setup wizard, after which the services run in the backg
 - **Mobile-First Experience**: Touch-friendly key bar with Esc, Tab, Ctrl, Alt, arrow keys, symbols, and F-keys, alongside long-press copy and quick paste.
 - **Agent Status Awareness**: Real-time tracking of blocked, running, and finished agents, with optional tab title badges, vibrations, audio chimes, and system notifications.
 - **Context-Aware Agent Shortcuts**: Key bar dynamically adapts to the active agent (supporting 24 agents including Claude Code, Codex, and Gemini CLI), with customizable order and keybindings.
-- **Native Terminal Styling**: Preserves workstation terminal color schemes, fonts, and sizes, with dynamic font streaming and predictive echo on high-latency links.
+- **Native Terminal Styling**: Preserves workstation terminal color schemes, fonts, and sizes, with dynamic font streaming and predictive echo on high-latency links. The interface ships with Maple Mono NF CN, so Chinese and Japanese text stays exactly two cells wide on any device.
 - **Windows Shell Support**: Key bar recognizes CMD, PowerShell, and Git Bash, with quick creation of elevated terminal tabs in Herdr.
 - **Mobile Image Uploads**: Send photos or screenshots from your phone directly to the workstation, inserting local file paths straight into the agent prompt.
 - **Flexible Connection Modes**: Supports local-only, LAN / Tailscale, official public relay, or self-hosted relays.

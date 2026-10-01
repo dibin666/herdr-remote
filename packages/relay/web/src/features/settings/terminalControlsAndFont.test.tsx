@@ -11,6 +11,7 @@ import {
 } from '@/features/terminal/theme';
 import {
   FONT_PRESETS,
+  DEFAULT_FONT_STACK,
   SYSTEM_FONT_STACK,
   resolveTerminalFontFamily,
 } from '@/features/terminal/theme';
@@ -34,8 +35,9 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(defaults.fontFamily).toBe('host');
     expect(DEFAULT_TERMINAL_FONT).toBe('host');
     expect(defaults.fontSizeFollowsHost).toBe(true);
-    // Before the host has said anything, "host" draws with the system stack.
-    expect(resolveTerminalFontFamily('host', null)).toBe(SYSTEM_FONT_STACK);
+    // Before the host has said anything, "host" draws with the bundled Maple.
+    expect(resolveTerminalFontFamily('host', null)).toBe(DEFAULT_FONT_STACK);
+    expect(DEFAULT_FONT_STACK.startsWith('"Maple Mono NF CN", "Herdr Maple Mono"')).toBe(true);
     expect(SYSTEM_FONT_STACK).toContain('ui-monospace');
     expect(SYSTEM_FONT_STACK).toContain('Consolas');
   });
@@ -281,10 +283,10 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
   });
 
   describe('resolveTerminalFontFamily & Symbols Nerd Font Fallback', () => {
-    it('includes Symbols Nerd Font Mono by default in the system monospace stack', () => {
+    it('includes Symbols Nerd Font Mono by default in the bundled Maple stack', () => {
       const resolved = resolveTerminalFontFamily(undefined);
       expect(resolved).toContain('Symbols Nerd Font Mono');
-      expect(resolved).toContain('ui-monospace');
+      expect(resolved).toContain('Herdr Maple Mono');
       expect(resolved).toContain('monospace');
     });
 
@@ -295,7 +297,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
       });
       expect(
         resolved.startsWith(
-          '"Herdr Host 0ec29a68b539", "JetBrainsMono Nerd Font", "Herdr JetBrains Mono", ui-monospace',
+          '"Herdr Host 0ec29a68b539", "JetBrainsMono Nerd Font", "Herdr JetBrains Mono", "Maple Mono NF CN", "Herdr Maple Mono"',
         ),
       ).toBe(true);
       expect(
@@ -303,10 +305,10 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
           '"Symbols Nerd Font Mono", "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Noto Sans Mono CJK TC", "Microsoft YaHei Mono", "PingFang SC", monospace',
         ),
       ).toBe(true);
-      // Not loaded, and no bundled equivalent: the name, then the system stack.
+      // Not loaded, and no bundled equivalent: the name, then the bundled Maple.
       expect(
         resolveTerminalFontFamily('host', { family: 'Iosevka Term' }).startsWith(
-          '"Iosevka Term", ui-monospace',
+          '"Iosevka Term", "Maple Mono NF CN", "Herdr Maple Mono"',
         ),
       ).toBe(true);
     });
