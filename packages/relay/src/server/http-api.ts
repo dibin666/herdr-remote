@@ -21,7 +21,7 @@ import { statusSnapshot } from './status.js';
 import type { RelayContext } from './types.js';
 import { VERSION } from './version.js';
 
-const PUBLIC_DIR = path.join(PACKAGE_ROOT, 'web', 'dist');
+export const PUBLIC_DIR = path.join(PACKAGE_ROOT, 'web', 'dist');
 
 const FONT_CACHE_SECONDS = 7 * 24 * 60 * 60;
 
@@ -226,25 +226,25 @@ export function handleHttp(relay: RelayContext, req: IncomingMessage, res: Serve
     sendError(res, 404, 'not_found', 'API route not found');
     return;
   }
-  serveStatic(pathname, res);
+  serveStatic(relay.publicDir, pathname, res);
 }
 
-function serveStatic(requestPath: string, res: ServerResponse): void {
+function serveStatic(publicDir: string, requestPath: string, res: ServerResponse): void {
   const relative =
     requestPath === '/' || requestPath === '/admin'
       ? 'index.html'
       : requestPath.replace(/^\/+/, '');
-  const candidate = path.resolve(PUBLIC_DIR, relative);
+  const candidate = path.resolve(publicDir, relative);
   if (
-    !candidate.startsWith(`${PUBLIC_DIR}${path.sep}`) &&
-    candidate !== path.join(PUBLIC_DIR, 'index.html')
+    !candidate.startsWith(`${publicDir}${path.sep}`) &&
+    candidate !== path.join(publicDir, 'index.html')
   ) {
     sendError(res, 403, 'forbidden', 'path is not allowed');
     return;
   }
   fs.readFile(candidate, (error, data) => {
     if (error && !path.extname(relative)) {
-      fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (fallbackError, fallbackData) => {
+      fs.readFile(path.join(publicDir, 'index.html'), (fallbackError, fallbackData) => {
         if (fallbackError) {
           sendError(res, 503, 'web_not_built', 'frontend has not been built');
           return;
