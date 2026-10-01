@@ -81,14 +81,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
   it('does not expose an interface theme toggle', () => {
     render(
       <TerminalProvider>
-        <Header
-          currentView="terminal"
-          onNavigate={() => {}}
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-          onToggleVirtualKeyboard={() => {}}
-          isVirtualKeyboardOpen={false}
-        />
+        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 

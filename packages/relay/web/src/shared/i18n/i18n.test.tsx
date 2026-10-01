@@ -130,7 +130,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'zh' });
     const { unmount } = render(
       <TerminalProvider>
-        <MobileControlSheet onClose={() => {}} onOpenPairing={() => {}} onOpenSettings={() => {}} />
+        <MobileControlSheet onClose={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
@@ -139,7 +139,6 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(screen.getByText('设置')).toBeInTheDocument();
     // The dashboard is entered from Settings, not from the sheet.
     expect(screen.queryByText('管理面板')).toBeNull();
-    expect(screen.getByText('配对')).toBeInTheDocument();
     expect(screen.getByText('按键条')).toBeInTheDocument();
     expect(screen.getByLabelText('关闭会话控制面板')).toBeInTheDocument();
 
@@ -149,7 +148,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <MobileControlSheet onClose={() => {}} onOpenPairing={() => {}} onOpenSettings={() => {}} />
+        <MobileControlSheet onClose={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
@@ -157,7 +156,6 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     expect(screen.getByText('Input control')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.queryByText('Admin')).toBeNull();
-    expect(screen.getByText('Pairing')).toBeInTheDocument();
     expect(screen.getByText('Key bar')).toBeInTheDocument();
     expect(screen.getByLabelText('Close session controls')).toBeInTheDocument();
   });
@@ -301,9 +299,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       'header.clientIdLabel',
       'header.copyClientIdTitle',
       'header.languageToggleTitle',
-      'header.pairingTitle',
       'header.settingsTitle',
-      'header.virtualKeyboardTitle',
       'header.latencyTitle',
       'header.mainNavigationAria',
     ];
@@ -322,21 +318,12 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'zh' });
     const { unmount } = render(
       <TerminalProvider>
-        <Header
-          currentView="terminal"
-          onNavigate={() => {}}
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-          onToggleVirtualKeyboard={() => {}}
-          isVirtualKeyboardOpen={false}
-        />
+        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
-    expect(screen.getByTitle('切换语言 (EN / 中文)')).toBeInTheDocument();
-    expect(screen.getByTitle('连接与配对')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: '界面语言' })).toBeInTheDocument();
     expect(screen.getByTitle('终端设置')).toBeInTheDocument();
-    expect(screen.getByTitle('快捷命令')).toBeInTheDocument();
 
     unmount();
 
@@ -344,21 +331,12 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <Header
-          currentView="terminal"
-          onNavigate={() => {}}
-          onOpenPairing={() => {}}
-          onOpenSettings={() => {}}
-          onToggleVirtualKeyboard={() => {}}
-          isVirtualKeyboardOpen={false}
-        />
+        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
-    expect(screen.getByTitle('Switch language (EN / 中文)')).toBeInTheDocument();
-    expect(screen.getByTitle('Connection & pairing')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Interface language' })).toBeInTheDocument();
     expect(screen.getByTitle('Terminal settings')).toBeInTheDocument();
-    expect(screen.getByTitle('Quick command helper')).toBeInTheDocument();
   });
 
   it('statically scans all web source files to ensure every static t(...) key resolves in en and zh', () => {

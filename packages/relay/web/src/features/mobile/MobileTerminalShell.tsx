@@ -8,7 +8,6 @@ import { GLYPH, Sep, StatusDot } from '@/shared/ui';
 import { MobileStatusBar } from './MobileStatusBar';
 
 export interface MobileTerminalShellProps {
-  onOpenPairing: () => void;
   onOpenSettings: () => void;
   onAddProfile?: () => void;
 }
@@ -21,7 +20,6 @@ export interface MobileTerminalShellProps {
  * and sitting on reserved terminal rows so they can never cover output.
  */
 export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
-  onOpenPairing,
   onOpenSettings,
   onAddProfile = () => {},
 }) => {
@@ -134,10 +132,6 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           >
             <MobileControlSheet
               onClose={close}
-              onOpenPairing={() => {
-                close();
-                onOpenPairing();
-              }}
               onOpenSettings={() => {
                 close();
                 onOpenSettings();

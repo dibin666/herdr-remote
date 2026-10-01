@@ -2,7 +2,8 @@ import type React from 'react';
 import { useSettings, useToasts } from '@/context/TerminalContext';
 import { cn } from '@/shared/lib/cn';
 import { translate } from '@/shared/i18n';
-import { Tabs } from '@/shared/ui';
+import { Segmented, Tabs } from '@/shared/ui';
+import type { Language } from '@/shared/i18n';
 
 /**
  * The two chrome rows at the top of the window.
@@ -26,30 +27,18 @@ const actionClass =
 
 const actionIdle = 'text-tui-muted hover:border-tui-border hover:text-tui-accent';
 
-const actionActive = 'border-tui-accent bg-tui-accent text-tui-crust';
-
 interface HeaderProps {
   currentView: 'terminal' | 'admin';
   onNavigate: (view: 'terminal' | 'admin') => void;
-  onOpenPairing: () => void;
   onOpenSettings: () => void;
-  onToggleVirtualKeyboard: () => void;
-  isVirtualKeyboardOpen: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({
-  currentView,
-  onNavigate,
-  onOpenPairing,
-  onOpenSettings,
-  onToggleVirtualKeyboard,
-  isVirtualKeyboardOpen,
-}) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenSettings }) => {
   const { language, setLanguage, t } = useSettings();
   const { addToast } = useToasts();
 
-  const toggleLanguage = () => {
-    const nextLang = language === 'zh' ? 'en' : 'zh';
+  const switchLanguage = (nextLang: Language) => {
+    if (nextLang === language) return;
     setLanguage(nextLang);
     addToast(
       'info',
@@ -101,37 +90,20 @@ export const Header: React.FC<HeaderProps> = ({
         <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={toggleLanguage}
-            className={cn(actionClass, actionIdle)}
-            title={t('header.languageToggleTitle')}
+          {/* Both languages on screen, each in its own script, so the way to
+              the other one reads at a glance instead of a code to decode. */}
+          <Segmented<Language>
+            name="header-language"
+            value={language}
+            onChange={switchLanguage}
+            options={[
+              { value: 'zh', label: '中' },
+              { value: 'en', label: 'EN' },
+            ]}
+            size="sm"
+            className="h-[var(--tui-row)] w-auto"
             aria-label={t('header.languageToggleTitle')}
-          >
-            {t('header.languageShort')}
-          </button>
-
-          {currentView === 'terminal' && (
-            <button
-              type="button"
-              onClick={onToggleVirtualKeyboard}
-              className={cn(actionClass, isVirtualKeyboardOpen ? actionActive : actionIdle)}
-              title={t('header.virtualKeyboardTitle')}
-              aria-label={t('header.virtualKeyboardTitle')}
-            >
-              {t('header.actionKeyboard')}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={onOpenPairing}
-            className={cn(actionClass, actionIdle)}
-            title={t('header.pairingTitle')}
-            aria-label={t('header.pairingTitle')}
-          >
-            {t('header.actionPairing')}
-          </button>
+          />
 
           <button
             type="button"

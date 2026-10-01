@@ -378,7 +378,7 @@ describe('Phone control sheet', () => {
     setVisualViewport(null);
   });
 
-  it('reaches connection status, the shared-session state, settings and pairing', async () => {
+  it('reaches connection status, the shared-session state and settings', async () => {
     await renderPhoneApp();
     openSession('controller');
 
@@ -395,11 +395,9 @@ describe('Phone control sheet', () => {
     ).toBeNull();
 
     expect(within(sheet).getByRole('button', { name: /Terminal Settings/i })).toBeInTheDocument();
-    expect(
-      within(sheet).getByRole('button', {
-        name: /Connection & pairing|Connection and Pairing Settings/i,
-      }),
-    ).toBeInTheDocument();
+    // A new instance is paired from the host switcher; there is no second
+    // pairing entry for the open one.
+    expect(within(sheet).queryByRole('button', { name: /pairing/i })).toBeNull();
     // The dashboard is reached through Settings, not from the sheet.
     expect(
       within(sheet).queryByRole('button', { name: /Admin dashboard|Open Admin dashboard/i }),

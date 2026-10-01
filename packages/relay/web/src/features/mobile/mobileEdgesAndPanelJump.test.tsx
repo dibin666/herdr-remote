@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { PairingModal } from '@/features/pairing/PairingModal';
+import { AddHostModal } from '@/features/pairing/AddHostModal';
 import { MobileTerminalShell } from './MobileTerminalShell';
 
 /**
@@ -92,7 +92,7 @@ describe('Panels open without moving the page', () => {
     render(
       <TerminalProvider>
         <SettingsModal isOpen={true} onClose={() => {}} />
-        <PairingModal isOpen={true} onClose={() => {}} />
+        <AddHostModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
 
@@ -124,7 +124,7 @@ describe('Panels open without moving the page', () => {
             terminalContext = context;
           }}
         />
-        <MobileTerminalShell onOpenPairing={() => {}} onOpenSettings={() => {}} />
+        <MobileTerminalShell onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
@@ -172,7 +172,7 @@ describe('Panels open without moving the page', () => {
 
     render(
       <TerminalProvider>
-        <MobileTerminalShell onOpenPairing={() => {}} onOpenSettings={() => {}} />
+        <MobileTerminalShell onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
@@ -216,7 +216,7 @@ describe('Panels open without moving the page', () => {
     const onOpenSettings = vi.fn();
     render(
       <TerminalProvider>
-        <MobileTerminalShell onOpenPairing={() => {}} onOpenSettings={onOpenSettings} />
+        <MobileTerminalShell onOpenSettings={onOpenSettings} />
       </TerminalProvider>,
     );
 
