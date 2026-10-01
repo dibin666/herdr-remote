@@ -23,6 +23,8 @@ import { VERSION } from './version.js';
 
 const PUBLIC_DIR = path.join(PACKAGE_ROOT, 'web', 'dist');
 
+const FONT_CACHE_SECONDS = 7 * 24 * 60 * 60;
+
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -258,6 +260,10 @@ function serveStatic(requestPath: string, res: ServerResponse): void {
     }
     const extension = path.extname(candidate).toLowerCase();
     setResponseHeaders(res, MIME_TYPES[extension] || 'application/octet-stream');
+    // The bundled fonts run to megabytes and only change with a release; a
+    // week is short enough that a font upgrade still arrives.
+    if (relative.startsWith('fonts/'))
+      res.setHeader('Cache-Control', `public, max-age=${FONT_CACHE_SECONDS}`);
     res.end(data);
   });
 }
