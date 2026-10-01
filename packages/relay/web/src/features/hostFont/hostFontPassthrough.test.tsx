@@ -268,9 +268,8 @@ describe('Host terminal font in the window', () => {
         '"JetBrainsMono Nerd Font", "Herdr JetBrains Mono"',
       ),
     ).toBe(true);
-    expect(document.documentElement.style.getPropertyValue('--tui-font')).toBe(
-      term.options.fontFamily,
-    );
+    // The interface keeps its own face; only the terminal follows the host.
+    expect(document.documentElement.style.getPropertyValue('--tui-font')).toBe('');
   });
 
   it('asks once, names the terminal, and stays quiet after "use this device’s fonts"', async () => {
@@ -502,15 +501,17 @@ describe('useHostFont: a large CJK font, cut to what is drawn', () => {
     });
     expect(
       stack.startsWith(
-        '"JetBrainsMono Nerd Font", "Herdr JetBrains Mono", "Herdr Glyphs cccccccccccc", "Noto Sans CJK SC", ui-monospace',
+        '"JetBrainsMono Nerd Font", "Herdr JetBrains Mono", "Herdr Glyphs cccccccccccc", "Noto Sans CJK SC", "Maple Mono NF CN", "Herdr Maple Mono"',
       ),
     ).toBe(true);
     const whole = resolveTerminalFontFamily('host', {
       family: 'Sarasa Mono SC',
       glyphs: { family: 'Sarasa Mono SC', scope: 'all', alias: 'Herdr Glyphs dddddddddddd' },
     });
-    expect(whole.startsWith('"Herdr Glyphs dddddddddddd", "Sarasa Mono SC", ui-monospace')).toBe(
-      true,
-    );
+    expect(
+      whole.startsWith(
+        '"Herdr Glyphs dddddddddddd", "Sarasa Mono SC", "Maple Mono NF CN", "Herdr Maple Mono"',
+      ),
+    ).toBe(true);
   });
 });

@@ -51,14 +51,15 @@
      grid of character cells rather than a stack of floating cards. */
   --tui-row: 20px;
 
-  /* The CJK monospace faces are named ahead of the generic fallback so a Han
-     character lands on a face whose advance is a whole number of Latin cells.
-     Reaching a proportional CJK face instead is what made mixed lines look
-     like two type sizes. */
+  /* The interface's face, the same on every device: Maple Mono NF CN draws
+     Latin, Han, kana and Nerd Font icons with a Han character exactly two
+     Latin cells wide, so mixed 中文/latin lines stay on the grid. An installed
+     copy wins over the bundled slices (`public/fonts/maple-mono`). The CJK
+     monospace faces after it only catch what Maple lacks, such as Hangul. */
   --tui-font:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', 'Symbols Nerd Font Mono', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC',
-    'Noto Sans Mono CJK TC', 'Microsoft YaHei Mono', 'PingFang SC', monospace;
+    'Maple Mono NF CN', 'Herdr Maple Mono', 'Symbols Nerd Font Mono', 'Sarasa Mono SC',
+    'Noto Sans Mono CJK SC', 'Noto Sans Mono CJK TC', 'Microsoft YaHei Mono', 'PingFang SC',
+    monospace;
 }
 
 /* Tailwind's dark variant is kept only so `dark:` selectors still resolve; the

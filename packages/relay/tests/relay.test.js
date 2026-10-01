@@ -236,6 +236,36 @@ test('the content security policy lets the page draw its own data: icons', async
   assert.match(policy, /script-src 'self'(;|$)/);
 });
 
+test('bundled fonts are cached while the page and API are not', async (t) => {
+  // The CJK face is megabytes of slices; fetching them again on every reload
+  // made each page load as slow as the first one.
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-cache-'));
+  // Its own web root: CI runs the tests before the web client is built.
+  const publicDir = path.join(directory, 'public');
+  fs.mkdirSync(path.join(publicDir, 'fonts'), { recursive: true });
+  fs.writeFileSync(path.join(publicDir, 'index.html'), '<!doctype html>');
+  fs.writeFileSync(path.join(publicDir, 'fonts', 'face.woff2'), 'wOF2');
+  const relay = new RelayServer(config(), {
+    stateFile: path.join(directory, 'auth.json'),
+    publicDir,
+  });
+  const address = await relay.listen(0, '127.0.0.1');
+  t.onTestFinished(async () => {
+    await relay.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  const base = `http://127.0.0.1:${address.port}`;
+
+  const font = await fetch(`${base}/fonts/face.woff2`);
+  assert.equal(font.status, 200);
+  assert.match(font.headers.get('cache-control') || '', /max-age=\d+/);
+  const page = await fetch(`${base}/`);
+  assert.equal(page.status, 200);
+  assert.equal(page.headers.get('cache-control'), 'no-store');
+  const api = await fetch(`${base}/api/info`);
+  assert.equal(api.headers.get('cache-control'), 'no-store');
+});
+
 test('CORS echoes only an explicitly allowed origin', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-cors-'));
   const relayConfig = config();

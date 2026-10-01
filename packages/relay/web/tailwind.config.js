@@ -77,45 +77,10 @@ export default {
         ansi: mocha,
       },
       fontFamily: {
-        /*
-         * One family for the whole interface: a TUI has no proportional text.
-         *
-         * The CJK monospace faces come first among the fallbacks that can carry
-         * Han characters. Without them a browser reaches for a *proportional*
-         * CJK face, whose glyph advances do not divide into the Latin cell —
-         * which is why mixed 中文/latin lines drifted off the grid and looked
-         * like two different type sizes on one row.
-         */
-        mono: [
-          'ui-monospace',
-          'SFMono-Regular',
-          'Menlo',
-          'Monaco',
-          'Consolas',
-          'Liberation Mono',
-          'Courier New',
-          'Sarasa Mono SC',
-          'Noto Sans Mono CJK SC',
-          'Noto Sans Mono CJK TC',
-          'Microsoft YaHei Mono',
-          'PingFang SC',
-          'monospace',
-        ],
-        sans: [
-          'ui-monospace',
-          'SFMono-Regular',
-          'Menlo',
-          'Monaco',
-          'Consolas',
-          'Liberation Mono',
-          'Courier New',
-          'Sarasa Mono SC',
-          'Noto Sans Mono CJK SC',
-          'Noto Sans Mono CJK TC',
-          'Microsoft YaHei Mono',
-          'PingFang SC',
-          'monospace',
-        ],
+        /* One family for the whole interface, defined once as `--tui-font` in
+           index.css: a TUI has no proportional text. */
+        mono: ['var(--tui-font)'],
+        sans: ['var(--tui-font)'],
       },
       borderRadius: {
         /* Terminal cells are rectangles. Every radius resolves to none, so a

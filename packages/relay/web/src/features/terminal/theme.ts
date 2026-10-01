@@ -23,12 +23,21 @@ import type { HostTerminalPalette } from '@protocol/terminal';
 export const HERDR_DARK_BACKGROUND = '#11111b';
 
 /**
+ * The bundled default, Maple Mono NF CN (see `public/fonts/maple-mono`): an
+ * installed copy first, then the relay's slices. Its Han characters are two
+ * Latin cells wide, which is what keeps mixed lines on the grid.
+ */
+const MAPLE_MONO = ['"Maple Mono NF CN"', '"Herdr Maple Mono"'];
+
+/**
  * Everything after the chosen face, in order: Nerd Font icons (bundled, so a
- * Powerline prompt draws on any device), CJK monospace faces whose advance is
- * two Latin cells, then the generic fallback. The same order as `--tui-font`.
+ * Powerline prompt draws on any device), the bundled Maple for CJK, then CJK
+ * monospace faces whose advance is two Latin cells for what Maple lacks
+ * (Hangul), then the generic fallback.
  */
 const FONT_STACK_TAIL = [
   '"Symbols Nerd Font Mono"',
+  '"Herdr Maple Mono"',
   '"Sarasa Mono SC"',
   '"Noto Sans Mono CJK SC"',
   '"Noto Sans Mono CJK TC"',
@@ -50,6 +59,7 @@ const SYSTEM_MONOSPACE = [
 
 type FontPresetId =
   | 'host'
+  | 'maple-mono'
   | 'system'
   | 'jetbrains-mono'
   | 'fira-code'
@@ -74,6 +84,7 @@ export interface FontPreset {
  */
 export const FONT_PRESETS: readonly FontPreset[] = [
   { id: 'host', name: 'Host terminal font', faces: [] },
+  { id: 'maple-mono', name: 'Maple Mono NF CN', faces: MAPLE_MONO },
   { id: 'system', name: 'System monospace', faces: SYSTEM_MONOSPACE },
   {
     id: 'jetbrains-mono',
@@ -159,8 +170,11 @@ function stack(faces: string[]): string {
   return [...new Set([...faces, ...FONT_STACK_TAIL])].join(', ');
 }
 
-/** The system monospace stack; also what `host` shows before a host reports. */
+/** The system monospace stack. */
 export const SYSTEM_FONT_STACK = stack(SYSTEM_MONOSPACE);
+
+/** What `host` shows before a host reports, and after a host family this device lacks. */
+export const DEFAULT_FONT_STACK = stack(MAPLE_MONO);
 
 /** The workstation's font as the terminal can name it. */
 export interface HostFontFamily {
@@ -175,8 +189,8 @@ export interface HostFontFamily {
  * The CSS font-family list for a font setting.
  *
  * `host` puts the fetched files first (when loaded), then the family by name
- * (when this device has it), then the bundled look-alike, then the system
- * stack. Every stack ends with the Nerd Font icons and the CJK faces. A custom
+ * (when this device has it), then the bundled look-alike, then the bundled
+ * Maple Mono. Every stack ends with the Nerd Font icons and the CJK faces. A custom
  * stack from an older version is kept, with the icon fallback appended.
  */
 export function resolveTerminalFontFamily(
@@ -185,7 +199,7 @@ export function resolveTerminalFontFamily(
 ): string {
   const value = typeof setting === 'string' ? setting.trim() : '';
   if (!value || value === 'host') {
-    if (!host?.family) return SYSTEM_FONT_STACK;
+    if (!host?.family) return DEFAULT_FONT_STACK;
     const faces = [];
     const glyphs = host.glyphs;
     // A family cut to size comes first: it is the family.
@@ -199,7 +213,7 @@ export function resolveTerminalFontFamily(
       if (glyphs.alias) faces.push(quoteFamily(glyphs.alias));
       faces.push(quoteFamily(glyphs.family));
     }
-    return stack([...faces, ...SYSTEM_MONOSPACE]);
+    return stack([...faces, ...MAPLE_MONO]);
   }
   const preset = FONT_PRESETS.find((candidate) => candidate.id === value);
   if (preset) return stack([...preset.faces, ...SYSTEM_MONOSPACE]);
