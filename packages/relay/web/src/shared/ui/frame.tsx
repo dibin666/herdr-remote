@@ -15,10 +15,11 @@ import { type KeyHint, KeyHints, type TabDescriptor, Tabs } from './buttons';
 export const Segments: React.FC<{
   items: React.ReactNode[];
   className?: string;
-}> = ({ items, className }) => {
+  'data-testid'?: string;
+}> = ({ items, className, 'data-testid': testId }) => {
   const visible = items.filter(Boolean);
   return (
-    <span className={cn('flex min-w-0 items-center gap-1.5', className)}>
+    <span data-testid={testId} className={cn('flex min-w-0 items-center gap-1.5', className)}>
       {visible.map((item, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: the items are an ordered list of nodes with no identity of their own
         <React.Fragment key={index}>
