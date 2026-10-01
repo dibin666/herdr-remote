@@ -129,6 +129,8 @@ export interface RelayContext {
   trustProxy: boolean;
   devLatencyMs: number;
   devDelayMs: number;
+  /** Where the built web client is served from. */
+  publicDir: string;
   sendQueues: WeakMap<RelaySocket, SendQueue>;
   activeDelayTimers: Set<NodeJS.Timeout>;
   finishHandshake(ws: RelaySocket): void;
