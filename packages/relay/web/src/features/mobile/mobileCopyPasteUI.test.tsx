@@ -329,7 +329,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     });
     // Hold still until the menu opens automatically, before lifting the finger.
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_520));
+      await new Promise((r) => setTimeout(r, 1_020));
     });
 
     const menu = screen.getByRole('menu', { name: '终端选择操作' });
@@ -424,7 +424,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_520));
+      await new Promise((r) => setTimeout(r, 1_020));
     });
 
     // The menu has opened during the hold; release the finger.
@@ -483,7 +483,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_520));
+      await new Promise((r) => setTimeout(r, 1_020));
     });
 
     // The menu has opened during the hold; release the finger.
@@ -550,7 +550,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     act(() => touch('pointerdown'));
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_520));
+      await new Promise((r) => setTimeout(r, 1_020));
     });
     act(() => touch('pointerup'));
 
@@ -610,7 +610,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_520));
+      await new Promise((r) => setTimeout(r, 1_020));
     });
 
     // The menu has opened during the hold; release the finger.
@@ -639,7 +639,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     expect(screen.queryByText('长按此处粘贴，然后按发送')).toBeNull();
   });
 
-  it('opens the menu after a stationary 2.5 second hold without waiting for release', async () => {
+  it('opens the menu after a stationary 1 second hold without waiting for release', async () => {
     renderMobileTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
     const term = xtermInstances[0];
@@ -660,14 +660,14 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
 
-    // The word selection starts at 500ms, but the menu waits for the full hold.
+    // The word selection starts at 500ms; the menu appears at the 1 second mark.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 520));
     });
     expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
 
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_000));
+      await new Promise((r) => setTimeout(r, 480));
     });
     expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
 
@@ -732,7 +732,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
 
     // Highlight overlay should be visible before finger lift
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_000));
+      await new Promise((r) => setTimeout(r, 480));
     });
     expect(screen.getAllByTestId('terminal-selection-overlay').length).toBeGreaterThan(0);
 

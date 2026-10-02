@@ -107,7 +107,7 @@ export function attachGestureInput({
       }));
     },
     longPressDelayMs: 500,
-    longPressMenuDelayMs: 2_500,
+    longPressMenuDelayMs: 1_000,
     dragThresholdPx: 8,
     scrollLineHeightPx: 18,
     onLongPress: isTouchDevice ? (p) => getSelection().handleLongPress(p) : undefined,
