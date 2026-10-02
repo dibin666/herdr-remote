@@ -1,6 +1,6 @@
 {
   "name": "herdr-remote",
-  "version": "0.2.37",
+  "version": "0.2.38",
   "description": "Browser access to Herdr workspaces: plugin, host connector, and configuration TUI",
   "license": "MIT",
   "type": "module",
