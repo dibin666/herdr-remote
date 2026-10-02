@@ -559,7 +559,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
     });
 
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 2_520));
+      await new Promise((r) => setTimeout(r, 1_020));
     });
 
     act(() => {
