@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { TerminalProvider } from '@/context/TerminalContext';
 import { KeyToolbar } from './KeyToolbar';
@@ -64,18 +64,55 @@ describe('Key bar modifiers', () => {
     saveSettings({ toolbarVisible: true, virtualKeys: withShift() });
   });
 
+  afterEach(() => vi.useRealTimers());
+
   it('applies a latched Ctrl to an arrow key, then releases it', async () => {
     await mount();
-    fireEvent.click(key('Toggle Ctrl Lock'));
-    expect(key('Toggle Ctrl Lock')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(key('Ctrl modifier (tap to toggle, long-press to combine)'));
+    expect(key('Ctrl modifier (tap to toggle, long-press to combine)')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     fireEvent.click(key('Left (←)'));
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[1;5D']));
-    expect(key('Toggle Ctrl Lock')).toHaveAttribute('aria-pressed', 'false');
+    expect(key('Ctrl modifier (tap to toggle, long-press to combine)')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('latches a modifier on long press and combines it with a typed letter', async () => {
+    const term = await mount();
+    const ctrl = key('Ctrl modifier (tap to toggle, long-press to combine)');
+
+    vi.useFakeTimers();
+    fireEvent.pointerDown(ctrl, {
+      pointerId: 1,
+      pointerType: 'touch',
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+    });
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.pointerUp(ctrl, {
+      pointerId: 1,
+      pointerType: 'touch',
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent.click(ctrl);
+    expect(ctrl).toHaveAttribute('aria-pressed', 'true');
+    vi.useRealTimers();
+
+    act(() => emitTerminalData(term, 'e'));
+    await waitFor(() => expect(sentInput()).toEqual(['\x05']));
+    expect(ctrl).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('applies a latched Shift to a function key from the drawer', async () => {
     await mount();
-    fireEvent.click(key('Toggle Shift Lock'));
+    fireEvent.click(key('Shift modifier (tap to toggle, long-press to combine)'));
     fireEvent.click(screen.getByRole('button', { name: /Function Keys/ }));
     fireEvent.click(screen.getByRole('button', { name: 'F5' }));
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[15;2~']));
@@ -101,25 +138,31 @@ describe('Key bar modifiers', () => {
 
   it('turns a latched Shift and Enter into the newline key Claude Code reads', async () => {
     await mount();
-    fireEvent.click(key('Toggle Shift Lock'));
+    fireEvent.click(key('Shift modifier (tap to toggle, long-press to combine)'));
     fireEvent.click(key('Enter'));
     await waitFor(() => expect(sentInput()).toEqual(['\x1b[13;2u']));
   });
 
   it("applies a latched Alt to the next key from the phone's own keyboard", async () => {
     const term = await mount();
-    fireEvent.click(key('Toggle Alt Lock'));
+    fireEvent.click(key('Alt modifier (tap to toggle, long-press to combine)'));
     act(() => emitTerminalData(term, 'f'));
     await waitFor(() => expect(sentInput()).toEqual(['\x1bf']));
-    expect(key('Toggle Alt Lock')).toHaveAttribute('aria-pressed', 'false');
+    expect(key('Alt modifier (tap to toggle, long-press to combine)')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('keeps the latch through mouse hover and IME commits, for the next real key', async () => {
     const term = await mount();
-    fireEvent.click(key('Toggle Ctrl Lock'));
+    fireEvent.click(key('Ctrl modifier (tap to toggle, long-press to combine)'));
     act(() => emitTerminalData(term, '\x1b[<35;10;5M'));
     act(() => emitTerminalData(term, '你好'));
-    expect(key('Toggle Ctrl Lock')).toHaveAttribute('aria-pressed', 'true');
+    expect(key('Ctrl modifier (tap to toggle, long-press to combine)')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     act(() => emitTerminalData(term, 'c'));
     // One flush carries all three; only the real key was modified.
     await waitFor(() => expect(sentInput().join('')).toBe('\x1b[<35;10;5M你好\x03'));
@@ -127,10 +170,13 @@ describe('Key bar modifiers', () => {
 
   it('lets a generic chord release the latch without modifying it', async () => {
     await mount();
-    fireEvent.click(key('Toggle Alt Lock'));
+    fireEvent.click(key('Alt modifier (tap to toggle, long-press to combine)'));
     fireEvent.click(screen.getByTestId('agent-key-genericCtrlC'));
     await waitFor(() => expect(sentInput()).toEqual(['\x03']));
-    expect(key('Toggle Alt Lock')).toHaveAttribute('aria-pressed', 'false');
+    expect(key('Alt modifier (tap to toggle, long-press to combine)')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 });
 

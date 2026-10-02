@@ -327,15 +327,15 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       });
       container.dispatchEvent(downEvent);
     });
-    // Wait for 500ms long press timer
+    // Hold still until the menu opens automatically, before lifting the finger.
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
+      await new Promise((r) => setTimeout(r, 2_520));
     });
 
-    // NEW CRITICAL ASSERTION: While finger is still held down, menu must NOT exist yet!
-    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
+    const menu = screen.getByRole('menu', { name: '终端选择操作' });
+    expect(menu).toBeInTheDocument();
 
-    // Finger lifts up (pointerup) -> menu appears now
+    // Releasing the finger leaves the already-open menu in place.
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerup', {
@@ -348,10 +348,6 @@ describe('TerminalView mobile selection and clipboard integration', () => {
         }),
       );
     });
-
-    // Menu should now be in the DOM
-    const menu = screen.getByRole('menu', { name: '终端选择操作' });
-    expect(menu).toBeInTheDocument();
 
     // Tap on the terminal while menu is open: must close menu and swallow event
     const tapEvent = new PointerEvent('pointerdown', {
@@ -428,10 +424,10 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
+      await new Promise((r) => setTimeout(r, 2_520));
     });
 
-    // Finger lifts up -> menu opens
+    // The menu has opened during the hold; release the finger.
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerup', {
@@ -487,10 +483,10 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
+      await new Promise((r) => setTimeout(r, 2_520));
     });
 
-    // Finger lifts up -> menu appears
+    // The menu has opened during the hold; release the finger.
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerup', {
@@ -554,7 +550,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     act(() => touch('pointerdown'));
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
+      await new Promise((r) => setTimeout(r, 2_520));
     });
     act(() => touch('pointerup'));
 
@@ -614,10 +610,10 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
+      await new Promise((r) => setTimeout(r, 2_520));
     });
 
-    // Finger lifts up -> menu appears
+    // The menu has opened during the hold; release the finger.
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerup', {
@@ -643,7 +639,7 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     expect(screen.queryByText('长按此处粘贴，然后按发送')).toBeNull();
   });
 
-  it('CRITICAL NEW REQUIREMENT: menu does NOT exist while finger is held down at longpress; appears only upon lifting finger (pointerup)', async () => {
+  it('opens the menu after a stationary 2.5 second hold without waiting for release', async () => {
     renderMobileTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));
     const term = xtermInstances[0];
@@ -664,15 +660,18 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       );
     });
 
-    // Wait for 520ms (longpress timer triggers at 500ms)
+    // The word selection starts at 500ms, but the menu waits for the full hold.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 520));
     });
-
-    // 1. WHILE FINGER IS HELD DOWN: menu MUST NOT EXIST in the DOM!
     expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
 
-    // 2. FINGER LIFTS (pointerup): menu now pops up at the touch position!
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 2_000));
+    });
+    expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
+
+    // Finger release keeps the already-open menu at its touch position.
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerup', {
@@ -732,9 +731,12 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     });
 
     // Highlight overlay should be visible before finger lift
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 2_000));
+    });
     expect(screen.getAllByTestId('terminal-selection-overlay').length).toBeGreaterThan(0);
 
-    // Lift finger -> menu opens
+    // Wait until the menu opens during the stationary hold, then lift the finger.
     act(() => {
       container.dispatchEvent(
         new PointerEvent('pointerup', {

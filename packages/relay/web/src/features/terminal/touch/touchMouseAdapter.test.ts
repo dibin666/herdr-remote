@@ -132,6 +132,7 @@ describe('TouchToMouseAdapter Unit Tests', () => {
 
     afterEach(() => {
       clearElementFromPoint();
+      vi.useRealTimers();
       mockContainer.remove();
     });
 
@@ -673,6 +674,48 @@ describe('TouchToMouseAdapter Unit Tests', () => {
     });
 
     describe('mobile longpress selection and extension', () => {
+      it('opens a stationary long-press menu after 2.5 seconds', () => {
+        vi.useFakeTimers();
+        const onLongPressMenu = vi.fn();
+        const controller = makeController({
+          longPressDelayMs: 500,
+          longPressMenuDelayMs: 2_500,
+          onLongPressMenu,
+        });
+
+        controller.handlePointerDown(
+          pointer('pointerdown', { clientX: 120, clientY: 80 }),
+          mockContainer,
+        );
+        vi.advanceTimersByTime(2_499);
+        expect(onLongPressMenu).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(onLongPressMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
+      });
+
+      it('does not open the long-press menu while the finger moves', () => {
+        vi.useFakeTimers();
+        const onSelectionExtend = vi.fn();
+        const onLongPressMenu = vi.fn();
+        const controller = makeController({
+          longPressDelayMs: 500,
+          longPressMenuDelayMs: 2_500,
+          onSelectionExtend,
+          onLongPressMenu,
+        });
+
+        controller.handlePointerDown(
+          pointer('pointerdown', { clientX: 120, clientY: 80 }),
+          mockContainer,
+        );
+        vi.advanceTimersByTime(500);
+        controller.handlePointerMove(pointer('pointermove', { clientX: 140, clientY: 80 }));
+        vi.advanceTimersByTime(2_000);
+
+        expect(onSelectionExtend).toHaveBeenCalled();
+        expect(onLongPressMenu).not.toHaveBeenCalled();
+      });
+
       it('triggers onLongPress with start coordinates after long press delay', async () => {
         const onLongPress = vi.fn();
         const onSelectionExtend = vi.fn();

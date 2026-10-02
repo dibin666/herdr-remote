@@ -15,6 +15,8 @@ import { AdminTerminalButton } from './AdminTerminalButton';
 /** Keys drawn as an icon alone, which makes them square. */
 const ICON_KEYS = new Set(['left', 'up', 'down', 'right', 'enter']);
 
+const MODIFIER_LONG_PRESS_DELAY_MS = 500;
+const MODIFIER_MOVE_THRESHOLD_PX = 8;
 interface KeyToolbarProps {
   /**
    * Phone shell density: shorter keys in a single row that scrolls sideways
@@ -33,6 +35,21 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const modifierPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modifierPressRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    triggered: boolean;
+  } | null>(null);
+  const suppressModifierClickRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      if (modifierPressTimerRef.current) clearTimeout(modifierPressTimerRef.current);
+    },
+    [],
+  );
   // Expandable drawers
   const [showFnKeys, setShowFnKeys] = useState(false);
   const [showSymbols, setShowSymbols] = useState(false);
@@ -60,6 +77,72 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     observer.observe(strip);
     return () => observer.disconnect();
   }, [measureScroll, settings.toolbarVisible]);
+
+  const clearModifierPressTimer = () => {
+    if (modifierPressTimerRef.current) clearTimeout(modifierPressTimerRef.current);
+    modifierPressTimerRef.current = null;
+  };
+
+  const startModifierLongPress = (keyDef: ToolbarKeyDef, event: React.PointerEvent) => {
+    const modifier = keyDef.modifierType;
+    if (
+      keyDef.type !== 'modifier' ||
+      event.button !== 0 ||
+      (modifier !== 'ctrl' && modifier !== 'alt' && modifier !== 'shift')
+    ) {
+      return;
+    }
+
+    clearModifierPressTimer();
+    suppressModifierClickRef.current = false;
+    modifierPressRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      triggered: false,
+    };
+    modifierPressTimerRef.current = setTimeout(() => {
+      const press = modifierPressRef.current;
+      if (!press || press.pointerId !== event.pointerId) return;
+      press.triggered = true;
+      suppressModifierClickRef.current = true;
+      if (!modifierLatch[modifier]) toggleModifierLatch(modifier);
+      vibrate();
+    }, MODIFIER_LONG_PRESS_DELAY_MS);
+  };
+
+  const moveModifierPress = (event: React.PointerEvent) => {
+    const press = modifierPressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+    if (
+      Math.hypot(event.clientX - press.clientX, event.clientY - press.clientY) <=
+      MODIFIER_MOVE_THRESHOLD_PX
+    ) {
+      return;
+    }
+    clearModifierPressTimer();
+    if (!press.triggered) modifierPressRef.current = null;
+  };
+
+  const endModifierPress = (event: React.PointerEvent) => {
+    const press = modifierPressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+    clearModifierPressTimer();
+    modifierPressRef.current = null;
+    if (press.triggered) {
+      setTimeout(() => {
+        suppressModifierClickRef.current = false;
+      }, 0);
+    }
+  };
+
+  const cancelModifierPress = (event: React.PointerEvent) => {
+    const press = modifierPressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+    clearModifierPressTimer();
+    modifierPressRef.current = null;
+    suppressModifierClickRef.current = false;
+  };
 
   // Collapsed, the bar leaves a handle behind rather than vanishing: a key bar
   // with no way back is a setting the user has to go hunting for.
@@ -176,7 +259,17 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       <button
         key={keyDef.id}
         type="button"
-        onClick={() => handleKeyClick(keyDef)}
+        onPointerDown={(event) => startModifierLongPress(keyDef, event)}
+        onPointerMove={moveModifierPress}
+        onPointerUp={endModifierPress}
+        onPointerCancel={cancelModifierPress}
+        onClick={() => {
+          if (suppressModifierClickRef.current) {
+            suppressModifierClickRef.current = false;
+            return;
+          }
+          handleKeyClick(keyDef);
+        }}
         className={cn(
           CAP_BASE,
           ICON_KEYS.has(keyDef.id)

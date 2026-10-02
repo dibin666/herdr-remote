@@ -193,6 +193,33 @@ describe('Agent keymap settings', () => {
     await waitFor(() => expect(loadSettings().agentKeymaps.claude).toBeUndefined());
   });
 
+  it('opens a visual keyboard and builds a custom shortcut from modifier and key taps', async () => {
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} />
+      </TerminalProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Agent Keys|智能体按键/i }));
+    fireEvent.change(screen.getByRole('combobox', { name: /Agent profile/i }), {
+      target: { value: 'shell' },
+    });
+    fireEvent.change(screen.getByLabelText(/Function name/i), { target: { value: 'Run tests' } });
+
+    const comboInput = screen.getByLabelText(/Key combo/i);
+    fireEvent.click(comboInput);
+    const picker = screen.getByRole('dialog', { name: 'Choose shortcut' });
+    fireEvent.click(within(picker).getByRole('button', { name: 'CTRL' }));
+    fireEvent.click(within(picker).getByRole('button', { name: 'E' }));
+    fireEvent.click(within(picker).getByTestId('combo-picker-apply'));
+
+    expect(comboInput).toHaveValue('ctrl+e');
+    fireEvent.click(screen.getByRole('button', { name: /Add custom key/i }));
+    expect(loadSettings().agentKeymaps.shell.custom?.at(-1)).toMatchObject({
+      label: 'Run tests',
+      keys: 'ctrl+e',
+    });
+  });
+
   it('keeps the last valid drawer shortcut while an unfinished edit is open', async () => {
     saveSettings({ language: 'en', toolbarVisible: true });
     let context: ReturnType<typeof useTerminal> | undefined;

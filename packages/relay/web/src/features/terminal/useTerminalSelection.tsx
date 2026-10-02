@@ -1,5 +1,5 @@
 // Touch selection on the terminal: a long press picks the word under the
-// finger, dragging extends a rectangle, and lifting the finger opens a menu
+// finger; holding opens a menu after a delay, while dragging extends a rectangle.
 // to copy it, the line, the screen, or open the link under it.
 
 import type { Terminal } from '@xterm/xterm';
@@ -71,7 +71,7 @@ export function useTerminalSelection({
   const [viewportY, setViewportY] = useState(0);
   const viewportYRef = useRef(0);
 
-  // Gesture coordinate tracking for delayed menu presentation on finger release
+  // Gesture coordinates anchor the menu after a stationary hold or selection drag
   const longPressPointRef = useRef<Point | null>(null);
   const lastExtendPointRef = useRef<Point | null>(null);
   const selectionAnchorRef = useRef<{ col: number; bufferRow: number } | null>(null);
@@ -154,7 +154,7 @@ export function useTerminalSelection({
         dropSelection();
       }
 
-      // Record point for menu anchoring on pointerup, but do NOT open menu while finger is held down!
+      // Save the anchor; the gesture controller opens the menu after the stationary-hold delay.
       longPressPointRef.current = point;
       lastExtendPointRef.current = null;
     },
@@ -167,9 +167,9 @@ export function useTerminalSelection({
       const anchor = selectionAnchorRef.current;
       if (!term || !anchor) return;
 
-      lastExtendPointRef.current = point;
       const currentCell = cellAt(point);
       if (!currentCell) return;
+      lastExtendPointRef.current = point;
 
       const band = selectionBandRef.current ?? paneColumnBand(term, anchor.col, anchor.bufferRow);
       const rawRect: TerminalSelectionRect = {
@@ -183,7 +183,7 @@ export function useTerminalSelection({
     [termRef, cellAt, showSelection],
   );
 
-  /** A long press ended: open the menu where the finger last was. */
+  /** Open the menu at the long-press point, or the last point in a dragged selection. */
   const openMenuAtGesture = useCallback(() => {
     const menuPoint = lastExtendPointRef.current ?? longPressPointRef.current;
     if (!menuPoint || !mainRef.current) return;
@@ -281,6 +281,7 @@ export function useTerminalSelection({
     isHighlightVisible,
     viewportY,
     hasOpenMenu: () => selectionMenuRef.current !== null,
+    hasSelectionExtension: () => lastExtendPointRef.current !== null,
     clearSelection,
     handleLongPress,
     handleSelectionExtend,

@@ -272,7 +272,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     expect(screen.getByTitle('Escape (ESC)')).toBeInTheDocument();
     expect(screen.getByTitle('回车 (Enter)')).toBeInTheDocument();
-    expect(screen.getByTitle('切换 Ctrl 锁定')).toBeInTheDocument();
+    expect(screen.getByTitle('Ctrl 修饰键（点按切换，长按组合）')).toBeInTheDocument();
 
     unmount();
 
@@ -287,7 +287,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
     expect(screen.getByText('Escape (ESC)')).toBeInTheDocument();
     expect(screen.getByText('回车 (Enter)')).toBeInTheDocument();
-    expect(screen.getByText('切换 Ctrl 锁定')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl 修饰键（点按切换，长按组合）')).toBeInTheDocument();
   });
 
   it('verifies all Header keys and tooltips resolve correctly without returning key paths', () => {
