@@ -25,6 +25,11 @@ import {
   SettingSection,
 } from '@/shared/ui';
 import { AGENT_ROW_GRID, COMPACT, COMPACT_FIELD, CONTROL_FIELD, DANGER_GHOST } from './styles';
+import { KeyComboPicker } from './KeyComboPicker';
+
+type ComboPickerTarget =
+  | { kind: 'custom'; value: string }
+  | { kind: 'action'; actionId: string; value: string };
 
 /**
  * The agent keys on the key bar, per agent: which show, what each sends, and
@@ -41,6 +46,7 @@ export const AgentKeymapsTab: React.FC<{
   const comboDraftsRef = useRef<Record<string, string>>({});
   const [customLabel, setCustomLabel] = useState('');
   const [customCombo, setCustomCombo] = useState('');
+  const [comboPickerTarget, setComboPickerTarget] = useState<ComboPickerTarget | null>(null);
 
   const keymapProfile = profile || agentProfile;
   const profileOverrides: AgentProfileKeymapOverride = settings.agentKeymaps[keymapProfile] || {};
@@ -300,6 +306,10 @@ export const AgentKeymapsTab: React.FC<{
                 aria-label={`${t('agentKeymaps.shortcutLabel')} ${label}`}
                 value={displayedCombo}
                 onChange={(event) => updateComboDraft(item.id, event.target.value)}
+                onClick={() =>
+                  setComboPickerTarget({ kind: 'action', actionId: item.id, value: displayedCombo })
+                }
+                inputMode="none"
                 onBlur={() => finishComboDraft(item.id)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') event.currentTarget.blur();
@@ -378,6 +388,8 @@ export const AgentKeymapsTab: React.FC<{
               <Input
                 value={customCombo}
                 onChange={(event) => setCustomCombo(event.target.value)}
+                onClick={() => setComboPickerTarget({ kind: 'custom', value: customCombo })}
+                inputMode="none"
                 placeholder={t('agentKeymaps.comboPlaceholder')}
                 className={CONTROL_FIELD}
               />
@@ -410,6 +422,22 @@ export const AgentKeymapsTab: React.FC<{
             })()}
         </div>
       </SettingSection>
+      {comboPickerTarget && (
+        <KeyComboPicker
+          isOpen={true}
+          value={comboPickerTarget.value}
+          onClose={() => setComboPickerTarget(null)}
+          onApply={(combo) => {
+            if (comboPickerTarget.kind === 'custom') {
+              setCustomCombo(combo);
+            } else {
+              updateComboDraft(comboPickerTarget.actionId, combo);
+              finishComboDraft(comboPickerTarget.actionId);
+            }
+            setComboPickerTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 };

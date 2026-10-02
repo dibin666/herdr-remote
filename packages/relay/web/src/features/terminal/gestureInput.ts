@@ -10,6 +10,7 @@ type Point = { clientX: number; clientY: number };
 
 export interface GestureSelection {
   hasOpenMenu(): boolean;
+  hasSelectionExtension(): boolean;
   clearSelection(): void;
   openMenuAtGesture(): void;
   handleLongPress(point: Point): void;
@@ -106,9 +107,11 @@ export function attachGestureInput({
       }));
     },
     longPressDelayMs: 500,
+    longPressMenuDelayMs: 2_500,
     dragThresholdPx: 8,
     scrollLineHeightPx: 18,
     onLongPress: isTouchDevice ? (p) => getSelection().handleLongPress(p) : undefined,
+    onLongPressMenu: isTouchDevice ? () => getSelection().openMenuAtGesture() : undefined,
     onSelectionExtend: isTouchDevice ? (p) => getSelection().handleSelectionExtend(p) : undefined,
   });
 
@@ -152,9 +155,16 @@ export function attachGestureInput({
     e.stopPropagation();
     return true;
   };
-  /** Open the menu on a long press, which has to be read before the controller resets. */
-  const openMenuIfLongPress = () => {
-    if (pointerController.getState() === 'longpress') getSelection().openMenuAtGesture();
+  /** A dragged selection still opens its menu on release; a stationary hold opens it on timer. */
+  const openMenuAfterSelectionDrag = () => {
+    const selection = getSelection();
+    if (
+      pointerController.getState() === 'longpress' &&
+      selection.hasSelectionExtension() &&
+      !selection.hasOpenMenu()
+    ) {
+      selection.openMenuAtGesture();
+    }
   };
 
   if (usePointerEvents) {
@@ -176,7 +186,7 @@ export function attachGestureInput({
       countEvent('pointerEvents', 'pointerup');
       // CRITICAL: Inspect longpress state BEFORE calling handlePointerUp(e).
       // Calling handlePointerUp resets controller state to 'idle'.
-      openMenuIfLongPress();
+      openMenuAfterSelectionDrag();
       pointerController.handlePointerUp(e);
       if (e.pointerType !== 'mouse') e.stopPropagation();
     });
@@ -223,7 +233,7 @@ export function attachGestureInput({
       if (!eventIsInTerminal(e, true)) return;
       countEvent('touchEvents', 'touchend');
       // CRITICAL: Determine whether this gesture was a longpress BEFORE pointerController.handleTouchEnd(e).
-      openMenuIfLongPress();
+      openMenuAfterSelectionDrag();
       e.stopPropagation();
       pointerController.handleTouchEnd(e);
     });

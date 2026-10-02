@@ -74,7 +74,7 @@ describe('UI Components', () => {
     expect(screen.getByRole('toolbar')).toBeInTheDocument();
     expect(screen.getByTitle(/Escape/i)).toBeInTheDocument();
     expect(screen.getByTitle('Tab')).toBeInTheDocument();
-    expect(screen.getByTitle(/Toggle Ctrl Lock/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/Ctrl modifier/i)).toBeInTheDocument();
   });
 
   it('renders AdminDashboard with stats and tabs', async () => {

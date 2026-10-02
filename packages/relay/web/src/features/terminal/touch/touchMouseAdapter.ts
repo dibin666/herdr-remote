@@ -37,6 +37,7 @@ import {
 
 export interface TouchMouseOptions extends PointerDeliveryOptions {
   onLongPress?: (point: { clientX: number; clientY: number }) => void;
+  onLongPressMenu?: (point: { clientX: number; clientY: number }) => void;
   onSelectionExtend?: (point: { clientX: number; clientY: number }) => void;
   onFocus?: () => void;
   /** Optional diagnostics hook used only by the debug query parameter. */
@@ -58,6 +59,7 @@ export interface TouchMouseOptions extends PointerDeliveryOptions {
     scrollMode: 'buffer' | 'application-mouse' | 'application-keys' | 'none';
   }) => void;
   longPressDelayMs?: number;
+  longPressMenuDelayMs?: number;
   dragThresholdPx?: number;
   scrollLineHeightPx?: number;
 }
@@ -77,6 +79,7 @@ export class TerminalPointerController {
   private lastY = 0;
   private activeTarget: EventTarget | null = null;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private longPressMenuTimer: ReturnType<typeof setTimeout> | null = null;
   private capturedPointerId: number | null = null;
   private captureElement: HTMLElement | null = null;
   private scrollRemainderY = 0;
@@ -85,6 +88,7 @@ export class TerminalPointerController {
   constructor(options: TouchMouseOptions) {
     this.options = {
       longPressDelayMs: 500,
+      longPressMenuDelayMs: 2_500,
       dragThresholdPx: 8,
       scrollLineHeightPx: 18,
       ...options,
@@ -118,25 +122,29 @@ export class TerminalPointerController {
       if (this.state === 'pending') {
         this.setGestureState('longpress');
         this.options.onLongPress?.({ clientX: this.startX, clientY: this.startY });
-        // The pointer-down handler already canceled the browser's default
-        // selection gesture. Keep the capture so a long press cannot turn into
-        // a synthetic click when the finger is finally released.
       }
     }, this.options.longPressDelayMs);
+    this.longPressMenuTimer = setTimeout(() => {
+      this.longPressMenuTimer = null;
+      if (this.state === 'longpress') {
+        this.options.onLongPressMenu?.({ clientX: this.startX, clientY: this.startY });
+      }
+    }, this.options.longPressMenuDelayMs);
   }
 
   private moveGesture(point: GesturePoint, event?: CancellableEvent): void {
-    if (this.state === 'longpress') {
-      this.options.onSelectionExtend?.({ clientX: point.clientX, clientY: point.clientY });
-      if (event?.cancelable) event.preventDefault?.();
-      return;
-    }
     if (this.state === 'idle') return;
 
     const dx = point.clientX - this.startX;
     const dy = point.clientY - this.startY;
     const distance = Math.hypot(dx, dy);
 
+    if (this.state === 'longpress') {
+      if (distance > (this.options.dragThresholdPx || 8)) this.clearLongPressMenuTimer();
+      this.options.onSelectionExtend?.({ clientX: point.clientX, clientY: point.clientY });
+      if (event?.cancelable) event.preventDefault?.();
+      return;
+    }
     if (this.state === 'scrolling') {
       this.scrollGesture(point, event);
       return;
@@ -421,6 +429,14 @@ export class TerminalPointerController {
     if (this.longPressTimer) {
       clearTimeout(this.longPressTimer);
       this.longPressTimer = null;
+    }
+    this.clearLongPressMenuTimer();
+  }
+
+  private clearLongPressMenuTimer(): void {
+    if (this.longPressMenuTimer) {
+      clearTimeout(this.longPressMenuTimer);
+      this.longPressMenuTimer = null;
     }
   }
 
