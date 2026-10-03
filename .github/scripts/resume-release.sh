@@ -2,9 +2,8 @@
 set -euo pipefail
 
 # Tags are recorded before publication. A retry must finish that version without bumping it.
-cli="$(node -p "require('./packages/cli/package.json').version")"
-relay="$(node -p "require('./packages/relay/package.json').version")"
-tag="herdr-remote-v$cli"
+version="$(node -p "require('./packages/cli/package.json').version")"
+tag="herdr-remote-v$version"
 if [ "$(git rev-parse -q --verify "$tag^{commit}" || true)" != "$(git rev-parse HEAD)" ]; then
   echo 'resume=false' >> "$GITHUB_OUTPUT"
   exit 0
@@ -16,12 +15,4 @@ if [ "$published" = true ]; then
   echo 'resume=false' >> "$GITHUB_OUTPUT"
   exit 0
 fi
-relay_released=false
-if [ "$(git rev-parse -q --verify "herdr-remote-relay-v$relay^{commit}" || true)" = "$(git rev-parse HEAD)" ]; then
-  relay_released=true
-fi
-{
-  echo 'resume=true'
-  echo 'cli=true'
-  echo "relay=$relay_released"
-} >> "$GITHUB_OUTPUT"
+echo 'resume=true' >> "$GITHUB_OUTPUT"

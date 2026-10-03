@@ -1,30 +1,27 @@
 name: release
 
-# Releases the two packages. The primary channel is a GitHub Release; npm is a
-# backup. A GitHub Release is installable the moment it exists, whereas a fresh
-# npm version can take many minutes to become installable, so updates would not
-# be real-time if npm stayed the source of truth.
+# Releases herdr-remote: the CLI, the relay bundled inside it and the relay's
+# container image, all under ONE version. The primary channel is a GitHub
+# Release; npm is a backup. A GitHub Release is installable the moment it
+# exists, whereas a fresh npm version can take many minutes to become
+# installable, so updates would not be real-time if npm stayed the source of
+# truth.
 #
-# Deliberately separate from `relay image`: the container and the tarballs are
-# different artefacts on different schedules.
+# What a run publishes, for version V:
+#   - ONE GitHub Release, tagged `herdr-remote-vV`, marked latest, with
+#       herdr-remote-V.tgz / herdr-remote.tgz       the CLI, relay bundled inside
+#       herdr-remote-relay-V.tgz / herdr-remote-relay.tgz   the relay alone
+#       latest.json                                 what clients read to find it
+#   - herdr-remote@V on npm (backup; the relay is not published there on its
+#     own any more, it rides inside the CLI)
+#   - ghcr.io/<owner>/herdr-remote-relay:V (and `V.minor`, `latest`)
 #
-# What a run publishes: ONE GitHub Release, tagged `herdr-remote-v<cli>` and
-# titled `herdr-remote <cli>`, marked latest. Its assets are
-#   herdr-remote-<cli>.tgz / herdr-remote.tgz   self-contained CLI tarball with
-#                                               the relay bundled inside
-#   herdr-remote-relay-<relay>.tgz / herdr-remote-relay.tgz   plain relay
-#   latest.json                                 what clients read to find it
-# `herdr-remote-relay-v<relay>` tags are still created, purely as bookkeeping
-# for the next run's change detection; they get no GitHub Release of their own.
-# A relay release always carries a CLI release, since the CLI is how the relay
-# reaches users (see .github/scripts/plan-release.sh).
-#
-# The version is this workflow's *output*, not its input. Push a change to a
-# package and the workflow bumps that package's patch component, releases it,
-# and commits the new version back to master with a `PKG-vX.Y.Z` tag. Nobody
-# edits a version field by hand, and nothing is released twice: the tag records
-# what was last released, and the npm step still asks the registry before
-# uploading.
+# The version is this workflow's *output*, not its input. Push a change that
+# ships and the workflow bumps the patch component of the higher of the two
+# package versions, writes it to both, releases, and commits it back to master
+# with a `herdr-remote-vV` tag. Nobody edits a version field by hand, and
+# nothing is released twice: the tag records what was last released, and the
+# npm step still asks the registry before uploading.
 #
 # Only the newest commit on master releases. Runs queue (concurrency below), so
 # by the time an older run starts, master has usually moved on; the `guard` job
@@ -39,14 +36,16 @@ on:
       - '!packages/**/*.md'
       - 'package.json'
       - 'package-lock.json'
+      - 'scripts/bundle-release.mjs'
+      - '.dockerignore'
   workflow_dispatch:
     inputs:
-      packages:
-        description: 'Which packages to release (relay always brings cli along)'
+      release:
+        description: 'auto releases only when something that ships changed; force always does'
         required: false
         default: auto
         type: choice
-        options: [auto, cli, relay, both]
+        options: [auto, force]
       bump:
         description: 'Which version component to increment'
         required: false
@@ -120,12 +119,15 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   release:
-    name: release changed packages
+    name: release
     needs: guard
     if: needs.guard.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # commit the version bump, push its tags, create the GitHub Release
+      contents: write # commit the version bump, push its tag, create the GitHub Release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      recorded: ${{ steps.record.outputs.recorded }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -151,33 +153,46 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           if [ "${{ steps.resume.outputs.resume }}" = true ]; then
-            echo 'cli=true' >> "$GITHUB_OUTPUT"
-            echo 'relay=${{ steps.resume.outputs.relay }}' >> "$GITHUB_OUTPUT"
+            echo 'release=true' >> "$GITHUB_OUTPUT"
           else
-            .github/scripts/plan-release.sh "${{ inputs.packages || 'auto' }}"
+            .github/scripts/plan-release.sh "${{ inputs.release || 'auto' }}"
           fi
 
       # The bump happens *before* the install, and that order is deliberate.
-      # `npm version` updates the workspace manifest and the root lockfile
-      # together, so the two never disagree — which is what `npm ci` refuses to
+      # `npm version` updates the workspace manifests and the root lockfile
+      # together, so they never disagree — which is what `npm ci` refuses to
       # install. Run afterwards, against a populated node_modules, it re-resolves
       # the whole tree and rewrites far more of the lockfile than the version it
-      # was asked to change. `--no-git-tag-version` leaves the commit and the tag
-      # to the record step, where they can carry every package released here.
-      - name: Bump herdr-remote-relay
-        if: steps.plan.outputs.relay == 'true' && steps.resume.outputs.resume != 'true'
-        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote-relay --no-git-tag-version
-
-      - name: Bump herdr-remote
-        if: steps.plan.outputs.cli == 'true' && steps.resume.outputs.resume != 'true'
-        run: npm version "${{ inputs.bump || 'patch' }}" --workspace=herdr-remote --no-git-tag-version
+      # was asked to change. Both packages get the same version, counted on from
+      # whichever is higher, so the first unified release continues the relay's
+      # numbering. `--no-git-tag-version` leaves the commit and the tag to the
+      # record step.
+      - name: Bump the version
+        if: steps.plan.outputs.release == 'true' && steps.resume.outputs.resume != 'true'
+        run: |
+          next="$(node -e '
+            const bump = process.argv[1];
+            const parse = (v) => v.split(".").map(Number);
+            const [major, minor, patch] = ["cli", "relay"]
+              .map((p) => parse(require(`./packages/${p}/package.json`).version))
+              .sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2])
+              .pop();
+            const next = bump === "major" ? [major + 1, 0, 0]
+              : bump === "minor" ? [major, minor + 1, 0] : [major, minor, patch + 1];
+            console.log(next.join("."));
+          ' "${{ inputs.bump || 'patch' }}")"
+          npm version "$next" --workspace=herdr-remote --workspace=herdr-remote-relay \
+            --no-git-tag-version --allow-same-version
 
       - name: Sync herdr-plugin.toml version
-        if: steps.plan.outputs.cli == 'true'
+        id: version
+        if: steps.plan.outputs.release == 'true'
         run: |
           node -e '
             const fs = require("node:fs");
             const { version } = require("./packages/cli/package.json");
+            const relay = require("./packages/relay/package.json").version;
+            if (relay !== version) throw new Error(`relay ${relay} != cli ${version}`);
             const file = "packages/cli/herdr-plugin.toml";
             const toml = fs.readFileSync(file, "utf8");
             const updated = toml.replace(/^version\s*=\s*"[^"]*"/m, `version = "${version}"`);
@@ -186,40 +201,34 @@ jobs:
             }
             fs.writeFileSync(file, updated);
           '
+          echo "version=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # Everything here is skipped when neither package changed, so a docs or
-      # workflow commit costs one cheap run instead of a release. (The plan
-      # never reports relay without cli, so `cli` alone is the test.)
+      # Everything here is skipped when nothing that ships changed, so a docs or
+      # workflow commit costs one cheap run instead of a release.
       - name: Install dependencies
-        if: steps.plan.outputs.cli == 'true'
-        # A full install, unlike the image workflow's `--ignore-scripts` one:
-        # this workflow releases the CLI, whose test suite drives a real pty,
-        # so the native node-pty module has to be compiled. Skipping it here
-        # would ship a release validated only against the parts that need no
-        # compiler. The tarballs themselves are built by each package's
-        # `prepack`, which `npm pack` runs. No audit: npm's retiring audit
-        # endpoint once held a release here for five minutes.
+        if: steps.plan.outputs.release == 'true'
+        # A full install, unlike the image build: the CLI's test suite drives
+        # a real pty, so the native node-pty module has to be compiled. No
+        # audit: npm's retiring audit endpoint once held a release here for
+        # five minutes.
         run: npm ci --no-audit
 
       # The same checks as ci.yml, so nothing is released that a pull request
       # would have rejected.
       - name: Check
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.plan.outputs.release == 'true'
         run: npm run check
 
       - name: Test
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.plan.outputs.release == 'true'
         run: npm test
 
-      # Always both tarballs, even when only the CLI changed: the release
-      # carries a relay asset at the current relay version either way, and the
-      # CLI tarball bundles that same relay.
       - name: Pack release assets
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.plan.outputs.release == 'true'
         run: .github/scripts/pack-release.sh dist/release
 
       - name: Verify installed release
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.plan.outputs.release == 'true'
         run: bash .github/scripts/verify-release.sh dist/release/herdr-remote.tgz
 
       # Written back before the release is published, so the tag the GitHub
@@ -227,10 +236,9 @@ jobs:
       # stops this push from starting the workflow again.
       - name: Record the release
         id: record
-        if: steps.plan.outputs.cli == 'true'
+        if: steps.plan.outputs.release == 'true'
         env:
           RELEASE_BASE: ${{ needs.guard.outputs.ref }}
-          RELAY_RELEASED: ${{ steps.plan.outputs.relay }}
           RESUME_RELEASE: ${{ steps.resume.outputs.resume }}
         run: bash .github/scripts/record-release.sh
 
@@ -239,47 +247,100 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cli="$(node -p "require('./packages/cli/package.json').version")"
-          relay="$(node -p "require('./packages/relay/package.json').version")"
-          bash .github/scripts/publish-release.sh "$cli" "$relay"
+          image="ghcr.io/$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/herdr-remote-relay"
+          bash .github/scripts/publish-release.sh "${{ steps.version.outputs.version }}" "$image"
 
-      # Backup channel, after the release is already live. Each publish skips
-      # versions npm has, and reports any failure as a warning (see the
-      # script): npm being slow or down must not fail a release that users can
-      # already install. The relay goes first so the registry never holds a
-      # CLI whose bundled relay it lacks as a standalone package.
-      - name: Publish herdr-remote-relay to npm (backup)
-        if: steps.record.outputs.recorded == 'true' && steps.plan.outputs.relay == 'true'
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          relay="$(node -p "require('./packages/relay/package.json').version")"
-          .github/scripts/publish-if-new.sh "dist/release/herdr-remote-relay-$relay.tgz"
-
+      # Backup channel, after the release is already live. The publish skips a
+      # version npm has, and reports any failure as a warning (see the script):
+      # npm being slow or down must not fail a release that users can already
+      # install. Only the CLI goes to npm; the relay is bundled inside it.
       - name: Publish herdr-remote to npm (backup)
         if: steps.record.outputs.recorded == 'true'
         continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          cli="$(node -p "require('./packages/cli/package.json').version")"
-          .github/scripts/publish-if-new.sh "dist/release/herdr-remote-$cli.tgz"
+        run: .github/scripts/publish-if-new.sh "dist/release/herdr-remote-${{ steps.version.outputs.version }}.tgz"
 
       - name: Summary
         if: steps.record.outputs.recorded == 'true'
         run: |
-          cli="$(node -p "require('./packages/cli/package.json').version")"
-          relay="$(node -p "require('./packages/relay/package.json').version")"
+          version="${{ steps.version.outputs.version }}"
           {
-            echo "### GitHub Release"
+            echo "### herdr-remote $version"
             echo
-            echo "- \`herdr-remote@$cli\` — [herdr-remote-v$cli](https://github.com/${{ github.repository }}/releases/tag/herdr-remote-v$cli)"
-            if [ "${{ steps.plan.outputs.relay }}" = "true" ]; then
-              echo "- \`herdr-remote-relay@$relay\` — bundled, new"
-            else
-              echo "- \`herdr-remote-relay@$relay\` — bundled, unchanged"
-            fi
+            echo "- GitHub Release: [herdr-remote-v$version](https://github.com/${{ github.repository }}/releases/tag/herdr-remote-v$version)"
+            echo "- \`herdr-remote@$version\` with \`herdr-remote-relay@$version\` bundled"
             echo
-            echo "npm backup publish is best-effort; see the two npm steps for warnings."
+            echo "npm backup publish is best-effort; see the npm step for warnings."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The relay image, from the commit the release was recorded on, so the image
+  # carries the same version and the same code as the tarballs.
+  image:
+    name: relay image
+    needs: release
+    if: needs.release.outputs.recorded == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push the image to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: herdr-remote-v${{ needs.release.outputs.version }}
+
+      # Lowercase the owner: GHCR rejects uppercase characters in image names,
+      # while GitHub usernames may contain them.
+      - name: Resolve image name and tags
+        id: image
+        run: |
+          version="${{ needs.release.outputs.version }}"
+          echo "name=ghcr.io/$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/herdr-remote-relay" >> "$GITHUB_OUTPUT"
+          echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/relay/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false # keep the package listing to real image manifests
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ needs.release.outputs.version }}
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.minor }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:sha-${{ steps.image.outputs.revision }}
+          labels: |
+            org.opencontainers.image.title=herdr-remote-relay
+            org.opencontainers.image.description=Standalone relay server for Herdr Remote
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.image.outputs.revision }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### Relay image published"
+            echo
+            echo "\`${{ steps.image.outputs.name }}:${{ needs.release.outputs.version }}\`"
+            echo
+            echo "- platforms: linux/amd64, linux/arm64"
+            echo "- also tagged: \`${{ steps.image.outputs.minor }}\`, \`latest\`"
+            echo "- digest: \`${{ steps.build.outputs.digest }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

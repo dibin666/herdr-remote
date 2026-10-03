@@ -63,7 +63,7 @@ The image is assembled from scratch: Alpine's Node.js with only the libraries it
 links (the binary compressed with UPX), busybox for `sh` and the health check,
 and the bundled relay. The web fonts are most of what is left.
 
-## GitHub Releases or npm
+## GitHub Releases
 
 ```bash
 npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote-relay.tgz
@@ -71,8 +71,9 @@ herdr-remote-relay --public-url https://herdr.example.com --password your-passwo
   --admin-token your-long-random-admin-token --trust-proxy
 ```
 
-Every release is on GitHub Releases the moment it is out; `npm install -g herdr-remote-relay`
-installs the same package from npm, which can take a while to catch up.
+The relay is released together with `herdr-remote`, under one version: every GitHub
+Release carries `herdr-remote-relay.tgz`, and the image of the same version is published
+alongside it. The relay is no longer published to npm on its own.
 
 A systemd unit is included: see `deploy/systemd/` in the package.
 
