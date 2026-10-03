@@ -11,7 +11,7 @@ Herdr ──unix socket── host connector (cli) ──WS /ws/host── relay
 | 目录 | 包 | 职责 |
 |---|---|---|
 | `packages/cli` | `herdr-remote`（npm） | `src/cli.ts` 命令行；`src/connector/` host connector（relay 连接、PTY 会话、字体、agent 状态）；`src/tui/` Ink 配置界面；`src/` 其余是服务层；`herdr-plugin.toml` 插件清单 |
-| `packages/relay` | `herdr-remote-relay`（npm + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`src/server/` 按职责拆开的服务端模块，都接收 `RelayContext`，`relay-server.ts` 只负责组装 |
+| `packages/relay` | `herdr-remote-relay`（内置于 CLI 包 + 独立 tgz + 镜像） | WS 中继、HTTP API、托管 web 产物；`src/protocol/` 定义线协议；`src/server/` 按职责拆开的服务端模块，都接收 `RelayContext`，`relay-server.ts` 只负责组装 |
 | `packages/relay/web` | 私有 | React 19 + Vite + xterm.js 前端，随 relay 发布；`src/features/<功能>/` 放该功能的组件、hook 和逻辑；`src/shared/` 放与功能无关的 UI 原语、i18n、按键编码和工具；`src/context/` 是全局状态；`src/connection/` 是到 relay 的连接；`src/app/` 是外壳 |
 
 cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编译到 `dist/`。`bin/` 只是启动器，运行时加载的都是 `dist/`。
@@ -33,7 +33,8 @@ cli 和 relay 都是 ES module，源码是 TypeScript，由 `tsc` 把 `src/` 编
 - 线协议（消息类型、常量、校验）以及发布地址只在 `packages/relay/src/protocol/` 定义：cli 通过 `herdr-remote-relay/protocol` 引用，web 通过 `@protocol/*` 引用，任何地方都不要另抄一份。web 只能引用不依赖 Node 的模块（`messages`、`terminal`、`paste`、`http`、`release`），不能引用 `frames`。
 - Herdr socket 路径和 host token 只存在于 host connector，绝不能发给浏览器。
 - 依赖方向：cli → relay；web 只依赖 relay 的协议；relay 不依赖 cli；web 的 `shared/` 不依赖 `features/`、`context/`、`app/`、`connection/`。这些由 `biome.json` 的 `noRestrictedImports` 检查。
-- push master 会自动发布：GitHub Release（主渠道，`herdr-remote-v<版本>`，含内置 relay 的 CLI 包、relay 包和 `latest.json`）、npm（备份渠道，失败只警告）和 relay 镜像，所以只通过 PR 合并。只有 master 上最新的提交会发布，较旧的运行会跳过。改了 relay 就一定会同时发布 CLI（CLI 内置 relay）。不要手改 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。发布流程见 `.github/workflows/release.yml`，本地可用 `.github/scripts/pack-release.sh` 打包。
+- push master 会自动发布：cli 和 relay 合并发布、共用一个版本号。GitHub Release（主渠道，`herdr-remote-v<版本>`，含内置 relay 的 CLI 包、独立 relay 包和 `latest.json`）、npm（备份渠道，只发 `herdr-remote`，失败只警告）和同版本的 relay 镜像，所以只通过 PR 合并。只有 master 上最新的提交会发布，较旧的运行会跳过。不要手改两个 `package.json` 的 `version` 或 `herdr-plugin.toml` 里的版本号，CI 会自动升版本。发布流程见 `.github/workflows/release.yml`。
+- 发布的是 `scripts/bundle-release.mjs` 用 esbuild 打出的 bundle，不是 tsc 的 `dist/`：除 node-pty 外的依赖都打进 bundle，`herdr-remote update` 因此能直接下载 GitHub 的包替换安装目录、不经过 npm。被单独启动的入口（`dist/cli.js`、`dist/connector/main.js`、`dist/connector/admin-broker.js`）路径不能变；运行时找自身文件用 `PACKAGE_ROOT`，不要用 `import.meta.url`（bundle 后会指向共享 chunk）。本地可用 `.github/scripts/pack-release.sh` 打包、`verify-release.sh` 验证。
 - `node bin/herdr-remote.js` 及其子命令是插件的对外接口，不能改名。
 - 新增文案要同时加 en 和 zh（cli 在 `src/i18n/`，web 在 `src/shared/i18n/`）；README 和 docs 的中英文版本要一起改。web 的文案结构以 `en.ts` 为准，`t()` 的 key 由编译器检查；动态拼出的 key 只有在查不到时另有回退的地方才能 `as TranslationKey`。
 - `dist/` 是构建产物，不提交。

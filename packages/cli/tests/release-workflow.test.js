@@ -35,7 +35,9 @@ function repository(t) {
   run(cwd, 'git', ['commit', '-m', 'Initial']);
   run(cwd, 'git', ['push', 'origin', 'master']);
   const base = run(cwd, 'git', ['rev-parse', 'HEAD']);
-  fs.writeFileSync(path.join(cwd, 'packages/cli/package.json'), '{"version":"1.0.1"}\n');
+  // The release bumps both packages to one version.
+  for (const name of ['cli', 'relay'])
+    fs.writeFileSync(path.join(cwd, 'packages', name, 'package.json'), '{"version":"1.0.1"}\n');
   const output = path.join(directory, 'output');
   return { cwd, remote, base, output };
 }
@@ -66,7 +68,6 @@ test('a newer master prevents recording stale artifacts', (t) => {
   run(cwd, 'bash', [path.join(scripts, 'record-release.sh')], {
     RELEASE_BASE: base,
     GITHUB_OUTPUT: output,
-    RELAY_RELEASED: 'false',
   });
   assert.match(fs.readFileSync(output, 'utf8'), /recorded=false/);
   assert.equal(run(cwd, 'git', ['ls-remote', 'origin', 'refs/heads/master']).split('\t')[0], tip);
@@ -78,7 +79,6 @@ test('recording atomically pushes a reachable release tag and can resume it', (t
   run(cwd, 'bash', [path.join(scripts, 'record-release.sh')], {
     RELEASE_BASE: base,
     GITHUB_OUTPUT: output,
-    RELAY_RELEASED: 'false',
   });
   assert.match(fs.readFileSync(output, 'utf8'), /recorded=true/);
   const head = run(cwd, 'git', ['rev-parse', 'HEAD']);
@@ -90,8 +90,47 @@ test('recording atomically pushes a reachable release tag and can resume it', (t
     PATH: `${bin}:${process.env.PATH}`,
     GITHUB_OUTPUT: output,
   });
-  assert.match(fs.readFileSync(output, 'utf8'), /resume=true/);
-  assert.match(fs.readFileSync(output, 'utf8'), /cli=true/);
+  assert.equal(fs.readFileSync(output, 'utf8').trim(), 'resume=true');
+});
+
+test('one tag records the release of both packages', (t) => {
+  const { cwd, base, output } = repository(t);
+  run(cwd, 'bash', [path.join(scripts, 'record-release.sh')], {
+    RELEASE_BASE: base,
+    GITHUB_OUTPUT: output,
+  });
+  assert.equal(
+    run(cwd, 'git', ['log', '-1', '--format=%s']),
+    'Release herdr-remote@1.0.1 [skip ci]',
+  );
+  assert.equal(run(cwd, 'git', ['tag', '--list']), 'herdr-remote-v1.0.1');
+});
+
+test('a release is planned when anything that ships changed, not for documentation', (t) => {
+  const { cwd, base, output } = repository(t);
+  run(cwd, 'bash', [path.join(scripts, 'record-release.sh')], {
+    RELEASE_BASE: base,
+    GITHUB_OUTPUT: output,
+  });
+  const plan = (selection = 'auto') => {
+    fs.writeFileSync(output, '');
+    run(cwd, 'bash', [path.join(scripts, 'plan-release.sh'), selection], { GITHUB_OUTPUT: output });
+    return fs.readFileSync(output, 'utf8').trim();
+  };
+  const commit = (file) => {
+    fs.mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true });
+    fs.writeFileSync(path.join(cwd, file), `${Math.random()}\n`);
+    run(cwd, 'git', ['add', '.']);
+    run(cwd, 'git', ['commit', '-m', `Change ${file}`]);
+  };
+
+  assert.equal(plan(), 'release=false');
+  assert.equal(plan('force'), 'release=true');
+  commit('packages/relay/README.md');
+  commit('docs/guide.md');
+  assert.equal(plan(), 'release=false');
+  commit('packages/relay/web/src/app.ts');
+  assert.equal(plan(), 'release=true');
 });
 
 test('assets are uploaded before a draft is made latest', (t) => {
@@ -106,10 +145,15 @@ test('assets are uploaded before a draft is made latest', (t) => {
     `#!/bin/sh\necho "$*" >> "$CALL_LOG"\nif [ "$2" = view ]; then exit 1; fi\n`,
     { mode: 0o755 },
   );
-  run(cwd, 'bash', [path.join(scripts, 'publish-release.sh'), '1.0.1', '1.0.0'], {
-    PATH: `${bin}:${process.env.PATH}`,
-    CALL_LOG: log,
-  });
+  run(
+    cwd,
+    'bash',
+    [path.join(scripts, 'publish-release.sh'), '1.0.1', 'ghcr.io/x/herdr-remote-relay'],
+    {
+      PATH: `${bin}:${process.env.PATH}`,
+      CALL_LOG: log,
+    },
+  );
   const calls = fs.readFileSync(log, 'utf8');
   assert.match(calls, /create .*--draft/);
   assert.ok(calls.indexOf('upload ') < calls.indexOf('edit '));
@@ -133,11 +177,15 @@ test('an upload failure leaves the release private until a later successful retr
     { mode: 0o755 },
   );
   const log = path.join(cwd, 'calls');
-  const result = spawnSync('bash', [path.join(scripts, 'publish-release.sh'), '1.0.1', '1.0.0'], {
-    cwd,
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CALL_LOG: log },
-  });
+  const result = spawnSync(
+    'bash',
+    [path.join(scripts, 'publish-release.sh'), '1.0.1', 'ghcr.io/x/herdr-remote-relay'],
+    {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CALL_LOG: log },
+    },
+  );
   assert.equal(result.status, 1);
   const calls = fs.readFileSync(log, 'utf8');
   assert.equal(calls.match(/upload /g).length, 5);
@@ -170,7 +218,6 @@ test('an atomic push rejected by a concurrent merge publishes no tags', (t) => {
       ...process.env,
       RELEASE_BASE: base,
       GITHUB_OUTPUT: output,
-      RELAY_RELEASED: 'false',
       CONCURRENT_REPO: other,
     },
   });
@@ -184,7 +231,6 @@ test('published releases are not resumed and source lookup failures stop plannin
   run(cwd, 'bash', [path.join(scripts, 'record-release.sh')], {
     RELEASE_BASE: base,
     GITHUB_OUTPUT: output,
-    RELAY_RELEASED: 'false',
   });
   const bin = tempDir(t);
   fs.writeFileSync(

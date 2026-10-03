@@ -4,7 +4,7 @@
 
 [Herdr Remote](https://www.npmjs.com/package/herdr-remote) 的独立 Relay 服务端与 WebUI。
 
-负责在浏览器与工作站主机连接器之间转发 WebSocket 连接。运行时仅依赖 `ws`，无需编译环境或 Herdr 二进制文件。
+负责在浏览器与工作站主机连接器之间转发 WebSocket 连接。发布物是一个打包好的文件加 WebUI：没有运行时依赖，无需编译环境或 Herdr 二进制文件。
 
 > **提示**：`herdr-remote` 默认在本地自动运行 relay。仅在需要部署独立中继服务器时安装本包。
 
@@ -15,7 +15,7 @@ npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download
 herdr-remote-relay --public-url https://herdr.example.com --password <密码>
 ```
 
-也可从 npm 安装：`npm install -g herdr-remote-relay`（新版本上线后 npm 可能要过一段时间才同步）。
+Relay 与 `herdr-remote` 一起发布、使用同一个版本号，不再单独发布到 npm（`herdr-remote` 内置了它）。
 
 前置要求：Node.js 22+、TLS 反向代理（nginx、Caddy、Cloudflare Tunnel 等）。
 
@@ -25,13 +25,11 @@ herdr-remote-relay --public-url https://herdr.example.com --password <密码>
 docker run -d --name herdr-relay --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
   -v herdr-relay:/data \
-  -e RELAY_BIND=0.0.0.0 \
   -e RELAY_PUBLIC_URL=https://herdr.example.com \
   -e RELAY_PASSWORD=你的密码 \
   -e RELAY_ADMIN_TOKEN=你的管理令牌 \
   -e RELAY_TRUST_PROXY=1 \
-  -e RELAY_AUTH_STATE_FILE=/data/relay-auth.json \
-  node:22-alpine npx -y herdr-remote-relay
+  ghcr.io/dibin666/herdr-remote-relay:latest
 ```
 
 ## 配置参数

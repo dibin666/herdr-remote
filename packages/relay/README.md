@@ -4,7 +4,7 @@
 
 Standalone relay server and WebUI for [Herdr Remote](https://www.npmjs.com/package/herdr-remote).
 
-Brokers WebSocket connections between browsers and workstation host connectors. Runtime dependency is `ws` only; requires no compilers or Herdr binaries.
+Brokers WebSocket connections between browsers and workstation host connectors. Ships as one bundled file plus the web UI: no runtime dependencies, compilers or Herdr binaries.
 
 > **Note**: `herdr-remote` runs a local relay automatically. Install this package only when deploying a dedicated relay server.
 
@@ -15,7 +15,7 @@ npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download
 herdr-remote-relay --public-url https://herdr.example.com --password <password>
 ```
 
-From npm instead: `npm install -g herdr-remote-relay` (it can lag a new release by a while).
+The relay is released together with `herdr-remote`, under the same version, and is no longer published to npm on its own (`herdr-remote` carries it inside).
 
 Requirements: Node.js 22+, TLS reverse proxy (nginx, Caddy, Cloudflare Tunnel).
 
@@ -25,13 +25,11 @@ Requirements: Node.js 22+, TLS reverse proxy (nginx, Caddy, Cloudflare Tunnel).
 docker run -d --name herdr-relay --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
   -v herdr-relay:/data \
-  -e RELAY_BIND=0.0.0.0 \
   -e RELAY_PUBLIC_URL=https://herdr.example.com \
   -e RELAY_PASSWORD=your-password \
   -e RELAY_ADMIN_TOKEN=your-admin-token \
   -e RELAY_TRUST_PROXY=1 \
-  -e RELAY_AUTH_STATE_FILE=/data/relay-auth.json \
-  node:22-alpine npx -y herdr-remote-relay
+  ghcr.io/dibin666/herdr-remote-relay:latest
 ```
 
 ## Options

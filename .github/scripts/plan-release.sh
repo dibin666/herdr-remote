@@ -1,138 +1,80 @@
 #!/usr/bin/env bash
 #
-# Decide which packages this push should release.
+# Decide whether this push releases.
 #
-# The question is deliberately "has this package changed since it was last
-# released", not "has the version field been edited": the version is now the
-# workflow's output rather than its input, so it cannot also be its trigger.
+# herdr-remote and herdr-remote-relay are released together, under one
+# version: the CLI bundles the relay, and the relay image is built from the
+# same tree. So there is one question, "has anything that ships changed since
+# the last release", answered against the last `herdr-remote-v*` tag. The
+# question is deliberately not "has the version field been edited": the
+# version is the workflow's output, so it cannot also be its trigger.
 #
-# The last release of a package is recorded as an annotated git tag —
-# `herdr-remote-v0.2.4`, `herdr-remote-relay-v0.2.2` — for the same reason the
-# relay image uses tags: the sequence then survives re-runs, reverts and
-# workflow edits, and it is readable from a clone without asking npm.
+# Before the first tagged release there is nothing to compare against, so the
+# push's own range is used instead (`github.event.before`, falling back to the
+# previous commit).
 #
-# Before a package's first tagged release there is nothing to compare against,
-# so the push's own range is used instead (`github.event.before`, falling back
-# to the previous commit). That keeps the first run after this workflow lands
-# from releasing both packages merely because it has no history.
+# Writes `release=true|false` to $GITHUB_OUTPUT and prints why. Run outside
+# Actions — by hand, to see what a push would do — the result is just printed.
 #
-# A relay release always carries a CLI release: the CLI tarball bundles the
-# relay, so a relay change only reaches users inside a new CLI. The reverse does
-# not hold — a CLI-only change leaves the relay version alone.
-#
-# Writes `cli=true|false` and `relay=true|false` to $GITHUB_OUTPUT, and prints
-# what it decided and why.
-#
-# Usage: plan-release.sh [auto|cli|relay|both]
+# Usage: plan-release.sh [auto|force]
 #   BEFORE_SHA — optional, the commit this push started from.
 
 set -euo pipefail
 
 selection="${1:-auto}"
 
-# key : package directory : npm name (which is also the tag prefix)
-PACKAGES=(
-  "cli:packages/cli:herdr-remote"
-  "relay:packages/relay:herdr-remote-relay"
-)
+# Everything a release is built from: both packages, the web UI inside the
+# relay, the image recipe, and the bundler that turns them into release trees.
+SHIPPED=(packages scripts/bundle-release.mjs .dockerignore)
 
-# Decisions are held back until every package has been looked at, because the
-# relay's answer can change the CLI's. Run outside Actions — by hand, to see
-# what a push would do — the result is just printed.
-declare -A decision=()
-emit() {
-  decision[$1]=$2
+decide() {
+  echo "release=$1"
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    echo "release=$1" >> "$GITHUB_OUTPUT"
+  fi
 }
 
-flush() {
-  local key
-  for key in cli relay; do
-    echo "$key=${decision[$key]:-false}"
-    if [ -n "${GITHUB_OUTPUT:-}" ]; then
-      echo "$key=${decision[$key]:-false}" >> "$GITHUB_OUTPUT"
-    fi
-  done
-}
+if [ "$selection" = "force" ]; then
+  echo "  requested explicitly"
+  decide true
+  exit 0
+fi
 
-# The commit a package is compared against when it has never been tagged.
-fallback_base() {
-  local before="${BEFORE_SHA:-}"
+# sort -V orders 0.1.9 before 0.1.10, which plain sort does not. The `|| true`
+# is load-bearing under pipefail: no release yet makes grep exit 1.
+version="$(git tag --list 'herdr-remote-v*' \
+  | sed 's/^herdr-remote-v//' \
+  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+  | sort -V \
+  | tail -n1 || true)"
+
+if [ -n "$version" ]; then
+  base="herdr-remote-v$version"
+else
+  base=""
+  before="${BEFORE_SHA:-}"
   # A branch's first push reports an all-zero "before", which is not a commit.
   if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
     && git rev-parse -q --verify "$before^{commit}" >/dev/null 2>&1; then
-    printf '%s' "$before"
-    return
+    base="$before"
+  elif git rev-parse -q --verify 'HEAD~1^{commit}' >/dev/null 2>&1; then
+    base="HEAD~1"
   fi
-  if git rev-parse -q --verify 'HEAD~1^{commit}' >/dev/null 2>&1; then
-    printf 'HEAD~1'
-    return
-  fi
-  printf ''
-}
-
-latest_tag_for() {
-  # sort -V orders 0.1.9 before 0.1.10, which plain sort does not.
-  #
-  # The `|| true` is load-bearing under `set -o pipefail`: a package with no
-  # release yet makes `grep` exit 1, which would otherwise abort the script
-  # rather than mean "nothing released yet", which is what it means.
-  git tag --list "$1-v*" \
-    | sed "s/^$1-v//" \
-    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-    | sort -V \
-    | tail -n1 || true
-}
-
-for entry in "${PACKAGES[@]}"; do
-  key="${entry%%:*}"
-  rest="${entry#*:}"
-  directory="${rest%%:*}"
-  name="${rest#*:}"
-
-  if [ "$selection" = "cli" ] || [ "$selection" = "relay" ]; then
-    if [ "$selection" = "$key" ]; then
-      emit "$key" true
-      echo "  $name: requested explicitly"
-    else
-      emit "$key" false
-      echo "  $name: not requested"
-    fi
-    continue
-  fi
-
-  if [ "$selection" = "both" ]; then
-    emit "$key" true
-    echo "  $name: requested explicitly"
-    continue
-  fi
-
-  version="$(latest_tag_for "$name" || true)"
-  if [ -n "$version" ]; then
-    base="$name-v$version"
-  else
-    base="$(fallback_base)"
-  fi
-
-  if [ -z "$base" ]; then
-    # A repository with a single commit and no tags: nothing to compare
-    # against, so nothing is claimed to have changed.
-    emit "$key" false
-    echo "  $name: no baseline to compare against — skipping"
-    continue
-  fi
-
-  if [ -n "$(git diff --name-only "$base" HEAD -- "$directory")" ]; then
-    emit "$key" true
-    echo "  $name: changed since $base — will release"
-  else
-    emit "$key" false
-    echo "  $name: unchanged since $base — skipping"
-  fi
-done
-
-if [ "${decision[relay]:-false}" = "true" ] && [ "${decision[cli]:-false}" != "true" ]; then
-  emit cli true
-  echo "  herdr-remote: bundles the relay being released — will release"
 fi
 
-flush
+if [ -z "$base" ]; then
+  echo "  no baseline to compare against — skipping"
+  decide false
+  exit 0
+fi
+
+# Markdown is documentation, not something a release carries differently.
+changed="$(git diff --name-only "$base" HEAD -- "${SHIPPED[@]}" | grep -Ev '\.md$' || true)"
+if [ -n "$changed" ]; then
+  echo "  changed since $base — will release:"
+  sed -n '1,20s/^/    /p' <<<"$changed"
+  decide true
+else
+  echo "  unchanged since $base — skipping"
+  decide false
+fi

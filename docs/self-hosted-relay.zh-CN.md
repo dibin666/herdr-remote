@@ -61,7 +61,7 @@ Alpine 官方源较慢时（如中国大陆），可指定镜像源：
 
 镜像从 scratch 组装：Alpine 的 Node.js 及其链接的动态库（二进制经 UPX 压缩）、提供 `sh` 和健康检查的 busybox，以及打包好的 relay。剩下的体积主要是网页字体。
 
-## GitHub Releases 或 npm
+## GitHub Releases
 
 ```bash
 npm install -g https://github.com/dibin666/herdr-remote/releases/latest/download/herdr-remote-relay.tgz
@@ -69,7 +69,7 @@ herdr-remote-relay --public-url https://herdr.example.com --password 你的密�
   --admin-token 你的长随机管理令牌 --trust-proxy
 ```
 
-每个版本发布后立即可从 GitHub Releases 安装；`npm install -g herdr-remote-relay` 从 npm 安装同一个包，npm 可能要过一段时间才能同步。
+Relay 与 `herdr-remote` 一起发布、使用同一个版本号：每个 GitHub Release 都附带 `herdr-remote-relay.tgz`，同版本的镜像也会同时发布。Relay 不再单独发布到 npm。
 
 包内 `deploy/systemd/` 有现成的 systemd 单元文件。
 
