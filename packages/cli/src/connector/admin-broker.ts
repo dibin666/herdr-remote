@@ -2,10 +2,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Translate } from '../i18n/index.js';
 import { PtySession } from '../pty-session.js';
-import { stateDir } from '../paths.js';
+import { PACKAGE_ROOT, stateDir } from '../paths.js';
 import {
   ADMIN_BROKER_MAX_MESSAGE_BYTES,
   adminBrokerTaskName,
@@ -56,7 +55,9 @@ function runPowerShell(script: string, t: Translate): void {
 
 /** Registers and starts the broker's logon task; run elevated. */
 export function adminBrokerTaskScript(): string {
-  const brokerPath = fileURLToPath(import.meta.url);
+  // Not this module's own URL: a release bundles it into a shared chunk, and
+  // only this entry point runs the broker when started.
+  const brokerPath = path.join(PACKAGE_ROOT, 'dist', 'connector', 'admin-broker.js');
   // Pinned so the broker publishes its endpoint where this install's callers look.
   const brokerCommand = `$env:HERDR_REMOTE_STATE_DIR = ${powershellQuote(stateDir())}; & ${powershellQuote(process.execPath)} ${powershellQuote(brokerPath)}`;
   const encodedBrokerCommand = Buffer.from(brokerCommand, 'utf16le').toString('base64');

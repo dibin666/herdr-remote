@@ -3,7 +3,7 @@
   "workspaces": {
     ".": {
       "entry": ["scripts/*.{js,mjs}"],
-      "ignoreDependencies": ["node-pty", "ws", "esbuild", "@xterm/*"],
+      "ignoreDependencies": ["node-pty", "ws", "@xterm/*"],
       "ignoreBinaries": ["herdr"]
     },
     "packages/cli": {

@@ -15,6 +15,9 @@ on:
       - 'biome.json'
       - 'knip.json'
       - 'vitest.config.mjs'
+      - 'scripts/bundle-release.mjs'
+      - '.github/scripts/**'
+      - '.dockerignore'
   push:
     branches: [master]
     paths:
@@ -26,6 +29,9 @@ on:
       - 'biome.json'
       - 'knip.json'
       - 'vitest.config.mjs'
+      - 'scripts/bundle-release.mjs'
+      - '.github/scripts/**'
+      - '.dockerignore'
   workflow_dispatch:
 
 concurrency:
@@ -55,7 +61,13 @@ jobs:
 
       - run: npm test
 
-      - run: npm run build
+      # The release ships bundles, not the workspaces' tsc output; build and
+      # install them here so a bundling mistake fails the pull request, not
+      # the release after the merge. Packing runs the full build.
+      - name: Pack and verify the release tarballs
+        run: |
+          .github/scripts/pack-release.sh dist/release
+          bash .github/scripts/verify-release.sh dist/release/herdr-remote.tgz
 
   image:
     name: relay image
@@ -66,4 +78,17 @@ jobs:
       # The image builds from a slice of the repo picked by the Dockerfile and
       # .dockerignore, so a layout change can break it while the job above
       # stays green. Build it here rather than finding out after the merge.
-      - run: docker build -f packages/relay/Dockerfile .
+      # Both platforms: the image's last step runs the UPX-packed node, which
+      # is the one part that can work on amd64 and still fail on arm64.
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/relay/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

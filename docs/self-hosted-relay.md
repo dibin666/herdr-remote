@@ -56,6 +56,13 @@ from the `packages/relay/web` workspace:
 docker build -f packages/relay/Dockerfile -t herdr-remote-relay .
 ```
 
+Where Alpine's package CDN is slow (mainland China), pass a mirror:
+`--build-arg ALPINE_MIRROR=mirrors.aliyun.com`.
+
+The image is assembled from scratch: Alpine's Node.js with only the libraries it
+links (the binary compressed with UPX), busybox for `sh` and the health check,
+and the bundled relay. The web fonts are most of what is left.
+
 ## GitHub Releases or npm
 
 ```bash
