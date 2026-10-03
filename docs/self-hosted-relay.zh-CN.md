@@ -56,6 +56,11 @@ docker compose up -d
 docker build -f packages/relay/Dockerfile -t herdr-remote-relay .
 ```
 
+Alpine 官方源较慢时（如中国大陆），可指定镜像源：
+`--build-arg ALPINE_MIRROR=mirrors.aliyun.com`。
+
+镜像从 scratch 组装：Alpine 的 Node.js 及其链接的动态库（二进制经 UPX 压缩）、提供 `sh` 和健康检查的 busybox，以及打包好的 relay。剩下的体积主要是网页字体。
+
 ## GitHub Releases 或 npm
 
 ```bash

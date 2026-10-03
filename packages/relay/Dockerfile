@@ -7,11 +7,22 @@
 #
 #   docker build -f packages/relay/Dockerfile -t herdr-relay .
 #
-# The final stage is a bare alpine image plus Alpine's own `nodejs` package —
-# no npm, no toolchain. The relay's only runtime dependency is `ws`.
+# The final image is assembled from scratch: Alpine's Node.js and only the
+# shared libraries it links, compressed with UPX, plus busybox for a shell and
+# the health check. The relay itself is the single bundled file the release
+# ships (scripts/bundle-release.mjs), so there is no node_modules at all. The
+# web fonts (~16 MB of woff2) are most of what remains, and do not compress.
+#
+# Where apk downloads from. Empty keeps Alpine's own CDN, which is what CI
+# uses; in mainland China that CDN can take many minutes per package, so a
+# local build there passes a domestic mirror's host name:
+#
+#   docker build -f packages/relay/Dockerfile \
+#     --build-arg ALPINE_MIRROR=mirrors.aliyun.com -t herdr-relay .
+ARG ALPINE_MIRROR=
 
 # ---------------------------------------------------------------------------
-# Stage 1: compile the relay server and build the browser bundle.
+# Stage 1: compile the relay, build the browser bundle, bundle the release.
 #
 # Pinned to BUILDPLATFORM: the output is plain JS/CSS, identical for every
 # target architecture, so there is no reason to run tsc or vite under QEMU
@@ -30,7 +41,7 @@ COPY packages/relay/web/package.json packages/relay/web/
 
 # Scoping the install to the relay and web workspaces means the CLI
 # workspace's native `node-pty` dependency is never fetched or compiled.
-RUN npm ci -w herdr-remote-relay -w herdr-remote-web --ignore-scripts
+RUN npm ci -w herdr-remote-relay -w herdr-remote-web --include-workspace-root --ignore-scripts --no-audit --no-fund
 
 COPY tsconfig.base.json ./
 COPY packages/relay/tsconfig.json packages/relay/
@@ -40,57 +51,63 @@ RUN npm run build:server -w herdr-remote-relay
 COPY packages/relay/web packages/relay/web
 RUN npm run build -w herdr-remote-web
 
+COPY scripts/bundle-release.mjs scripts/
+COPY packages/relay/bin packages/relay/bin
+COPY packages/relay/LICENSE packages/relay/
+RUN node scripts/bundle-release.mjs relay /out --runtime
+
 # ---------------------------------------------------------------------------
-# Stage 2: resolve the relay's production dependencies (`ws` only).
+# Stage 2: the runtime file system, for the *target* platform.
 #
-# Also BUILDPLATFORM-pinned: `ws` is pure JavaScript with no native addon, so
-# the resolved tree is architecture independent.
+# Alpine's `nodejs` links against the distro's OpenSSL, ICU, brotli, c-ares…
+# rather than carrying its own copies like the official binary, so it plus
+# exactly the libraries `ldd` names is far smaller than any Node base image.
 # ---------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-COPY packages/cli/package.json packages/cli/
-COPY packages/relay/package.json packages/relay/
-COPY packages/relay/web/package.json packages/relay/web/
-
-RUN npm ci -w herdr-remote-relay --omit=dev --ignore-scripts \
-    # The workspace install symlinks sibling packages into node_modules; drop
-    # them so the runtime stage carries real files only.
-    && rm -rf node_modules/herdr-remote-relay node_modules/herdr-remote-web node_modules/herdr-remote \
-    && rm -rf node_modules/.package-lock.json
+FROM alpine:3.21 AS rootfs
+ARG ALPINE_MIRROR
+RUN if [ -n "$ALPINE_MIRROR" ]; then sed -i "s#dl-cdn.alpinelinux.org#$ALPINE_MIRROR#" /etc/apk/repositories; fi \
+    && apk add --no-cache nodejs \
+    && mkdir -p /rootfs/usr/bin /rootfs/bin /rootfs/etc /rootfs/tmp /rootfs/data /rootfs/app \
+    && chmod 1777 /rootfs/tmp \
+    && libs="$( (ldd /usr/bin/node; ldd /bin/busybox) | awk '$2 == "=>" { print $3 } $1 ~ /^\// { print $1 }' | sort -u)" \
+    # -h follows symlinks, so each library lands as a real file under its soname.
+    && tar -ch $libs /usr/share/icu /bin/busybox | tar -x -C /rootfs \
+    # Every applet as a link, so `docker exec … ls` works like on any Alpine.
+    && for applet in $(/bin/busybox --list); do ln -s busybox "/rootfs/bin/$applet"; done \
+    && printf 'root:x:0:0:root:/root:/bin/sh\nrelay:x:10001:10001:relay:/app:/bin/sh\n' > /rootfs/etc/passwd \
+    && printf 'root:x:0:\nrelay:x:10001:\n' > /rootfs/etc/group \
+    && cp /usr/bin/node /node
 
 # ---------------------------------------------------------------------------
-# Stage 3: runtime. Alpine + its own Node package, nothing else.
+# Stage 3: compress the Node binary.
 #
-# `apk add nodejs` rather than copying the official image's `/usr/local/bin/node`:
-# Alpine's build links against the OpenSSL, c-ares, brotli, icu and zlib that
-# apk installs alongside it, whereas the official binary statically carries its
-# own copy of all of them. Sharing the distro's libraries roughly halves the
-# image, and it keeps a working shell — a relay nobody can `exec` into is not
-# one anybody can debug.
+# UPX packs the target-architecture binary from the build platform: it is a
+# file format conversion, not something that has to run under emulation.
+# 52 MB becomes about 12 MB; the cost is well under a second at start-up and
+# the unpacked binary living in anonymous memory instead of the page cache.
 # ---------------------------------------------------------------------------
-FROM alpine:3.21 AS runtime
+FROM --platform=$BUILDPLATFORM alpine:3.21 AS upx
+ARG ALPINE_MIRROR
+RUN if [ -n "$ALPINE_MIRROR" ]; then sed -i "s#dl-cdn.alpinelinux.org#$ALPINE_MIRROR#" /etc/apk/repositories; fi \
+    && apk add --no-cache upx
+COPY --from=rootfs /node /node
+RUN upx --lzma --best -q /node
 
-# apk resolves the interpreter for the *target* platform, unlike the builder
-# stages above, so the linux/arm64 leg installs the arm64 build with no
-# cross-architecture copying involved.
-RUN apk add --no-cache nodejs \
-    && addgroup -g 10001 -S relay \
-    && adduser -u 10001 -S -G relay -h /app relay \
-    && mkdir -p /data \
-    && chown relay:relay /data
+# ---------------------------------------------------------------------------
+# Stage 4: runtime.
+# ---------------------------------------------------------------------------
+FROM scratch AS runtime
 
-WORKDIR /app
+COPY --from=rootfs /rootfs/ /
+COPY --from=upx /node /usr/bin/node
+# `PACKAGE_ROOT` resolves to /app: the bundle is /app/bin/herdr-remote-relay.js,
+# the web assets /app/web/dist and the version comes from /app/package.json.
+COPY --from=build /out/ /app/
 
-# Runtime dependency tree (`ws`).
-COPY --from=deps --chown=root:root /app/node_modules ./node_modules
-# The compiled relay. `PACKAGE_ROOT` resolves to /app, so web assets must live
-# at /app/web/dist and package.json must sit at /app/package.json.
-COPY --chown=root:root packages/relay/package.json ./package.json
-COPY --chown=root:root packages/relay/bin ./bin
-COPY --from=build --chown=root:root /app/packages/relay/dist ./dist
-COPY --from=build --chown=root:root /app/packages/relay/web/dist ./web/dist
+# The relay runs as 10001 and keeps its device records in /data. (Done here:
+# COPY copies a directory's contents, never the ownership of the directory.)
+# Then fail the build, for every architecture, if the packed binary cannot run.
+RUN ["/bin/sh", "-c", "chown 10001:10001 /data && /usr/bin/node -e \"require('node:crypto').randomBytes(8); new Intl.DateTimeFormat('en').format(0)\""]
 
 # Container-appropriate defaults. Every one of these stays overridable with
 # `docker run -e`.
@@ -99,11 +116,14 @@ ENV NODE_ENV=production \
     RELAY_PORT=8787 \
     RELAY_AUTH_STATE_FILE=/data/relay-auth.json
 
-USER relay
+WORKDIR /app
+USER 10001:10001
 EXPOSE 8787
 VOLUME ["/data"]
 
+# busybox wget rather than a second Node process: the packed binary costs a
+# fresh unpack every time it starts.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/bin/node", "-e", "fetch(`http://127.0.0.1:${process.env.RELAY_PORT||8787}/healthz`).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    CMD ["/bin/sh", "-c", "wget -q -O /dev/null \"http://127.0.0.1:${RELAY_PORT:-8787}/healthz\""]
 
 ENTRYPOINT ["/usr/bin/node", "/app/bin/herdr-remote-relay.js"]

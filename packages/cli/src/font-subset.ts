@@ -15,6 +15,8 @@
 
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import path from 'node:path';
+import { PACKAGE_ROOT } from './paths.js';
 
 /** How long a loaded font may sit unused before its memory is released. */
 const IDLE_RELEASE_MS = 60_000;
@@ -50,7 +52,11 @@ interface FontSource {
 let wasmModule: WebAssembly.Module | null = null;
 function loadModule(): WebAssembly.Module {
   if (!wasmModule) {
-    const file = createRequire(import.meta.url).resolve('harfbuzzjs/dist/harfbuzz-subset.wasm');
+    // A release bundles harfbuzzjs away and ships only this file beside the bundle.
+    const bundled = path.join(PACKAGE_ROOT, 'dist', 'harfbuzz-subset.wasm');
+    const file = fs.existsSync(bundled)
+      ? bundled
+      : createRequire(import.meta.url).resolve('harfbuzzjs/dist/harfbuzz-subset.wasm');
     wasmModule = new WebAssembly.Module(fs.readFileSync(file));
   }
   return wasmModule;
