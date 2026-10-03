@@ -31,18 +31,13 @@ type UpdateState =
   | { phase: 'error'; messageKey: string; params?: Record<string, string | number> };
 
 /** Where the last check found the release, reused by the install. */
-type CheckRef = { current: { source: string; sources: string[] } };
-
-/** `https://registry.npmmirror.com` → `registry.npmmirror.com`, for one line of text. */
-const sourceHost = (source: string) => source.replace(/^https?:\/\//, '');
+type CheckRef = { current: { source: string } };
 
 export function About({ ctx }: { ctx: AppContext }) {
   const { t, draft } = ctx;
   const [selected, setSelected] = useState('auto');
   const [update, setUpdate] = useState<UpdateState>({ phase: 'idle' });
-  /** Why the install will come from somewhere other than where some sources said. */
-  const [sourceNote, setSourceNote] = useState<{ registries: string; source: string } | null>(null);
-  const checkRef = useState<CheckRef>(() => ({ current: { source: '', sources: [] } }))[0];
+  const checkRef = useState<CheckRef>(() => ({ current: { source: '' } }))[0];
 
   const detected = detectLocale({ preference: 'auto' });
   const languageOptions = [
@@ -79,20 +74,7 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   /** Show a check's answer, whether this screen asked or the TUI did on opening. */
   const applyCheck = (result: UpdateCheck) => {
-    checkRef.current = { source: result.source ?? '', sources: result.sources ?? [] };
-    // A registry that has not synced the release yet used to be the whole
-    // answer. It is still asked, and said to be behind.
-    const behind = result.behind ?? [];
-    setSourceNote(
-      result.updateAvailable && behind.length > 0 && result.source
-        ? {
-            registries: behind
-              .map((entry) => `${sourceHost(entry.source)} ${entry.version ?? ''}`.trim())
-              .join(', '),
-            source: sourceHost(result.source),
-          }
-        : null,
-    );
+    checkRef.current = { source: result.source ?? '' };
     setUpdate(
       result.updateAvailable
         ? { phase: 'available', latest: result.latest as string }
@@ -108,7 +90,6 @@ export function About({ ctx }: { ctx: AppContext }) {
 
   const runCheck = async () => {
     setUpdate({ phase: 'checking' });
-    setSourceNote(null);
     const result: UpdateCheck = await checkForUpdate();
     if (!result.ok) {
       setUpdate({ phase: 'error', messageKey: result.errorKey ?? 'update.errorNetwork' });
@@ -128,7 +109,6 @@ export function About({ ctx }: { ctx: AppContext }) {
     const result = await whileServicesStopped(ctx.config, () =>
       performUpdate({
         source: checkRef.current.source,
-        sources: checkRef.current.sources,
         version: latest,
         onAttempt: ({ attempt }: { attempt: number }) =>
           setUpdate({ phase: 'updating', latest, attempt }),
@@ -152,7 +132,6 @@ export function About({ ctx }: { ctx: AppContext }) {
       return;
     }
     setUpdate({ phase: 'done', latest });
-    setSourceNote(null);
     // Installed: the line under the title has nothing left to announce.
     ctx.setUpdateCheck(null);
     ctx.notify((t) => t('update.restartHint'), 'success');
@@ -242,9 +221,6 @@ export function About({ ctx }: { ctx: AppContext }) {
         >
           {updateLabel}
         </Selectable>
-        {sourceNote ? (
-          <Text color={theme.muted}>{`  ${t('update.mirrorBehind', sourceNote)}`}</Text>
-        ) : null}
       </Box>
 
       <Row label={t('about.version')}>

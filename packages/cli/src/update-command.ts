@@ -76,7 +76,6 @@ export async function runUpdate(t: Translate, options: UpdateOptions = {}): Prom
     installCli = (check, onAttempt) =>
       performUpdate({
         source: check.source,
-        sources: check.sources,
         version: check.latest,
         onAttempt,
       }),

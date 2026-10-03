@@ -578,8 +578,6 @@ test('opening the TUI checks for a newer release and says so where it opens', as
       current: '0.2.16',
       latest: '0.3.0',
       source: 'https://github.com/dibin666/herdr-remote/releases',
-      sources: ['https://github.com/dibin666/herdr-remote/releases'],
-      behind: [{ source: 'https://registry.npmjs.org', version: '0.2.16' }],
       updateAvailable: true,
     };
   };
@@ -596,10 +594,6 @@ test('opening the TUI checks for a newer release and says so where it opens', as
   instance.stdin.write('7');
   await new Promise((resolve) => setTimeout(resolve, 60));
   assert.match(instance.lastFrame(), /新版本 0\.3\.0 可用（按 Enter 安装）/);
-  assert.match(
-    instance.lastFrame(),
-    /registry\.npmjs\.org 0\.2\.16 仍是旧版本，将从 github\.com\/dibin666\/herdr-remote\/releases 安装/,
-  );
 });
 
 test('a TUI that is up to date says nothing about updates', async (t) => {

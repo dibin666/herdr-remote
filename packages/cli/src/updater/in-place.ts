@@ -31,11 +31,16 @@ function replaceFile(source: string, target: string, copyFile: CopyFile): void {
   }
 }
 
-/** Make `target` hold what `source` holds, without renaming any directory. */
+/**
+ * Make `target` hold what `source` holds, without renaming any directory.
+ * Paths in `keep` (absolute, under `target`) are left alone although `source`
+ * lacks them: the dependencies a release does not carry itself.
+ */
 export function replaceTree(
   source: string,
   target: string,
   copyFile: CopyFile = fs.copyFileSync,
+  keep: ReadonlySet<string> = new Set(),
 ): void {
   fs.mkdirSync(target, { recursive: true });
   // Lowercase because Windows reads names that differ only in case as one file.
@@ -47,11 +52,11 @@ export function replaceTree(
     const existing = fs.lstatSync(to, { throwIfNoEntry: false });
     if (existing && existing.isDirectory() !== entry.isDirectory())
       fs.rmSync(to, { recursive: true, force: true });
-    if (entry.isDirectory()) replaceTree(from, to, copyFile);
+    if (entry.isDirectory()) replaceTree(from, to, copyFile, keep);
     else replaceFile(from, to, copyFile);
   }
   for (const name of fs.readdirSync(target)) {
-    if (kept.has(name.toLowerCase())) continue;
+    if (kept.has(name.toLowerCase()) || keep.has(path.join(target, name))) continue;
     try {
       fs.rmSync(path.join(target, name), { recursive: true, force: true });
     } catch {
