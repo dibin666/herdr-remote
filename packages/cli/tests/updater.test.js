@@ -19,6 +19,9 @@ import { npmInvocation, runNpm } from '../src/updater/npm.js';
 const GITHUB = 'https://github.com/dibin666/herdr-remote/releases';
 const MANIFEST = `${GITHUB}/latest/download/latest.json`;
 
+/** A GitHub release that asks for dependencies only npm can install. */
+const NEEDS_NPM = async () => ({ ok: false, needsNpm: true, output: 'dependencies changed' });
+
 test('npm invocation keeps the platform default command off Windows', () => {
   const args = ['install', '-g', 'herdr-remote@1.0.0'];
 
@@ -185,7 +188,9 @@ test("a failed npm install surfaces npm's own output", async () => {
     // The suite runs from a checkout, so the guard is bypassed to reach the
     // path an npm-installed copy would actually take.
     installKindImpl: () => 'npm',
+    installReleaseImpl: NEEDS_NPM,
   });
+  await new Promise((resolve) => setImmediate(resolve));
   child.emit('error', new Error('spawn npm ENOENT'));
 
   const result = await pending;
@@ -199,7 +204,12 @@ test('a clean npm exit reports success', async () => {
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
 
-  const pending = performUpdate({ spawnImpl: () => child, installKindImpl: () => 'npm' });
+  const pending = performUpdate({
+    spawnImpl: () => child,
+    installKindImpl: () => 'npm',
+    installReleaseImpl: NEEDS_NPM,
+  });
+  await new Promise((resolve) => setImmediate(resolve));
   child.stdout.emit('data', 'added 1 package');
   child.emit('close', 0);
 
@@ -246,7 +256,6 @@ test('a registry that cannot be reached does not hide one that can', async () =>
   assert.equal(result.ok, true);
   assert.equal(result.latest, '99.0.0');
   assert.equal(result.source, 'https://registry.npmmirror.com');
-  assert.deepEqual(result.sources, ['https://registry.npmmirror.com']);
 });
 
 test('a total failure names every source it tried', async () => {
@@ -265,21 +274,22 @@ test('a total failure names every source it tried', async () => {
 });
 
 // npm can take many minutes after a release before the version installs;
-// GitHub has it the moment the release exists.
-test('a GitHub release is found before npm has it, and is where it installs from', async () => {
+// GitHub has it the moment the release exists, so a registry is not even asked.
+test('GitHub answers alone, and is where the release installs from', async () => {
+  const asked = [];
   const result = await checkForUpdate({
     registries: ['https://registry.npmjs.org'],
     current: '0.2.33',
-    fetchImpl: async (url) =>
-      url === MANIFEST
-        ? { ok: true, json: async () => ({ schema: 1, version: '0.2.34' }) }
-        : { ok: true, json: async () => ({ latest: '0.2.33' }) },
+    fetchImpl: async (url) => {
+      asked.push(url);
+      return { ok: true, json: async () => ({ schema: 1, version: '0.2.34' }) };
+    },
   });
 
   assert.equal(result.latest, '0.2.34');
   assert.equal(result.updateAvailable, true);
   assert.equal(result.source, GITHUB);
-  assert.deepEqual(result.behind, [{ source: 'https://registry.npmjs.org', version: '0.2.33' }]);
+  assert.deepEqual(asked, [MANIFEST]);
 });
 
 test('where GitHub cannot be reached, npm answers', async () => {
@@ -294,7 +304,6 @@ test('where GitHub cannot be reached, npm answers', async () => {
 
   assert.equal(result.latest, '0.2.34');
   assert.equal(result.source, 'https://registry.npmmirror.com');
-  assert.deepEqual(result.sources, ['https://registry.npmmirror.com']);
 });
 
 test('a release manifest without a usable version is not an answer', async () => {
@@ -350,7 +359,6 @@ test('the newest answer wins over a mirror that has not synced the release', asy
   assert.equal(result.latest, '99.0.0');
   assert.equal(result.updateAvailable, true);
   assert.equal(result.source, 'https://registry.npmjs.org');
-  assert.deepEqual(result.behind, [{ source: 'https://registry.npmmirror.com', version: '0.0.1' }]);
 });
 
 test('the check asks npmjs a question it answers', async () => {
@@ -396,14 +404,53 @@ test('an install from a registry asks for the exact version found, revalidating 
   ]);
 });
 
-test('an install from GitHub takes that release tarball, and falls back to npm if it cannot', async () => {
-  const npm = fakeNpm([{ code: 1, stderr: 'npm error code ECONNRESET' }, { code: 0 }]);
+test('a GitHub release is downloaded and swapped in without npm', async () => {
+  const npm = fakeNpm([{ code: 1 }]);
+  const asked = [];
   const result = await performUpdate({
     installKindImpl: () => 'npm',
     source: GITHUB,
-    sources: [GITHUB, 'https://registry.npmjs.org'],
     version: '0.2.34',
     spawnImpl: npm.spawnImpl,
+    installReleaseImpl: async (options) => {
+      asked.push(options);
+      return { ok: true, output: 'installed 0.2.34' };
+    },
+    readInstalledVersion: () => '0.2.34',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.installed, '0.2.34');
+  assert.equal(asked[0].url, `${GITHUB}/download/herdr-remote-v0.2.34/herdr-remote-0.2.34.tgz`);
+  assert.equal(asked[0].version, '0.2.34');
+  assert.deepEqual(npm.calls, [], 'npm is not run');
+});
+
+test('a release that changes dependencies is installed by npm, from the same GitHub tarball', async () => {
+  const npm = fakeNpm([{ code: 0 }]);
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    source: GITHUB,
+    version: '0.2.34',
+    spawnImpl: npm.spawnImpl,
+    installReleaseImpl: NEEDS_NPM,
+    readInstalledVersion: () => '0.2.34',
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(npm.calls, [
+    ['install', '-g', `${GITHUB}/download/herdr-remote-v0.2.34/herdr-remote-0.2.34.tgz`],
+  ]);
+});
+
+test("a release that cannot be downloaded falls back to npm's own registry", async () => {
+  const npm = fakeNpm([{ code: 0 }]);
+  const result = await performUpdate({
+    installKindImpl: () => 'npm',
+    source: GITHUB,
+    version: '0.2.34',
+    spawnImpl: npm.spawnImpl,
+    installReleaseImpl: async () => ({ ok: false, output: 'ECONNRESET' }),
     sleep: async () => {
       throw new Error('a download failure is not a wait');
     },
@@ -411,28 +458,21 @@ test('an install from GitHub takes that release tarball, and falls back to npm i
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(npm.calls, [
-    ['install', '-g', `${GITHUB}/download/herdr-remote-v0.2.34/herdr-remote-0.2.34.tgz`],
-    [
-      'install',
-      '-g',
-      'herdr-remote@0.2.34',
-      '--prefer-online',
-      '--registry',
-      'https://registry.npmjs.org',
-    ],
-  ]);
+  assert.deepEqual(npm.calls, [['install', '-g', 'herdr-remote@0.2.34', '--prefer-online']]);
 });
 
-test('with no check to go by, the install tries the newest GitHub release first', async () => {
-  const npm = fakeNpm([{ code: 0 }]);
+test('with no check to go by, the install takes the newest GitHub release', async () => {
+  const asked = [];
   await performUpdate({
     installKindImpl: () => 'npm',
-    spawnImpl: npm.spawnImpl,
+    installReleaseImpl: async (options) => {
+      asked.push(options.url);
+      return { ok: true, output: '' };
+    },
     readInstalledVersion: () => '0.2.34',
   });
 
-  assert.deepEqual(npm.calls[0], ['install', '-g', `${GITHUB}/latest/download/herdr-remote.tgz`]);
+  assert.deepEqual(asked, [`${GITHUB}/latest/download/herdr-remote.tgz`]);
 });
 
 test('a release npm has not caught up with yet is waited out, not reported as a failure', async () => {
@@ -457,12 +497,11 @@ test('a release npm has not caught up with yet is waited out, not reported as a 
   assert.deepEqual(attempts, [1, 2, 3]);
 });
 
-test('a release still missing after every wait says so, after trying each source that has it', async () => {
+test('a release still missing after every wait says so', async () => {
   const npm = fakeNpm([{ code: 1, stderr: ETARGET }]);
   const result = await performUpdate({
     installKindImpl: () => 'npm',
-    source: 'https://registry.npmjs.org',
-    sources: ['https://registry.npmjs.org', 'https://registry.npmmirror.com'],
+    source: 'https://registry.npmmirror.com',
     version: '0.2.16',
     spawnImpl: npm.spawnImpl,
     sleep: async () => {},
@@ -473,9 +512,6 @@ test('a release still missing after every wait says so, after trying each source
   assert.deepEqual(
     npm.calls.map((args) => args.at(-1)),
     [
-      'https://registry.npmjs.org',
-      'https://registry.npmjs.org',
-      'https://registry.npmjs.org',
       'https://registry.npmmirror.com',
       'https://registry.npmmirror.com',
       'https://registry.npmmirror.com',
@@ -523,6 +559,7 @@ test('on Windows, a package directory npm cannot rename is updated in place', as
     installKindImpl: () => 'npm',
     version: '0.2.16',
     spawnImpl: npm.spawnImpl,
+    installReleaseImpl: NEEDS_NPM,
     platform: 'win32',
     inPlace: async (args) => {
       inPlace.push(args);
@@ -545,6 +582,7 @@ test('an in-place update is only for Windows, and only when the directory is hel
       installKindImpl: () => 'npm',
       version: '0.2.16',
       spawnImpl: fakeNpm([{ code: 1, stderr }]).spawnImpl,
+      installReleaseImpl: NEEDS_NPM,
       platform,
       inPlace: async () => {
         inPlace = true;
@@ -563,6 +601,7 @@ test('npm reporting success while the old version stays installed is not success
     installKindImpl: () => 'npm',
     version: '0.2.16',
     spawnImpl: npm.spawnImpl,
+    installReleaseImpl: NEEDS_NPM,
     readInstalledVersion: () => '0.2.15',
   });
 

@@ -12,7 +12,7 @@ herdr-remote
 ```
 
 直接运行 `herdr-remote` 即可启动向导并进入配置 TUI。
-新版本先发布到 [GitHub Releases](https://github.com/dibin666/herdr-remote/releases)，npm 作为备用渠道（`npm install -g herdr-remote`）；`herdr-remote update` 按同样的顺序更新。
+新版本先发布到 [GitHub Releases](https://github.com/dibin666/herdr-remote/releases)，npm 作为备用渠道（`npm install -g herdr-remote`）。`herdr-remote update` 从 GitHub 下载新版本并直接替换安装目录，不经过 npm；只有新版本改变了原生依赖 `node-pty`，或无法连接 GitHub 时才会用 npm。
 
 已支持 Windows 10/11 原生运行（需 Node.js 22+），请在 PowerShell 中执行
 `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` 安装 Herdr。
@@ -24,7 +24,7 @@ Defender 防火墙提示中允许 `node.exe` 通过专用网络通信。
 - **仅本机** *(默认)*：仅本机浏览器可访问 (127.0.0.1)。
 - **局域网 / Tailscale**：局域网或 Tailnet 内设备可访问 (0.0.0.0)。
 - **官方 Relay**：使用官方公开 Relay (`wss://herdr-remote.564616.xyz`)。
-- **自建 Relay**：连接独立部署的 [`herdr-remote-relay`](https://www.npmjs.com/package/herdr-remote-relay) 服务。
+- **自建 Relay**：连接独立部署的 [`herdr-remote-relay`](../relay/README.zh-CN.md) 服务（容器镜像或 release 压缩包）。
 
 ## 常用命令
 

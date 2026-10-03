@@ -13,7 +13,9 @@ herdr-remote
 
 Running `herdr-remote` without arguments launches the setup wizard and configuration TUI.
 Releases go to [GitHub Releases](https://github.com/dibin666/herdr-remote/releases) first and to
-npm as a fallback (`npm install -g herdr-remote`); `herdr-remote update` follows the same order.
+npm as a fallback (`npm install -g herdr-remote`). `herdr-remote update` downloads the release from
+GitHub and swaps it in without npm; npm is only used when a release changes the native `node-pty`
+dependency, or when GitHub cannot be reached.
 
 Native Windows 10/11 is supported with Node.js 22+; install Herdr from PowerShell with
 `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`.
@@ -25,7 +27,7 @@ through Windows Defender Firewall on private networks.
 - **This machine only** *(default)*: Local workstation browser (127.0.0.1).
 - **Local network / Tailscale**: Accessible over LAN or Tailnet (0.0.0.0).
 - **Official relay**: Public relay at `wss://herdr-remote.564616.xyz`.
-- **Self-hosted relay**: External access via standalone [`herdr-remote-relay`](https://www.npmjs.com/package/herdr-remote-relay).
+- **Self-hosted relay**: External access via a standalone [`herdr-remote-relay`](../relay/README.md) (container image or release tarball).
 
 ## CLI Commands
 
