@@ -153,9 +153,12 @@ test('stopServices still stops what an older release recorded without start toke
   isolateState(t);
   // An older release recorded bare pids; its relay runs herdr-remote-relay.js.
   const script = path.join(tempDir(t), 'herdr-remote-relay.js');
-  fs.writeFileSync(script, 'setInterval(() => {}, 1000);\n');
-  const relay = spawn(process.execPath, [script], { stdio: 'ignore' });
+  fs.writeFileSync(script, "process.stdout.write('ready');\nsetInterval(() => {}, 1000);\n");
+  const relay = spawn(process.execPath, [script], { stdio: ['ignore', 'pipe', 'ignore'] });
   t.onTestFinished(() => relay.kill('SIGKILL'));
+  // Right after spawn the kernel may not have filled in the new command line
+  // yet, and an empty one is (rightly) not recognised as ours.
+  await new Promise((resolve) => relay.stdout.once('data', resolve));
   writeJsonAtomic(runtimeStatePath(), {
     relayPid: relay.pid,
     managedPids: [{ name: 'relay', pid: relay.pid, startedAt: new Date().toISOString() }],
