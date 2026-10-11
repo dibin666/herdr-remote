@@ -37,6 +37,7 @@ export function hostHello(identity: HostHelloIdentity) {
       CAPABILITY.hostHandoff,
       CAPABILITY.idleHeartbeat,
       CAPABILITY.binaryFrameV2,
+      CAPABILITY.pasteAnyFile,
       ...(process.platform === 'win32' ? [CAPABILITY.adminTabs] : []),
     ],
   };

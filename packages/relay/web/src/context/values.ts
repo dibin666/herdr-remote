@@ -125,7 +125,7 @@ export interface TerminalIOContextValue {
   sendResize: (cols: number, rows: number) => void;
   /** Say, once per stretch of viewer role, that this window cannot type. */
   warnViewerMode: () => void;
-  sendPasteFile: (mime: string, dataBase64: string) => boolean;
+  sendPasteFile: (mime: string, dataBase64: string, name?: string) => boolean;
   subscribeToPasteFileReady: (handler: (path: string) => void) => () => void;
   /** Attach the terminal as the output sink; buffered output is replayed first. */
   subscribeToOutput: (sink: TerminalOutputSink) => () => void;
@@ -136,6 +136,8 @@ export interface TerminalIOContextValue {
 export interface UploadContextValue {
   uploadProgress: ImageUploadProgress;
   uploadImage: (file: Blob | File | PreparedImagePaste) => Promise<boolean>;
+  /** Send any file as it is, under its own name; the host pastes back its path. */
+  uploadFile: (file: File) => Promise<boolean>;
   resetUploadProgress: () => void;
 }
 

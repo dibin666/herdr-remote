@@ -21,6 +21,8 @@ export const CAPABILITY = {
   binaryFrameV2: 'binary_frame_v2',
   /** The host can open an elevated PowerShell as a tab of its Windows Herdr. */
   adminTabs: 'admin_tabs',
+  /** The host saves pasted files of any type, not just images. */
+  pasteAnyFile: 'paste_any_file',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
@@ -64,6 +66,8 @@ export interface ClientPasteFileMessage {
   type: 'paste_file';
   mime: string;
   dataBase64: string;
+  /** The file's own name; only read when `mime` is `PASTE_FILE_MIME`. */
+  name?: string;
 }
 
 /**
@@ -470,6 +474,8 @@ export interface RelayPasteFileMessage extends StreamAddressed {
   type: 'paste_file';
   mime: string;
   dataBase64: string;
+  /** Sanitized file name, present only when `mime` is `PASTE_FILE_MIME`. */
+  name?: string;
 }
 
 /** Sent instead of `host_ready` when the handshake is refused. */

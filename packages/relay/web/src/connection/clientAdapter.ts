@@ -232,11 +232,12 @@ export class HerdrClientAdapter extends RelaySocket {
     this.sendJson(msg);
   }
 
-  public sendPasteFile(mime: string, dataBase64: string): void {
+  public sendPasteFile(mime: string, dataBase64: string, name?: string): void {
     this.sendJson({
       type: 'paste_file',
       mime,
       dataBase64,
+      ...(name === undefined ? {} : { name }),
     });
   }
 

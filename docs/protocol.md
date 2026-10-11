@@ -409,9 +409,9 @@ persisted by the relay.
 
 ## Pasted image files
 
-Browsers can transfer clipboard images to the workstation. Because PTY streams only consume text,
-the image payload is saved to host state storage and the resulting local file path is pasted
-into the active terminal.
+Browsers can transfer clipboard images, and files of any type picked from the key bar, to the
+workstation. Because PTY streams only consume text, the payload is saved to host state storage
+and the resulting local file path is pasted into the active terminal.
 
 ### Client to relay (`paste_file`)
 
@@ -425,16 +425,22 @@ Sent as a JSON message over `/ws/client`:
 }
 ```
 
-- Allowed MIME types: `image/png`, `image/jpeg`, `image/webp`, `image/gif`.
-- Size limit: 3 MB decoded raw binary (base64 payload must not exceed ~4 MB).
+- Allowed MIME types: `image/png`, `image/jpeg`, `image/webp`, `image/gif`, and
+  `application/octet-stream` for a file of any type. Only a file carries `name`, its own file
+  name, which is never used as a path (see below).
+- Size limit: 3 MB decoded raw binary (base64 payload must not exceed ~4 MB). The browser
+  compresses an image to fit; it refuses a file over the limit without sending it.
 - Error codes returned on client error:
   - `paste_file_unsupported`: MIME type is not in the whitelist or payload is malformed.
   - `paste_file_too_large`: Decoded payload exceeds 3 MB. The connection remains open.
+  - `paste_file_host_outdated`: A file was sent to a host that does not advertise the
+    `paste_any_file` capability, i.e. one from before file uploads.
 
 ### Relay to host
 
-The relay validates the MIME whitelist and 3 MB payload cap, stamps the message with the
-originating client's `streamId`, and forwards it over `/ws/host`:
+The relay validates the MIME whitelist, the 3 MB payload cap and an image's magic bytes,
+replaces a file's `name` with its sanitized form (`sanitizePasteFileName`), stamps the message
+with the originating client's `streamId`, and forwards it over `/ws/host`:
 
 ```json
 {
@@ -450,15 +456,20 @@ originating client's `streamId`, and forwards it over `/ws/host`:
 
 The host connector performs strict independent security checks before writing:
 1. **Pinned directory**: Files are written strictly to `<stateDir>/pasted` (directory mode `0o700`).
-2. **Unpredictable filename**: Generated via `crypto.randomUUID()`; client-supplied names are never used.
-3. **Whitelisted extension**: Derived directly from the validated MIME (`.png`, `.jpg`, `.webp`, `.gif`).
+2. **Unpredictable filename**: Generated via `crypto.randomUUID()`. An image ignores any client-supplied
+   name; a file is saved as `<uuid>-<name>`, its name sanitized again on the host: no directories, no
+   leading dots, only letters, digits, `.`, `_` and `-`, at most 120 characters — so the pasted path
+   needs no shell quoting.
+3. **Whitelisted extension**: An image's is derived directly from the validated MIME (`.png`, `.jpg`,
+   `.webp`, `.gif`); a file keeps the extension of its sanitized name.
 4. **Host size re-validation**: The host independently enforces the 3 MB ceiling.
 5. **Magic bytes sniffing**: Raw binary headers are validated against declared MIME:
    - PNG: `89 50 4E 47`
    - JPEG: `FF D8 FF`
    - GIF: `47 49 46 38`
    - WebP: `RIFF` (bytes 0..3) and `WEBP` (bytes 8..11)
-   Mismatches are rejected to prevent file-type spoofing.
+   Mismatches are rejected to prevent file-type spoofing. Files of any type are not sniffed:
+   they claim no type to spoof.
 6. **File mode**: Created with mode `0o600`.
 7. **Retention and pruning**: Caps at 20 files and 50 MB (oldest deleted first). Residual files older than 24 hours are deleted upon startup.
 

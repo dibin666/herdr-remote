@@ -107,16 +107,22 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   // input, and holding it back here is what makes the window only watch.
   const role: ClientRole = settings.observerMode ? 'viewer' : session.role;
   const input = useTerminalInput({ adapterRef, role, addToast, tRef });
-  const { uploadProgress, uploadImage, resetUploadProgress, abortUpload, completeUpload } =
-    useImageUpload({
-      adapterRef,
-      role,
-      connectionState: session.connectionState,
-      warnViewerMode: input.warnViewerMode,
-      addToast,
-      t,
-      sendPasteFile: input.sendPasteFile,
-    });
+  const {
+    uploadProgress,
+    uploadImage,
+    uploadFile,
+    resetUploadProgress,
+    abortUpload,
+    completeUpload,
+  } = useImageUpload({
+    adapterRef,
+    role,
+    connectionState: session.connectionState,
+    warnViewerMode: input.warnViewerMode,
+    addToast,
+    t,
+    sendPasteFile: input.sendPasteFile,
+  });
 
   const adapter = useHerdrAdapter(adapterRef, () => buildConnectionConfig(settings), {
     stateChange: (state, detail, code) => {
@@ -443,8 +449,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
 
   const uploadValue = useMemo<UploadContextValue>(
-    () => ({ uploadProgress, uploadImage, resetUploadProgress }),
-    [uploadProgress, uploadImage, resetUploadProgress],
+    () => ({ uploadProgress, uploadImage, uploadFile, resetUploadProgress }),
+    [uploadProgress, uploadImage, uploadFile, resetUploadProgress],
   );
 
   return (

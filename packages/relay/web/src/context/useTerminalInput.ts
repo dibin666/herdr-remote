@@ -143,13 +143,13 @@ export function useTerminalInput({
   );
 
   const sendPasteFile = useCallback(
-    (mime: string, dataBase64: string) => {
+    (mime: string, dataBase64: string, name?: string) => {
       if (role !== 'controller') {
         warnViewerMode();
         return false;
       }
       if (adapterRef.current) {
-        adapterRef.current.sendPasteFile(mime, dataBase64);
+        adapterRef.current.sendPasteFile(mime, dataBase64, name);
         return true;
       }
       return false;

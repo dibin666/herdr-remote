@@ -430,3 +430,91 @@ test('paste_file rejects request when client is viewer mode with viewer_mode err
   clientWs.close();
   hostWs.close();
 });
+
+async function relayWithHostAndClient(t, capabilities) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-paste-test-'));
+  const server = new RelayServer(relayConfig({ maxPayloadBytes: 5 * 1024 * 1024 }), {
+    stateFile: path.join(dir, 'auth.json'),
+  });
+  const address = await server.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.onTestFinished(async () => {
+    await server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const hostWs = await openWebSocket(`${wsBase}/ws/host`);
+  const hostReady = nextMessage(hostWs, (msg) => msg.type === 'host_ready');
+  hostWs.send(
+    JSON.stringify({
+      type: 'host_hello',
+      protocol: 1,
+      hostId: 'host-test',
+      token: HOST_AUTH['X-Herdr-Host-Token'],
+      capabilities,
+    }),
+  );
+  await hostReady;
+
+  const pairing = await postJson(`${base}/api/pair/start`, HOST_AUTH);
+  const client = await openWebSocket(`${wsBase}/ws/client`);
+  const ready = nextMessage(client, (msg) => msg.type === 'ready');
+  client.send(
+    JSON.stringify({
+      type: 'hello',
+      protocol: 1,
+      pairCode: pairing.code,
+      clientId: 'browser-a',
+      cols: 80,
+      rows: 24,
+    }),
+  );
+  await ready;
+  t.onTestFinished(() => {
+    client.close();
+    hostWs.close();
+  });
+  return { hostWs, client };
+}
+
+test('paste_file forwards any file with a sanitized name to a host that accepts files', async (t) => {
+  const { hostWs, client } = await relayWithHostAndClient(t, ['paste_any_file']);
+  const hostReceivedPaste = nextMessage(hostWs, (msg) => msg.type === 'paste_file');
+  const payload = Buffer.from('%PDF-1.7 not an image').toString('base64');
+  client.send(
+    JSON.stringify({
+      type: 'paste_file',
+      mime: 'application/octet-stream',
+      dataBase64: payload,
+      name: '../../etc/my report (final).pdf',
+    }),
+  );
+
+  const hostMsg = (await hostReceivedPaste).value;
+  assert.equal(hostMsg.mime, 'application/octet-stream');
+  assert.equal(hostMsg.dataBase64, payload);
+  assert.equal(hostMsg.name, 'my_report_final_.pdf');
+  assert.ok(hostMsg.streamId, 'must carry streamId');
+});
+
+test('paste_file refuses any file for a host that predates file uploads', async (t) => {
+  const { hostWs, client } = await relayWithHostAndClient(t, ['host_handoff']);
+  let hostReceivedPaste = false;
+  hostWs.on('message', (data) => {
+    if (JSON.parse(data.toString()).type === 'paste_file') hostReceivedPaste = true;
+  });
+  const res = nextMessage(client, (msg) => msg.type === 'error');
+  client.send(
+    JSON.stringify({
+      type: 'paste_file',
+      mime: 'application/octet-stream',
+      dataBase64: Buffer.from('hello').toString('base64'),
+      name: 'notes.txt',
+    }),
+  );
+
+  assert.equal((await res).value.code, 'paste_file_host_outdated');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(hostReceivedPaste, false);
+});

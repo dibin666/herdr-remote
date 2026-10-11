@@ -391,9 +391,16 @@ export class HostConnector {
     return this.sessions.start(message);
   }
 
-  private savePaste(streamId: string | null, message: { mime: string; dataBase64: string }): void {
+  private savePaste(
+    streamId: string | null,
+    message: { mime: string; dataBase64: string; name?: string },
+  ): void {
     try {
-      const savedPath = savePastedFile({ mime: message.mime, dataBase64: message.dataBase64 });
+      const savedPath = savePastedFile({
+        mime: message.mime,
+        dataBase64: message.dataBase64,
+        name: message.name,
+      });
       sendJson(this.ws, { type: 'paste_file_ready', clientId: streamId, path: savedPath });
     } catch (error) {
       sendJson(this.ws, {

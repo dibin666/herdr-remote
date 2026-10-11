@@ -1,7 +1,9 @@
-// Sending a pasted image to the workstation, with progress for the key bar.
+// Sending a pasted image, or any file, to the workstation, with progress for
+// the key bar.
 
 import type { ClientRole } from '@protocol/messages';
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { PASTE_FILE_MIME, PASTE_MAX_BYTES } from '@protocol/paste';
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Translate } from '@/shared/i18n';
 import type { HerdrClientAdapter } from '@/connection/clientAdapter';
 import type { ConnectionState } from '@/connection/types';
@@ -10,6 +12,7 @@ import {
   IDLE_IMAGE_UPLOAD_PROGRESS,
   type ImageUploadProgress,
   type PreparedImagePaste,
+  type UploadKind,
 } from '@/features/paste/imagePaste';
 import type { ToastItem } from './useToastQueue';
 
@@ -33,11 +36,11 @@ export function useImageUpload({
   warnViewerMode: () => void;
   addToast: (type: ToastItem['type'], message: string) => void;
   t: Translate;
-  sendPasteFile: (mime: string, dataBase64: string) => boolean;
+  sendPasteFile: (mime: string, dataBase64: string, name?: string) => boolean;
 }) {
-  const [uploadProgress, setUploadProgress] = useState<ImageUploadProgress>(
-    IDLE_IMAGE_UPLOAD_PROGRESS,
-  );
+  const [progress, setUploadProgress] = useState<ImageUploadProgress>(IDLE_IMAGE_UPLOAD_PROGRESS);
+  const [uploadKind, setUploadKind] = useState<UploadKind>('image');
+  const uploadProgress = useMemo(() => ({ ...progress, kind: uploadKind }), [progress, uploadKind]);
   const activeUploadTaskIdRef = useRef<number | null>(null);
   const uploadTaskIdCounterRef = useRef<number>(0);
   const uploadTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -86,32 +89,74 @@ export function useImageUpload({
 
   useEffect(() => clearUploadTimer, [clearUploadTimer]);
 
-  const uploadImage = useCallback(
-    async (input: Blob | File | PreparedImagePaste): Promise<boolean> => {
+  /** Claims the one upload slot this window has, or says why it cannot. */
+  const beginUpload = useCallback(
+    (kind: UploadKind): number | null => {
       if (role !== 'controller') {
         warnViewerMode();
-        return false;
+        return null;
       }
-
       if (!adapterRef.current || connectionState !== 'connected') {
         addToast('error', t('serverErrors.host_offline'));
-        return false;
+        return null;
       }
-
-      if (activeUploadTaskIdRef.current !== null) {
-        return false;
-      }
-
+      if (activeUploadTaskIdRef.current !== null) return null;
       const taskId = ++uploadTaskIdCounterRef.current;
       activeUploadTaskIdRef.current = taskId;
+      setUploadKind(kind);
       clearUploadTimer();
+      return taskId;
+    },
+    [adapterRef, role, connectionState, warnViewerMode, addToast, t, clearUploadTimer],
+  );
 
-      const giveUp = (message?: string) => {
-        if (message) addToast('error', message);
-        activeUploadTaskIdRef.current = null;
-        setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
-        return false;
-      };
+  const giveUp = useCallback(
+    (message?: string) => {
+      if (message) addToast('error', message);
+      activeUploadTaskIdRef.current = null;
+      setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
+      return false;
+    },
+    [addToast],
+  );
+
+  /** Sends the payload, then waits for the host to say where it saved it. */
+  const sendAndAwaitHost = useCallback(
+    (taskId: number, mime: string, dataBase64: string, name?: string): boolean => {
+      setUploadProgress({
+        active: true,
+        phase: 'sending',
+        ratio: 0.75,
+        percent: 75,
+        statusText: t('virtualKeyboard.uploadProgressSending'),
+      });
+
+      const sent = sendPasteFile(mime, dataBase64, name);
+      if (activeUploadTaskIdRef.current !== taskId) return false;
+      if (!sent) return giveUp();
+
+      setUploadProgress({
+        active: true,
+        phase: 'waitingHost',
+        ratio: 0.88,
+        percent: 88,
+        statusText: t('virtualKeyboard.uploadProgressWaitingHost'),
+      });
+
+      uploadTimeoutTimerRef.current = setTimeout(() => {
+        if (activeUploadTaskIdRef.current === taskId) {
+          giveUp(t('serverErrors.paste_file_write_failed'));
+        }
+      }, UPLOAD_CONFIRM_TIMEOUT_MS);
+      return true;
+    },
+    [t, sendPasteFile, giveUp],
+  );
+
+  const uploadImage = useCallback(
+    async (input: Blob | File | PreparedImagePaste): Promise<boolean> => {
+      const taskId = beginUpload('image');
+      if (taskId === null) return false;
 
       const isPrepared =
         'dataBase64' in input && typeof (input as PreparedImagePaste).dataBase64 === 'string';
@@ -159,52 +204,56 @@ export function useImageUpload({
           });
         }
 
-        setUploadProgress({
-          active: true,
-          phase: 'sending',
-          ratio: 0.75,
-          percent: 75,
-          statusText: t('virtualKeyboard.uploadProgressSending'),
-        });
-
-        const sent = sendPasteFile(prepared.mime, prepared.dataBase64);
-        if (activeUploadTaskIdRef.current !== taskId) {
-          return false;
-        }
-        if (!sent) return giveUp();
-
-        setUploadProgress({
-          active: true,
-          phase: 'waitingHost',
-          ratio: 0.88,
-          percent: 88,
-          statusText: t('virtualKeyboard.uploadProgressWaitingHost'),
-        });
-
-        uploadTimeoutTimerRef.current = setTimeout(() => {
-          if (activeUploadTaskIdRef.current === taskId) {
-            giveUp(t('serverErrors.paste_file_write_failed'));
-          }
-        }, UPLOAD_CONFIRM_TIMEOUT_MS);
-
-        return true;
+        return sendAndAwaitHost(taskId, prepared.mime, prepared.dataBase64);
       } catch (err) {
         console.error('Failed to process/upload image:', err);
         if (activeUploadTaskIdRef.current === taskId) giveUp(t('clipboard.imageTooLarge'));
         return false;
       }
     },
-    [
-      adapterRef,
-      role,
-      connectionState,
-      warnViewerMode,
-      addToast,
-      t,
-      sendPasteFile,
-      clearUploadTimer,
-    ],
+    [beginUpload, giveUp, sendAndAwaitHost, t],
   );
 
-  return { uploadProgress, uploadImage, resetUploadProgress, abortUpload, completeUpload };
+  const uploadFile = useCallback(
+    async (file: File): Promise<boolean> => {
+      const taskId = beginUpload('file');
+      if (taskId === null) return false;
+      // Checked before reading: a file over the cap is refused, never shrunk.
+      if (file.size === 0) return giveUp(t('clipboard.fileEmpty'));
+      if (file.size > PASTE_MAX_BYTES) return giveUp(t('clipboard.fileTooLarge'));
+
+      setUploadProgress({
+        active: true,
+        phase: 'reading',
+        ratio: 0.3,
+        percent: 30,
+        statusText: t('virtualKeyboard.uploadProgressReading'),
+      });
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ''));
+          reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+          reader.readAsDataURL(file);
+        });
+        if (activeUploadTaskIdRef.current !== taskId) return false;
+        const dataBase64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+        return sendAndAwaitHost(taskId, PASTE_FILE_MIME, dataBase64, file.name);
+      } catch (err) {
+        console.error('Failed to read file for upload:', err);
+        if (activeUploadTaskIdRef.current === taskId) giveUp(t('clipboard.fileReadFailed'));
+        return false;
+      }
+    },
+    [beginUpload, giveUp, sendAndAwaitHost, t],
+  );
+
+  return {
+    uploadProgress,
+    uploadImage,
+    uploadFile,
+    resetUploadProgress,
+    abortUpload,
+    completeUpload,
+  };
 }

@@ -86,6 +86,7 @@ function createHostRecord(
     connectionGeneration: randomId('host-connection'),
     handoffCapable: capabilities.includes(CAPABILITY.hostHandoff),
     binaryFrameV2: capabilities.includes(CAPABILITY.binaryFrameV2),
+    pasteAnyFile: capabilities.includes(CAPABILITY.pasteAnyFile),
     streamIndices: new Map(),
     nextStreamIndex: 0,
     shutdownRequested: false,

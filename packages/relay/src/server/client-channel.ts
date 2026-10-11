@@ -8,12 +8,14 @@ import {
   type ClientHelloMessage,
   type ClientJsonMessage,
   FRAME_TYPE_INPUT,
+  PASTE_FILE_MIME,
   PASTE_MAX_BYTES,
   PROTOCOL_VERSION,
   hasImageSignature,
   isPasteImageMime,
   packStreamFrame,
   packStreamFrameV2,
+  sanitizePasteFileName,
 } from '../protocol/index.js';
 import { requestFontChunk, requestFontSubset } from './font-proxy.js';
 import { allowClientHandshake, allowPairAttempt, clientAddress } from './requests.js';
@@ -350,69 +352,46 @@ function handleClientMessage(
     // so beats a silence an older client would wait on.
     jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: null });
   } else if (message.type === 'paste_file') {
+    const reject = (code: string, text: string) =>
+      jsonSend(client.ws, { type: 'error', code, message: text });
     if (client.role === 'viewer') {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'viewer_mode',
-        message: 'Viewer mode cannot paste to terminal',
-      });
+      reject('viewer_mode', 'Viewer mode cannot paste to terminal');
       return;
     }
-    if (!isPasteImageMime(message.mime)) {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'paste_file_unsupported',
-        message: 'Unsupported paste image format',
-      });
+    const isFile = message.mime === PASTE_FILE_MIME;
+    if (!isFile && !isPasteImageMime(message.mime)) {
+      reject('paste_file_unsupported', 'Unsupported paste image format');
       return;
     }
     if (typeof message.dataBase64 !== 'string') {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'paste_file_unsupported',
-        message: 'Invalid paste image payload',
-      });
+      reject('paste_file_unsupported', 'Invalid paste payload');
       return;
     }
     const rawLength = Buffer.byteLength(message.dataBase64, 'base64');
     if (rawLength === 0) {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'paste_file_empty',
-        message: 'Pasted image payload is empty',
-      });
+      reject('paste_file_empty', 'Pasted payload is empty');
       return;
     }
     if (rawLength > PASTE_MAX_BYTES) {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'paste_file_too_large',
-        message: 'Pasted image exceeds 3 MB limit',
-      });
+      reject('paste_file_too_large', 'Pasted payload exceeds 3 MB limit');
       return;
     }
-    if (!verifyImageMagicBytes(message.mime, message.dataBase64)) {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'paste_file_unsupported',
-        message: 'Pasted image content does not match declared MIME type',
-      });
+    if (!isFile && !verifyImageMagicBytes(message.mime, message.dataBase64)) {
+      reject('paste_file_unsupported', 'Pasted image content does not match declared MIME type');
       return;
     }
     if (!isOpen(host?.ws)) {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'host_offline',
-        message: 'Host is offline or disconnected',
-      });
+      reject('host_offline', 'Host is offline or disconnected');
+      return;
+    }
+    // A host from before any-file pastes would refuse the type after the
+    // whole payload had crossed; saying so here is quicker and clearer.
+    if (isFile && !host.pasteAnyFile) {
+      reject('paste_file_host_outdated', 'Host is too old to receive files; update herdr-remote');
       return;
     }
     if (!client.session) {
-      jsonSend(client.ws, {
-        type: 'error',
-        code: 'no_session',
-        message: 'Terminal session is not ready',
-      });
+      reject('no_session', 'Terminal session is not ready');
       return;
     }
     jsonSend(host.ws, {
@@ -421,6 +400,7 @@ function handleClientMessage(
       streamId: client.session.streamId,
       mime: message.mime,
       dataBase64: message.dataBase64,
+      ...(isFile ? { name: sanitizePasteFileName(message.name) } : {}),
     });
   }
 }

@@ -371,7 +371,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(screen.queryByTestId('key-toolbar-progress')).toBeNull();
     const btn = screen.getByTestId('image-upload-btn');
     expect(btn).not.toBeDisabled();
-    expect(await screen.findByText('粘贴图片超过 3 MB 上限。')).toBeInTheDocument();
+    expect(await screen.findByText('粘贴的图片或文件超过 3 MB 上限。')).toBeInTheDocument();
   });
 
   it('per-window task isolation: paste_file_ready does NOT activate completion progress when this window did not initiate upload', async () => {
@@ -453,6 +453,10 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(imageBtn.textContent).not.toContain('🖼️');
     expect(imageBtn.className).toContain('h-7');
     expect(imageBtn.className).not.toContain('min-h-[44px]');
+    // The any-file button sits just left of it, the same size
+    const fileBtn = buttons[buttons.length - 3];
+    expect(fileBtn).toHaveAttribute('data-testid', 'file-upload-btn');
+    expect(fileBtn.className).toContain('h-7');
 
     // Enter button also shares the desktop cap height
     expect(last.className).toContain('h-7');
