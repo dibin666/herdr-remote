@@ -243,6 +243,22 @@ export const GeneralTab: React.FC<{ onOpenAdmin?: () => void }> = ({ onOpenAdmin
           }
         />
         <SettingRow
+          label={t('settings.touchKeyboardTrigger')}
+          hint={t('settings.touchKeyboardTriggerDesc')}
+          control={
+            <Segmented
+              name="touch-keyboard-trigger"
+              aria-label={t('settings.touchKeyboardTrigger')}
+              value={settings.touchKeyboardTrigger}
+              onChange={(touchKeyboardTrigger) => updateSettings({ touchKeyboardTrigger })}
+              options={[
+                { value: 'tap', label: t('settings.touchKeyboardTriggerTap') },
+                { value: 'button', label: t('settings.touchKeyboardTriggerButton') },
+              ]}
+            />
+          }
+        />
+        <SettingRow
           label={t('settings.touchHaptics')}
           hint={t('settings.touchHapticsDesc')}
           control={

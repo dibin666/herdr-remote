@@ -29,6 +29,9 @@ export function attachGestureInput({
   getSurfaceElement,
   getSelection,
   onFocus,
+  getTapOpensKeyboard,
+  onKeyboardOffer,
+  onKeyboardOfferDismiss,
 }: {
   container: HTMLElement;
   term: Terminal;
@@ -41,6 +44,10 @@ export function attachGestureInput({
   /** Read at event time, so the handlers of the latest render run. */
   getSelection: () => GestureSelection;
   onFocus: () => void;
+  /** False when an input-row tap only offers the floating keyboard button. */
+  getTapOpensKeyboard: () => boolean;
+  onKeyboardOffer: () => void;
+  onKeyboardOfferDismiss: () => void;
 }): () => void {
   const pointerController = new TerminalPointerController({
     getTerminal,
@@ -55,6 +62,12 @@ export function attachGestureInput({
     // rotation without rebuilding the xterm instance.
     allowSyntheticMouseFallback: false,
     onFocus: () => {
+      // With the keyboard already up there is nothing to offer: the tap just
+      // keeps typing where it was.
+      if (!getTapOpensKeyboard() && document.activeElement !== term.textarea) {
+        onKeyboardOffer();
+        return;
+      }
       // A tap is the explicit terminal-input gesture. Vertical drags never
       // reach this callback, so scrolling history cannot summon the IME.
       try {
@@ -68,8 +81,11 @@ export function attachGestureInput({
       }));
       onFocus();
     },
+    onTapOutsideInput: onKeyboardOfferDismiss,
     onGestureStateChange: (state) => {
       debug?.((previous) => ({ ...previous, state }));
+      // A scroll or selection moves away from the input the button was for.
+      if (state !== 'idle' && state !== 'pending') onKeyboardOfferDismiss();
     },
     onGestureScroll: ({
       deltaY,

@@ -319,6 +319,64 @@ describe('Terminal input reaches the PTY', () => {
     expect(term.focusCount).toBe(focusesBefore);
   });
 
+  it('offers a keyboard button instead of focusing when the floating trigger is chosen', async () => {
+    saveSettings({ touchKeyboardTrigger: 'button' });
+    renderTerminal();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    await settle();
+
+    const term = xtermInstances[0];
+    const { container } = elements();
+    term.buffer.active.cursorY = 11;
+    term.buffer.active.cursorX = 4;
+    grantControl();
+    const focusesBefore = term.focusCount;
+
+    act(() => {
+      container.dispatchEvent(pointerEvent('pointerdown', 20, 200));
+      container.dispatchEvent(pointerEvent('pointerup', 20, 200));
+    });
+
+    expect(term.focusCount).toBe(focusesBefore);
+    const offer = await screen.findByTestId('keyboard-offer');
+    // Beside the cursor cell (col 4, row 11 of a 9x18 grid), never on it.
+    const left = Number.parseFloat(offer.style.left);
+    const top = Number.parseFloat(offer.style.top);
+    expect(left).toBeGreaterThanOrEqual(5 * 9);
+    expect(top).toBeLessThanOrEqual(12 * 18);
+    expect(top + Number.parseFloat(offer.style.height)).toBeGreaterThanOrEqual(11 * 18);
+
+    fireEvent.click(offer);
+    expect(term.focusCount).toBe(focusesBefore + 1);
+    expect(screen.queryByTestId('keyboard-offer')).toBeNull();
+  });
+
+  it('hides the keyboard button when a tap lands outside the input line', async () => {
+    saveSettings({ touchKeyboardTrigger: 'button' });
+    renderTerminal();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    await settle();
+
+    const term = xtermInstances[0];
+    const { container } = elements();
+    term.buffer.active.cursorY = 11;
+    grantControl();
+    const focusesBefore = term.focusCount;
+
+    act(() => {
+      container.dispatchEvent(pointerEvent('pointerdown', 120, 200));
+      container.dispatchEvent(pointerEvent('pointerup', 120, 200));
+    });
+    await screen.findByTestId('keyboard-offer');
+
+    act(() => {
+      container.dispatchEvent(pointerEvent('pointerdown', 120, 100));
+      container.dispatchEvent(pointerEvent('pointerup', 120, 100));
+    });
+    expect(screen.queryByTestId('keyboard-offer')).toBeNull();
+    expect(term.focusCount).toBe(focusesBefore);
+  });
+
   it('configures xterm’s helper as the mobile terminal input', async () => {
     renderTerminal();
     await waitFor(() => expect(xtermInstances.length).toBe(1));

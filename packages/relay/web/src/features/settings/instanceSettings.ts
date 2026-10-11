@@ -18,6 +18,7 @@ const VIEW_KEYS = [
   'toolbarVisible',
   'toolbarPosition',
   'vibrateOnKeyPress',
+  'touchKeyboardTrigger',
   'predictiveEcho',
   'virtualKeys',
   'agentAlertBadge',
