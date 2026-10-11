@@ -40,6 +40,8 @@ export interface TouchMouseOptions extends PointerDeliveryOptions {
   onLongPressMenu?: (point: { clientX: number; clientY: number }) => void;
   onSelectionExtend?: (point: { clientX: number; clientY: number }) => void;
   onFocus?: () => void;
+  /** A tap that missed the live input row, or came from a viewer. */
+  onTapOutsideInput?: () => void;
   /** Optional diagnostics hook used only by the debug query parameter. */
   onGestureStateChange?: (state: TouchGestureState) => void;
   /** Optional diagnostics for real-device scroll delivery. */
@@ -285,6 +287,8 @@ export class TerminalPointerController {
       const tap = { clientX: this.startX, clientY: this.startY };
       if (isController && term && this.delivery.isInputLineHit(tap, term)) {
         this.options.onFocus?.();
+      } else {
+        this.options.onTapOutsideInput?.();
       }
     } else if (this.state === 'dragging') {
       if (mouseActive && isController) {

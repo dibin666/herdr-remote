@@ -10,6 +10,7 @@ import {
 } from '@/context/TerminalContext';
 import { attentionCounts } from '@/features/agents/agentAttention';
 import { applyDocumentTitle } from '@/features/agents/documentTitle';
+import { KeyboardOfferButton, useKeyboardOffer } from './KeyboardOfferButton';
 import { isCoarsePointerDevice } from './terminalLayout';
 import { openTerminalLink } from './terminalLinks';
 import type { AttachedRenderer } from './terminalRenderer';
@@ -112,6 +113,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
    */
   const hostTheme = React.useMemo(() => hostPaletteToTheme(hostPalette), [hostPalette]);
 
+  const tapOpensKeyboard = settings.touchKeyboardTrigger !== 'button';
+  const keyboardOffer = useKeyboardOffer({
+    termRef,
+    enabled: isTouchDevice && !tapOpensKeyboard && isController,
+    onOpen: onTerminalFocus,
+  });
+
   // What the listeners xterm and the document hold, bound once at mount, read
   // at call time instead of from a stale render.
   const live = useLatest<XtermLive>({
@@ -124,6 +132,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     consumeModifierLatch,
     hostTheme,
     onTerminalFocus,
+    tapOpensKeyboard,
+    offerKeyboard: keyboardOffer.offer,
+    dismissKeyboardOffer: keyboardOffer.dismiss,
     // Characters on screen are offered to the host font's cut, when there is one.
     ensureHostGlyphs,
     glyphScan: hostFont.glyphs.status === 'ready',
@@ -324,6 +335,18 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
           main={mainRef.current}
           rect={selection.selectionRect}
           viewportY={selection.viewportY}
+        />
+      )}
+
+      {/* A selection is somewhere else the finger is working; keep out of its way. */}
+      {keyboardOffer.box && !selection.selectionRect && !selection.selectionMenu && (
+        <KeyboardOfferButton
+          term={termRef.current}
+          surface={surfaceRef.current}
+          main={mainRef.current}
+          box={keyboardOffer.box}
+          label={t('terminal.showKeyboard')}
+          onOpen={keyboardOffer.open}
         />
       )}
 

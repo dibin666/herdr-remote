@@ -51,6 +51,11 @@ export interface StoredSettings {
   toolbarVisible: boolean;
   toolbarPosition: 'bottom' | 'top';
   vibrateOnKeyPress: boolean;
+  /**
+   * Touch: a tap on the input row opens the keyboard (`tap`), or shows a
+   * floating button that does (`button`), so a stray tap cannot pop it up.
+   */
+  touchKeyboardTrigger: 'tap' | 'button';
   predictiveEcho: 'auto' | 'always' | 'off';
   virtualKeys: ToolbarKeyDef[];
   /** Agent shortcut overrides for the active instance, the same in every window. */
@@ -126,6 +131,7 @@ export function getDefaultSettings(): StoredSettings {
     toolbarVisible: true,
     toolbarPosition: 'bottom',
     vibrateOnKeyPress: true,
+    touchKeyboardTrigger: 'tap',
     predictiveEcho: 'auto',
     agentAlertBadge: true,
     agentAlertSound: false,
@@ -318,6 +324,7 @@ export function loadSettings(): StoredSettings {
     toolbarVisible: view.toolbarVisible ?? defaults.toolbarVisible,
     toolbarPosition: view.toolbarPosition ?? defaults.toolbarPosition,
     vibrateOnKeyPress: view.vibrateOnKeyPress ?? defaults.vibrateOnKeyPress,
+    touchKeyboardTrigger: view.touchKeyboardTrigger === 'button' ? 'button' : 'tap',
     predictiveEcho,
     virtualKeys,
     agentKeymaps: sanitizeAgentKeymaps(view.agentKeymaps),

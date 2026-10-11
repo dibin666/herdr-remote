@@ -45,6 +45,10 @@ export interface XtermLive {
   consumeModifierLatch: () => KeyModifiers | null;
   hostTheme: ReturnType<typeof hostPaletteToTheme>;
   onTerminalFocus?: () => void;
+  /** Touch: whether an input-row tap opens the keyboard or offers a button for it. */
+  tapOpensKeyboard: boolean;
+  offerKeyboard: () => void;
+  dismissKeyboardOffer: () => void;
   ensureHostGlyphs: (text: string) => void;
   /** Whether characters on screen are offered to the host font's cut. */
   glyphScan: boolean;
@@ -343,6 +347,9 @@ export function useXterm({
       getSurfaceElement: () => surfaceRef.current,
       getSelection: () => selection.current,
       onFocus: () => live.current.onTerminalFocus?.(),
+      getTapOpensKeyboard: () => live.current.tapOpensKeyboard,
+      onKeyboardOffer: () => live.current.offerKeyboard(),
+      onKeyboardOfferDismiss: () => live.current.dismissKeyboardOffer(),
     });
 
     const detachViewport = attachViewportListeners(container, {
