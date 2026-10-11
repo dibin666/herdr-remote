@@ -1,12 +1,14 @@
 /**
- * Secure file storage and validation for pasted clipboard images.
+ * Secure file storage and validation for pasted clipboard images and uploaded files.
  *
  * Security requirements:
  * 1. Pinned directory: writes strictly to path.join(stateDir(), 'pasted') (directory mode 0o700).
- * 2. Unpredictable filename: generated via crypto.randomUUID(), never using client-provided strings.
- * 3. Whitelisted extension: derived exclusively from verified MIME type.
+ * 2. Unpredictable filename: starts with crypto.randomUUID(); a client-provided name is only
+ *    appended to a file's UUID after sanitizePasteFileName, never used as a path.
+ * 3. Whitelisted extension: an image's is derived exclusively from its verified MIME type.
  * 4. Host-side size check: re-validated to enforce <= 3 MB independently of relay checks.
- * 5. Magic bytes sniffing: inspects raw binary headers (PNG, JPEG, GIF, WebP) to prevent file-type spoofing.
+ * 5. Magic bytes sniffing: inspects raw binary headers (PNG, JPEG, GIF, WebP) to prevent image
+ *    type spoofing. Files of any type are not sniffed: nothing claims what they contain.
  * 6. File mode: files are created with mode 0o600.
  * 7. Automatic pruning: caps at 20 files and 50 MB (oldest deleted first), removes >24h stale files at startup.
  */
@@ -17,10 +19,12 @@ import path from 'node:path';
 import { stateDir } from './paths.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 import {
+  PASTE_FILE_MIME,
   PASTE_MAX_BYTES,
   PASTE_IMAGE_EXTENSIONS,
   isPasteImageMime,
   hasImageSignature,
+  sanitizePasteFileName,
 } from 'herdr-remote-relay/protocol';
 
 const MAX_SAVED_FILES = 20;
@@ -98,13 +102,16 @@ function cleanPastedDir({
 function savePastedFile({
   mime,
   dataBase64,
+  name,
   dir = getPastedDir(),
 }: {
   mime: unknown;
   dataBase64: unknown;
+  name?: unknown;
   dir?: string;
 }): string {
-  if (!isPasteImageMime(mime)) {
+  const imageMime = isPasteImageMime(mime) ? mime : null;
+  if (!imageMime && mime !== PASTE_FILE_MIME) {
     throw new Error(`unsupported MIME type: ${mime}`);
   }
   if (typeof dataBase64 !== 'string') {
@@ -119,14 +126,16 @@ function savePastedFile({
     throw new Error('file payload is empty');
   }
 
-  if (!hasImageSignature(mime, buf)) {
+  if (imageMime && !hasImageSignature(imageMime, buf)) {
     throw new Error(`file magic bytes do not match declared MIME type ${mime}`);
   }
 
   // Prune before writing new file
   cleanPastedDir({ dir });
 
-  const fileName = `${crypto.randomUUID()}${PASTE_IMAGE_EXTENSIONS[mime]}`;
+  const fileName = imageMime
+    ? `${crypto.randomUUID()}${PASTE_IMAGE_EXTENSIONS[imageMime]}`
+    : `${crypto.randomUUID()}-${sanitizePasteFileName(name)}`;
   const filePath = path.join(dir, fileName);
 
   fs.writeFileSync(filePath, buf, { mode: 0o600, flag: 'wx' });

@@ -55,7 +55,7 @@ The first run launches a setup wizard, after which the services run in the backg
 - **Context-Aware Agent Shortcuts**: Key bar dynamically adapts to the active agent (supporting 24 agents including Claude Code, Codex, and Gemini CLI), with customizable order and keybindings.
 - **Native Terminal Styling**: Preserves workstation terminal color schemes, fonts, and sizes, with dynamic font streaming and predictive echo on high-latency links. The interface ships with Maple Mono NF CN, so Chinese and Japanese text stays exactly two cells wide on any device.
 - **Windows Shell Support**: Key bar recognizes CMD, PowerShell, and Git Bash, with quick creation of elevated terminal tabs in Herdr.
-- **Mobile Image Uploads**: Send photos or screenshots from your phone directly to the workstation, inserting local file paths straight into the agent prompt.
+- **Mobile Image & File Uploads**: Send photos, screenshots or any file (up to 3 MB) from your phone directly to the workstation, inserting local file paths straight into the agent prompt.
 - **Flexible Connection Modes**: Supports local-only, LAN / Tailscale, official public relay, or self-hosted relays.
 - **Multi-Workstation Management**: Manage and switch between multiple Herdr workstations from a single browser session, with an operator dashboard for relay administrators.
 - **Cross-Platform**: Runs on Linux, macOS, and Windows 10/11 with a bilingual TUI and background service supervisors.

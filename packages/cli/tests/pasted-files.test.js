@@ -4,7 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { savePastedFile, cleanPastedDir } from '../src/pasted-files.js';
-import { PASTE_MAX_BYTES, PASTE_IMAGE_EXTENSIONS } from 'herdr-remote-relay/protocol';
+import {
+  PASTE_FILE_NAME_MAX_CHARS,
+  PASTE_IMAGE_EXTENSIONS,
+  PASTE_MAX_BYTES,
+  sanitizePasteFileName,
+} from 'herdr-remote-relay/protocol';
 
 // Valid magic byte fixtures for each supported image type
 const FIXTURES = {
@@ -198,4 +203,53 @@ test('cleanPastedDir purges stale files older than 24 hours', (t) => {
 
   assert.equal(fs.existsSync(freshPath), true, 'fresh file must remain');
   assert.equal(fs.existsSync(stalePath), false, 'stale file >24h must be deleted');
+});
+
+test('savePastedFile saves any file under its UUID and sanitized name, without sniffing', (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+  const content = Buffer.from('#!/bin/sh\necho not an image\n');
+  const savedPath = savePastedFile({
+    mime: 'application/octet-stream',
+    dataBase64: content.toString('base64'),
+    name: '..\\..\\Windows/.bashrc copy.sh',
+    dir: tmpDir,
+  });
+
+  assert.equal(path.dirname(savedPath), tmpDir);
+  assert.match(
+    path.basename(savedPath),
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-bashrc_copy\.sh$/i,
+  );
+  assert.deepEqual(fs.readFileSync(savedPath), content);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(savedPath).mode & 0o777, 0o600);
+  }
+});
+
+test('sanitizePasteFileName keeps a pasteable name and its extension', () => {
+  assert.equal(sanitizePasteFileName('报告 2026.pdf'), '报告_2026.pdf');
+  assert.equal(sanitizePasteFileName('a;rm -rf ~;$(x).txt'), 'a_rm_-rf_x_.txt');
+  assert.equal(sanitizePasteFileName('...'), 'file');
+  assert.equal(sanitizePasteFileName(undefined), 'file');
+  const long = sanitizePasteFileName(`${'x'.repeat(300)}.tar.gz`);
+  assert.equal(long.length, PASTE_FILE_NAME_MAX_CHARS);
+  assert.ok(long.endsWith('.gz'));
+});
+
+test('savePastedFile still caps any file at the paste size limit', (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-paste-test-'));
+  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  assert.throws(
+    () =>
+      savePastedFile({
+        mime: 'application/octet-stream',
+        dataBase64: Buffer.alloc(PASTE_MAX_BYTES + 1).toString('base64'),
+        name: 'big.bin',
+        dir: tmpDir,
+      }),
+    /exceeds maximum limit/,
+  );
+  assert.deepEqual(fs.readdirSync(tmpDir), []);
 });

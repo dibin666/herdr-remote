@@ -36,6 +36,8 @@ export interface RelayHost {
   shellProfile?: HostShellProfile;
   /** The host can open an administrator terminal as a Herdr tab. */
   adminTabsAvailable: boolean;
+  /** The host saves pasted files of any type, not just images. */
+  pasteAnyFile: boolean;
   arch: string;
   connectedAt: string;
   connectedAtMs: number;

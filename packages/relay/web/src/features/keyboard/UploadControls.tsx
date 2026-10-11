@@ -1,5 +1,5 @@
-// Sending an image from the key bar: the hidden file pickers, the button that
-// opens one, and the gauge shown while the upload runs.
+// Sending an image or any file from the key bar: the hidden file pickers, the
+// buttons that open them, and the gauge shown while the upload runs.
 
 import type React from 'react';
 import type { RefObject } from 'react';
@@ -13,15 +13,23 @@ const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/*';
 
 export function UploadFileInputs({
   fileInputRef,
+  anyFileInputRef,
 }: {
   fileInputRef: RefObject<HTMLInputElement | null>;
+  anyFileInputRef: RefObject<HTMLInputElement | null>;
 }) {
-  const { uploadImage } = useUpload();
+  const { uploadImage, uploadFile } = useUpload();
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     uploadImage(file);
+  };
+  const handleAnyFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    uploadFile(file);
   };
   return (
     <>
@@ -40,6 +48,13 @@ export function UploadFileInputs({
         className="hidden"
         data-testid="key-toolbar-camera-input"
         onChange={handleFileInputChange}
+      />
+      <input
+        ref={anyFileInputRef}
+        type="file"
+        className="hidden"
+        data-testid="key-toolbar-any-file-input"
+        onChange={handleAnyFileInputChange}
       />
     </>
   );
@@ -69,13 +84,30 @@ export function UploadProgressBar({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-export function ImageUploadButton({
-  fileInputRef,
+const UPLOAD_BUTTONS = {
+  image: {
+    testId: 'image-upload-btn',
+    icon: 'image',
+    label: 'virtualKeyboard.uploadImage',
+    title: 'virtualKeyboard.uploadImageTitle',
+  },
+  file: {
+    testId: 'file-upload-btn',
+    icon: 'attach',
+    label: 'virtualKeyboard.uploadFile',
+    title: 'virtualKeyboard.uploadFileTitle',
+  },
+} as const;
+
+export function UploadButton({
+  kind,
+  inputRef,
   keyClass,
   squareKeyClass,
   vibrate,
 }: {
-  fileInputRef: RefObject<HTMLInputElement | null>;
+  kind: keyof typeof UPLOAD_BUTTONS;
+  inputRef: RefObject<HTMLInputElement | null>;
   keyClass: string;
   squareKeyClass: string;
   vibrate: () => void;
@@ -85,8 +117,10 @@ export function ImageUploadButton({
   const { warnViewerMode } = useTerminalIO();
   const { uploadProgress } = useUpload();
   const isUploading = uploadProgress.active;
+  const showsProgress = isUploading && (uploadProgress.kind ?? 'image') === kind;
+  const button = UPLOAD_BUTTONS[kind];
 
-  const handleImageClick = () => {
+  const handleClick = () => {
     vibrate();
     if (!isController) {
       warnViewerMode();
@@ -95,27 +129,27 @@ export function ImageUploadButton({
     if (isUploading) {
       return;
     }
-    fileInputRef.current?.click();
+    inputRef.current?.click();
   };
 
   return (
     <button
       type="button"
-      data-testid="image-upload-btn"
-      onClick={handleImageClick}
+      data-testid={button.testId}
+      onClick={handleClick}
       disabled={isUploading}
       className={cn(
         CAP_BASE,
         // Square while it is an icon; the percentage needs a word's width.
-        isUploading ? keyClass : squareKeyClass,
+        showsProgress ? keyClass : squareKeyClass,
         isUploading
           ? 'border-tui-border-dim bg-tui-surface opacity-60 cursor-not-allowed'
           : CAP_IDLE,
       )}
-      title={isUploading ? uploadProgress.statusText : t('virtualKeyboard.uploadImageTitle')}
-      aria-label={t('virtualKeyboard.uploadImage')}
+      title={isUploading ? uploadProgress.statusText : t(button.title)}
+      aria-label={t(button.label)}
     >
-      {isUploading ? <span>{`${uploadProgress.percent}%`}</span> : <KeyIcon name="image" />}
+      {showsProgress ? <span>{`${uploadProgress.percent}%`}</span> : <KeyIcon name={button.icon} />}
     </button>
   );
 }

@@ -7,7 +7,7 @@ import { DEFAULT_TOOLBAR_KEYS, getLocalizedKeyTitle, type ToolbarKeyDef } from '
 import { AgentKeyActions } from './AgentKeyActions';
 import { CAP_ACTIVE, CAP_BASE, CAP_COMMIT, CAP_IDLE, capSizes } from './caps';
 import { ChordsDrawer, FnKeysDrawer, SymbolsDrawer } from './KeyDrawers';
-import { ImageUploadButton, UploadFileInputs, UploadProgressBar } from './UploadControls';
+import { UploadButton, UploadFileInputs, UploadProgressBar } from './UploadControls';
 import { useKeySender } from './useKeySender';
 import { KeyIcon, KeyLabel } from './KeyLabel';
 import { AdminTerminalButton } from './AdminTerminalButton';
@@ -34,6 +34,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
   const { capHeight, keyClass, squareKeyClass, drawerToggleClass } = capSizes(compact);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const anyFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const modifierPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modifierPressRef = useRef<{
@@ -152,7 +153,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         data-testid="key-toolbar-collapsed"
         className="z-20 flex shrink-0 flex-col border-t border-tui-border bg-tui-mantle pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]"
       >
-        <UploadFileInputs fileInputRef={fileInputRef} />
+        <UploadFileInputs fileInputRef={fileInputRef} anyFileInputRef={anyFileInputRef} />
         <UploadProgressBar collapsed />
         <div className="flex items-center justify-center px-2 py-0.5">
           <button
@@ -302,7 +303,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       role="toolbar"
       aria-label={t('virtualKeyboard.touchKeyboardShortcuts')}
     >
-      <UploadFileInputs fileInputRef={fileInputRef} />
+      <UploadFileInputs fileInputRef={fileInputRef} anyFileInputRef={anyFileInputRef} />
       <UploadProgressBar collapsed={false} />
       {showFnKeys && <FnKeysDrawer capHeight={capHeight} onKey={handleKeyPress} />}
       {showQuickChords && <ChordsDrawer capHeight={capHeight} onKey={handleKeyPress} />}
@@ -354,8 +355,18 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               onCustomize={onCustomize}
               sendCombo={sendCombo}
             />
-            <ImageUploadButton
-              fileInputRef={fileInputRef}
+            {/* Images stay nearest Enter: on a phone they are the upload
+                reached for far more often than any other file. */}
+            <UploadButton
+              kind="file"
+              inputRef={anyFileInputRef}
+              keyClass={keyClass}
+              squareKeyClass={squareKeyClass}
+              vibrate={vibrate}
+            />
+            <UploadButton
+              kind="image"
+              inputRef={fileInputRef}
               keyClass={keyClass}
               squareKeyClass={squareKeyClass}
               vibrate={vibrate}

@@ -57,8 +57,12 @@ export type ImageUploadPhase =
   | 'completed'
   | 'error';
 
+/** Which key bar button started an upload, so only that one shows its progress. */
+export type UploadKind = 'image' | 'file';
+
 export interface ImageUploadProgress {
   active: boolean;
+  kind?: UploadKind;
   phase: ImageUploadPhase;
   ratio: number; // 0..1
   percent: number; // 0..100

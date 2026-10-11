@@ -1,9 +1,40 @@
-// Rules for an image pasted in a browser: the browser compresses to fit them,
-// the relay refuses what breaks them, and the host checks again before it
-// writes a file. Browser-safe: no Node APIs.
+// Rules for an image or file pasted in a browser: the browser compresses or
+// refuses to fit them, the relay refuses what breaks them, and the host checks
+// again before it writes a file. Browser-safe: no Node APIs.
 
-/** Largest decoded image a browser may paste. */
+/** Largest decoded image or file a browser may paste. */
 export const PASTE_MAX_BYTES = 3 * 1024 * 1024;
+
+/**
+ * The MIME a paste carries when it is any file rather than an image. Its bytes
+ * are never sniffed, so it is saved under its (sanitized) name, not a type.
+ */
+export const PASTE_FILE_MIME = 'application/octet-stream';
+
+/** Longest file name, in characters, a pasted file keeps on the host. */
+export const PASTE_FILE_NAME_MAX_CHARS = 120;
+
+/**
+ * A pasted file's name made safe to save and to paste into a shell unquoted:
+ * no directories, no hidden files, nothing but letters, digits, `.`, `_` and
+ * `-`. A name with nothing left becomes `file`.
+ */
+export function sanitizePasteFileName(name: unknown): string {
+  if (typeof name !== 'string') return 'file';
+  const base = name.normalize('NFC').split(/[\\/]/).pop() ?? '';
+  let safe = base
+    .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+    // Leading dots would hide the file; trailing ones Windows drops silently.
+    .replace(/^[._]+|[._]+$/g, '');
+  if ([...safe].length > PASTE_FILE_NAME_MAX_CHARS) {
+    const dot = safe.lastIndexOf('.');
+    // Keep a short extension: it is what tells an agent what the file is.
+    const ext = dot > 0 && safe.length - dot <= 16 ? safe.slice(dot) : '';
+    const stem = [...safe.slice(0, safe.length - ext.length)];
+    safe = stem.slice(0, PASTE_FILE_NAME_MAX_CHARS - ext.length).join('') + ext;
+  }
+  return safe || 'file';
+}
 
 /** Image types a paste may carry, with the extension the host saves them under. */
 export const PASTE_IMAGE_EXTENSIONS = {
