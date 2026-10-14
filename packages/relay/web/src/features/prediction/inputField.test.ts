@@ -22,9 +22,9 @@ type Expected = null | {
 };
 
 /**
- * What each screen captured from Herdr 0.9.3 should be read as. Expectations
- * live here rather than in the fixtures so re-capturing screens can never
- * quietly rewrite them.
+ * What each screen captured from Herdr 0.9.4 (Codex: 0.9.3) should be read as.
+ * Expectations live here rather than in the fixtures so re-capturing screens
+ * can never quietly rewrite them.
  */
 const EXPECTED: Record<string, Expected> = {
   'desktop-claude-empty': { kind: 'rule', startCol: 28, endCol: 120, vimInsert: true },
