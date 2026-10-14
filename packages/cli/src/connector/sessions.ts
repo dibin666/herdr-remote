@@ -202,7 +202,12 @@ export class Sessions {
       this.probingStarts.delete(streamId);
       if (probe.state === 'running') this.spawn(pending.message);
       else if (probe.state === 'stopped') this.waitForHerdr(streamId, pending.message);
-      else this.sendError(streamId, 'herdr_socket_unavailable', probe.reason);
+      else
+        this.sendError(
+          streamId,
+          probe.elevated ? 'herdr_elevated' : 'herdr_socket_unavailable',
+          probe.reason,
+        );
     });
   }
 

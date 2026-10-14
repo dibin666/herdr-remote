@@ -719,6 +719,24 @@ test('a socket file with nothing behind it counts as a stopped Herdr', async (t)
   assert.equal(sent.at(-1).code, 'herdr_not_running');
 });
 
+test('a Herdr that refuses the connector as unelevated is named as such to the window', async (t) => {
+  const reason = 'Herdr is running as administrator and refuses clients that are not.';
+  const { connector, started, sent } = herdrLessConnector(t, {
+    probeHerdr: async () => ({ state: 'unavailable', elevated: true, reason }),
+  });
+  const socketServer = net.createServer();
+  await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
+  t.onTestFinished(() => socketServer.close());
+
+  await connector.handleMessage(
+    JSON.stringify({ type: 'session_start', streamId: 'session-1', cols: 80, rows: 24 }),
+  );
+
+  assert.deepEqual(started, []);
+  assert.equal(sent.at(-1).code, 'herdr_elevated');
+  assert.equal(sent.at(-1).message, reason);
+});
+
 test("starting Herdr uses this workstation's own settings and then opens every waiting window", async (t) => {
   const calls = [];
   const { connector, started, sent } = herdrLessConnector(t, {

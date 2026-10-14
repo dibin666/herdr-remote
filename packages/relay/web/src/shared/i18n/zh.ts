@@ -643,6 +643,8 @@ export const zh: TranslationSchema = {
     admin_terminal_unsupported:
       '当前 relay 或 Windows 主机连接器不支持管理员终端。请升级两端后再试。',
     admin_tab_failed: '无法在 Herdr 中打开管理员标签页，详情见主机连接器日志。',
+    herdr_elevated:
+      '工作站上的 Herdr 以管理员身份运行，拒绝了 herdr-remote 的连接。请在普通终端中启动 Herdr，或在它的 config.toml 的 [server] 下设置 allow_unelevated_clients = true 后重启 Herdr 服务。',
   },
   fontPresets: {
     host: '宿主机终端字体（默认）',

@@ -373,6 +373,20 @@ it. Once the socket answers, every window of that host that was waiting gets
 its session and `session_ready`; a failure comes back as `herdr_start_failed`
 to the window that asked.
 
+A socket that is there but turns the connector away is not a stopped Herdr,
+and nothing is started beside it. On Windows, from Herdr 0.9.4, that is what a
+server started as administrator does to a connector that is not: the window
+gets `herdr_elevated`, whose message says to start Herdr from an ordinary
+terminal or to set `allow_unelevated_clients = true` under `[server]` in
+Herdr's config. Anything else of the kind is `herdr_socket_unavailable`.
+
+The opposite case is herdr-remote's to fix: running as administrator — the
+keep-alive Windows service does — it would start an elevated Herdr that turns
+the user's own terminal away. So when its token is elevated (High or System
+integrity) and Herdr is 0.9.4 or later, it starts
+`herdr server --allow-unelevated-clients`, which admits ordinary clients the
+way every earlier Herdr did.
+
 `herdr.autoStart: true` in the workstation's config does the same start when
 herdr-remote itself starts, at boot included. It is off by default.
 
