@@ -234,14 +234,14 @@ function makeVersionStub(directory, line, { status = 0 } = {}) {
 
 test('the version is read from the install and compared against the minimum', (t) => {
   const home = tempDir(t, 'herdr-command-');
-  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.3');
+  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.4');
 
   const installed = herdrVersion({ command: binary });
 
   assert.deepEqual(installed, {
     command: binary,
-    version: '0.9.3',
-    raw: 'herdr 0.9.3',
+    version: '0.9.4',
+    raw: 'herdr 0.9.4',
     supported: true,
     ok: true,
   });
@@ -249,11 +249,11 @@ test('the version is read from the install and compared against the minimum', (t
 
 test('an older install is reported as unsupported, not as missing', (t) => {
   const home = tempDir(t, 'herdr-command-');
-  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.2');
+  const binary = makeVersionStub(path.join(home, '.local', 'bin'), 'herdr 0.9.3');
 
   const installed = herdrVersion({ command: binary });
 
-  assert.equal(installed.version, '0.9.2');
+  assert.equal(installed.version, '0.9.3');
   assert.equal(installed.supported, false);
   assert.equal(installed.ok, true);
 });
@@ -278,9 +278,11 @@ test('version parsing and comparison cover the shapes Herdr prints', () => {
   assert.equal(parseHerdrVersion('herdr 0.10.0-preview.2'), '0.10.0');
   assert.equal(parseHerdrVersion('nothing here'), null);
 
-  assert.equal(meetsMinimum('0.9.3'), true);
+  assert.equal(meetsMinimum('0.9.4'), true);
   assert.equal(meetsMinimum('0.10.0'), true);
   assert.equal(meetsMinimum('1.0.0'), true);
+  // 0.9.3 leaks colour replies that cross a slow relay into the focused pane.
+  assert.equal(meetsMinimum('0.9.3'), false);
   // 0.9.2 breaks Escape followed by a key, which is how a browser sends Alt.
   assert.equal(meetsMinimum('0.9.2'), false);
   assert.equal(meetsMinimum('0.8.9'), false);

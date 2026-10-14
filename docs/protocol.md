@@ -288,11 +288,14 @@ Herdr 0.9.1 is what made the model behave rather than merely exist: window
 titles follow each client's own view instead of another client's selection,
 activating a machine in the background no longer resizes somebody else's
 focused pane, and a large paste no longer disconnects the client — which is the
-path an image takes from a phone. The minimum this project supports is 0.9.3:
-0.9.2 stopped a tap on a pane from sending a stray Escape and stopped mouse
-reports split across reads from leaking into the shell, but broke Escape
-followed by a key, which is how a browser sends Alt+B, Alt+F and Alt+Backspace;
-0.9.3 mends it.
+path an image takes from a phone. 0.9.2 stopped a tap on a pane from sending a
+stray Escape and stopped mouse reports split across reads from leaking into the
+shell, but broke Escape followed by a key, which is how a browser sends Alt+B,
+Alt+F and Alt+Backspace; 0.9.3 mends it. The minimum this project supports is
+0.9.4: a browser answers Herdr's colour queries across a relay, and before
+0.9.4 a reply that arrived late or in pieces leaked into the focused pane as
+text or left the client waiting with typing frozen. 0.9.4 also starts a new tab
+or split at its own size rather than one borrowed from another pane.
 
 Each PTY's outer terminal is the browser's xterm.js, not the terminal that
 started herdr-remote, so the host connector strips the variables that name an
