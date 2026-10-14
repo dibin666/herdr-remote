@@ -53,6 +53,50 @@ test('a path that is not a socket is unavailable, never stopped', async (t) => {
   assert.match(result.reason, /not a Unix socket/);
 });
 
+/** A connect that fails the way a Windows named pipe refuses a client. */
+function refusingConnect(code) {
+  return () => {
+    const socket = new net.Socket();
+    setImmediate(() =>
+      socket.emit(
+        'error',
+        Object.assign(new Error(`connect ${code} \\\\.\\pipe\\herdr`), { code }),
+      ),
+    );
+    return socket;
+  };
+}
+
+test('a Windows Herdr that refuses this process as unelevated says how to let it in', async (t) => {
+  // From Herdr 0.9.4 a server started as administrator only admits
+  // administrator clients, and the pipe answers everyone else with access denied.
+  const socketPath = path.join(tempDir(t, 'herdr-probe-elevated-'), 'herdr.sock');
+  const server = net.createServer((socket) => socket.end());
+  await new Promise((resolve) => server.listen(socketPath, resolve));
+  t.onTestFinished(() => server.close());
+
+  for (const code of ['EPERM', 'EACCES']) {
+    const result = await probeHerdrServer(socketPath, {
+      connect: refusingConnect(code),
+      platform: 'win32',
+    });
+    assert.equal(result.state, 'unavailable');
+    assert.equal(result.elevated, true);
+    assert.match(result.reason, /administrator/);
+    assert.match(result.reason, /allow_unelevated_clients = true/);
+    assert.match(result.reason, new RegExp(code));
+  }
+
+  // Elsewhere access denied is an ordinary permissions problem.
+  const unix = await probeHerdrServer(socketPath, {
+    connect: refusingConnect('EACCES'),
+    platform: 'linux',
+  });
+  assert.equal(unix.state, 'unavailable');
+  assert.equal(unix.elevated, undefined);
+  assert.doesNotMatch(unix.reason, /administrator/);
+});
+
 test('only a process running as a systemd service wraps Herdr in a scope of its own', () => {
   const service = () =>
     '0::/user.slice/user-1000.slice/user@1000.service/app.slice/herdr-remote.service\n';

@@ -666,6 +666,8 @@ export const en = {
       'This relay or Windows host connector cannot open administrator terminals. Upgrade both, then try again.',
     admin_tab_failed:
       'Could not open the administrator tab in Herdr. The host connector log has the details.',
+    herdr_elevated:
+      'Herdr on this workstation runs as administrator and turns herdr-remote away. Start Herdr from an ordinary terminal, or set allow_unelevated_clients = true under [server] in its config.toml and restart its server.',
   },
   fontPresets: {
     host: 'Workstation font (default)',

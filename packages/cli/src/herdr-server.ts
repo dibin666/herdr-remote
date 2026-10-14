@@ -31,10 +31,13 @@ const PROBE_TIMEOUT_MS = 1_000;
 const START_TIMEOUT_MS = 20_000;
 const START_POLL_MS = 200;
 
+/** How a Windows named pipe answers a client its integrity label keeps out. */
+const ACCESS_DENIED_CODES = ['EPERM', 'EACCES'];
+
 export type ServerProbe =
   | { state: 'running' }
   | { state: 'stopped'; stale?: boolean }
-  | { state: 'unavailable'; reason?: string };
+  | { state: 'unavailable'; reason?: string; elevated?: boolean };
 
 type Connect = (path: string) => net.Socket;
 type SpawnProcess = (file: string, args: string[], options: SpawnOptions) => ChildProcess;
@@ -49,6 +52,27 @@ export interface ServerLaunch {
 }
 
 /**
+ * Why a connection to Herdr was refused, in words someone can act on.
+ *
+ * From Herdr 0.9.4 a Windows server started as administrator admits only
+ * administrator clients, and the pipe answers everyone else with a bare access
+ * denied that names neither the cause nor the way out.
+ */
+function refusal(error: NodeJS.ErrnoException, platform: NodeJS.Platform): ServerProbe {
+  if (platform !== 'win32' || !ACCESS_DENIED_CODES.includes(error.code || '')) {
+    return { state: 'unavailable', reason: error.message };
+  }
+  return {
+    state: 'unavailable',
+    elevated: true,
+    reason:
+      'Herdr is running as administrator and refuses clients that are not. Start Herdr from an ' +
+      'ordinary terminal, or set allow_unelevated_clients = true under [server] in its ' +
+      `config.toml and restart its server. (${error.message})`,
+  };
+}
+
+/**
  * Is Herdr's server answering on `socketPath`?
  *
  * Resolves `{ state }`: `running`, `stopped` (no socket, or a socket nothing is
@@ -59,7 +83,11 @@ export interface ServerLaunch {
  */
 function probeHerdrServer(
   socketPath: string,
-  { connect = net.connect as Connect, timeout = PROBE_TIMEOUT_MS } = {},
+  {
+    connect = net.connect as Connect,
+    timeout = PROBE_TIMEOUT_MS,
+    platform = process.platform,
+  }: { connect?: Connect; timeout?: number; platform?: NodeJS.Platform } = {},
 ): Promise<ServerProbe> {
   const info = inspectSocket(socketPath);
   if (!info.ok) {
@@ -82,13 +110,13 @@ function probeHerdrServer(
     // is slow, not absent; starting another server would only fight it.
     const timer = setTimeout(() => finish({ state: 'running' }), timeout);
     if (typeof timer.unref === 'function') timer.unref();
-    socket = connect(herdrEndpoint(socketPath));
+    socket = connect(herdrEndpoint(socketPath, platform));
     socket.once('connect', () => finish({ state: 'running' }));
     socket.once('error', (error: NodeJS.ErrnoException) =>
       finish(
         error.code === 'ECONNREFUSED' || error.code === 'ENOENT'
           ? { state: 'stopped', stale: true }
-          : { state: 'unavailable', reason: error.message },
+          : refusal(error, platform),
       ),
     );
   });
