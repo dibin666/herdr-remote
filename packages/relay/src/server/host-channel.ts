@@ -10,6 +10,7 @@ import {
   type HostMessage,
   PROTOCOL_VERSION,
   sanitizeHerdrPrefixKeys,
+  sanitizeOpenLinkUrl,
   sanitizeTerminalFont,
   sanitizeTerminalPalette,
   unpackStreamFrame,
@@ -180,6 +181,7 @@ export function handleHostConnection(
         protocol: PROTOCOL_VERSION,
         hostId: host.id,
         clientCount: host.clients.size,
+        capabilities: [CAPABILITY.openLink],
       });
       notifyHostClientCount(host);
       if (handoff) {
@@ -298,6 +300,9 @@ function handleHostMessage(
       type: 'paste_file_ready',
       path: message.path,
     });
+  } else if (message.type === 'open_link') {
+    const url = sanitizeOpenLinkUrl(message.url);
+    if (url) jsonSend(client.ws, { type: 'open_link', url });
   } else if (message.type === 'error') {
     if (message.code === 'host_font_unavailable') {
       settleFontChunk(client);

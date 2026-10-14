@@ -147,6 +147,13 @@ async function runTui(options: { language: string | null }): Promise<void> {
 }
 
 async function main(argv = process.argv.slice(2)) {
+  // Run by the `xdg-open`/`open` stand-ins in a browser window's Herdr client,
+  // with whatever arguments Herdr gave the real command: none of them are ours.
+  if (argv[0] === 'open-link') {
+    const { runLinkShim } = await import('./connector/link-shim.js');
+    process.exitCode = await runLinkShim(argv.slice(1));
+    return;
+  }
   const { positional, flags } = parseArgs(argv);
   if (process.platform === 'win32') {
     const relative = path.relative(PACKAGE_ROOT, process.cwd());

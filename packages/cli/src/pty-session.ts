@@ -10,6 +10,8 @@ interface PtySessionOptions {
   platform?: NodeJS.Platform;
   spawn?: typeof spawn;
   fastWindowsPty?: boolean;
+  /** Set on top of the cleaned environment, after Herdr's own variables are gone. */
+  env?: Record<string, string>;
 }
 
 interface PtyStartOptions {
@@ -55,6 +57,7 @@ class PtySession {
   readonly socketPath: string | null | undefined;
   readonly platform: NodeJS.Platform;
   readonly fastWindowsPty: boolean;
+  private readonly extraEnv: Record<string, string>;
   private readonly spawnPty: typeof spawn;
   terminal: IPty | null;
   startedAt: string | null;
@@ -67,6 +70,7 @@ class PtySession {
     platform = process.platform,
     spawn: spawnPty = nodePty().spawn,
     fastWindowsPty = false,
+    env = {},
   }: PtySessionOptions = {}) {
     if (typeof command !== 'string' || command.length === 0)
       throw new TypeError('command must be a non-empty string');
@@ -78,6 +82,7 @@ class PtySession {
     this.socketPath = socketPath;
     this.platform = platform;
     this.fastWindowsPty = fastWindowsPty;
+    this.extraEnv = env;
     this.spawnPty = spawnPty;
     this.terminal = null;
     this.startedAt = null;
@@ -112,7 +117,7 @@ class PtySession {
       cols: PtySession.clampDimension(cols, PtySession.DEFAULT_COLS),
       rows: PtySession.clampDimension(rows, PtySession.DEFAULT_ROWS),
       cwd: this.cwd,
-      env: PtySession.childEnv(this.socketPath) as Record<string, string>,
+      env: { ...PtySession.childEnv(this.socketPath), ...this.extraEnv } as Record<string, string>,
       ...(this.platform === 'win32'
         ? this.fastWindowsPty
           ? { useConpty: false }

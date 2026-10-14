@@ -155,6 +155,11 @@ export class HerdrClientAdapter extends RelaySocket {
         break;
       }
 
+      case 'open_link': {
+        this.emit('openLink', msg.url);
+        break;
+      }
+
       case 'agent_status': {
         this.emit('agentStatus', msg);
         break;

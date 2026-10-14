@@ -316,6 +316,34 @@ that.
 `control_state` respectively — so clients built against protocol 1 keep working,
 but they no longer move anything.
 
+### Links clicked in a window
+
+Herdr opens a Ctrl-clicked web link from the client that saw the click, by
+running `xdg-open` (Linux) or `open` (macOS) from that client's `PATH`. A
+window's client runs on the workstation, so on its own Herdr would open the
+link on the workstation's desktop. On Linux and macOS the host connector
+therefore starts each window's client with a `PATH` that finds two stand-ins
+first, in `link-shims/` under its state directory, and with the window's
+stream in `HERDR_REMOTE_LINK_STREAM`. A stand-in runs `herdr-remote open-link`,
+which hands a lone `http`/`https` link to the connector over `links.sock` (mode
+`0600`, same directory), and the connector sends it to the relay:
+
+```json
+{ "type": "open_link", "clientId": "session-…", "url": "https://example.com/pull/7" }
+```
+
+The relay drops anything that is not an `http` or `https` URL of at most 8,192
+characters and passes the rest to the window behind that stream only, as
+`{ "type": "open_link", "url": "…" }`. The browser opens it in a new tab with
+`noopener,noreferrer`. It arrives a round trip after the click, inside the few
+seconds browsers allow a click to open a tab.
+
+The connector only does this when the relay's `host_ready` lists the
+`"open_link"` capability: an older relay would drop the message, so its
+windows keep opening links on the workstation. Every other call the stand-ins
+see — other arguments, a window that has gone, a connector that does not
+answer within two seconds — runs the real command from the rest of `PATH`.
+
 ### Windows administrator terminals
 
 A window asks for one with `admin_tab_open`, which carries nothing. The relay

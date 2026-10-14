@@ -310,6 +310,7 @@ export {
   MIN_HERDR_VERSION,
   fallbackDirectories,
   findHerdrCommand,
+  findOnSearchPath,
   herdrNotFoundMessage,
   herdrOutdatedMessage,
   herdrVersion,
