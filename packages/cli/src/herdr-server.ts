@@ -21,7 +21,9 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { type ChildProcess, type SpawnOptions, spawn } from 'node:child_process';
+import { type ChildProcess, type SpawnOptions, spawn, spawnSync } from 'node:child_process';
+import { herdrVersion } from './herdr-command.js';
+import { compareVersions } from './updater.js';
 import { herdrEndpoint, inspectSocket } from './socket-discovery.js';
 import { ensureDir } from 'herdr-remote-relay/state';
 
@@ -33,6 +35,10 @@ const START_POLL_MS = 200;
 
 /** How a Windows named pipe answers a client its integrity label keeps out. */
 const ACCESS_DENIED_CODES = ['EPERM', 'EACCES'];
+/** The first Herdr whose `server` takes `--allow-unelevated-clients`; older ones refuse to start. */
+const UNELEVATED_CLIENTS_SINCE = '0.9.4';
+/** Integrity levels above an ordinary token: High (administrator) and System. */
+const ELEVATED_INTEGRITY = /S-1-16-(?:12288|16384)\b/;
 
 export type ServerProbe =
   | { state: 'running' }
@@ -144,6 +150,48 @@ function runningInSystemdService({
   }
 }
 
+/**
+ * True when this process runs as administrator on Windows — under the
+ * keep-alive Windows service, for one — so a Herdr server it starts runs
+ * elevated too. Read from the token's integrity level, which `whoami` names by
+ * SID in every display language.
+ */
+function runningElevated({
+  platform = process.platform,
+  whoamiGroups = () =>
+    spawnSync('whoami', ['/groups', '/fo', 'csv', '/nh'], {
+      encoding: 'utf8',
+      windowsHide: true,
+    }).stdout || '',
+}: {
+  platform?: NodeJS.Platform;
+  whoamiGroups?: () => string;
+} = {}): boolean {
+  if (platform !== 'win32') return false;
+  try {
+    return ELEVATED_INTEGRITY.test(whoamiGroups());
+  } catch {
+    // Unreadable: start Herdr as it always was started.
+    return false;
+  }
+}
+
+/**
+ * Whether a server started from here should admit ordinary clients.
+ *
+ * From Herdr 0.9.4 an elevated server admits only administrator clients. One
+ * herdr-remote starts as administrator would then turn away the user's own
+ * terminal, which is not elevated, though the server is meant to be theirs:
+ * as administrator is only how the service happens to run. The flag gives
+ * back what every earlier Herdr did. A Herdr that cannot say its version is
+ * left without it, since one too old for the flag would not start at all.
+ */
+function admitUnelevatedClients(command: string, elevated = runningElevated()): boolean {
+  if (!elevated) return false;
+  const { version } = herdrVersion({ command });
+  return version !== null && compareVersions(version, UNELEVATED_CLIENTS_SINCE) >= 0;
+}
+
 /** The server's environment: the one a Herdr pane would give its client. */
 function serverEnv(
   socketPath: string | null | undefined,
@@ -159,19 +207,27 @@ function serverEnv(
 
 /**
  * The argv that starts Herdr's server: Herdr's own global arguments (a
- * `--session`, say) followed by `server`, wrapped in `systemd-run --scope` when
- * the caller is a systemd service.
+ * `--session`, say) followed by `server` and, when asked for, the flag that
+ * lets ordinary clients into an elevated server; wrapped in `systemd-run
+ * --scope` when the caller is a systemd service.
  */
 function serverCommand({
   command,
   args = [],
   inService = runningInSystemdService(),
+  allowUnelevated = false,
 }: {
   command: string;
   args?: string[];
   inService?: boolean;
+  allowUnelevated?: boolean;
 }): { file: string; args: string[] } {
-  const herdr = [command, ...args, 'server'];
+  const herdr = [
+    command,
+    ...args,
+    'server',
+    ...(allowUnelevated ? ['--allow-unelevated-clients'] : []),
+  ];
   if (!inService) return { file: herdr[0], args: herdr.slice(1) };
   return {
     file: 'systemd-run',
@@ -200,8 +256,13 @@ function launchHerdrServer({
   logPath,
   spawnProcess = spawn as SpawnProcess,
   inService,
-}: ServerLaunch & { spawnProcess?: SpawnProcess; inService?: boolean }): ChildProcess {
-  const { file, args: argv } = serverCommand({ command, args, inService });
+  allowUnelevated = admitUnelevatedClients(command),
+}: ServerLaunch & {
+  spawnProcess?: SpawnProcess;
+  inService?: boolean;
+  allowUnelevated?: boolean;
+}): ChildProcess {
+  const { file, args: argv } = serverCommand({ command, args, inService, allowUnelevated });
   ensureDir(path.dirname(logPath));
   const out = fs.openSync(logPath, 'a');
   let child: ChildProcess;
@@ -287,4 +348,13 @@ async function ensureHerdrServer({
   }
 }
 
-export { probeHerdrServer, runningInSystemdService, serverEnv, serverCommand, ensureHerdrServer };
+export {
+  admitUnelevatedClients,
+  ensureHerdrServer,
+  launchHerdrServer,
+  probeHerdrServer,
+  runningElevated,
+  runningInSystemdService,
+  serverCommand,
+  serverEnv,
+};

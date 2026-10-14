@@ -6,11 +6,14 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import {
+  admitUnelevatedClients,
+  ensureHerdrServer,
+  launchHerdrServer,
   probeHerdrServer,
+  runningElevated,
   runningInSystemdService,
   serverCommand,
   serverEnv,
-  ensureHerdrServer,
 } from '../src/herdr-server.js';
 import { tempDir } from './helpers.js';
 
@@ -95,6 +98,82 @@ test('a Windows Herdr that refuses this process as unelevated says how to let it
   assert.equal(unix.state, 'unavailable');
   assert.equal(unix.elevated, undefined);
   assert.doesNotMatch(unix.reason, /administrator/);
+});
+
+test('an administrator token is told from an ordinary one by its integrity level', () => {
+  const groups = (level) => () =>
+    `"Everyone","Well-known group","S-1-1-0","Mandatory group"\r\n"Mandatory Label\\${level}","Label","${
+      { medium: 'S-1-16-8192', high: 'S-1-16-12288', system: 'S-1-16-16384' }[level]
+    }",""\r\n`;
+  assert.equal(runningElevated({ platform: 'win32', whoamiGroups: groups('medium') }), false);
+  assert.equal(runningElevated({ platform: 'win32', whoamiGroups: groups('high') }), true);
+  assert.equal(runningElevated({ platform: 'win32', whoamiGroups: groups('system') }), true);
+  assert.equal(runningElevated({ platform: 'linux', whoamiGroups: groups('high') }), false);
+  assert.equal(
+    runningElevated({
+      platform: 'win32',
+      whoamiGroups: () => {
+        throw new Error('no whoami');
+      },
+    }),
+    false,
+  );
+});
+
+/** A stub `herdr` whose `--version` prints `line`. */
+function versionStub(t, line) {
+  const binary = path.join(tempDir(t, 'herdr-version-'), 'herdr');
+  fs.writeFileSync(binary, `#!/bin/sh\necho "${line}"\n`, { mode: 0o755 });
+  return binary;
+}
+
+test.runIf(process.platform !== 'win32')(
+  'an elevated herdr-remote lets ordinary clients into the Herdr it starts, when that Herdr can',
+  (t) => {
+    // From 0.9.4 an elevated server admits only administrator clients, which
+    // would lock the user's own terminal out of the server started for them.
+    assert.equal(admitUnelevatedClients(versionStub(t, 'herdr 0.9.4'), true), true);
+    assert.equal(admitUnelevatedClients(versionStub(t, 'herdr 0.10.0'), true), true);
+    // An older Herdr refuses the flag and would not start at all.
+    assert.equal(admitUnelevatedClients(versionStub(t, 'herdr 0.9.3'), true), false);
+    assert.equal(admitUnelevatedClients(versionStub(t, ''), true), false);
+    // Started as an ordinary user, Herdr is not elevated and needs nothing.
+    assert.equal(admitUnelevatedClients(versionStub(t, 'herdr 0.9.4'), false), false);
+  },
+);
+
+test("the flag follows `server`, after Herdr's own global arguments", (t) => {
+  assert.deepEqual(
+    serverCommand({
+      command: 'C:\\herdr.exe',
+      args: ['--session', 'work'],
+      inService: false,
+      allowUnelevated: true,
+    }),
+    {
+      file: 'C:\\herdr.exe',
+      args: ['--session', 'work', 'server', '--allow-unelevated-clients'],
+    },
+  );
+
+  let spawned = null;
+  launchHerdrServer({
+    command: 'C:\\herdr.exe',
+    socketPath: 'herdr',
+    logPath: path.join(tempDir(t, 'herdr-launch-'), 'herdr-server.log'),
+    inService: false,
+    allowUnelevated: true,
+    spawnProcess: (file, args) => {
+      spawned = { file, args };
+      const child = new EventEmitter();
+      child.unref = () => {};
+      return child;
+    },
+  });
+  assert.deepEqual(spawned, {
+    file: 'C:\\herdr.exe',
+    args: ['server', '--allow-unelevated-clients'],
+  });
 });
 
 test('only a process running as a systemd service wraps Herdr in a scope of its own', () => {
