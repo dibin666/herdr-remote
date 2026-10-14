@@ -56,12 +56,18 @@ export interface HerdrVersion {
  * large paste no longer disconnects the client — and pasting is how an image
  * reaches an agent from a phone.
  *
- * 0.9.3 because a browser types through escape sequences: 0.9.2 stopped a tap
- * on a pane from sending a stray Escape to a working agent and stopped mouse
- * reports split across reads from leaking into the shell, and it also broke
- * Escape followed by a key — Alt+B, Alt+F, Alt+Backspace — which 0.9.3 mends.
+ * 0.9.2 stopped a tap on a pane from sending a stray Escape to a working agent
+ * and stopped mouse reports split across reads from leaking into the shell, but
+ * broke Escape followed by a key — Alt+B, Alt+F, Alt+Backspace, which is how a
+ * browser types them — and 0.9.3 mends that.
+ *
+ * 0.9.4 because a browser answers Herdr's colour queries across a relay: before
+ * it, replies that arrived late or in pieces leaked into the focused pane as
+ * text, or left the client waiting on them with typing frozen. It also starts a
+ * new tab or split at its own size instead of one borrowed from another pane,
+ * which a phone and a laptop sharing a workstation keep running into.
  */
-const MIN_HERDR_VERSION = '0.9.3';
+const MIN_HERDR_VERSION = '0.9.4';
 
 /** Where a user-level install lands, in the order we trust it. */
 const FALLBACK_DIRECTORIES = [
@@ -277,8 +283,8 @@ function herdrVersion({
 function herdrOutdatedMessage(version: string): string {
   return (
     `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. ` +
-    'Run "herdr update" — window titles, large pastes, taps on a pane and Alt shortcuts all ' +
-    'misbehave in browser windows before that release.'
+    'Run "herdr update" — window titles, large pastes, taps on a pane, Alt shortcuts and ' +
+    'typing over a slow link all misbehave in browser windows before that release.'
   );
 }
 

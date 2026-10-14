@@ -13,7 +13,7 @@ Your [Herdr](https://herdr.dev) workspaces in any browser, phone included. See w
 ### Requirements
 
 - Node.js ≥ 22
-- [Herdr](https://herdr.dev) ≥ 0.9.3
+- [Herdr](https://herdr.dev) ≥ 0.9.4
 
 ### Installation
 
