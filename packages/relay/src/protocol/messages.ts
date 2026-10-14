@@ -23,6 +23,8 @@ export const CAPABILITY = {
   adminTabs: 'admin_tabs',
   /** The host saves pasted files of any type, not just images. */
   pasteAnyFile: 'paste_any_file',
+  /** The relay hands a link the host opens to the window that clicked it. */
+  openLink: 'open_link',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
@@ -216,6 +218,12 @@ export interface ServerPasteFileReadyMessage {
   path: string;
 }
 
+/** A link this window clicked in Herdr, to open in this browser. */
+export interface ServerOpenLinkMessage {
+  type: 'open_link';
+  url: string;
+}
+
 /** Herdr's own vocabulary for what a pane's agent is doing. */
 export type AgentStatus = 'blocked' | 'done' | 'working' | 'idle' | 'unknown';
 
@@ -303,6 +311,7 @@ export type ServerJsonMessage =
   | ServerErrorMessage
   | ServerPongMessage
   | ServerPasteFileReadyMessage
+  | ServerOpenLinkMessage
   | ServerAgentStatusMessage
   | ServerUpdateStatusMessage;
 
@@ -383,6 +392,15 @@ export interface HostPasteFileReadyMessage extends StreamAddressed {
   path: string;
 }
 
+/**
+ * A link the Herdr client in this stream's PTY asked to open: the window
+ * behind the stream clicked it, so that browser is where it belongs.
+ */
+export interface HostOpenLinkMessage extends StreamAddressed {
+  type: 'open_link';
+  url: string;
+}
+
 export interface HostErrorMessage extends StreamAddressed {
   type: 'error';
   code: string;
@@ -407,6 +425,7 @@ export type HostMessage =
   | HostFontChunkMessage
   | HostFontSubsetMessage
   | HostPasteFileReadyMessage
+  | HostOpenLinkMessage
   | HostErrorMessage;
 
 // ---------------------------------------------------------------------------
@@ -418,6 +437,8 @@ export interface RelayHostReadyMessage {
   protocol: 1;
   hostId: string;
   clientCount: number;
+  /** What this relay does for hosts; older relays leave it out. */
+  capabilities?: string[];
 }
 
 /** How many browsers watch; the host stops its telemetry at zero. */

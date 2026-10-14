@@ -265,6 +265,21 @@ describe('HerdrClientAdapter Protocol', () => {
     expect(exitListener).toHaveBeenCalledWith(0, 'Normal exit');
   });
 
+  it('hands a link Herdr opened for this window to its listener', async () => {
+    const adapter = new HerdrClientAdapter(baseConfig);
+    const linkListener = vi.fn();
+    adapter.on('openLink', linkListener);
+
+    adapter.connect();
+    await new Promise((r) => setTimeout(r, 20));
+
+    MockWebSocket.instances[0].simulateServerJson({
+      type: 'open_link',
+      url: 'https://example.com/pull/7',
+    });
+    expect(linkListener).toHaveBeenCalledWith('https://example.com/pull/7');
+  });
+
   it('receives binary frames and dispatches to binaryData listener', async () => {
     const adapter = new HerdrClientAdapter(baseConfig);
     const binaryListener = vi.fn();

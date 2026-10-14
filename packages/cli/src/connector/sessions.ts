@@ -79,6 +79,8 @@ export interface SessionsOptions {
   probeHerdr?: (socketPath: string) => Promise<ServerProbe>;
   ensureHerdr?: (launch: ServerLaunch) => Promise<{ started: boolean }>;
   herdrLogPath: string;
+  /** Extra variables for one window's Herdr client, by its stream. */
+  clientEnv?: (streamId: string) => Record<string, string>;
 }
 
 export class Sessions {
@@ -104,6 +106,7 @@ export class Sessions {
   private readonly Pty: typeof PtySession;
   private readonly probeHerdr: (socketPath: string) => Promise<ServerProbe>;
   private readonly ensureHerdr: (launch: ServerLaunch) => Promise<{ started: boolean }>;
+  private readonly clientEnv: (streamId: string) => Record<string, string>;
   private readonly link: SessionLink;
 
   constructor(options: SessionsOptions, link: SessionLink) {
@@ -117,6 +120,7 @@ export class Sessions {
     this.Pty = options.PtySession || PtySession;
     this.probeHerdr = options.probeHerdr || probeHerdrServer;
     this.ensureHerdr = options.ensureHerdr || ensureHerdrServer;
+    this.clientEnv = options.clientEnv || (() => ({}));
     this.link = link;
   }
 
@@ -275,6 +279,7 @@ export class Sessions {
       args: this.herdrArgs,
       cwd: this.cwd,
       socketPath: this.socketPath,
+      env: this.clientEnv(streamId),
     });
     const session: LiveSession = {
       id: streamId,

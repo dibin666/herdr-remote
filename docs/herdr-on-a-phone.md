@@ -81,5 +81,6 @@ You do not have to configure these:
 - the agent chip in the status bar reports blocked, done and working counts read
   from Herdr's socket API, so finding a blocked agent does not mean driving the
   sidebar. On a phone it shows only the most urgent of the three;
-- a long-press on a URL offers to open it **on the phone**, rather than on the
-  workstation the way Herdr's own link handling does.
+- a long-press on a URL offers to open it **on the phone**, and a link
+  Ctrl-clicked in Herdr opens in the browser window that clicked it rather
+  than on the workstation's desktop (Linux and macOS workstations).

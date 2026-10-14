@@ -53,6 +53,26 @@ test('non-Windows PTYs do not set a ConPTY option', (t) => {
   assert.equal(Object.hasOwn(spawnOptions, 'useConptyDll'), false);
 });
 
+test("a window's own variables survive the Herdr variables being cleared", (t) => {
+  let spawnOptions;
+  const session = new PtySession({
+    command: 'herdr',
+    platform: 'linux',
+    env: { PATH: '/links:/usr/bin', HERDR_REMOTE_LINK_STREAM: 'session-1' },
+    spawn: (_command, _args, options) => {
+      spawnOptions = options;
+      return fakeTerminal();
+    },
+  });
+  t.onTestFinished(() => session.kill());
+
+  session.start({});
+
+  assert.equal(spawnOptions.env.PATH, '/links:/usr/bin');
+  assert.equal(spawnOptions.env.HERDR_REMOTE_LINK_STREAM, 'session-1');
+  assert.equal(spawnOptions.env.TERM, 'xterm-256color');
+});
+
 test('the Herdr client is not told it draws in the terminal that started herdr-remote', () => {
   // Herdr 0.9.2+ sends images as local file paths to a client that believes
   // it runs in Ghostty, kitty or WezTerm; the browser can open none of them.

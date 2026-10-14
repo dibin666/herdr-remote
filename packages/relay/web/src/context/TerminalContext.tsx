@@ -21,6 +21,7 @@ import type { ConnectionConfig } from '@/connection/types';
 import { resolveProfile } from '@/features/agents/agentKeymaps';
 import type { ShellProfile } from '@/features/keyboard/shellProfile';
 import { clampFontSize } from '@/features/terminal/terminalLayout';
+import { openTerminalLink } from '@/features/terminal/terminalLinks';
 import { applyDocumentTheme, resolveTerminalFontFamily } from '@/features/terminal/theme';
 import { useHostFont } from '@/features/hostFont/useHostFont';
 import { installWakeListeners } from '@/connection/wakeListeners';
@@ -228,6 +229,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       completeUpload();
       input.notifyPasteFileReady(path);
     },
+    openLink: (url) => openTerminalLink(url),
     rttUpdate: (rttMs) => dispatch({ type: 'rtt', rttMs }),
     peerCount: (count) => dispatch({ type: 'peerCount', count }),
     sessionReady: () => {

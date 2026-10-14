@@ -60,6 +60,8 @@ export type AdapterEventMap = {
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
   pasteFileReady: (path: string) => void;
+  /** A link this window clicked in Herdr, which Herdr asked to open. */
+  openLink: (url: string) => void;
   /** What the workstation's agents are doing; broadcast, not stream-scoped. */
   agentStatus: (status: ServerAgentStatusMessage) => void;
   /** Whether the workstation's herdr-remote has a newer release; broadcast. */
@@ -94,6 +96,7 @@ export class AdapterEvents {
     binaryData: new Set(),
     rttUpdate: new Set(),
     pasteFileReady: new Set(),
+    openLink: new Set(),
     agentStatus: new Set(),
     updateStatus: new Set(),
     terminalFont: new Set(),

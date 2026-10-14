@@ -925,3 +925,57 @@ test('a check that fails says nothing', async (t) => {
     false,
   );
 });
+
+test.runIf(process.platform !== 'win32')(
+  "a window's Herdr client hands its links back to that window once the relay can take them",
+  async (t) => {
+    const links = { directory: fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-links-')) };
+    const envs = new Map();
+    class EnvPty {
+      constructor(options) {
+        this.options = options;
+        this.terminal = { pid: 1 };
+      }
+      start() {
+        envs.set(this.options.env.HERDR_REMOTE_LINK_STREAM ?? 'none', this.options.env);
+        return this;
+      }
+      resize() {}
+      kill() {}
+    }
+    const { connector, sent } = herdrLessConnector(t, {
+      PtySession: EnvPty,
+      probeHerdr: async () => ({ state: 'running' }),
+      links,
+    });
+    t.onTestFinished(() => fs.rmSync(links.directory, { recursive: true, force: true }));
+    const socketServer = net.createServer();
+    await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
+    t.onTestFinished(() => socketServer.close());
+    const start = (streamId) =>
+      connector.handleMessage(
+        JSON.stringify({ type: 'session_start', streamId, cols: 80, rows: 24 }),
+      );
+
+    // A relay from before open_link would drop the link: open it here as before.
+    connector.handleMessage(JSON.stringify({ type: 'host_ready', clientCount: 1 }));
+    await start('session-old');
+    assert.deepEqual([...envs.keys()], ['none']);
+
+    connector.handleMessage(
+      JSON.stringify({ type: 'host_ready', clientCount: 1, capabilities: ['open_link'] }),
+    );
+    await start('session-1');
+    const env = envs.get('session-1');
+    assert.equal(env.PATH.split(path.delimiter)[0], connector.links.shimDir);
+    assert.equal(env.HERDR_REMOTE_LINK_SOCKET, connector.links.socketPath);
+
+    const { runLinkShim } = await import('../src/connector/link-shim.js');
+    const shim = path.join(connector.links.shimDir, 'xdg-open');
+    assert.equal(await runLinkShim([shim, 'https://example.com/'], { env, run: () => 1 }), 0);
+    assert.deepEqual(
+      sent.filter((message) => message.type === 'open_link'),
+      [{ type: 'open_link', clientId: 'session-1', url: 'https://example.com/' }],
+    );
+  },
+);

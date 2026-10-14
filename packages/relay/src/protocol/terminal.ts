@@ -1,5 +1,6 @@
-// The workstation's terminal palette and font, as a host reports them and a
-// browser receives them. Browser-safe: no Node APIs, so the web app imports it.
+// The workstation's terminal palette and font, and the links its terminals
+// open, as a host reports them and a browser receives them. Browser-safe: no
+// Node APIs, so the web app imports it.
 
 /**
  * The sixteen ANSI slots a host may report, in index order. A palette is
@@ -204,4 +205,25 @@ export function sanitizeTerminalFont(value: unknown): HostTerminalFont | null {
     faces,
     subsets,
   };
+}
+
+/** Longer than any link a person clicks; anything longer is not one. */
+export const OPEN_LINK_MAX_CHARS = 8_192;
+
+/**
+ * Validates a link the workstation's Herdr asked to open.
+ *
+ * Herdr itself only opens web links, and a browser handed anything else —
+ * `javascript:`, `file:`, a custom scheme — would run or reveal something the
+ * click never meant to, so only `http` and `https` survive.
+ */
+export function sanitizeOpenLinkUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > OPEN_LINK_MAX_CHARS) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  return url.protocol === 'http:' || url.protocol === 'https:' ? value : null;
 }
