@@ -59,6 +59,10 @@ Register as a native Herdr plugin:
 herdr-remote plugin link
 ```
 
+The plugin is linked to the npm install rather than installed from GitHub, so `herdr plugin update`
+(Herdr 0.9.4+) skips it. Update it with `herdr-remote update`; the link follows the install
+directory, and Herdr picks up the new release without relinking.
+
 ## Configuration
 
 - Settings: `~/.config/herdr-remote/config.json`

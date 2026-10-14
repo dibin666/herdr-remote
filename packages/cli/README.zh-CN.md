@@ -50,6 +50,8 @@ herdr-remote --lang zh|en
 herdr-remote plugin link
 ```
 
+插件是链接到 npm 安装目录的，并非从 GitHub 安装，因此 `herdr plugin update`（Herdr 0.9.4+）会跳过它。请用 `herdr-remote update` 更新；链接指向安装目录，Herdr 无需重新链接即可用上新版本。
+
 ## 配置路径
 
 - 配置文件：`~/.config/herdr-remote/config.json`
