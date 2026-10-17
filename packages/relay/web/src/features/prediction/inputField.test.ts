@@ -22,9 +22,9 @@ type Expected = null | {
 };
 
 /**
- * What each screen captured from Herdr 0.9.4 (Codex: 0.9.3) should be read as.
- * Expectations live here rather than in the fixtures so re-capturing screens
- * can never quietly rewrite them.
+ * What each screen captured from Herdr 0.9.5 (Codex's trust menu: 0.9.3) should
+ * be read as. Expectations live here rather than in the fixtures so re-capturing
+ * screens can never quietly rewrite them.
  */
 const EXPECTED: Record<string, Expected> = {
   'desktop-claude-empty': { kind: 'rule', startCol: 28, endCol: 120, vimInsert: true },
@@ -42,10 +42,10 @@ const EXPECTED: Record<string, Expected> = {
   'desktop-claude-bang-typed': { kind: 'rule', startCol: 28, endCol: 120, vimInsert: true },
   'desktop-claude-model-menu': null,
   'desktop-claude-trust': null,
-  'desktop-codex-empty': { kind: 'prompt', startCol: 28, endCol: 119 },
-  'desktop-codex-typed': { kind: 'prompt', startCol: 28, endCol: 119 },
+  'desktop-codex-empty': { kind: 'prompt', startCol: 28, endCol: 120 },
+  'desktop-codex-typed': { kind: 'prompt', startCol: 28, endCol: 120 },
   // Codex wraps its text onto rows indented under it.
-  'desktop-codex-wrapped': { kind: 'prompt', startCol: 28, endCol: 119 },
+  'desktop-codex-wrapped': { kind: 'prompt', startCol: 28, endCol: 120 },
   'desktop-codex-trust': null,
   'desktop-fish-empty': { kind: 'prompt', startCol: 73, endCol: 120 },
   'desktop-fish-typed': { kind: 'prompt', startCol: 73, endCol: 120 },
