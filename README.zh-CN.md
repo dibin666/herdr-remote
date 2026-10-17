@@ -13,7 +13,7 @@
 ### 运行环境
 
 - Node.js ≥ 22
-- [Herdr](https://herdr.dev) ≥ 0.9.4
+- [Herdr](https://herdr.dev) ≥ 0.9.5
 
 ### 安装与运行
 
