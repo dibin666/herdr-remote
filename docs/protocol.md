@@ -291,11 +291,13 @@ focused pane, and a large paste no longer disconnects the client — which is th
 path an image takes from a phone. 0.9.2 stopped a tap on a pane from sending a
 stray Escape and stopped mouse reports split across reads from leaking into the
 shell, but broke Escape followed by a key, which is how a browser sends Alt+B,
-Alt+F and Alt+Backspace; 0.9.3 mends it. The minimum this project supports is
-0.9.4: a browser answers Herdr's colour queries across a relay, and before
-0.9.4 a reply that arrived late or in pieces leaked into the focused pane as
-text or left the client waiting with typing frozen. 0.9.4 also starts a new tab
-or split at its own size rather than one borrowed from another pane.
+Alt+F and Alt+Backspace; 0.9.3 mends it. A browser answers Herdr's colour
+queries across a relay, and before 0.9.4 a reply that arrived late or in pieces
+leaked into the focused pane as text or left the client waiting with typing
+frozen; 0.9.4 also starts a new tab or split at its own size rather than one
+borrowed from another pane. The minimum this project supports is 0.9.5: a
+blocked agent is what a phone gets alerted for, and before 0.9.5 a Claude Code
+question in a named session never showed as blocked.
 
 Each PTY's outer terminal is the browser's xterm.js, not the terminal that
 started herdr-remote, so the host connector strips the variables that name an

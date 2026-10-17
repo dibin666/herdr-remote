@@ -61,13 +61,16 @@ export interface HerdrVersion {
  * broke Escape followed by a key — Alt+B, Alt+F, Alt+Backspace, which is how a
  * browser types them — and 0.9.3 mends that.
  *
- * 0.9.4 because a browser answers Herdr's colour queries across a relay: before
- * it, replies that arrived late or in pieces leaked into the focused pane as
- * text, or left the client waiting on them with typing frozen. It also starts a
- * new tab or split at its own size instead of one borrowed from another pane,
- * which a phone and a laptop sharing a workstation keep running into.
+ * 0.9.4 stopped colour-query replies that cross a relay late or in pieces from
+ * leaking into the focused pane or freezing typing, and starts a new tab or
+ * split at its own size instead of one borrowed from another pane.
+ *
+ * 0.9.5 because a blocked agent is what a phone gets alerted for: before it, a
+ * Claude Code question in a named session never showed as blocked, so no
+ * alert fired. It also stops every Codex session from starting with a hook
+ * timeout warning.
  */
-const MIN_HERDR_VERSION = '0.9.4';
+const MIN_HERDR_VERSION = '0.9.5';
 
 /** Where a user-level install lands, in the order we trust it. */
 const FALLBACK_DIRECTORIES = [
@@ -283,8 +286,8 @@ function herdrVersion({
 function herdrOutdatedMessage(version: string): string {
   return (
     `Herdr ${version} is older than ${MIN_HERDR_VERSION}, which herdr-remote is written against. ` +
-    'Run "herdr update" — window titles, large pastes, taps on a pane, Alt shortcuts and ' +
-    'typing over a slow link all misbehave in browser windows before that release.'
+    'Run "herdr update" — window titles, large pastes, taps on a pane, Alt shortcuts, ' +
+    'typing over a slow link and agent alerts all misbehave in browser windows before that release.'
   );
 }
 
