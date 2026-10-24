@@ -305,9 +305,16 @@ outer terminal (`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WT_SESSION`, `TMUX`, …)
 before it starts a Herdr client — the same list Herdr strips from its own
 panes. From 0.9.2 on a Herdr client reads them to decide whether it may hand
 images to its terminal as local files; a client that believed it was drawing
-in Ghostty would send the browser file paths instead of pixels. Herdr still
-forwards images to the browser as Kitty graphics, which xterm.js does not
-draw and discards.
+in Ghostty would send the browser file paths instead of pixels. With
+`kitty_graphics = true` under `[experimental]` in Herdr's config, Herdr
+forwards pane images to the browser as Kitty graphics: pixels sent inline,
+then placed at absolute cell positions. xterm.js has no hook for APC
+sequences, so the web client renames each graphics command's introducer to a
+private OSC before the bytes reach xterm, and draws the images on a canvas
+above the text. It answers Herdr's cell-size query (`CSI 16 t`) too, which
+Herdr needs to size images in cells without stretching them. Images Herdr
+hands over as files on the host (`t=f`, `t=t`, `t=s`) cannot be read from a
+browser and are ignored.
 
 One caveat inherited from Herdr: when two windows sit on the *same* tab, that
 tab is sized by whichever client interacted with it last. Independent sizing

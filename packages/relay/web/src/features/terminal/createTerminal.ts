@@ -36,6 +36,9 @@ export function createTerminal({
     cols,
     rows,
     screenReaderMode: false,
+    // Herdr sizes a pane's images in cells from the cell size this reports;
+    // without it, it guesses one and stretches them.
+    windowOptions: { getCellSizePixels: true },
     // An OSC 8 hyperlink resolves in *this* browser. Herdr would open it on
     // the workstation, which is no use to the phone reading it.
     linkHandler: {

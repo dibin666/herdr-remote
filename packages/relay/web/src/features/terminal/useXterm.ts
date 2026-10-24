@@ -29,6 +29,7 @@ import type { hostPaletteToTheme } from './theme';
 import { writeBanner } from './banner';
 import { createTerminal } from './createTerminal';
 import { attachGestureInput, type GestureSelection } from './gestureInput';
+import { attachTerminalImages, type TerminalImages } from './images/attachTerminalImages';
 import type { TouchDebugUpdate } from './touchDebug';
 import type { usePredictiveEcho } from '@/features/prediction/usePredictiveEcho';
 import type { useTerminalFit } from './useTerminalFit';
@@ -121,6 +122,7 @@ export function useXterm({
   onRendererKind: (kind: string) => void;
 }): void {
   const { requestFit, scheduleBoundedFit, fitNow, seedFit, cancelPendingFits } = fit;
+  const imagesRef = useRef<TerminalImages | null>(null);
 
   // Initialize Terminal instance
   // biome-ignore lint/correctness/useExhaustiveDependencies: the terminal is created once; later changes reach it through the effects below
@@ -221,6 +223,8 @@ export function useXterm({
     // Herdr closed a frame whose pieces the renderer held back: draw it whole, now.
     const syncEndDispose = screenState.onSyncEnd(() => rendererRef.current?.canvas?.flushHeld());
     rendererRef.current = renderer;
+    const images = attachTerminalImages(term);
+    imagesRef.current = images;
     container.dataset.renderer = renderer.kind;
     onRendererKind(renderer.kind);
 
@@ -376,6 +380,8 @@ export function useXterm({
       removeTouchDebugFocusListeners();
       term.textarea?.removeEventListener('paste', handleNativePaste);
       container.removeEventListener('paste', handleNativePaste);
+      images.dispose();
+      imagesRef.current = null;
       renderer.dispose();
       rendererRef.current = null;
       term.dispose();
@@ -428,6 +434,7 @@ export function useXterm({
     if (appliedResetVersionRef.current === terminalResetVersion) return;
     appliedResetVersionRef.current = terminalResetVersion;
     prediction.forget('resetVersion');
+    imagesRef.current?.reset();
     const term = termRef.current as (Terminal & { reset?: () => void }) | null;
     if (!term) return;
     try {
@@ -457,7 +464,7 @@ export function useXterm({
       if (!term) {
         throw new Error('terminal not ready');
       }
-      term.write(data);
+      term.write(imagesRef.current?.rewrite(data) ?? data);
       onOutput?.(data.byteLength);
     });
 
