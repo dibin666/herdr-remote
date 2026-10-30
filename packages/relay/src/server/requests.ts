@@ -102,14 +102,17 @@ export function authorizedAdmin(relay: RelayContext, req: IncomingMessage): bool
 }
 
 /**
- * The left-most X-Forwarded-For entry, but only when `trustProxy` says a proxy
- * sits in front of the relay: otherwise any caller could write the header.
+ * The right-most X-Forwarded-For entry, but only when `trustProxy` says a
+ * proxy sits in front of the relay: otherwise any caller could write the
+ * header. Proxies append the address they saw to whatever the client sent, so
+ * only the last entry was written by our proxy; anything left of it is the
+ * client's to choose.
  */
 function forwardedFor(relay: RelayContext, req: IncomingMessage): string | null {
   if (!relay.trustProxy) return null;
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded !== 'string' || forwarded.length === 0) return null;
-  return forwarded.split(',')[0].trim() || null;
+  return forwarded.split(',').at(-1)?.trim() || null;
 }
 
 /**
@@ -127,6 +130,15 @@ export function clientAddress(relay: RelayContext, req: IncomingMessage): string
   return forwardedFor(relay, req) || req.socket.remoteAddress || null;
 }
 
+const ATTEMPT_WINDOW_MS = 60_000;
+
+/**
+ * Wrong pairing codes the whole relay accepts per window, however many
+ * addresses they come from. Per-address limits alone do not bound an attacker
+ * holding many addresses, and every guess is checked against every live code.
+ */
+const MAX_PAIR_FAILURES_PER_WINDOW = 120;
+
 function allowAttempt(
   relay: RelayContext,
   store: Map<string, AttemptWindow>,
@@ -136,7 +148,7 @@ function allowAttempt(
   const key = rateLimitKey(relay, req);
   const now = Date.now();
   const current = store.get(key);
-  if (!current || now - current.startedAt >= 60_000) {
+  if (!current || now - current.startedAt >= ATTEMPT_WINDOW_MS) {
     // Bound the map even when an attacker rotates source addresses. Expired
     // entries are removed by sweep; the oldest live entry is the least
     // useful one to retain when the cap is reached.
@@ -154,6 +166,21 @@ function allowAttempt(
 
 export function allowPairAttempt(relay: RelayContext, req: IncomingMessage): boolean {
   return allowAttempt(relay, relay.pairAttempts, req, 20);
+}
+
+/** Whether a browser may try a pairing code now. */
+export function allowPairGuess(relay: RelayContext, req: IncomingMessage): boolean {
+  const failures = relay.pairFailures;
+  if (Date.now() - failures.startedAt >= ATTEMPT_WINDOW_MS) {
+    failures.startedAt = Date.now();
+    failures.count = 0;
+  }
+  if (failures.count >= MAX_PAIR_FAILURES_PER_WINDOW) return false;
+  return allowPairAttempt(relay, req);
+}
+
+export function recordPairFailure(relay: RelayContext): void {
+  relay.pairFailures.count += 1;
 }
 
 export function allowClientHandshake(relay: RelayContext, req: IncomingMessage): boolean {

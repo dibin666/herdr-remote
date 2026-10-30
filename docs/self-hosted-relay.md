@@ -87,7 +87,7 @@ A systemd unit is included: see `deploy/systemd/` in the package.
 | `RELAY_ADMIN_TOKEN` | *(none)* | Operator token for the relay dashboard at `/admin` |
 | `RELAY_BIND` | `127.0.0.1` | Listen address (`0.0.0.0` in Docker) |
 | `RELAY_PORT` | `8787` | Listen port |
-| `RELAY_TRUST_PROXY` | `0` | Set to `1` behind a reverse proxy |
+| `RELAY_TRUST_PROXY` | `0` | Set to `1` behind one reverse proxy that appends to `X-Forwarded-For`; the relay uses the right-most entry |
 | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | Device records |
 | `RELAY_ALLOWED_ORIGINS` | *(same-origin)* | Extra browser origins, comma separated |
 | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | Browsers per workstation |

@@ -18,7 +18,12 @@ import {
   sanitizePasteFileName,
 } from '../protocol/index.js';
 import { requestFontChunk, requestFontSubset } from './font-proxy.js';
-import { allowClientHandshake, allowPairAttempt, clientAddress } from './requests.js';
+import {
+  allowClientHandshake,
+  allowPairGuess,
+  clientAddress,
+  recordPairFailure,
+} from './requests.js';
 import {
   MIN_SESSION_COLS,
   MIN_SESSION_ROWS,
@@ -103,9 +108,10 @@ export function handleClientConnection(
       let device: { deviceId: string; hostId: string } | null = null;
       let paired: ReturnType<typeof relay.auth.completePairing> = null;
       if (message.pairCode) {
-        if (!allowPairAttempt(relay, req))
+        if (!allowPairGuess(relay, req))
           return rejectHandshake(ws, 'too many pairing attempts', 'rate_limited');
         paired = relay.auth.completePairing(message.pairCode);
+        if (!paired) recordPairFailure(relay);
       }
       if (paired) device = paired;
       else if (message.token) device = relay.auth.authenticateDevice(message.token);

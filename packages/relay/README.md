@@ -41,7 +41,7 @@ docker run -d --name herdr-relay --restart unless-stopped \
 | `--admin-token` | `RELAY_ADMIN_TOKEN` | *(empty)* | Operator token for `/admin` |
 | `--bind` | `RELAY_BIND` | `127.0.0.1` | Listen address |
 | `--port` | `RELAY_PORT` | `8787` | Listen port |
-| `--trust-proxy` | `RELAY_TRUST_PROXY` | `0` | Trust `X-Forwarded-For` header (`1` behind proxy) |
+| `--trust-proxy` | `RELAY_TRUST_PROXY` | `0` | Trust the right-most `X-Forwarded-For` entry (`1` behind one proxy) |
 | `--state-file` | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | Auth state file path |
 | `--allowed-origins` | `RELAY_ALLOWED_ORIGINS` | *(same-origin)* | Allowed CORS origins, comma-separated |
 | `--max-clients` | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | Maximum browser clients per host |

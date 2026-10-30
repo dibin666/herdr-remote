@@ -83,7 +83,7 @@ Relay 与 `herdr-remote` 一起发布、使用同一个版本号：每个 GitHub
 | `RELAY_ADMIN_TOKEN` | *（无）* | `/admin` relay 管理面板使用的操作员令牌 |
 | `RELAY_BIND` | `127.0.0.1` | 监听地址（Docker 里用 `0.0.0.0`） |
 | `RELAY_PORT` | `8787` | 监听端口 |
-| `RELAY_TRUST_PROXY` | `0` | 有反向代理时设为 `1` |
+| `RELAY_TRUST_PROXY` | `0` | 前面有一层会追加 `X-Forwarded-For` 的反向代理时设为 `1`；relay 取最右边一项 |
 | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | 设备记录 |
 | `RELAY_ALLOWED_ORIGINS` | *（仅同源）* | 额外允许的浏览器来源，逗号分隔 |
 | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | 每台工作站允许的浏览器数 |
