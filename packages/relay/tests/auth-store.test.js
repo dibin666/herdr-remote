@@ -123,3 +123,23 @@ test('re-authenticating an enrolled host still needs the relay password', () => 
     'relay_password_required',
   );
 });
+
+test('one host pairing past the device cap only evicts its own oldest devices', (t) => {
+  const { store, directory } = makeStore({ maxDevices: 32, deviceTtlMs: 60_000 });
+  t.onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const now = 4_000_000;
+  store.registerHost('host-alice', 'alice-secret-123456789', null, now);
+  store.registerHost('host-mallory', 'mallory-secret-1234567', null, now);
+  const pairDevice = (hostId, at) =>
+    store.completePairing(store.startPairing(hostId, 'http://localhost', at).code, at);
+
+  const alice = pairDevice('host-alice', now);
+  const mallory = [];
+  for (let i = 1; i <= 33; i += 1) mallory.push(pairDevice('host-mallory', now + i));
+
+  assert.equal(store.authenticateDevice(alice.token, now + 100)?.deviceId, alice.deviceId);
+  assert.equal(store.authenticateDevice(mallory[0].token, now + 100), null);
+  assert.equal(store.authenticateDevice(mallory[1].token, now + 100)?.hostId, 'host-mallory');
+  assert.equal(store.authenticateDevice(mallory[32].token, now + 100)?.hostId, 'host-mallory');
+  assert.equal(store.deviceCount(), 33);
+});

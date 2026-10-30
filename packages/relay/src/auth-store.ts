@@ -253,10 +253,15 @@ class AuthStore {
       return null;
     this.pairings.delete(normalized);
 
-    const devices = Object.values(this.state.devices);
-    if (devices.length >= this.maxDevices) {
-      devices.sort((a, b) => (a.lastSeenAt || '').localeCompare(b.lastSeenAt || ''));
-      delete this.state.devices[devices[0].deviceId];
+    // The cap is per host: on a shared relay, one workstation pairing many
+    // devices must only push out its own oldest devices, never another's.
+    const hostDevices = Object.values(this.state.devices)
+      .filter((device) => device.hostId === pairing.hostId)
+      .sort((a, b) => (a.lastSeenAt || '').localeCompare(b.lastSeenAt || ''));
+    const excess = hostDevices.length - this.maxDevices + 1;
+    for (const device of hostDevices.slice(0, Math.max(0, excess))) {
+      delete this.state.devices[device.deviceId];
+      this.lastDeviceSaveAt.delete(device.deviceId);
     }
     const deviceId = `device-${randomToken(9)}`;
     const token = randomToken(32);
