@@ -122,6 +122,8 @@ export interface RelayContext {
   /** Stream id → client id. */
   streams: Map<string, string>;
   pairAttempts: Map<string, AttemptWindow>;
+  /** Wrong pairing codes relay-wide in the current window. */
+  pairFailures: AttemptWindow;
   clientHandshakeAttempts: Map<string, AttemptWindow>;
   hostHandshakeAttempts: Map<string, AttemptWindow>;
   startedAt: number;

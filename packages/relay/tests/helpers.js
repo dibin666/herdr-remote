@@ -31,9 +31,10 @@ export function relayConfig({
   };
 }
 
-export function openWebSocket(url) {
+/** `options` go to the `ws` client, e.g. `{ headers }` a proxy would add. */
+export function openWebSocket(url, options = {}) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, options);
     ws.once('open', () => resolve(ws));
     ws.once('error', reject);
   });

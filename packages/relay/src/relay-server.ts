@@ -53,6 +53,7 @@ class RelayServer implements RelayContext {
   clients = new Map<string, RelayClient>();
   streams = new Map<string, string>();
   pairAttempts = new Map<string, AttemptWindow>();
+  pairFailures: AttemptWindow = { startedAt: 0, count: 0 };
   clientHandshakeAttempts = new Map<string, AttemptWindow>();
   hostHandshakeAttempts = new Map<string, AttemptWindow>();
   /** Sockets that are upgraded but have not finished their hello. */

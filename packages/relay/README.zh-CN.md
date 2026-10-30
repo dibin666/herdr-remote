@@ -41,7 +41,7 @@ docker run -d --name herdr-relay --restart unless-stopped \
 | `--admin-token` | `RELAY_ADMIN_TOKEN` | *(空)* | `/admin` 管理后台操作员令牌 |
 | `--bind` | `RELAY_BIND` | `127.0.0.1` | 监听地址 |
 | `--port` | `RELAY_PORT` | `8787` | 监听端口 |
-| `--trust-proxy` | `RELAY_TRUST_PROXY` | `0` | 信任 `X-Forwarded-For` 头（反代后设为 `1`） |
+| `--trust-proxy` | `RELAY_TRUST_PROXY` | `0` | 信任 `X-Forwarded-For` 最右边一项（前面有一层反代时设为 `1`） |
 | `--state-file` | `RELAY_AUTH_STATE_FILE` | `~/.local/state/herdr-remote-relay/relay-auth.json` | 认证状态文件路径 |
 | `--allowed-origins` | `RELAY_ALLOWED_ORIGINS` | *(同源)* | 允许的跨域源，逗号分隔 |
 | `--max-clients` | `RELAY_MAX_CLIENTS_PER_HOST` | `16` | 每台工作站最大客户端连接数 |

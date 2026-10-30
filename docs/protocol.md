@@ -455,8 +455,10 @@ X-Herdr-Host-Token: ...
 
 The code is minted for that `hostId` and no other, so on a shared relay nobody
 can create a pairing code for a workstation they do not own. Attempts are rate
-limited per client address (per `X-Forwarded-For` when `RELAY_TRUST_PROXY` is
-set).
+limited per client address (the right-most `X-Forwarded-For` entry when
+`RELAY_TRUST_PROXY` is set, since only that one was written by the proxy), and
+wrong pairing codes are also capped relay-wide per minute, however many
+addresses they come from.
 
 Pairing and device records are stored as hashes; terminal content is never
 persisted by the relay.
