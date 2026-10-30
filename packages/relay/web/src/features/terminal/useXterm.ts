@@ -8,7 +8,7 @@ import type { Translate } from '@/shared/i18n';
 import { encodeKeyWithModifiers, encodeStringToBytes, isSingleKey } from '@/shared/keys/keyEncoder';
 import type { KeyModifiers } from '@/shared/keys/keyEncoder';
 import { isWheelOnlyInput } from '@/shared/keys/scrollInput';
-import { extractImageFromClipboardEvent } from '@/shared/lib/clipboard';
+import { copyText, extractImageFromClipboardEvent } from '@/shared/lib/clipboard';
 import { sanitizeTerminalTitle } from '@/features/agents/documentTitle';
 import { detectShellProfile, type ShellProfile } from '@/features/keyboard/shellProfile';
 import type { PreparedImagePaste } from '@/features/paste/imagePaste';
@@ -30,6 +30,7 @@ import { writeBanner } from './banner';
 import { createTerminal } from './createTerminal';
 import { attachGestureInput, type GestureSelection } from './gestureInput';
 import { attachTerminalImages, type TerminalImages } from './images/attachTerminalImages';
+import { attachOsc52Clipboard } from './osc52Clipboard';
 import type { TouchDebugUpdate } from './touchDebug';
 import type { usePredictiveEcho } from '@/features/prediction/usePredictiveEcho';
 import type { useTerminalFit } from './useTerminalFit';
@@ -225,6 +226,8 @@ export function useXterm({
     rendererRef.current = renderer;
     const images = attachTerminalImages(term);
     imagesRef.current = images;
+    // Writes a remote program emits on the escape path reach this clipboard.
+    const osc52 = attachOsc52Clipboard(term, (text) => void copyText(text));
     container.dataset.renderer = renderer.kind;
     onRendererKind(renderer.kind);
 
@@ -380,6 +383,7 @@ export function useXterm({
       removeTouchDebugFocusListeners();
       term.textarea?.removeEventListener('paste', handleNativePaste);
       container.removeEventListener('paste', handleNativePaste);
+      osc52.dispose();
       images.dispose();
       imagesRef.current = null;
       renderer.dispose();

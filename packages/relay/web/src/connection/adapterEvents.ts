@@ -62,6 +62,10 @@ export type AdapterEventMap = {
   pasteFileReady: (path: string) => void;
   /** A link this window clicked in Herdr, which Herdr asked to open. */
   openLink: (url: string) => void;
+  /** This window's session wrote to the clipboard; the text goes in this browser's. */
+  clipboardWrite: (text: string) => void;
+  /** This window's session wants this browser's clipboard text; answered by clipboard_read_reply. */
+  clipboardRead: (requestId: string) => void;
   /** What the workstation's agents are doing; broadcast, not stream-scoped. */
   agentStatus: (status: ServerAgentStatusMessage) => void;
   /** Whether the workstation's herdr-remote has a newer release; broadcast. */
@@ -97,6 +101,8 @@ export class AdapterEvents {
     rttUpdate: new Set(),
     pasteFileReady: new Set(),
     openLink: new Set(),
+    clipboardWrite: new Set(),
+    clipboardRead: new Set(),
     agentStatus: new Set(),
     updateStatus: new Set(),
     terminalFont: new Set(),

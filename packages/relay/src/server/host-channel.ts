@@ -9,6 +9,8 @@ import {
   type HostHelloMessage,
   type HostMessage,
   PROTOCOL_VERSION,
+  sanitizeClipboardRequestId,
+  sanitizeClipboardText,
   sanitizeHerdrPrefixKeys,
   sanitizeOpenLinkUrl,
   sanitizeTerminalFont,
@@ -181,7 +183,7 @@ export function handleHostConnection(
         protocol: PROTOCOL_VERSION,
         hostId: host.id,
         clientCount: host.clients.size,
-        capabilities: [CAPABILITY.openLink],
+        capabilities: [CAPABILITY.openLink, CAPABILITY.clipboardForward],
       });
       notifyHostClientCount(host);
       if (handoff) {
@@ -303,6 +305,16 @@ function handleHostMessage(
   } else if (message.type === 'open_link') {
     const url = sanitizeOpenLinkUrl(message.url);
     if (url) jsonSend(client.ws, { type: 'open_link', url });
+  } else if (message.type === 'clipboard_write') {
+    // A clipboard write belongs in the window that owns the stream, the same
+    // routing as a link that window clicked.
+    const text = sanitizeClipboardText(message.text);
+    if (text !== null) jsonSend(client.ws, { type: 'clipboard_write', text });
+  } else if (message.type === 'clipboard_read') {
+    // The request id is all the host needs back; the window reads its own
+    // clipboard and answers through clipboard_read_reply.
+    const requestId = sanitizeClipboardRequestId(message.requestId);
+    if (requestId) jsonSend(client.ws, { type: 'clipboard_read', requestId });
   } else if (message.type === 'error') {
     if (message.code === 'host_font_unavailable') {
       settleFontChunk(client);

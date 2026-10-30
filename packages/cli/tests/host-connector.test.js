@@ -947,7 +947,7 @@ test('a check that fails says nothing', async (t) => {
 test.runIf(process.platform !== 'win32')(
   "a window's Herdr client hands its links back to that window once the relay can take them",
   async (t) => {
-    const links = { directory: fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-links-')) };
+    const tools = { directory: fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-links-')) };
     const envs = new Map();
     class EnvPty {
       constructor(options) {
@@ -955,7 +955,7 @@ test.runIf(process.platform !== 'win32')(
         this.terminal = { pid: 1 };
       }
       start() {
-        envs.set(this.options.env.HERDR_REMOTE_LINK_STREAM ?? 'none', this.options.env);
+        envs.set(this.options.env.HERDR_REMOTE_TOOL_STREAM ?? 'none', this.options.env);
         return this;
       }
       resize() {}
@@ -964,9 +964,9 @@ test.runIf(process.platform !== 'win32')(
     const { connector, sent } = herdrLessConnector(t, {
       PtySession: EnvPty,
       probeHerdr: async () => ({ state: 'running' }),
-      links,
+      tools,
     });
-    t.onTestFinished(() => fs.rmSync(links.directory, { recursive: true, force: true }));
+    t.onTestFinished(() => fs.rmSync(tools.directory, { recursive: true, force: true }));
     const socketServer = net.createServer();
     await new Promise((resolve) => socketServer.listen(connector.socketPath, resolve));
     t.onTestFinished(() => socketServer.close());
@@ -985,11 +985,11 @@ test.runIf(process.platform !== 'win32')(
     );
     await start('session-1');
     const env = envs.get('session-1');
-    assert.equal(env.PATH.split(path.delimiter)[0], connector.links.shimDir);
-    assert.equal(env.HERDR_REMOTE_LINK_SOCKET, connector.links.socketPath);
+    assert.equal(env.PATH.split(path.delimiter)[0], connector.tools.shimDir);
+    assert.equal(env.HERDR_REMOTE_TOOL_SOCKET, connector.tools.socketPath);
 
     const { runLinkShim } = await import('../src/connector/link-shim.js');
-    const shim = path.join(connector.links.shimDir, 'xdg-open');
+    const shim = path.join(connector.tools.shimDir, 'xdg-open');
     assert.equal(await runLinkShim([shim, 'https://example.com/'], { env, run: () => 1 }), 0);
     assert.deepEqual(
       sent.filter((message) => message.type === 'open_link'),

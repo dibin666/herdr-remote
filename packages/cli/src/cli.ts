@@ -154,6 +154,12 @@ async function main(argv = process.argv.slice(2)) {
     process.exitCode = await runLinkShim(argv.slice(1));
     return;
   }
+  // The clipboard-tool stand-ins in the same Herdr clients run this one.
+  if (argv[0] === 'clipboard') {
+    const { runClipboardShim } = await import('./connector/clipboard-shim.js');
+    process.exitCode = await runClipboardShim(argv.slice(1));
+    return;
+  }
   const { positional, flags } = parseArgs(argv);
   if (process.platform === 'win32') {
     const relative = path.relative(PACKAGE_ROOT, process.cwd());

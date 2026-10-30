@@ -6,6 +6,7 @@
 // Browser-safe: types and constants only. Terminal bytes travel separately as
 // binary frames (see ./frames).
 
+import type * as Clipboard from './clipboard.js';
 import type { HostTerminalFont, HostTerminalPalette } from './terminal.js';
 
 export const WS_HOST_PATH = '/ws/host';
@@ -25,6 +26,8 @@ export const CAPABILITY = {
   pasteAnyFile: 'paste_any_file',
   /** The relay hands a link the host opens to the window that clicked it. */
   openLink: 'open_link',
+  /** The relay routes clipboard reads and writes to the window that owns the stream. */
+  clipboardForward: 'clipboard_forward',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
@@ -119,6 +122,7 @@ export type ClientJsonMessage =
   | ClientResizeMessage
   | ClientPingMessage
   | ClientPasteFileMessage
+  | Clipboard.ClientClipboardReadReplyMessage
   | ClientHerdrStartMessage
   | ClientAdminTabOpenMessage;
 
@@ -312,6 +316,8 @@ export type ServerJsonMessage =
   | ServerPongMessage
   | ServerPasteFileReadyMessage
   | ServerOpenLinkMessage
+  | Clipboard.ServerClipboardWriteMessage
+  | Clipboard.ServerClipboardReadMessage
   | ServerAgentStatusMessage
   | ServerUpdateStatusMessage;
 
@@ -426,6 +432,8 @@ export type HostMessage =
   | HostFontSubsetMessage
   | HostPasteFileReadyMessage
   | HostOpenLinkMessage
+  | Clipboard.HostClipboardWriteMessage
+  | Clipboard.HostClipboardReadMessage
   | HostErrorMessage;
 
 // ---------------------------------------------------------------------------
@@ -518,4 +526,5 @@ export type RelayToHostMessage =
   | RelayHostFontChunkRequestMessage
   | RelayHostFontSubsetRequestMessage
   | RelayPasteFileMessage
+  | Clipboard.RelayClipboardReadReplyMessage
   | RelayErrorMessage;
