@@ -330,12 +330,21 @@ but they no longer move anything.
 Herdr opens a Ctrl-clicked web link from the client that saw the click, by
 running `xdg-open` (Linux) or `open` (macOS) from that client's `PATH`. A
 window's client runs on the workstation, so on its own Herdr would open the
-link on the workstation's desktop. On Linux and macOS the host connector
-therefore starts each window's client with a `PATH` that finds two stand-ins
+link on the workstation's desktop — and in the browser the same press was also
+reported to the PTY while the page opened the link itself, once everywhere.
+
+Two layers fix that, each sufficient on its own where the other cannot reach.
+The browser watches the pointer before xterm does: a Ctrl/Cmd-click that lands
+on a link the terminal can open is opened there and the press never reaches
+the PTY at all, so Herdr has nothing to forward. For whatever the click layer
+cannot recognise — a scheme outside its list, a link xterm did not detect —
+the press still reaches the workstation, where on Linux and macOS the host
+connector starts each window's client with a `PATH` that finds two stand-ins
 first, in `tool-shims/` under its state directory, and with the window's
-stream in `HERDR_REMOTE_TOOL_STREAM`. A stand-in runs `herdr-remote open-link`,
-which hands a lone `http`/`https` link to the connector over `tools.sock` (mode
-`0600`, same directory), and the connector sends it to the relay:
+stream in `HERDR_REMOTE_TOOL_STREAM`. A stand-in runs
+`herdr-remote open-link`, which hands a lone `http`/`https` link to the
+connector over `tools.sock` (mode `0600`, same directory), and the connector
+sends it to the relay:
 
 ```json
 { "type": "open_link", "clientId": "session-…", "url": "https://example.com/pull/7" }
