@@ -21,6 +21,7 @@
  */
 
 import type { Terminal } from '@xterm/xterm';
+import { pointToCell } from './terminalSelection';
 
 /** What a terminal is allowed to talk this browser into opening. */
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
@@ -176,4 +177,100 @@ export function openTerminalLink(candidate: string): boolean {
   if (typeof window === 'undefined' || typeof window.open !== 'function') return false;
   window.open(withScheme(candidate), '_blank', 'noopener,noreferrer');
   return true;
+}
+
+/**
+ * The link xterm's linkifier is hovering, in its private shape. The public
+ * API keeps it unreachable, so the read is defensive on every level.
+ */
+interface HoveredLink {
+  text?: string;
+  range?: {
+    start?: { x?: number; y?: number };
+    end?: { x?: number; y?: number };
+  };
+}
+
+/**
+ * The URL of the link the linkifier knows under `col`/`bufferRow`, or null.
+ * Its range is 1-based columns and absolute 1-based buffer rows — the same
+ * space `pointToCell`'s 0-based answer converts to by adding one.
+ */
+function linkifierLinkAt(term: Terminal, col: number, bufferRow: number): string | null {
+  const link = (
+    term as unknown as { _core?: { linkifier?: { currentLink?: { link?: HoveredLink } } } }
+  )._core?.linkifier?.currentLink?.link;
+  const start = link?.range?.start;
+  const end = link?.range?.end;
+  if (
+    typeof link?.text !== 'string' ||
+    typeof start?.x !== 'number' ||
+    typeof start.y !== 'number' ||
+    typeof end?.x !== 'number' ||
+    typeof end.y !== 'number'
+  ) {
+    return null;
+  }
+  const cols = term.cols;
+  const current = (bufferRow + 1) * cols + (col + 1);
+  const lower = start.y * cols + start.x;
+  const upper = end.y * cols + end.x;
+  if (current < lower || current > upper) return null;
+  return link.text;
+}
+
+/** The URL under a client point, whichever of the two link layers saw it. */
+function linkAtPoint(
+  term: Terminal,
+  point: { clientX: number; clientY: number },
+  scale: number,
+): string | null {
+  const cell = pointToCell(point, term, undefined, scale);
+  if (!cell) return null;
+  return (
+    linkifierLinkAt(term, cell.col, cell.bufferRow) ?? linkAtCell(term, cell.col, cell.bufferRow)
+  );
+}
+
+/**
+ * A Ctrl/Cmd-click on a link opens it here and nowhere else.
+ *
+ * Without this the press is forwarded to the PTY — where Herdr opens the link
+ * on the workstation (or, through the connector's openers, asks this window
+ * for it) — while xterm's linkifier also activates it on the release. One
+ * click, opens everywhere. Swallowing the press at capture keeps the whole
+ * gesture local: Herdr never sees it, and the matching release is swallowed
+ * too so the linkifier does not open the same link a second time.
+ */
+export function attachLinkClickBridge(
+  container: HTMLElement,
+  term: Terminal,
+  getScale: () => number = () => 1.0,
+): () => void {
+  let swallowMouseUp = false;
+  const onMouseDown = (event: MouseEvent) => {
+    swallowMouseUp = false;
+    // Shift means "select instead of reporting"; Alt is xterm's other bypass.
+    if (event.button !== 0 || event.shiftKey || event.altKey) return;
+    if (!event.ctrlKey && !event.metaKey) return;
+    const url = linkAtPoint(term, event, getScale());
+    if (!url || !isOpenableUrl(url)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    swallowMouseUp = true;
+    term.focus();
+    openTerminalLink(url);
+  };
+  const onMouseUp = (event: MouseEvent) => {
+    if (!swallowMouseUp) return;
+    swallowMouseUp = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  container.addEventListener('mousedown', onMouseDown, true);
+  container.addEventListener('mouseup', onMouseUp, true);
+  return () => {
+    container.removeEventListener('mousedown', onMouseDown, true);
+    container.removeEventListener('mouseup', onMouseUp, true);
+  };
 }

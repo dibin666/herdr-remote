@@ -31,6 +31,7 @@ import { createTerminal } from './createTerminal';
 import { attachGestureInput, type GestureSelection } from './gestureInput';
 import { attachTerminalImages, type TerminalImages } from './images/attachTerminalImages';
 import { attachOsc52Clipboard } from './osc52Clipboard';
+import { attachLinkClickBridge } from './terminalLinks';
 import type { TouchDebugUpdate } from './touchDebug';
 import type { usePredictiveEcho } from '@/features/prediction/usePredictiveEcho';
 import type { useTerminalFit } from './useTerminalFit';
@@ -343,6 +344,8 @@ export function useXterm({
           })
         : { dispose: () => {} };
 
+    // A Ctrl/Cmd-click on a link opens here and nowhere else.
+    const detachLinkClicks = attachLinkClickBridge(container, term, () => currentScaleRef.current);
     const detachGestures = attachGestureInput({
       container,
       term,
@@ -378,6 +381,7 @@ export function useXterm({
       prediction.detach();
       screenState.dispose();
       detachGestures();
+      detachLinkClicks();
       detachViewport();
       cancelPendingFits();
       removeTouchDebugFocusListeners();
