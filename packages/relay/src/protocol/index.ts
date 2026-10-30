@@ -2,6 +2,7 @@
 // host connector, the relay and the browser. The single definition both
 // packages build against; nothing here may be copied into the CLI or the web.
 
+export * from './clipboard.js';
 export * from './frames.js';
 export * from './terminal.js';
 export * from './herdr-keys.js';

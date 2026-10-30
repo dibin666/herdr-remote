@@ -64,7 +64,7 @@ test('a link the host opens reaches only the window whose stream clicked it', as
     }),
   );
   // The host only diverts links once it knows this relay will deliver them.
-  assert.deepEqual((await hostReady).value.capabilities, ['open_link']);
+  assert.deepEqual((await hostReady).value.capabilities, ['open_link', 'clipboard_forward']);
 
   const a = await openWindow(relay, hostWs, 'browser-a');
   const b = await openWindow(relay, hostWs, 'browser-b');

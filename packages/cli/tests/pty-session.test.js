@@ -58,7 +58,7 @@ test("a window's own variables survive the Herdr variables being cleared", (t) =
   const session = new PtySession({
     command: 'herdr',
     platform: 'linux',
-    env: { PATH: '/links:/usr/bin', HERDR_REMOTE_LINK_STREAM: 'session-1' },
+    env: { PATH: '/links:/usr/bin', HERDR_REMOTE_TOOL_STREAM: 'session-1' },
     spawn: (_command, _args, options) => {
       spawnOptions = options;
       return fakeTerminal();
@@ -69,7 +69,7 @@ test("a window's own variables survive the Herdr variables being cleared", (t) =
   session.start({});
 
   assert.equal(spawnOptions.env.PATH, '/links:/usr/bin');
-  assert.equal(spawnOptions.env.HERDR_REMOTE_LINK_STREAM, 'session-1');
+  assert.equal(spawnOptions.env.HERDR_REMOTE_TOOL_STREAM, 'session-1');
   assert.equal(spawnOptions.env.TERM, 'xterm-256color');
 });
 

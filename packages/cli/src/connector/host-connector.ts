@@ -19,7 +19,7 @@ import { openAdminTabFor } from './admin-tab.js';
 import { AgentWatch, type AgentWatchOptions } from './agent-watch.js';
 import { FontServer, type FontServerOptions } from './font-server.js';
 import { hostHello } from './host-hello.js';
-import { LinkForward, type LinkForwardOptions } from './link-forward.js';
+import { ToolForward, type ToolForwardOptions } from './tool-forward.js';
 import { acquireHostLock, releaseHostLock } from './lock.js';
 import { Sessions, type SessionsOptions } from './sessions.js';
 import { UpdateReport, type UpdateReportOptions } from './update-report.js';
@@ -49,7 +49,7 @@ export type HostConnectorOptions = Partial<
     herdrLogPath?: string;
     terminalPalette?: unknown;
     lockPath?: string;
-    links?: Partial<LinkForwardOptions>;
+    tools?: Partial<ToolForwardOptions>;
     /**
      * Called when the connector must end its process: replaced by another
      * instance, or refused by the relay. The entry point exits with the code.
@@ -76,7 +76,7 @@ export class HostConnector {
   readonly font: FontServer;
   readonly agents: AgentWatch;
   readonly updates: UpdateReport;
-  readonly links: LinkForward;
+  readonly tools: ToolForward;
   ws: HostSocket | null = null;
   reconnectTimer: NodeJS.Timeout | null = null;
   heartbeatTimer: NodeJS.Timeout | null = null;
@@ -114,7 +114,7 @@ export class HostConnector {
         herdrArgs: options.herdrArgs || config.herdr.args,
         cwd: options.cwd || config.herdr.cwd,
         herdrLogPath: options.herdrLogPath || path.join(stateDir(), 'herdr-server.log'),
-        clientEnv: (streamId) => this.links.env(streamId),
+        clientEnv: (streamId) => this.tools.env(streamId),
       },
       {
         send,
@@ -127,7 +127,7 @@ export class HostConnector {
     this.font = new FontServer(options, send);
     this.agents = new AgentWatch({ ...options, socketPath: this.socketPath }, send);
     this.updates = new UpdateReport(options, send);
-    this.links = new LinkForward({ directory: stateDir(), ...options.links }, send, (id) =>
+    this.tools = new ToolForward({ directory: stateDir(), ...options.tools }, send, (id) =>
       this.sessions.byStream.has(id),
     );
     this.lockPath =
@@ -178,7 +178,7 @@ export class HostConnector {
     this.disconnected();
     closeSocket(this.ws, 'host_shutdown');
     this.ws = null;
-    this.links.stop();
+    this.tools.stop();
     this.releaseLock();
   }
 
@@ -192,7 +192,7 @@ export class HostConnector {
     this.agents.stop();
     this.clientCount = 0;
     this.legacyHeartbeat = false;
-    this.links.setRelayCapabilities(undefined);
+    this.tools.setRelayCapabilities(undefined);
     this.sessions.stopAll();
   }
 
@@ -343,6 +343,11 @@ export class HostConnector {
       case 'paste_file':
         this.savePaste(streamOf(message), message);
         return undefined;
+      case 'clipboard_read_reply':
+        // The window's answer to its session's clipboard read; the stand-in
+        // still waits on its socket for this line.
+        this.tools.resolveClipboardReadReply(message.requestId, message.text);
+        return undefined;
       case 'host_font_chunk_request':
         this.font.sendChunk(streamOf(message), message);
         return undefined;
@@ -377,7 +382,7 @@ export class HostConnector {
   private hostReady(message: { clientCount?: number; capabilities?: unknown }): void {
     this.reconnectAttempts = 0;
     this.startKeepalive();
-    this.links.setRelayCapabilities(message.capabilities);
+    this.tools.setRelayCapabilities(message.capabilities);
     if (Object.hasOwn(message, 'clientCount')) {
       this.legacyHeartbeat = false;
       this.setClientCount(message.clientCount);

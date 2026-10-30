@@ -15,6 +15,8 @@ import {
   isPasteImageMime,
   packStreamFrame,
   packStreamFrameV2,
+  sanitizeClipboardRequestId,
+  sanitizeClipboardText,
   sanitizePasteFileName,
 } from '../protocol/index.js';
 import { requestFontChunk, requestFontSubset } from './font-proxy.js';
@@ -357,6 +359,21 @@ function handleClientMessage(
     // Nothing to release: the window keeps its input either way, and saying
     // so beats a silence an older client would wait on.
     jsonSend(client.ws, { type: 'control_state', role: 'controller', controllerId: null });
+  } else if (message.type === 'clipboard_read_reply') {
+    // The window's answer to its own session's clipboard_read goes back to
+    // the workstation it is paired with; the host matches it to the shim call
+    // by requestId.
+    const requestId = sanitizeClipboardRequestId(message.requestId);
+    const text = sanitizeClipboardText(message.text);
+    // A reply without its session has nobody waiting on the host side.
+    if (!requestId || text === null || !client.session || !isOpen(host.ws)) return;
+    jsonSend(host.ws, {
+      type: 'clipboard_read_reply',
+      clientId: client.session.streamId,
+      streamId: client.session.streamId,
+      requestId,
+      text,
+    });
   } else if (message.type === 'paste_file') {
     const reject = (code: string, text: string) =>
       jsonSend(client.ws, { type: 'error', code, message: text });

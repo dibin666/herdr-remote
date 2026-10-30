@@ -154,6 +154,7 @@ export interface MockTerminalInstance {
       length?: number;
       getLine?: (y: number) => unknown;
     };
+    onBufferChange?: (listener: (buffer: unknown) => void) => { dispose: () => void };
   };
   /** Drives `isMouseTrackingActive`, i.e. whether an app wants SGR reports. */
   modes: { mouseTrackingMode: string };
@@ -161,6 +162,8 @@ export interface MockTerminalInstance {
   emitWriteParsed?: () => void;
   /** Stand in for the OSC 2 title the host's Herdr client sets. */
   emitTitleChange?: (title: string) => void;
+  /** The OSC handlers the view registered, for tests that drive them. */
+  oscHandlers: Map<number, (data: string) => boolean>;
   registerMarker?: ReturnType<typeof vi.fn>;
   registerDecoration?: ReturnType<typeof vi.fn>;
   [key: string]: unknown;
@@ -206,6 +209,7 @@ vi.mock('@xterm/xterm', () => ({
             translateToString: vi.fn(() => 'mock-line-content'),
           })),
         },
+        onBufferChange: vi.fn(() => ({ dispose: vi.fn() })),
       },
       modes: { mouseTrackingMode: 'none' },
       open: vi.fn(),
@@ -281,6 +285,22 @@ vi.mock('@xterm/xterm', () => ({
       },
       onScroll: vi.fn(() => ({ dispose: vi.fn() })),
       onResize: vi.fn(() => ({ dispose: vi.fn() })),
+      // Escape-sequence handlers the view registers: OSC 52 clipboard writes
+      // and friends. Tests that drive them read `oscHandlers`.
+      oscHandlers: new Map<number, (data: string) => boolean>(),
+      parser: {
+        registerOscHandler: vi.fn((id: number, handler: (data: string) => boolean) => {
+          instance.oscHandlers.set(id, handler);
+          return {
+            dispose: () => {
+              if (instance.oscHandlers.get(id) === handler) instance.oscHandlers.delete(id);
+            },
+          };
+        }),
+        registerCsiHandler: vi.fn(() => ({ dispose: vi.fn() })),
+        registerDcsHandler: vi.fn(() => ({ dispose: vi.fn() })),
+        registerEscHandler: vi.fn(() => ({ dispose: vi.fn() })),
+      },
       registerMarker: vi.fn((cursorYOffset?: number) => ({
         id: 1,
         line:

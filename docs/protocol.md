@@ -332,9 +332,9 @@ running `xdg-open` (Linux) or `open` (macOS) from that client's `PATH`. A
 window's client runs on the workstation, so on its own Herdr would open the
 link on the workstation's desktop. On Linux and macOS the host connector
 therefore starts each window's client with a `PATH` that finds two stand-ins
-first, in `link-shims/` under its state directory, and with the window's
-stream in `HERDR_REMOTE_LINK_STREAM`. A stand-in runs `herdr-remote open-link`,
-which hands a lone `http`/`https` link to the connector over `links.sock` (mode
+first, in `tool-shims/` under its state directory, and with the window's
+stream in `HERDR_REMOTE_TOOL_STREAM`. A stand-in runs `herdr-remote open-link`,
+which hands a lone `http`/`https` link to the connector over `tools.sock` (mode
 `0600`, same directory), and the connector sends it to the relay:
 
 ```json
@@ -352,6 +352,46 @@ The connector only does this when the relay's `host_ready` lists the
 windows keep opening links on the workstation. Every other call the stand-ins
 see — other arguments, a window that has gone, a connector that does not
 answer within two seconds — runs the real command from the rest of `PATH`.
+
+### Clipboard between a window and its session
+
+Herdr moves text in and out of the clipboard the same way, by running
+`wl-copy`, `wl-paste`, `xclip`, `xsel` (Linux) or `pbcopy`, `pbpaste` (macOS)
+from its `PATH`. Left alone those act on the workstation's clipboard, while a
+window's user expects the clipboard of the device the window runs on. The same
+stand-in mechanism carries both directions: the same `tool-shims/` directory
+holds those commands too, each running `herdr-remote clipboard`, and the relay
+advertises the `"clipboard_forward"` capability when it will route them.
+
+A write hands the text to the connector, which sends it over the relay to the
+window behind that stream only:
+
+```json
+{ "type": "clipboard_write", "clientId": "session-…", "text": "copied in Herdr" }
+```
+
+A read asks instead, tagged with a request id the connector invents per call:
+
+```json
+{ "type": "clipboard_read", "clientId": "session-…", "requestId": "…" }
+```
+
+The window answers the read with its own clipboard text — empty when the read
+failed or held no text — and the relay returns it to the host, where the
+request id resolves the stand-in still waiting on its socket:
+
+```json
+{ "type": "clipboard_read_reply", "clientId": "session-…", "requestId": "…", "text": "…" }
+```
+
+Clipboard text is capped at 1,000,000 characters end to end. Everything the
+forward path does not understand — a non-text target like an image read, the
+`primary` selection, a window or connector that has gone, a reply that never
+comes within five seconds — runs the real command on the workstation, so a
+self-hosted relay without the capability leaves every clipboard acting where
+it always did. A workstation without clipboard tools at all emits OSC 52
+instead, which the browser terminal also writes into the window's clipboard;
+OSC 52 read queries get no answer.
 
 ### Windows administrator terminals
 

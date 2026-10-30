@@ -20,6 +20,7 @@ import type { HerdrClientAdapter } from '@/connection/clientAdapter';
 import type { ConnectionConfig } from '@/connection/types';
 import { resolveProfile } from '@/features/agents/agentKeymaps';
 import type { ShellProfile } from '@/features/keyboard/shellProfile';
+import { copyText, readClipboardText } from '@/shared/lib/clipboard';
 import { clampFontSize } from '@/features/terminal/terminalLayout';
 import { openTerminalLink } from '@/features/terminal/terminalLinks';
 import { applyDocumentTheme, resolveTerminalFontFamily } from '@/features/terminal/theme';
@@ -230,6 +231,16 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       input.notifyPasteFileReady(path);
     },
     openLink: (url) => openTerminalLink(url),
+    // The session's clipboard is this window's own: what the remote copy
+    // wrote here is what the remote read gets back.
+    clipboardWrite: (text) => {
+      void copyText(text);
+    },
+    clipboardRead: (requestId) => {
+      void readClipboardText().then((result) => {
+        adapterRef.current?.sendClipboardReadReply(requestId, result.ok ? result.text : '');
+      });
+    },
     rttUpdate: (rttMs) => dispatch({ type: 'rtt', rttMs }),
     peerCount: (count) => dispatch({ type: 'peerCount', count }),
     sessionReady: () => {

@@ -160,6 +160,16 @@ export class HerdrClientAdapter extends RelaySocket {
         break;
       }
 
+      case 'clipboard_write': {
+        this.emit('clipboardWrite', msg.text);
+        break;
+      }
+
+      case 'clipboard_read': {
+        this.emit('clipboardRead', msg.requestId);
+        break;
+      }
+
       case 'agent_status': {
         this.emit('agentStatus', msg);
         break;
@@ -259,6 +269,11 @@ export class HerdrClientAdapter extends RelaySocket {
   /** Ask the workstation to read its terminal's font settings again. */
   public sendHostFontRefresh(): void {
     this.sendJson({ type: 'host_font_refresh' });
+  }
+
+  /** Answer a `clipboard_read` with this window's own clipboard text. */
+  public sendClipboardReadReply(requestId: string, text: string): void {
+    this.sendJson({ type: 'clipboard_read_reply', requestId, text });
   }
 
   /** Ask the paired workstation to start its Herdr; see `ClientHerdrStartMessage`. */
