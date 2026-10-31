@@ -175,6 +175,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       adminTerminalSupported,
       hostVersion,
       herdrPrefixKeys,
+      fileListSupported,
     ) => {
       clearPendingOutput();
       dispatch({
@@ -184,6 +185,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         platform,
         shellProfile,
         adminTerminalSupported,
+        fileListSupported,
         hostVersion,
         herdrPrefixKeys,
       });
@@ -222,6 +224,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (handleLaunchError(err)) return;
       // Belongs to a font transfer, which reports it in its own dialog.
       if (err.code === 'host_font_unavailable') return;
+      // An fs error belongs to the file list dialog, which matches it to its
+      // request; it is not a reason to drop an upload in flight.
+      if (typeof err.code === 'string' && err.code.startsWith('fs_')) return;
       abortUpload();
       const message = isServerErrorCode(err.code)
         ? t(`serverErrors.${err.code}`)

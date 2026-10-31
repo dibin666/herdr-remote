@@ -24,6 +24,7 @@ const KEY_ICONS = {
   close: { glyph: '\u{F035D}', box: [91, 509, 256, 464] }, // nf-md-menu_down
   image: { glyph: '\u{F02E9}', box: [0, 750, -15, 735] }, // nf-md-image
   attach: { glyph: '\u{F03E2}', box: [70, 530, -99, 819] }, // nf-md-paperclip
+  folder: { glyph: '\u{F024B}', box: [0, 750, -15, 735] }, // nf-md-folder
   customize: { glyph: '\u{F066A}', box: [0, 750, -15, 735] }, // nf-md-tune_vertical
   admin: { glyph: '\u{F088F}', box: [0, 750, -99, 819] }, // nf-md-shield_account
 } as const;

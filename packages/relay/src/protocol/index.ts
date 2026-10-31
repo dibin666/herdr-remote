@@ -3,10 +3,12 @@
 // packages build against; nothing here may be copied into the CLI or the web.
 
 export * from './clipboard.js';
+export * from './files.js';
 export * from './frames.js';
 export * from './terminal.js';
 export * from './herdr-keys.js';
 export * from './messages.js';
 export * from './paste.js';
+export * from './relay-to-host.js';
 export * from './release.js';
 export type * from './http.js';

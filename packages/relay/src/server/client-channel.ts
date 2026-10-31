@@ -21,6 +21,14 @@ import {
 } from '../protocol/index.js';
 import { requestFontChunk, requestFontSubset } from './font-proxy.js';
 import {
+  requestFsChunk,
+  requestFsDelete,
+  requestFsDownload,
+  requestFsList,
+  requestFsPreview,
+  requestFsRename,
+} from './fs-proxy.js';
+import {
   allowClientHandshake,
   allowPairGuess,
   clientAddress,
@@ -198,6 +206,7 @@ export function handleClientConnection(
         platform: host.platform,
         ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
         adminTerminalSupported: host.adminTabsAvailable,
+        fileListSupported: host.fsBrowse,
         clientId: client.id,
         // Delivered with `ready`, before the first PTY byte, so the terminal
         // is painted in the host's colors from its very first frame.
@@ -350,6 +359,18 @@ function handleClientMessage(
       clientId: client.session.streamId,
       streamId: client.session.streamId,
     });
+  } else if (message.type === 'fs_list_request') {
+    requestFsList(host, client, message);
+  } else if (message.type === 'fs_download_request') {
+    requestFsDownload(host, client, message);
+  } else if (message.type === 'fs_download_chunk_request') {
+    requestFsChunk(host, client, message);
+  } else if (message.type === 'fs_preview_request') {
+    requestFsPreview(host, client, message);
+  } else if (message.type === 'fs_rename_request') {
+    requestFsRename(host, client, message);
+  } else if (message.type === 'fs_delete_request') {
+    requestFsDelete(host, client, message);
   } else if (message.type === 'claim_control') {
     // Control is no longer a lease. Answering the old request keeps clients
     // built against the previous protocol working.

@@ -601,6 +601,134 @@ Upon successfully saving the file, the host returns:
 
 The relay routes `paste_file_ready` exclusively to the initiating client window.
 
+## Directory listing and downloads
+
+A window can list the working directory of the terminal it is attached to and download
+files from it. This is pull-based over the same two sockets: the file bytes only exist
+on the workstation, so the host streams them a slice at a time the way terminal fonts
+travel. A host advertises the feature with the `fs_browse` capability; the relay passes
+it to windows as `fileListSupported` in `ready` and `session_restarted`, and answers
+`fs_unsupported` when they ask anyway.
+
+### Listing (`fs_list_request` / `fs_list_response`)
+
+```json
+{"type": "fs_list_request", "requestId": "abc123", "dir": ".."}
+```
+
+`requestId` matches `^[A-Za-z0-9_-]{1,32}$` and correlates the response and any error.
+The relay stamps the client's `streamId` on the forwarded message and rate-limits
+listings (repeats inside a short window are dropped).
+
+`dir` moves the listing relative to the last one this stream was given: `'.'`
+re-reads the same directory, `'..'` steps to its parent, and any other value must
+name a directory that listing contained — the client can only reach directories it
+was shown, and their parents. Omitted, the host resolves the terminal's own
+directory again.
+
+The host resolves the directory itself — the client never sends a path. It asks Herdr
+`pane.current` for the focused pane's `foreground_cwd`, then its `cwd`, then the
+session's spawn directory, and answers:
+
+```json
+{
+  "type": "fs_list_response",
+  "clientId": "stream-id-1",
+  "requestId": "abc123",
+  "cwd": "/home/user/project",
+  "entries": [{"name": "src", "kind": "dir", "size": 0, "mtimeMs": 1720000000000}]
+}
+```
+
+Entries carry a sanitized `name` (a basename: no separators, no dot names, no control
+characters), `kind` (`file` or `dir`), `size` in bytes (always 0 for directories) and
+`mtimeMs`. A listing is capped at 4096 entries, pinned to the asking stream, and the
+host remembers it as that stream's download whitelist — and its navigation anchor,
+since `dir` above is resolved against it.
+
+### Download (`fs_download_request` → `fs_download_ready` → `fs_download_chunk`)
+
+```json
+{"type": "fs_download_request", "requestId": "def456", "names": ["a.txt", "src"]}
+```
+
+Every `names` entry must have appeared in that stream's last listing (unknown names get
+`fs_not_found`), so a client can only ever reach basenames of the directory it was shown.
+A single picked file streams as-is; several names, or any directory, are first zipped on
+the host (directories recursively, symlinks skipped) into a temporary archive under
+`<stateDir>/downloads` (mode `0o600`, deleted when the transfer ends). The staged
+transfer is announced:
+
+```json
+{
+  "type": "fs_download_ready",
+  "clientId": "stream-id-1",
+  "requestId": "def456",
+  "name": "a.txt",
+  "size": 12,
+  "totalChunks": 1
+}
+```
+
+`name` is the download's suggested file name — the picked name, or
+`<directory basename>.zip` for an archive. The window then pulls slices strictly in
+order, at most a few in flight:
+
+```json
+{"type": "fs_download_chunk_request", "requestId": "def456", "index": 0}
+{"type": "fs_download_chunk", "clientId": "stream-id-1", "requestId": "def456", "index": 0, "dataBase64": "..."}
+```
+
+Slices are up to 256 KiB of raw bytes each. The relay tracks each staged transfer per
+window (cap 8, oldest evicted) and at most 4 outstanding chunk pulls, so a chunk request
+for an unknown or finished transfer gets `fs_download_unavailable`. A zero-byte file is
+announced with `size: 0` and still delivers one empty chunk. Transfers are bounded by
+128 MiB delivered (`fs_too_large` beyond it, for both the file and the zip input) and
+abandoned host-side transfers are swept after ten minutes.
+
+### Preview, rename, delete
+
+The window may also read a listed file and mutate the listing it was shown. Names
+are validated against the stream's last listing the same way download picks are —
+nothing outside it can be read, renamed or removed.
+
+```json
+{"type": "fs_preview_request", "requestId": "ghi789", "name": "main.ts"}
+{"type": "fs_preview_response", "clientId": "stream-id-1", "requestId": "ghi789", "name": "main.ts", "text": "...", "truncated": false}
+```
+
+The host reads at most the first 256 KiB and requires valid UTF-8; a binary answers
+`fs_not_text`. `truncated` marks the file continuing past the cap.
+
+```json
+{"type": "fs_rename_request", "requestId": "jkl012", "name": "a.txt", "newName": "b.txt"}
+{"type": "fs_delete_request", "requestId": "mno345", "name": "old-dir"}
+{"type": "fs_mutation_done", "clientId": "stream-id-1", "requestId": "jkl012"}
+```
+
+`newName` must be a valid basename that does not yet exist (`fs_exists` otherwise);
+renaming to the same name is a no-op success. Delete removes a file, or a directory
+with everything inside it — the window already could type `rm -rf` into the terminal,
+so this grants it nothing new. A confirmed mutation updates the listing's whitelist:
+new names become downloadable, removed ones stop being reachable; the window re-reads
+the directory with `fs_list_request` `dir: '.'` for fresh entries.
+
+### Errors
+
+Every `fs_*` failure echoes the triggering `requestId` so the window can reject exactly
+the pending request:
+
+- `fs_unsupported`: the host does not advertise `fs_browse`.
+- `fs_list_failed` / `fs_download_failed`: the host could not read the directory or
+  stage the transfer.
+- `fs_not_found`: a requested name was not in the stream's last listing.
+- `fs_not_text`: a preview asked for a file that is not valid UTF-8 text.
+- `fs_exists`: a rename's `newName` is already taken.
+- `fs_preview_failed` / `fs_rename_failed` / `fs_delete_failed`: the host could not
+  read, rename or remove the entry.
+- `fs_too_large`: the file or archive exceeds the 128 MiB cap.
+- `fs_download_unavailable`: a chunk pull for a transfer the relay does not have staged.
+
 ## Agent status (`agent_status`)
 
 The one message that is not about a terminal. Everything else here carries bytes

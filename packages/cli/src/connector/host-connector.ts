@@ -9,7 +9,7 @@ import type { RawData } from 'ws';
 import { WebSocket } from 'ws';
 import { type Config, loadConfig } from '../config.js';
 import { EXIT_AUTH_FAILED, EXIT_REPLACED } from '../exit-codes.js';
-import { cleanPastedDir, savePastedFile } from '../pasted-files.js';
+import { cleanPastedDir, savePasteReply } from '../pasted-files.js';
 import { stateDir } from '../paths.js';
 import { hostWebSocketUrl, resolveHostRelayUrl } from '../relay-urls.js';
 import { resolveSocketPath } from '../socket-discovery.js';
@@ -18,6 +18,7 @@ import { randomToken } from 'herdr-remote-relay/state';
 import { openAdminTabFor } from './admin-tab.js';
 import { AgentWatch, type AgentWatchOptions } from './agent-watch.js';
 import { FontServer, type FontServerOptions } from './font-server.js';
+import { HostFiles } from './host-files.js';
 import { hostHello } from './host-hello.js';
 import { ToolForward, type ToolForwardOptions } from './tool-forward.js';
 import { acquireHostLock, releaseHostLock } from './lock.js';
@@ -50,6 +51,8 @@ export type HostConnectorOptions = Partial<
     terminalPalette?: unknown;
     lockPath?: string;
     tools?: Partial<ToolForwardOptions>;
+    /** Where staged download zips are written; tests keep it inside temp dirs. */
+    downloadsDir?: string;
     /**
      * Called when the connector must end its process: replaced by another
      * instance, or refused by the relay. The entry point exits with the code.
@@ -74,6 +77,7 @@ export class HostConnector {
   private readonly terminalPalette: unknown;
   readonly sessions: Sessions;
   readonly font: FontServer;
+  readonly files: HostFiles;
   readonly agents: AgentWatch;
   readonly updates: UpdateReport;
   readonly tools: ToolForward;
@@ -125,6 +129,15 @@ export class HostConnector {
       },
     );
     this.font = new FontServer(options, send);
+    this.files = new HostFiles(
+      {
+        socketPath: this.socketPath,
+        fallbackCwd: options.cwd || config.herdr.cwd,
+        downloadsDir: options.downloadsDir,
+        requestHerdr: options.requestHerdr,
+      },
+      send,
+    );
     this.agents = new AgentWatch({ ...options, socketPath: this.socketPath }, send);
     this.updates = new UpdateReport(options, send);
     this.tools = new ToolForward({ directory: stateDir(), ...options.tools }, send, (id) =>
@@ -193,6 +206,7 @@ export class HostConnector {
     this.clientCount = 0;
     this.legacyHeartbeat = false;
     this.tools.setRelayCapabilities(undefined);
+    this.files.stopAll();
     this.sessions.stopAll();
   }
 
@@ -341,8 +355,15 @@ export class HostConnector {
         this.sessions.resize(message);
         return undefined;
       case 'paste_file':
-        this.savePaste(streamOf(message), message);
+        savePasteReply((payload) => sendJson(this.ws, payload), streamOf(message), message);
         return undefined;
+      case 'fs_list_request':
+      case 'fs_download_request':
+      case 'fs_download_chunk_request':
+      case 'fs_preview_request':
+      case 'fs_rename_request':
+      case 'fs_delete_request':
+        return this.files.handle(streamOf(message), message);
       case 'clipboard_read_reply':
         // The window's answer to its session's clipboard read; the stand-in
         // still waits on its socket for this line.
@@ -404,27 +425,6 @@ export class HostConnector {
     this.updates.report();
     this.font.pickUp();
     return this.sessions.start(message);
-  }
-
-  private savePaste(
-    streamId: string | null,
-    message: { mime: string; dataBase64: string; name?: string },
-  ): void {
-    try {
-      const savedPath = savePastedFile({
-        mime: message.mime,
-        dataBase64: message.dataBase64,
-        name: message.name,
-      });
-      sendJson(this.ws, { type: 'paste_file_ready', clientId: streamId, path: savedPath });
-    } catch (error) {
-      sendJson(this.ws, {
-        type: 'error',
-        clientId: streamId,
-        code: 'paste_file_write_failed',
-        message: (error as Error).message || 'Failed to save pasted file',
-      });
-    }
   }
 
   startKeepalive(): void {
