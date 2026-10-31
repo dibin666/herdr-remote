@@ -151,4 +151,30 @@ function savePastedFile({
   return filePath;
 }
 
-export { cleanPastedDir, savePastedFile };
+/**
+ * Save a relay-forwarded `paste_file` and answer the asking window —
+ * `paste_file_ready` with the saved path, or the matching error.
+ */
+function savePasteReply(
+  send: (payload: Record<string, unknown>) => void,
+  streamId: string | null,
+  message: { mime: string; dataBase64: string; name?: string },
+): void {
+  try {
+    const savedPath = savePastedFile({
+      mime: message.mime,
+      dataBase64: message.dataBase64,
+      name: message.name,
+    });
+    send({ type: 'paste_file_ready', clientId: streamId, path: savedPath });
+  } catch (error) {
+    send({
+      type: 'error',
+      clientId: streamId,
+      code: 'paste_file_write_failed',
+      message: (error as Error).message || 'Failed to save pasted file',
+    });
+  }
+}
+
+export { cleanPastedDir, savePastedFile, savePasteReply };
