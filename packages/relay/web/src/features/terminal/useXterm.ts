@@ -58,6 +58,8 @@ export interface XtermLive {
   glyphScan: boolean;
   platform?: string;
   reportShellProfile: (profile: ShellProfile) => void;
+  /** A click landed on a pane image; show it big enough to read. */
+  openImagePreview: (image: ImageBitmap) => void;
 }
 
 /** Selection callbacks the terminal's own events drive. */
@@ -350,6 +352,8 @@ export function useXterm({
       getScale: () => currentScaleRef.current,
       getSurfaceElement: () => surfaceRef.current,
       getSelection: () => selection.current,
+      getImageAt: (p) => images.imageAt(p.clientX, p.clientY),
+      onImage: (image) => live.current.openImagePreview(image),
       onFocus: () => live.current.onTerminalFocus?.(),
       getTapOpensKeyboard: () => live.current.tapOpensKeyboard,
       onKeyboardOffer: () => live.current.offerKeyboard(),

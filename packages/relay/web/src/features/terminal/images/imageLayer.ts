@@ -1,6 +1,69 @@
 import type { Terminal } from '@xterm/xterm';
 import { measureCellDimensions } from '@/features/terminal/terminalFit';
-import type { KittyGraphics } from './kittyGraphics';
+import type { DecodedImage, KittyGraphics, Placement } from './kittyGraphics';
+
+/** The on-screen box a placement draws into, in CSS pixels. */
+export interface PlacementBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Where a placement lands on screen — the same box `draw` paints into.
+ * `cols`/`rows` are cells to fill; an unset side follows the source aspect.
+ */
+export function placementBox(
+  placement: Placement,
+  image: DecodedImage,
+  cellWidth: number,
+  cellHeight: number,
+  viewportY: number,
+): PlacementBox {
+  const sx = Math.min(placement.sx, image.width);
+  const sy = Math.min(placement.sy, image.height);
+  const sw = Math.min(placement.sw || image.width, image.width - sx);
+  const sh = Math.min(placement.sh || image.height, image.height - sy);
+  let dw = placement.cols * cellWidth;
+  let dh = placement.rows * cellHeight;
+  if (!dw && !dh) {
+    dw = sw;
+    dh = sh;
+  } else if (!dw) {
+    dw = (sw * dh) / sh;
+  } else if (!dh) {
+    dh = (sh * dw) / sw;
+  }
+  return {
+    x: placement.col * cellWidth + placement.offsetX,
+    y: (placement.line - viewportY) * cellHeight + placement.offsetY,
+    w: dw,
+    h: dh,
+  };
+}
+
+/** The topmost image drawn under (`x`, `y`) in screen CSS pixels, if any. */
+export function hitImage<T extends DecodedImage>(
+  placements: Placement[],
+  imageOf: (imageId: number) => T | null,
+  cellWidth: number,
+  cellHeight: number,
+  viewportY: number,
+  x: number,
+  y: number,
+): T | null {
+  // `placements` is bottom layer first, so scan from the end for the hit a
+  // click actually sees.
+  for (let i = placements.length - 1; i >= 0; i--) {
+    const placement = placements[i];
+    const image = imageOf(placement.imageId);
+    if (!image) continue;
+    const box = placementBox(placement, image, cellWidth, cellHeight, viewportY);
+    if (x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h) return image;
+  }
+  return null;
+}
 
 /**
  * One canvas over the terminal's cells, holding every visible placement.
@@ -27,7 +90,7 @@ export class ImageLayer {
   }
 
   private constructor(
-    screen: HTMLElement,
+    private readonly screen: HTMLElement,
     canvas: HTMLCanvasElement,
     private readonly context: CanvasRenderingContext2D,
     private readonly term: Terminal,
@@ -52,6 +115,25 @@ export class ImageLayer {
       this.frame = 0;
       this.draw();
     });
+  }
+
+  /** The image under these client coordinates — the one a click would open. */
+  hitAt(clientX: number, clientY: number): ImageBitmap | null {
+    if (typeof this.screen.getBoundingClientRect !== 'function') return null;
+    const rect = this.screen.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (x < 0 || y < 0) return null;
+    const { cellWidth, cellHeight } = measureCellDimensions(this.term);
+    return hitImage(
+      this.graphics.placements(),
+      (imageId) => this.graphics.image(imageId),
+      cellWidth,
+      cellHeight,
+      this.term.buffer.active.viewportY,
+      x,
+      y,
+    );
   }
 
   dispose(): void {
@@ -91,20 +173,9 @@ export class ImageLayer {
       const sw = Math.min(placement.sw || image.width, image.width - sx);
       const sh = Math.min(placement.sh || image.height, image.height - sy);
       if (sw <= 0 || sh <= 0) continue;
-      let dw = placement.cols * cellWidth;
-      let dh = placement.rows * cellHeight;
-      if (!dw && !dh) {
-        dw = sw;
-        dh = sh;
-      } else if (!dw) {
-        dw = (sw * dh) / sh;
-      } else if (!dh) {
-        dh = (sh * dw) / sw;
-      }
-      const x = placement.col * cellWidth + placement.offsetX;
-      const y = (placement.line - viewportY) * cellHeight + placement.offsetY;
-      if (y >= height || y + dh <= 0) continue;
-      context.drawImage(image, sx, sy, sw, sh, x, y, dw, dh);
+      const box = placementBox(placement, image, cellWidth, cellHeight, viewportY);
+      if (box.y >= height || box.y + box.h <= 0) continue;
+      context.drawImage(image, sx, sy, sw, sh, box.x, box.y, box.w, box.h);
       this.drawn = true;
     }
   }
