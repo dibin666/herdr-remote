@@ -113,6 +113,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     uploadProgress,
     uploadImage,
     uploadFile,
+    uploadImages,
+    uploadFiles,
     resetUploadProgress,
     abortUpload,
     completeUpload,
@@ -462,8 +464,15 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
 
   const uploadValue = useMemo<UploadContextValue>(
-    () => ({ uploadProgress, uploadImage, uploadFile, resetUploadProgress }),
-    [uploadProgress, uploadImage, uploadFile, resetUploadProgress],
+    () => ({
+      uploadProgress,
+      uploadImage,
+      uploadFile,
+      uploadImages,
+      uploadFiles,
+      resetUploadProgress,
+    }),
+    [uploadProgress, uploadImage, uploadFile, uploadImages, uploadFiles, resetUploadProgress],
   );
 
   return (
