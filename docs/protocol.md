@@ -312,7 +312,10 @@ then placed at absolute cell positions. xterm.js has no hook for APC
 sequences, so the web client renames each graphics command's introducer to a
 private OSC before the bytes reach xterm, and draws the images on a canvas
 above the text. It answers Herdr's cell-size query (`CSI 16 t`) too, which
-Herdr needs to size images in cells without stretching them. Images Herdr
+Herdr needs to size images in cells without stretching them. A click or tap
+on a drawn image opens it full screen — mouse wheel and pinch zoom, a drag to
+pan, and the dimmed backdrop, the corner button or Escape to close — so a
+portrait shot squeezed into a few columns is still readable. Images Herdr
 hands over as files on the host (`t=f`, `t=t`, `t=s`) cannot be read from a
 browser and are ignored.
 

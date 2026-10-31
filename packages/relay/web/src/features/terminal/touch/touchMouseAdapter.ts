@@ -42,6 +42,11 @@ export interface TouchMouseOptions extends PointerDeliveryOptions {
   onFocus?: () => void;
   /** A tap that missed the live input row, or came from a viewer. */
   onTapOutsideInput?: () => void;
+  /**
+   * A tap landing on a kitty-graphic image. Returning true consumes it:
+   * nothing reaches the pane and the input row does not take focus.
+   */
+  onImageTap?: (point: { clientX: number; clientY: number }) => boolean;
   /** Optional diagnostics hook used only by the debug query parameter. */
   onGestureStateChange?: (state: TouchGestureState) => void;
   /** Optional diagnostics for real-device scroll delivery. */
@@ -277,14 +282,18 @@ export class TerminalPointerController {
 
     if (this.state === 'pending') {
       // Single tap
+      const tap = { clientX: this.startX, clientY: this.startY };
+      // A tap on an image opens the zoom overlay instead of reaching the pane.
+      if (this.options.onImageTap?.(tap)) {
+        this.reset();
+        return;
+      }
       if (mouseActive && isController) {
-        const tap = { clientX: this.startX, clientY: this.startY };
         this.delivery.emitMouse('mousedown', tap, event, this.activeTarget);
         this.delivery.emitMouse('mouseup', tap, event, this.activeTarget);
       }
       // A tap on the live cursor row is the terminal input gesture. Output
       // and history rows remain safe to inspect without summoning the IME.
-      const tap = { clientX: this.startX, clientY: this.startY };
       if (isController && term && this.delivery.isInputLineHit(tap, term)) {
         this.options.onFocus?.();
       } else {

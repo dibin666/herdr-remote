@@ -429,6 +429,8 @@ export const zh: TranslationSchema = {
     takeoverControlAria: '强占终端控制权',
     claimControlAria: '获取终端控制权',
     newAdminTerminal: '在 Herdr 中新建管理员 PowerShell 标签页',
+    imagePreviewAria: '终端图片预览',
+    imageClose: '关闭图片预览',
     adminTerminalSetup:
       '请在 Windows 主机打开 herdr-remote TUI，进入「保活」并选择「设置管理员终端」，再使用运行 Herdr Remote 的同一账户批准一次 Windows 提权提示。',
     adminTerminalUpdate: '请先升级 relay 和 Windows 主机连接器，再新建管理员终端。',

@@ -9,6 +9,8 @@ export interface TerminalImages {
   rewrite(chunk: Uint8Array): Uint8Array;
   /** What is placed on screen now, bottom layer first. */
   placements(): Placement[];
+  /** The image a click at these client coordinates would land on. */
+  imageAt(clientX: number, clientY: number): ImageBitmap | null;
   /** A new session: forget every image. */
   reset(): void;
   dispose(): void;
@@ -28,10 +30,19 @@ export function attachTerminalImages(
   decode: ImageDecoder<ImageBitmap> = decodeImage,
 ): TerminalImages {
   if (typeof term.parser?.registerOscHandler !== 'function') {
-    return { rewrite: (chunk) => chunk, placements: () => [], reset: () => {}, dispose: () => {} };
+    return {
+      rewrite: (chunk) => chunk,
+      placements: () => [],
+      imageAt: () => null,
+      reset: () => {},
+      dispose: () => {},
+    };
   }
   let layer: ImageLayer | null = null;
-  const graphics = new KittyGraphics(decode, () => layer?.schedule());
+  const graphics = new KittyGraphics(decode, () => {
+    layer?.markDirty();
+    layer?.schedule();
+  });
   layer = ImageLayer.create(term, graphics);
 
   const disposables: Disposable[] = [
@@ -52,6 +63,7 @@ export function attachTerminalImages(
   return {
     rewrite: (chunk) => rewrite(chunk),
     placements: () => graphics.placements(),
+    imageAt: (clientX, clientY) => layer?.hitAt(clientX, clientY) ?? null,
     reset: () => {
       rewrite = createKittyApcRewriter();
       graphics.reset();

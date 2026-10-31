@@ -174,6 +174,31 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       expect(controller.getState()).toBe('idle');
     });
 
+    it('consumes a tap that lands on a terminal image for the zoom preview', () => {
+      const seen: string[] = [];
+      mockScreen.addEventListener('mousedown', () => seen.push('mousedown'));
+      mockScreen.addEventListener('mouseup', () => seen.push('mouseup'));
+
+      const onImageTap = vi.fn(() => true);
+      const onFocus = vi.fn();
+      const onTapOutsideInput = vi.fn();
+      const controller = makeController({ onImageTap, onFocus, onTapOutsideInput });
+
+      controller.handlePointerDown(
+        pointer('pointerdown', { clientX: 40, clientY: 60 }),
+        mockContainer,
+      );
+      controller.handlePointerUp(pointer('pointerup', { clientX: 40, clientY: 60 }));
+
+      expect(onImageTap).toHaveBeenCalledWith({ clientX: 40, clientY: 60 });
+      // An image tap opens the overlay: it must not click the pane, summon the
+      // keyboard or dismiss the keyboard offer.
+      expect(seen).toEqual([]);
+      expect(onFocus).not.toHaveBeenCalled();
+      expect(onTapOutsideInput).not.toHaveBeenCalled();
+      expect(controller.getState()).toBe('idle');
+    });
+
     it('does not request terminal focus for a viewer tap', () => {
       const focusSpy = vi.fn();
       const controller = makeController({

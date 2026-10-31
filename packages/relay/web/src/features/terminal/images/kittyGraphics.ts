@@ -92,13 +92,20 @@ export class KittyGraphics<T extends DecodedImage> {
     }
 
     if (this.pending) {
-      // A continuation carries only `m` (and perhaps `q`); its keys are the first chunk's.
-      this.pending.payload.push(payload);
-      if (keys.get('m') === '1') return;
-      const { keys: first, payload: parts } = this.pending;
-      this.pending = null;
-      this.run(first, parts.join(''), cursor);
-      return;
+      // A continuation carries only `m` (and perhaps `q`); anything else is a
+      // new command, so the interrupted transfer is dropped rather than fed
+      // a foreign chunk that would corrupt the image and eat the command.
+      const foreign = [...keys.keys()].some((key) => key !== 'm' && key !== 'q');
+      if (foreign) {
+        this.pending = null;
+      } else {
+        this.pending.payload.push(payload);
+        if (keys.get('m') === '1') return;
+        const { keys: first, payload: parts } = this.pending;
+        this.pending = null;
+        this.run(first, parts.join(''), cursor);
+        return;
+      }
     }
     if (keys.get('m') === '1') {
       this.pending = { keys, payload: [payload] };
@@ -253,7 +260,12 @@ function num(keys: Keys, key: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+const nativeFromBase64 = (Uint8Array as { fromBase64?: (text: string) => Uint8Array }).fromBase64;
+
 function decodeBase64(text: string): Uint8Array {
+  // The native decoder is an order of magnitude faster than the JS loop on
+  // the multi-megabyte payloads a pane image sends.
+  if (nativeFromBase64) return nativeFromBase64(text);
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);

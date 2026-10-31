@@ -8,10 +8,11 @@ import type { Translate } from '@/shared/i18n';
 import { encodeKeyWithModifiers, encodeStringToBytes, isSingleKey } from '@/shared/keys/keyEncoder';
 import type { KeyModifiers } from '@/shared/keys/keyEncoder';
 import { isWheelOnlyInput } from '@/shared/keys/scrollInput';
-import { copyText, extractImageFromClipboardEvent } from '@/shared/lib/clipboard';
+import { copyText } from '@/shared/lib/clipboard';
 import { sanitizeTerminalTitle } from '@/features/agents/documentTitle';
 import { detectShellProfile, type ShellProfile } from '@/features/keyboard/shellProfile';
 import type { PreparedImagePaste } from '@/features/paste/imagePaste';
+import { attachNativeImagePaste } from '@/features/paste/nativeImagePaste';
 import { classifyInput } from '@/shared/keys/inputClassifier';
 import {
   computeContainerGridFit,
@@ -57,6 +58,8 @@ export interface XtermLive {
   glyphScan: boolean;
   platform?: string;
   reportShellProfile: (profile: ShellProfile) => void;
+  /** A click landed on a pane image; show it big enough to read. */
+  openImagePreview: (image: ImageBitmap) => void;
 }
 
 /** Selection callbacks the terminal's own events drive. */
@@ -190,21 +193,14 @@ export function useXterm({
       };
       syncFocusState();
     }
-    const handleNativePaste = async (e: ClipboardEvent) => {
-      prediction.discard('paste');
-      const imageBlob = extractImageFromClipboardEvent(e);
-      if (imageBlob) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!live.current.isController) {
-          live.current.warnViewerMode();
-          return;
-        }
-        await live.current.uploadImage(imageBlob);
-      }
-    };
-    term.textarea?.addEventListener('paste', handleNativePaste);
-    container.addEventListener('paste', handleNativePaste);
+    const detachNativePaste = attachNativeImagePaste({
+      term,
+      container,
+      onPaste: () => prediction.discard('paste'),
+      isController: () => live.current.isController,
+      warnViewerMode: () => live.current.warnViewerMode(),
+      uploadImage: (image) => live.current.uploadImage(image),
+    });
 
     const renderer = attachTerminalRenderer(term, {
       isSynchronizing: screenState.isSynchronizing,
@@ -356,6 +352,8 @@ export function useXterm({
       getScale: () => currentScaleRef.current,
       getSurfaceElement: () => surfaceRef.current,
       getSelection: () => selection.current,
+      getImageAt: (p) => images.imageAt(p.clientX, p.clientY),
+      onImage: (image) => live.current.openImagePreview(image),
       onFocus: () => live.current.onTerminalFocus?.(),
       getTapOpensKeyboard: () => live.current.tapOpensKeyboard,
       onKeyboardOffer: () => live.current.offerKeyboard(),
@@ -385,8 +383,7 @@ export function useXterm({
       detachViewport();
       cancelPendingFits();
       removeTouchDebugFocusListeners();
-      term.textarea?.removeEventListener('paste', handleNativePaste);
-      container.removeEventListener('paste', handleNativePaste);
+      detachNativePaste();
       osc52.dispose();
       images.dispose();
       imagesRef.current = null;

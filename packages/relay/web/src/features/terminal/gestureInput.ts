@@ -28,6 +28,8 @@ export function attachGestureInput({
   getScale,
   getSurfaceElement,
   getSelection,
+  getImageAt,
+  onImage,
   onFocus,
   getTapOpensKeyboard,
   onKeyboardOffer,
@@ -43,6 +45,10 @@ export function attachGestureInput({
   getSurfaceElement: () => HTMLElement | null;
   /** Read at event time, so the handlers of the latest render run. */
   getSelection: () => GestureSelection;
+  /** The kitty-graphic image under a point, when a terminal image is drawn there. */
+  getImageAt?: (point: Point) => ImageBitmap | null;
+  /** Called with the image a click/tap landed on, to open it big. */
+  onImage?: (image: ImageBitmap) => void;
   onFocus: () => void;
   /** False when an input-row tap only offers the floating keyboard button. */
   getTapOpensKeyboard: () => boolean;
@@ -61,6 +67,14 @@ export function attachGestureInput({
     // the lifetime of the mounted terminal also covers a desktop-to-phone
     // rotation without rebuilding the xterm instance.
     allowSyntheticMouseFallback: false,
+    onImageTap: getImageAt
+      ? (point) => {
+          const image = getImageAt(point);
+          if (!image) return false;
+          onImage?.(image);
+          return true;
+        }
+      : undefined,
     onFocus: () => {
       // With the keyboard already up there is nothing to offer: the tap just
       // keeps typing where it was.
@@ -183,23 +197,70 @@ export function attachGestureInput({
     }
   };
 
+  /**
+   * A mouse press that landed on a terminal image. The controller never sees
+   * it — a click that stays put opens the preview, a drag goes nowhere rather
+   * than selecting over a picture. Taps on touch pointers keep flowing through
+   * the controller, which can still classify the gesture as a scroll drag.
+   */
+  let mouseImagePress: {
+    image: ImageBitmap;
+    pointerId: number;
+    x: number;
+    y: number;
+    stillATap: boolean;
+  } | null = null;
+
   if (usePointerEvents) {
     listen('pointerdown', (e) => {
       if (!eventIsInTerminal(e)) return;
       countEvent('pointerEvents', 'pointerdown');
       if (dismissOpenMenu(e)) return;
+      if (e.pointerType === 'mouse' && e.button === 0 && getImageAt) {
+        const image = getImageAt(e);
+        if (image) {
+          mouseImagePress = {
+            image,
+            pointerId: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            stillATap: true,
+          };
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
       const handled = pointerController.handlePointerDown(e, container);
       if (handled) e.stopPropagation();
     });
     listen('pointermove', (e) => {
       if (!eventIsInTerminal(e, true)) return;
       countEvent('pointerEvents', 'pointermove');
+      if (mouseImagePress) {
+        if (e.pointerId === mouseImagePress.pointerId) {
+          if (Math.hypot(e.clientX - mouseImagePress.x, e.clientY - mouseImagePress.y) > 8) {
+            mouseImagePress.stillATap = false;
+          }
+          e.stopPropagation();
+        }
+        return;
+      }
       pointerController.handlePointerMove(e);
       if (e.pointerType !== 'mouse') e.stopPropagation();
     });
     listen('pointerup', (e) => {
       if (!eventIsInTerminal(e, true)) return;
       countEvent('pointerEvents', 'pointerup');
+      if (mouseImagePress) {
+        if (e.pointerId === mouseImagePress.pointerId) {
+          if (mouseImagePress.stillATap) onImage?.(mouseImagePress.image);
+          mouseImagePress = null;
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
       // CRITICAL: Inspect longpress state BEFORE calling handlePointerUp(e).
       // Calling handlePointerUp resets controller state to 'idle'.
       openMenuAfterSelectionDrag();
@@ -209,6 +270,7 @@ export function attachGestureInput({
     listen('pointercancel', (e) => {
       if (!eventIsInTerminal(e, true)) return;
       countEvent('pointerEvents', 'pointercancel');
+      if (mouseImagePress?.pointerId === e.pointerId) mouseImagePress = null;
       // Interrupted gesture: clear menu, selection and highlight without opening menu
       getSelection().clearSelection();
       pointerController.handlePointerCancel(e);

@@ -436,6 +436,8 @@ export const en = {
     takeoverControlAria: 'Takeover Control',
     claimControlAria: 'Claim Control',
     newAdminTerminal: 'Open an administrator PowerShell tab in Herdr',
+    imagePreviewAria: 'Terminal image preview',
+    imageClose: 'Close image preview',
     adminTerminalSetup:
       'On the Windows host, open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access. Approve the one-time Windows prompt under the same account as Herdr Remote.',
     adminTerminalUpdate:

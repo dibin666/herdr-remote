@@ -16,6 +16,7 @@ import { openTerminalLink } from './terminalLinks';
 import type { AttachedRenderer } from './terminalRenderer';
 import { hostPaletteToTheme } from './theme';
 import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
+import { ImageLightbox } from './images/ImageLightbox';
 import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import {
   INITIAL_TOUCH_DEBUG,
@@ -70,6 +71,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
   const [touchDebug, setTouchDebug] = useState<TouchDebugState>(INITIAL_TOUCH_DEBUG);
   const { metrics: inboundMetrics, record: recordInbound } = useInboundMetrics(touchDebugEnabled);
   const [rendererKind, setRendererKind] = useState<string | null>(null);
+  /** The pane image open in the zoom overlay, while one is. */
+  const [previewImage, setPreviewImage] = useState<ImageBitmap | null>(null);
 
   const {
     settings,
@@ -140,6 +143,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     glyphScan: hostFont.glyphs.status === 'ready',
     platform,
     reportShellProfile,
+    openImagePreview: setPreviewImage,
   });
   const isActiveRef = useLatest(isActive);
 
@@ -367,6 +371,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
           onClose={selection.clearSelection}
         />
       )}
+
+      {previewImage ? (
+        <ImageLightbox image={previewImage} onClose={() => setPreviewImage(null)} />
+      ) : null}
 
       {/* Mounted only while open, so each opening starts empty. Clearing it in
           an effect on open raced a paste made the instant it appeared. */}
