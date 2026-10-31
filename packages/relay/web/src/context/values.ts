@@ -63,6 +63,8 @@ export interface ConnectionContextValue {
   hostname?: string;
   platform?: string;
   adminTerminalSupported?: boolean;
+  /** The workstation can list its terminal's working directory and send files from it. */
+  fileListSupported?: boolean;
   /** The workstation's herdr-remote release; null when it is too old to say. */
   hostVersion?: string | null;
   shellProfile: ShellProfile;

@@ -24,6 +24,13 @@ import {
   settleFontSubset,
 } from './font-proxy.js';
 import {
+  forwardFsChunk,
+  forwardFsList,
+  forwardFsMutationDone,
+  forwardFsPreview,
+  forwardFsReady,
+} from './fs-proxy.js';
+import {
   broadcastAgentStatus,
   broadcastTerminalFont,
   broadcastUpdateStatus,
@@ -90,6 +97,7 @@ function createHostRecord(
     handoffCapable: capabilities.includes(CAPABILITY.hostHandoff),
     binaryFrameV2: capabilities.includes(CAPABILITY.binaryFrameV2),
     pasteAnyFile: capabilities.includes(CAPABILITY.pasteAnyFile),
+    fsBrowse: capabilities.includes(CAPABILITY.fsBrowse),
     streamIndices: new Map(),
     nextStreamIndex: 0,
     shutdownRequested: false,
@@ -297,6 +305,16 @@ function handleHostMessage(
     forwardFontChunk(client, message);
   } else if (message.type === 'host_font_subset_ready') {
     forwardFontSubset(client, message);
+  } else if (message.type === 'fs_list_response') {
+    forwardFsList(client, message);
+  } else if (message.type === 'fs_download_ready') {
+    forwardFsReady(client, message);
+  } else if (message.type === 'fs_download_chunk') {
+    forwardFsChunk(client, message);
+  } else if (message.type === 'fs_preview_response') {
+    forwardFsPreview(client, message);
+  } else if (message.type === 'fs_mutation_done') {
+    forwardFsMutationDone(client, message);
   } else if (message.type === 'paste_file_ready') {
     jsonSend(client.ws, {
       type: 'paste_file_ready',
@@ -325,6 +343,7 @@ function handleHostMessage(
       type: 'error',
       code: message.code || 'host_error',
       message: String(message.message || 'Host connector error'),
+      ...(typeof message.requestId === 'string' ? { requestId: message.requestId } : {}),
     });
   }
 }

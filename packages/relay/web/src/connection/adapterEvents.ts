@@ -10,6 +10,13 @@ import type {
   ServerSessionRestartedMessage,
   ServerUpdateStatusMessage,
 } from '@protocol/messages';
+import type {
+  ServerFsDownloadChunkMessage,
+  ServerFsDownloadReadyMessage,
+  ServerFsListResponseMessage,
+  ServerFsMutationDoneMessage,
+  ServerFsPreviewResponseMessage,
+} from '@protocol/files';
 import type { HostTerminalFont } from '@protocol/terminal';
 import type { ConnectionState } from './types';
 
@@ -55,6 +62,7 @@ export type AdapterEventMap = {
     adminTerminalSupported?: boolean,
     hostVersion?: string | null,
     herdrPrefixKeys?: string[],
+    fileListSupported?: boolean,
   ) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;
@@ -79,6 +87,16 @@ export type AdapterEventMap = {
   hostFontChunk: (chunk: ServerHostFontChunkMessage) => void;
   /** A large font cut to the characters this window asked for. */
   hostFontSubset: (subset: ServerHostFontSubsetMessage) => void;
+  /** The directory listing this window asked for. */
+  fsListResponse: (message: ServerFsListResponseMessage) => void;
+  /** The workstation staged a download this window may now pull. */
+  fsDownloadReady: (message: ServerFsDownloadReadyMessage) => void;
+  /** One slice of a staged download. */
+  fsDownloadChunk: (message: ServerFsDownloadChunkMessage) => void;
+  /** The file's text the workstation read for the preview window. */
+  fsPreviewResponse: (message: ServerFsPreviewResponseMessage) => void;
+  /** A rename or delete this window asked for went through. */
+  fsMutationDone: (message: ServerFsMutationDoneMessage) => void;
 };
 
 export class AdapterEvents {
@@ -108,6 +126,11 @@ export class AdapterEvents {
     terminalFont: new Set(),
     hostFontChunk: new Set(),
     hostFontSubset: new Set(),
+    fsListResponse: new Set(),
+    fsDownloadReady: new Set(),
+    fsDownloadChunk: new Set(),
+    fsPreviewResponse: new Set(),
+    fsMutationDone: new Set(),
   };
 
   public on<K extends keyof AdapterEventMap>(event: K, listener: AdapterEventMap[K]): () => void {

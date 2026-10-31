@@ -94,6 +94,7 @@ export class HerdrClientAdapter extends RelaySocket {
           msg.adminTerminalSupported,
           msg.hostVersion,
           msg.herdrPrefixKeys,
+          msg.fileListSupported,
         );
         this.emit('terminalFont', msg.terminalFont ?? null);
         break;
@@ -195,6 +196,31 @@ export class HerdrClientAdapter extends RelaySocket {
         break;
       }
 
+      case 'fs_list_response': {
+        this.emit('fsListResponse', msg);
+        break;
+      }
+
+      case 'fs_download_ready': {
+        this.emit('fsDownloadReady', msg);
+        break;
+      }
+
+      case 'fs_download_chunk': {
+        this.emit('fsDownloadChunk', msg);
+        break;
+      }
+
+      case 'fs_preview_response': {
+        this.emit('fsPreviewResponse', msg);
+        break;
+      }
+
+      case 'fs_mutation_done': {
+        this.emit('fsMutationDone', msg);
+        break;
+      }
+
       default:
         break;
     }
@@ -284,5 +310,38 @@ export class HerdrClientAdapter extends RelaySocket {
   /** Open an elevated PowerShell as a tab of the workstation's Herdr. */
   public sendAdminTabOpen(): void {
     this.sendJson({ type: 'admin_tab_open' });
+  }
+
+  /**
+   * What the terminal's working directory holds. `dir` moves relative to the
+   * last listing: `'.'` re-reads it, `'..'` steps up, a name enters it.
+   */
+  public sendFsListRequest(requestId: string, dir?: string): void {
+    this.sendJson({ type: 'fs_list_request', requestId, ...(dir ? { dir } : {}) });
+  }
+
+  /** Stage a download of the listed entries named `names`. */
+  public sendFsDownloadRequest(requestId: string, names: string[]): void {
+    this.sendJson({ type: 'fs_download_request', requestId, names });
+  }
+
+  /** One slice of a staged download, by index. */
+  public sendFsDownloadChunkRequest(requestId: string, index: number): void {
+    this.sendJson({ type: 'fs_download_chunk_request', requestId, index });
+  }
+
+  /** Read a listed file's text for the preview window. */
+  public sendFsPreviewRequest(requestId: string, name: string): void {
+    this.sendJson({ type: 'fs_preview_request', requestId, name });
+  }
+
+  /** Give a listed entry a new name in the same directory. */
+  public sendFsRenameRequest(requestId: string, name: string, newName: string): void {
+    this.sendJson({ type: 'fs_rename_request', requestId, name, newName });
+  }
+
+  /** Remove a listed entry. */
+  public sendFsDeleteRequest(requestId: string, name: string): void {
+    this.sendJson({ type: 'fs_delete_request', requestId, name });
   }
 }
