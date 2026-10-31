@@ -18,18 +18,18 @@ export function UploadFileInputs({
   fileInputRef: RefObject<HTMLInputElement | null>;
   anyFileInputRef: RefObject<HTMLInputElement | null>;
 }) {
-  const { uploadImage, uploadFile } = useUpload();
+  const { uploadImages, uploadFiles } = useUpload();
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
-    uploadImage(file);
+    if (files.length === 0) return;
+    void uploadImages(files);
   };
   const handleAnyFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
-    uploadFile(file);
+    if (files.length === 0) return;
+    void uploadFiles(files);
   };
   return (
     <>
@@ -37,6 +37,7 @@ export function UploadFileInputs({
         ref={fileInputRef}
         type="file"
         accept={IMAGE_ACCEPT}
+        multiple
         className="hidden"
         data-testid="key-toolbar-file-input"
         onChange={handleFileInputChange}
@@ -52,6 +53,7 @@ export function UploadFileInputs({
       <input
         ref={anyFileInputRef}
         type="file"
+        multiple
         className="hidden"
         data-testid="key-toolbar-any-file-input"
         onChange={handleAnyFileInputChange}

@@ -145,6 +145,38 @@ describe('KeyToolbar file upload', () => {
     expect(screen.getByText('完成')).toBeInTheDocument();
   });
 
+  it('sends each picked file one after another and pastes both paths', async () => {
+    const { getCtx, ws } = setupTestSession();
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    const term = xtermInstances[0];
+    term.paste = vi.fn();
+
+    const one = new File(['1'], 'one.txt');
+    const two = new File(['2'], 'two.txt');
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('key-toolbar-any-file-input'), {
+        target: { files: [one, two] },
+      });
+    });
+
+    // The batch walks the wire one file at a time: the second goes only after
+    // the host answers for the first.
+    await waitFor(() => expect(sentPastes(ws)).toHaveLength(1));
+    expect(sentPastes(ws)[0].name).toBe('one.txt');
+
+    await act(async () => {
+      emitAdapterEvent(getCtx(), 'pasteFileReady', '/p/one.txt');
+    });
+    await waitFor(() => expect(sentPastes(ws)).toHaveLength(2));
+    expect(sentPastes(ws)[1].name).toBe('two.txt');
+
+    await act(async () => {
+      emitAdapterEvent(getCtx(), 'pasteFileReady', '/p/two.txt');
+    });
+    expect(term.paste).toHaveBeenNthCalledWith(1, '/p/one.txt');
+    expect(term.paste).toHaveBeenNthCalledWith(2, '/p/two.txt');
+  });
+
   it('refuses a file over the size limit without sending it', async () => {
     const { ws } = setupTestSession();
     const file = new File(['x'], 'big.bin');
