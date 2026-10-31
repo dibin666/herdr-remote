@@ -38,6 +38,8 @@ export interface RelayHost {
   adminTabsAvailable: boolean;
   /** The host saves pasted files of any type, not just images. */
   pasteAnyFile: boolean;
+  /** The host lists its terminal's working directory and stages downloads from it. */
+  fsBrowse: boolean;
   arch: string;
   connectedAt: string;
   connectedAtMs: number;
@@ -99,6 +101,12 @@ export interface RelayClient {
   fontSubsetRequests?: number[];
   /** Cut fonts this window may pull by hash, with their sizes. */
   fontSubsets?: Map<string, number>;
+  /** When this window last asked for a directory listing. */
+  fsListAt?: number;
+  /** When each outstanding file download chunk request was sent. */
+  fsChunkRequests?: number[];
+  /** Transfers this window may pull by request id, with their chunk counts. */
+  fsDownloads?: Map<string, number>;
 }
 
 /** Requests from one address within the current minute. */

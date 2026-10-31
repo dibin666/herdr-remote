@@ -7,7 +7,17 @@
 // binary frames (see ./frames).
 
 import type * as Clipboard from './clipboard.js';
+import type * as Fs from './files.js';
+import type * as Status from './status.js';
 import type { HostTerminalFont, HostTerminalPalette } from './terminal.js';
+
+// Agent and update status moved to ./status; keep the old import paths working.
+export type {
+  AgentStatus,
+  AgentStatusEntry,
+  ServerAgentStatusMessage,
+  ServerUpdateStatusMessage,
+} from './status.js';
 
 export const WS_HOST_PATH = '/ws/host';
 export const WS_CLIENT_PATH = '/ws/client';
@@ -28,6 +38,8 @@ export const CAPABILITY = {
   openLink: 'open_link',
   /** The relay routes clipboard reads and writes to the window that owns the stream. */
   clipboardForward: 'clipboard_forward',
+  /** The host lists its terminal's working directory and stages downloads from it. */
+  fsBrowse: 'fs_browse',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
@@ -124,7 +136,13 @@ export type ClientJsonMessage =
   | ClientPasteFileMessage
   | Clipboard.ClientClipboardReadReplyMessage
   | ClientHerdrStartMessage
-  | ClientAdminTabOpenMessage;
+  | ClientAdminTabOpenMessage
+  | Fs.ClientFsListRequestMessage
+  | Fs.ClientFsDownloadRequestMessage
+  | Fs.ClientFsDownloadChunkRequestMessage
+  | Fs.ClientFsPreviewRequestMessage
+  | Fs.ClientFsRenameRequestMessage
+  | Fs.ClientFsDeleteRequestMessage;
 
 // ---------------------------------------------------------------------------
 // Relay → browser
@@ -140,6 +158,8 @@ export interface ServerReadyMessage {
   shellProfile?: HostShellProfile;
   /** The relay and Windows host can both open an administrator terminal tab. */
   adminTerminalSupported?: boolean;
+  /** The workstation can list its terminal's working directory and send files from it. */
+  fileListSupported?: boolean;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
@@ -193,6 +213,8 @@ export interface ServerSessionRestartedMessage {
   platform?: string;
   shellProfile?: HostShellProfile;
   adminTerminalSupported?: boolean;
+  /** As in `ready`: the host may have come back on another release. */
+  fileListSupported?: boolean;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
   /** As in `ready`: the host may have come back on another release. */
@@ -211,6 +233,8 @@ export interface ServerErrorMessage {
   type: 'error';
   code: string | number;
   message: string;
+  /** The fs request the error answers, when it answers one. */
+  requestId?: string;
 }
 
 export interface ServerPongMessage {
@@ -229,50 +253,6 @@ export interface ServerOpenLinkMessage {
 }
 
 /** Herdr's own vocabulary for what a pane's agent is doing. */
-export type AgentStatus = 'blocked' | 'done' | 'working' | 'idle' | 'unknown';
-
-export interface AgentStatusEntry {
-  paneId: string | null;
-  workspaceId: string | null;
-  agent: string | null;
-  title: string | null;
-  status: string | null;
-  focused: boolean;
-}
-
-/**
- * What the workstation's agents are doing.
- *
- * Broadcast to every window watching this workstation rather than scoped to a
- * stream: it is a fact about the machine, not about one terminal. The host
- * reads it from Herdr's socket API.
- */
-export interface ServerAgentStatusMessage {
-  type: 'agent_status';
-  focusedPaneId?: string | null;
-  focusedAgent?: string | null;
-  counts: Partial<Record<AgentStatus, number>>;
-  total: number;
-  agents: AgentStatusEntry[];
-}
-
-/**
- * Whether the workstation's herdr-remote is behind the newest release. Checked
- * by the host when a window opens and kept by the relay for later windows.
- */
-export interface ServerUpdateStatusMessage {
-  type: 'update_status';
-  /** The version the workstation is running. */
-  current: string;
-  /** The version on disk; ahead of `current` when an update awaits a restart. */
-  installed: string;
-  latest: string;
-  updateAvailable: boolean;
-  restartPending: boolean;
-  /** The workstation has `herdr-remote update`, which installs and restarts in one step. */
-  updateCommand: boolean;
-}
-
 /** The workstation re-read its terminal font; sent to every window. */
 export interface ServerTerminalFontMessage {
   type: 'terminal_font';
@@ -316,10 +296,15 @@ export type ServerJsonMessage =
   | ServerPongMessage
   | ServerPasteFileReadyMessage
   | ServerOpenLinkMessage
+  | Fs.ServerFsListResponseMessage
+  | Fs.ServerFsDownloadReadyMessage
+  | Fs.ServerFsDownloadChunkMessage
+  | Fs.ServerFsPreviewResponseMessage
+  | Fs.ServerFsMutationDoneMessage
   | Clipboard.ServerClipboardWriteMessage
   | Clipboard.ServerClipboardReadMessage
-  | ServerAgentStatusMessage
-  | ServerUpdateStatusMessage;
+  | Status.ServerAgentStatusMessage
+  | Status.ServerUpdateStatusMessage;
 
 // ---------------------------------------------------------------------------
 // Host connector → relay
@@ -329,7 +314,7 @@ export type ServerJsonMessage =
  * Every host message about one browser's session names it by stream. The
  * relay sends both fields with the same value; a host reads `clientId` first.
  */
-interface StreamAddressed {
+export interface StreamAddressed {
   clientId?: string;
   streamId?: string;
 }
@@ -411,10 +396,12 @@ export interface HostErrorMessage extends StreamAddressed {
   type: 'error';
   code: string;
   message: string;
+  /** The fs request the error answers, when it answers one. */
+  requestId?: string;
 }
 
-export type HostAgentStatusMessage = ServerAgentStatusMessage;
-export type HostUpdateStatusMessage = ServerUpdateStatusMessage;
+export type HostAgentStatusMessage = Status.ServerAgentStatusMessage;
+export type HostUpdateStatusMessage = Status.ServerUpdateStatusMessage;
 export type HostTerminalFontMessage = ServerTerminalFontMessage;
 export type HostFontChunkMessage = ServerHostFontChunkMessage & StreamAddressed;
 export type HostFontSubsetMessage = ServerHostFontSubsetMessage & StreamAddressed;
@@ -432,99 +419,11 @@ export type HostMessage =
   | HostFontSubsetMessage
   | HostPasteFileReadyMessage
   | HostOpenLinkMessage
+  | Fs.HostFsListResponseMessage
+  | Fs.HostFsDownloadReadyMessage
+  | Fs.HostFsDownloadChunkMessage
+  | Fs.HostFsPreviewResponseMessage
+  | Fs.HostFsMutationDoneMessage
   | Clipboard.HostClipboardWriteMessage
   | Clipboard.HostClipboardReadMessage
   | HostErrorMessage;
-
-// ---------------------------------------------------------------------------
-// Relay → host connector
-// ---------------------------------------------------------------------------
-
-export interface RelayHostReadyMessage {
-  type: 'host_ready';
-  protocol: 1;
-  hostId: string;
-  clientCount: number;
-  /** What this relay does for hosts; older relays leave it out. */
-  capabilities?: string[];
-}
-
-/** How many browsers watch; the host stops its telemetry at zero. */
-export interface RelayClientCountMessage {
-  type: 'client_count';
-  clientCount: number;
-}
-
-export interface RelaySessionStartMessage extends StreamAddressed {
-  type: 'session_start';
-  cols: number;
-  rows: number;
-  role: ClientRole;
-  /** Present when the host negotiated v2 frames and an index was free. */
-  streamIndex?: number;
-}
-
-export interface RelaySessionStopMessage extends StreamAddressed {
-  type: 'session_stop';
-}
-
-export interface RelayResizeMessage extends StreamAddressed {
-  type: 'resize';
-  cols: number;
-  rows: number;
-}
-
-export interface RelayHerdrStartMessage extends StreamAddressed {
-  type: 'herdr_start';
-}
-
-export interface RelayAdminTabOpenMessage extends StreamAddressed {
-  type: 'admin_tab_open';
-}
-
-export interface RelayHostFontRefreshMessage extends StreamAddressed {
-  type: 'host_font_refresh';
-}
-
-export interface RelayHostFontChunkRequestMessage extends StreamAddressed {
-  type: 'host_font_chunk_request';
-  sha256: string;
-  index: number;
-}
-
-export interface RelayHostFontSubsetRequestMessage extends StreamAddressed {
-  type: 'host_font_subset_request';
-  requestId: string;
-  sha256: string;
-  text: string;
-}
-
-export interface RelayPasteFileMessage extends StreamAddressed {
-  type: 'paste_file';
-  mime: string;
-  dataBase64: string;
-  /** Sanitized file name, present only when `mime` is `PASTE_FILE_MIME`. */
-  name?: string;
-}
-
-/** Sent instead of `host_ready` when the handshake is refused. */
-export interface RelayErrorMessage {
-  type: 'error';
-  code: string;
-  message: string;
-}
-
-export type RelayToHostMessage =
-  | RelayHostReadyMessage
-  | RelayClientCountMessage
-  | RelaySessionStartMessage
-  | RelaySessionStopMessage
-  | RelayResizeMessage
-  | RelayHerdrStartMessage
-  | RelayAdminTabOpenMessage
-  | RelayHostFontRefreshMessage
-  | RelayHostFontChunkRequestMessage
-  | RelayHostFontSubsetRequestMessage
-  | RelayPasteFileMessage
-  | Clipboard.RelayClipboardReadReplyMessage
-  | RelayErrorMessage;

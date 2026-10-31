@@ -63,6 +63,8 @@ export interface ConnectionContextValue {
   hostname?: string;
   platform?: string;
   adminTerminalSupported?: boolean;
+  /** The workstation can list its terminal's working directory and send files from it. */
+  fileListSupported?: boolean;
   /** The workstation's herdr-remote release; null when it is too old to say. */
   hostVersion?: string | null;
   shellProfile: ShellProfile;
@@ -138,6 +140,10 @@ export interface UploadContextValue {
   uploadImage: (file: Blob | File | PreparedImagePaste) => Promise<boolean>;
   /** Send any file as it is, under its own name; the host pastes back its path. */
   uploadFile: (file: File) => Promise<boolean>;
+  /** A picked batch of images, sent one after another. */
+  uploadImages: (files: (Blob | File)[]) => Promise<boolean>;
+  /** A picked batch of files of any type, sent one after another. */
+  uploadFiles: (files: File[]) => Promise<boolean>;
   resetUploadProgress: () => void;
 }
 

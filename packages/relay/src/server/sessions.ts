@@ -90,6 +90,7 @@ export function startSession(
       platform: host.platform,
       ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
       adminTerminalSupported: host.adminTabsAvailable,
+      fileListSupported: host.fsBrowse,
       terminalPalette: host.terminalPalette || null,
       terminalFont: host.terminalFont || null,
       hostVersion: host.version,

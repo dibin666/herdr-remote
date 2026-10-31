@@ -446,15 +446,19 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     let last = buttons[buttons.length - 1];
     expect(last).toHaveAttribute('aria-label', expect.stringMatching(/回车|enter/i));
 
-    // Image upload button sits right before Enter in the same row
-    let imageBtn = buttons[buttons.length - 2];
+    // File list button sits right before Enter in the same row
+    const listBtn = buttons[buttons.length - 2];
+    expect(listBtn).toHaveAttribute('data-testid', 'file-list-btn');
+    expect(listBtn.className).toContain('h-7');
+    // The image upload button sits just left of it
+    let imageBtn = buttons[buttons.length - 3];
     expect(imageBtn).toHaveAttribute('data-testid', 'image-upload-btn');
     expect(imageBtn).toHaveAttribute('aria-label', expect.stringMatching(/上传图片|Upload Image/i));
     expect(imageBtn.textContent).not.toContain('🖼️');
     expect(imageBtn.className).toContain('h-7');
     expect(imageBtn.className).not.toContain('min-h-[44px]');
     // The any-file button sits just left of it, the same size
-    const fileBtn = buttons[buttons.length - 3];
+    const fileBtn = buttons[buttons.length - 4];
     expect(fileBtn).toHaveAttribute('data-testid', 'file-upload-btn');
     expect(fileBtn.className).toContain('h-7');
 
@@ -480,8 +484,12 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     last = buttons[buttons.length - 1];
     expect(last).toHaveAttribute('aria-label', expect.stringMatching(/回车|enter/i));
 
-    // Image upload button sits right before Enter in compact row
-    imageBtn = buttons[buttons.length - 2];
+    // File list button sits right before Enter in compact row
+    const listBtnCompact = buttons[buttons.length - 2];
+    expect(listBtnCompact).toHaveAttribute('data-testid', 'file-list-btn');
+    expect(listBtnCompact.className).toContain('h-8');
+    // The image upload button sits just left of it
+    imageBtn = buttons[buttons.length - 3];
     expect(imageBtn).toHaveAttribute('data-testid', 'image-upload-btn');
     expect(imageBtn).toHaveAttribute('aria-label', expect.stringMatching(/上传图片|Upload Image/i));
     expect(imageBtn.textContent).not.toContain('🖼️');

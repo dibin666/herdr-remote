@@ -4,16 +4,7 @@
 // and image uploads. `useTerminal()` returns all five together.
 
 import type React from 'react';
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-} from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { ClientRole } from '@protocol/messages';
 import { isServerErrorCode, type Language, type Translate, translate } from '@/shared/i18n';
 import type { HerdrClientAdapter } from '@/connection/clientAdapter';
@@ -39,7 +30,6 @@ import { useUpdateNotices } from './useUpdateNotices';
 import type {
   ConnectionContextValue,
   SettingsContextValue,
-  TerminalContextValue,
   TerminalIOContextValue,
   ToastContextValue,
   UploadContextValue,
@@ -47,12 +37,22 @@ import type {
 
 export { MAX_PENDING_OUTPUT_CHUNKS } from './useOutputBuffer';
 export type { ToastItem } from './useToastQueue';
-
-const SettingsContext = createContext<SettingsContextValue | null>(null);
-const ConnectionContext = createContext<ConnectionContextValue | null>(null);
-const ToastContext = createContext<ToastContextValue | null>(null);
-const TerminalIOContext = createContext<TerminalIOContextValue | null>(null);
-const UploadContext = createContext<UploadContextValue | null>(null);
+// The hook layer lives in ./hooks; re-export so every existing import keeps working.
+export {
+  useConnection,
+  useSettings,
+  useTerminal,
+  useTerminalIO,
+  useToasts,
+  useUpload,
+} from './hooks';
+import {
+  ConnectionContext,
+  SettingsContext,
+  TerminalIOContext,
+  ToastContext,
+  UploadContext,
+} from './hooks';
 
 export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, dispatch] = useReducer(sessionReducer, INITIAL_SESSION);
@@ -113,6 +113,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     uploadProgress,
     uploadImage,
     uploadFile,
+    uploadImages,
+    uploadFiles,
     resetUploadProgress,
     abortUpload,
     completeUpload,
@@ -173,6 +175,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       adminTerminalSupported,
       hostVersion,
       herdrPrefixKeys,
+      fileListSupported,
     ) => {
       clearPendingOutput();
       dispatch({
@@ -182,6 +185,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         platform,
         shellProfile,
         adminTerminalSupported,
+        fileListSupported,
         hostVersion,
         herdrPrefixKeys,
       });
@@ -220,6 +224,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (handleLaunchError(err)) return;
       // Belongs to a font transfer, which reports it in its own dialog.
       if (err.code === 'host_font_unavailable') return;
+      // An fs error belongs to the file list dialog, which matches it to its
+      // request; it is not a reason to drop an upload in flight.
+      if (typeof err.code === 'string' && err.code.startsWith('fs_')) return;
       abortUpload();
       const message = isServerErrorCode(err.code)
         ? t(`serverErrors.${err.code}`)
@@ -462,8 +469,15 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
 
   const uploadValue = useMemo<UploadContextValue>(
-    () => ({ uploadProgress, uploadImage, uploadFile, resetUploadProgress }),
-    [uploadProgress, uploadImage, uploadFile, resetUploadProgress],
+    () => ({
+      uploadProgress,
+      uploadImage,
+      uploadFile,
+      uploadImages,
+      uploadFiles,
+      resetUploadProgress,
+    }),
+    [uploadProgress, uploadImage, uploadFile, uploadImages, uploadFiles, resetUploadProgress],
   );
 
   return (
@@ -478,34 +492,3 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     </SettingsContext.Provider>
   );
 };
-
-function useRequired<T>(context: React.Context<T | null>, hook: string): T {
-  const value = useContext(context);
-  if (!value) {
-    throw new Error(`${hook} must be used within a TerminalProvider`);
-  }
-  return value;
-}
-
-/** Settings, translations, connection profiles and the terminal font. */
-export const useSettings = () => useRequired(SettingsContext, 'useSettings');
-/** The relay session: its state, the host, and controlling the connection. */
-export const useConnection = () => useRequired(ConnectionContext, 'useConnection');
-export const useToasts = () => useRequired(ToastContext, 'useToasts');
-/** Sending into the terminal, and receiving its output. */
-export const useTerminalIO = () => useRequired(TerminalIOContext, 'useTerminalIO');
-export const useUpload = () => useRequired(UploadContext, 'useUpload');
-
-/**
- * Everything at once. Prefer the narrower hooks above: a component using this
- * re-renders on every change to any of them.
- */
-export function useTerminal(): TerminalContextValue {
-  return {
-    ...useSettings(),
-    ...useConnection(),
-    ...useToasts(),
-    ...useTerminalIO(),
-    ...useUpload(),
-  };
-}
