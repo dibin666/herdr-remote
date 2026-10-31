@@ -80,7 +80,9 @@ const DEFAULTS: RelayConfig = {
     maxClientsPerHost: 16,
     maxHosts: 1024,
     maxPendingHandshakes: 1024,
-    maxBufferedBytesPerClient: 4 * 1024 * 1024,
+    // Kitty image uploads burst to several megabytes of base64; the cap has
+    // to leave room for them or slow links lose images to a forced reconnect.
+    maxBufferedBytesPerClient: 16 * 1024 * 1024,
     allowedOrigins: [],
     trustProxy: false,
     hostReconnectGraceMs: 30 * 1000,

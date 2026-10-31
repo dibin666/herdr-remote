@@ -39,7 +39,10 @@ export function attachTerminalImages(
     };
   }
   let layer: ImageLayer | null = null;
-  const graphics = new KittyGraphics(decode, () => layer?.schedule());
+  const graphics = new KittyGraphics(decode, () => {
+    layer?.markDirty();
+    layer?.schedule();
+  });
   layer = ImageLayer.create(term, graphics);
 
   const disposables: Disposable[] = [

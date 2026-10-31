@@ -65,6 +65,9 @@ export function hitImage<T extends DecodedImage>(
   return null;
 }
 
+/** Blit memory budget: a few full-viewport images at phone densities. */
+const MAX_BLIT_BYTES = 64 * 1024 * 1024;
+
 /**
  * One canvas over the terminal's cells, holding every visible placement.
  * Herdr blanks the cells an image covers and draws it at z=0, above the text,
@@ -74,6 +77,17 @@ export class ImageLayer {
   private readonly canvas: HTMLCanvasElement;
   private frame = 0;
   private drawn = false;
+  /** Set when placements or decoded pixels changed since the last draw. */
+  private dirty = true;
+  /** Geometry the last draw was computed from; repaints alone don't redraw. */
+  private lastKey = '';
+  /**
+   * Placement blits at device-pixel size, so a scroll redraw is a 1:1 copy.
+   * Keyed by the bitmap itself: a re-uploaded image id decodes to a new
+   * bitmap, and its blits go stale only until the next draw drops them.
+   */
+  private blits = new Map<ImageBitmap, Map<string, HTMLCanvasElement>>();
+  private blitBytes = 0;
 
   static create(term: Terminal, graphics: KittyGraphics<ImageBitmap>): ImageLayer | null {
     const screen = term.element?.querySelector<HTMLElement>('.xterm-screen');
@@ -108,12 +122,27 @@ export class ImageLayer {
     screen.appendChild(canvas);
   }
 
-  /** Redraws on the next frame; many changes in one frame draw once. */
+  /** Marks the pixels stale; a change Herdr announced always repaints. */
+  markDirty(): void {
+    this.dirty = true;
+  }
+
+  /**
+   * Redraws on the next frame; many changes in one frame draw once. Text
+   * repaints run here too but only geometry changes cost an actual draw.
+   */
   schedule(): void {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
-      this.draw();
+      const { cellWidth, cellHeight } = measureCellDimensions(this.term);
+      const viewportY = this.term.buffer.active.viewportY;
+      const dpr = window.devicePixelRatio || 1;
+      const key = `${viewportY}|${this.term.cols}x${this.term.rows}|${cellWidth}x${cellHeight}|${dpr}`;
+      if (!this.dirty && key === this.lastKey) return;
+      this.lastKey = key;
+      this.dirty = false;
+      this.draw(cellWidth, cellHeight, dpr, viewportY);
     });
   }
 
@@ -139,17 +168,22 @@ export class ImageLayer {
   dispose(): void {
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
+    this.blits.clear();
+    this.blitBytes = 0;
     this.canvas.remove();
   }
 
-  private draw(): void {
+  /**
+   * Paints each visible placement. Rescaling a megapixel bitmap every frame
+   * was the scroll stutter, so the scaled copy is kept per placement
+   * geometry; positions change on scroll while sizes stay put.
+   */
+  private draw(cellWidth: number, cellHeight: number, dpr: number, viewportY: number): void {
     const placements = this.graphics.placements();
     // Herdr redraws its screen constantly; with nothing shown, do nothing.
     if (!placements.length && !this.drawn) return;
-    const { cellWidth, cellHeight } = measureCellDimensions(this.term);
     const width = cellWidth * this.term.cols;
     const height = cellHeight * this.term.rows;
-    const dpr = window.devicePixelRatio || 1;
     const deviceWidth = Math.round(width * dpr);
     const deviceHeight = Math.round(height * dpr);
     const { canvas, context } = this;
@@ -164,10 +198,12 @@ export class ImageLayer {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawn = false;
 
-    const viewportY = this.term.buffer.active.viewportY;
+    const liveImages = new Set<ImageBitmap>();
+    const usedBlits = new Set<HTMLCanvasElement>();
     for (const placement of placements) {
       const image = this.graphics.image(placement.imageId);
       if (!image) continue;
+      liveImages.add(image);
       const sx = Math.min(placement.sx, image.width);
       const sy = Math.min(placement.sy, image.height);
       const sw = Math.min(placement.sw || image.width, image.width - sx);
@@ -175,8 +211,71 @@ export class ImageLayer {
       if (sw <= 0 || sh <= 0) continue;
       const box = placementBox(placement, image, cellWidth, cellHeight, viewportY);
       if (box.y >= height || box.y + box.h <= 0) continue;
-      context.drawImage(image, sx, sy, sw, sh, box.x, box.y, box.w, box.h);
+      const devW = Math.max(1, Math.round(box.w * dpr));
+      const devH = Math.max(1, Math.round(box.h * dpr));
+      const blit = this.blit(image, sx, sy, sw, sh, devW, devH);
+      if (!blit) continue;
+      usedBlits.add(blit);
+      context.drawImage(blit, box.x, box.y, box.w, box.h);
       this.drawn = true;
     }
+    // Blits of images nothing references are dropped outright; blits whose
+    // placement merely scrolled away stay for the scroll back, unless the
+    // budget forces the oldest unused ones out.
+    for (const image of this.blits.keys()) {
+      if (!liveImages.has(image)) this.dropImageBlits(image);
+    }
+    while (this.blitBytes > MAX_BLIT_BYTES) {
+      let evicted = false;
+      for (const inner of this.blits.values()) {
+        for (const [key, canvas] of inner) {
+          if (usedBlits.has(canvas)) continue;
+          this.blitBytes -= canvas.width * canvas.height * 4;
+          inner.delete(key);
+          evicted = true;
+          break;
+        }
+        if (evicted) break;
+      }
+      if (!evicted) return;
+    }
+  }
+
+  private blit(
+    image: ImageBitmap,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    devW: number,
+    devH: number,
+  ): HTMLCanvasElement | null {
+    const key = `${sx},${sy},${sw},${sh}:${devW}x${devH}`;
+    const inner = this.blits.get(image);
+    const existing = inner?.get(key);
+    if (existing) return existing;
+    const blit = this.screen.ownerDocument.createElement('canvas');
+    blit.width = devW;
+    blit.height = devH;
+    const context = blit.getContext('2d');
+    if (!context) return null;
+    context.drawImage(image, sx, sy, sw, sh, 0, 0, devW, devH);
+    let target = inner;
+    if (!target) {
+      target = new Map();
+      this.blits.set(image, target);
+    }
+    target.set(key, blit);
+    this.blitBytes += devW * devH * 4;
+    return blit;
+  }
+
+  private dropImageBlits(image: ImageBitmap): void {
+    const inner = this.blits.get(image);
+    if (!inner) return;
+    for (const canvas of inner.values()) {
+      this.blitBytes -= canvas.width * canvas.height * 4;
+    }
+    this.blits.delete(image);
   }
 }
