@@ -171,6 +171,32 @@ test.runIf(unix)('anything the window cannot take opens with the real command', 
 });
 
 test.runIf(unix)(
+  'the relay reporting its capabilities again keeps the listener reachable',
+  async (t) => {
+    const { tools, sent } = await forwarder(t);
+
+    // Every host_ready re-runs start(); the one behind a reconnect must not
+    // pull the socket path out from under the listener still bound to it.
+    tools.setRelayCapabilities(['open_link', 'clipboard_forward']);
+    assert.ok(fs.existsSync(tools.socketPath));
+
+    const real = realTool(t);
+    const { runs, run } = recordRuns();
+    const env = tools.env('session-1', real.directory);
+
+    const code = await runLinkShim(
+      [path.join(tools.shimDir, 'xdg-open'), 'https://example.com/pr/7'],
+      { env, run },
+    );
+
+    assert.equal(code, 0);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].type, 'open_link');
+    assert.deepEqual(runs, []);
+  },
+);
+
+test.runIf(unix)(
   'a connector that is not listening costs nothing but the real command',
   async (t) => {
     const directory = tempDir(t, 'herdr-remote-tools-');

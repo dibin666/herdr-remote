@@ -136,6 +136,10 @@ export class ToolForward {
           },
         );
       }
+      // A listener already bound keeps its path: start() runs on every
+      // host_ready, and removing the file of a live socket leaves it bound to
+      // an unlinked inode — stand-ins would then find nothing to reach.
+      if (this.server) return;
       // The connector holds the host lock, so a socket left here is a dead one's.
       fs.rmSync(this.socketPath, { force: true });
     } catch (error) {
@@ -144,7 +148,6 @@ export class ToolForward {
       );
       return;
     }
-    if (this.server) return;
     const server = net.createServer((socket) => this.serve(socket));
     server.on('error', (error) => {
       process.stderr.write(
