@@ -160,6 +160,8 @@ export interface MockTerminalInstance {
   modes: { mouseTrackingMode: string };
   emitRender?: (e: { start: number; end: number }) => void;
   emitWriteParsed?: () => void;
+  /** The custom key handler installed by the terminal input path. */
+  customKeyEventHandler?: (event: KeyboardEvent) => boolean;
   /** Stand in for the OSC 2 title the host's Herdr client sets. */
   emitTitleChange?: (title: string) => void;
   /** The OSC handlers the view registered, for tests that drive them. */
@@ -245,6 +247,9 @@ vi.mock('@xterm/xterm', () => ({
       clear: vi.fn(),
       onData: vi.fn(() => ({ dispose: vi.fn() })),
       onBinary: vi.fn(() => ({ dispose: vi.fn() })),
+      attachCustomKeyEventHandler: vi.fn((handler: (event: KeyboardEvent) => boolean) => {
+        instance.customKeyEventHandler = handler;
+      }),
       onRender: vi.fn((cb: (e: { start: number; end: number }) => void) => {
         renderCallbacks.push(cb);
         return {
