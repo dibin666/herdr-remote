@@ -8,6 +8,7 @@ import { AgentKeyActions } from './AgentKeyActions';
 import { CAP_ACTIVE, CAP_BASE, CAP_COMMIT, CAP_IDLE, capSizes } from './caps';
 import { ChordsDrawer, FnKeysDrawer, SymbolsDrawer } from './KeyDrawers';
 import { FileListButton } from '@/features/files/FileListButton';
+import { PasteButton } from './PasteButton';
 import { UploadButton, UploadFileInputs, UploadProgressBar } from './UploadControls';
 import { useKeySender } from './useKeySender';
 import { KeyIcon, KeyLabel } from './KeyLabel';
@@ -372,6 +373,7 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               squareKeyClass={squareKeyClass}
               vibrate={vibrate}
             />
+            <PasteButton squareKeyClass={squareKeyClass} vibrate={vibrate} />
             <FileListButton squareKeyClass={squareKeyClass} vibrate={vibrate} />
           </div>
           {moreToRight && (
