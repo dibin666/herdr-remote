@@ -36,6 +36,8 @@ export interface PasteFallbackModalProps {
   onClose: () => void;
   onSend: (text: string) => void;
   onSendImage?: (image: PreparedImagePaste) => void;
+  /** False keeps the dialog text-only for callers with a separate image path. */
+  allowImage?: boolean;
 }
 
 export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
@@ -43,6 +45,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
   onClose,
   onSend,
   onSendImage,
+  allowImage = true,
 }) => {
   const { t } = useSettings();
   const { addToast } = useToasts();
@@ -77,6 +80,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!allowImage) return;
     const imageBlob = extractImageFromClipboardEvent(e);
     if (imageBlob) {
       // Intercept image paste (e.g. desktop Ctrl+V) so raw binary or HTML is not dumped into textarea
@@ -162,91 +166,95 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
           />
         </div>
 
-        {/* Visual separator between Text and Image entry */}
-        <div className="relative my-1">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-tui-border" />
-          </div>
-          <div className="relative flex justify-center text-tui-xs uppercase">
-            <span className="bg-tui-bg px-2 text-tui-muted font-sans">
-              {t('clipboard.imageSectionTitle')}
-            </span>
-          </div>
-        </div>
-
-        {/* Image Section */}
-        <div className="flex flex-col gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/*"
-            className="hidden"
-            data-testid="paste-fallback-file-input"
-            onChange={handleFileChange}
-          />
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/*"
-            capture="environment"
-            className="hidden"
-            data-testid="paste-fallback-camera-input"
-            onChange={handleFileChange}
-          />
-
-          {imageState ? (
-            <div className="flex flex-col items-center gap-2 p-3 border border-tui-border bg-tui-bg rounded">
-              {/* Thumbnail preview MUST use data: URL to satisfy CSP (img-src 'self' data:) */}
-              <img
-                src={imageState.dataUrl}
-                alt="Pasted preview"
-                data-testid="pasted-image-preview"
-                className="max-h-40 max-w-full object-contain rounded border border-tui-border"
-              />
-              <div className="flex items-center justify-between w-full text-tui-xs text-tui-muted pt-1">
-                <span>
-                  {t('clipboard.imageCompressedSize', {
-                    size: formatByteSize(imageState.byteLength),
-                  })}
+        {allowImage && (
+          <>
+            {/* Visual separator between Text and Image entry */}
+            <div className="relative my-1">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-tui-border" />
+              </div>
+              <div className="relative flex justify-center text-tui-xs uppercase">
+                <span className="bg-tui-bg px-2 text-tui-muted font-sans">
+                  {t('clipboard.imageSectionTitle')}
                 </span>
-                <Button
-                  variant="ghost"
-                  onClick={handleClearImage}
-                  aria-label={t('clipboard.removeImage')}
-                >
-                  {t('clipboard.cancel')}
-                </Button>
               </div>
             </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="default"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isCompressing || Boolean(textValue.trim())}
-                className="min-h-[44px] px-3 touch-manipulation text-tui-sm font-sans flex-1"
-                aria-label={t('clipboard.chooseImage')}
-              >
-                {t('clipboard.chooseImage')}
-              </Button>
-              <Button
-                variant="default"
-                onClick={() => cameraInputRef.current?.click()}
-                disabled={isCompressing || Boolean(textValue.trim())}
-                className="min-h-[44px] px-3 touch-manipulation text-tui-sm font-sans flex-1"
-                aria-label={t('clipboard.takePhoto')}
-              >
-                {t('clipboard.takePhoto')}
-              </Button>
-            </div>
-          )}
 
-          {isCompressing && (
-            <div className="flex items-center gap-2 text-tui-xs text-tui-muted animate-pulse">
-              <span>{t('clipboard.imageCompressing')}</span>
+            {/* Image Section */}
+            <div className="flex flex-col gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+                className="hidden"
+                data-testid="paste-fallback-file-input"
+                onChange={handleFileChange}
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+                capture="environment"
+                className="hidden"
+                data-testid="paste-fallback-camera-input"
+                onChange={handleFileChange}
+              />
+
+              {imageState ? (
+                <div className="flex flex-col items-center gap-2 p-3 border border-tui-border bg-tui-bg rounded">
+                  {/* Thumbnail preview MUST use data: URL to satisfy CSP (img-src 'self' data:) */}
+                  <img
+                    src={imageState.dataUrl}
+                    alt="Pasted preview"
+                    data-testid="pasted-image-preview"
+                    className="max-h-40 max-w-full object-contain rounded border border-tui-border"
+                  />
+                  <div className="flex items-center justify-between w-full text-tui-xs text-tui-muted pt-1">
+                    <span>
+                      {t('clipboard.imageCompressedSize', {
+                        size: formatByteSize(imageState.byteLength),
+                      })}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      onClick={handleClearImage}
+                      aria-label={t('clipboard.removeImage')}
+                    >
+                      {t('clipboard.cancel')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="default"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCompressing || Boolean(textValue.trim())}
+                    className="min-h-[44px] px-3 touch-manipulation text-tui-sm font-sans flex-1"
+                    aria-label={t('clipboard.chooseImage')}
+                  >
+                    {t('clipboard.chooseImage')}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={isCompressing || Boolean(textValue.trim())}
+                    className="min-h-[44px] px-3 touch-manipulation text-tui-sm font-sans flex-1"
+                    aria-label={t('clipboard.takePhoto')}
+                  >
+                    {t('clipboard.takePhoto')}
+                  </Button>
+                </div>
+              )}
+
+              {isCompressing && (
+                <div className="flex items-center gap-2 text-tui-xs text-tui-muted animate-pulse">
+                  <span>{t('clipboard.imageCompressing')}</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </Modal>
   );

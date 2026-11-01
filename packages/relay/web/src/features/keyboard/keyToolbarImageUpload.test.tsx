@@ -103,7 +103,9 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(desktopBtn).toHaveAttribute('aria-label', '上传图片');
     expect(desktopBtn).toHaveAttribute('title', '选择图片并上传至终端');
     // A solid picture icon, nf-md-image; the words are in the accessible name.
-    expect(desktopBtn.textContent).toBe('\u{F02E9}');
+    expect(desktopBtn.textContent).toContain('\u{F02E9}');
+    // ...alongside the words it used to only announce to screen readers.
+    expect(desktopBtn.textContent).toContain('上传图片');
     // Does not render emoji square 🖼️
     expect(desktopBtn.textContent).not.toContain('🖼️');
     // Shares the bar's one cap height instead of standing out as a large button
@@ -122,7 +124,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const compactBtn = screen.getByTestId('image-upload-btn');
     expect(compactBtn).toBeInTheDocument();
     expect(compactBtn).toHaveAttribute('aria-label', '上传图片');
-    expect(compactBtn.textContent).toBe('\u{F02E9}');
+    expect(compactBtn.textContent).toContain('\u{F02E9}');
     expect(compactBtn.textContent).not.toContain('🖼️');
     expect(compactBtn.className).toContain('h-8');
     expect(compactBtn.className).not.toContain('min-h-[44px]');
@@ -139,7 +141,8 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const btn = screen.getByTestId('image-upload-btn');
     expect(btn).toHaveAttribute('aria-label', 'Upload Image');
     expect(btn).toHaveAttribute('title', 'Select and upload image to terminal');
-    expect(btn.textContent).toBe('\u{F02E9}');
+    expect(btn.textContent).toContain('\u{F02E9}');
+    expect(btn.textContent).toContain('Upload Image');
   });
 
   it('clicking image button triggers native file input click', () => {

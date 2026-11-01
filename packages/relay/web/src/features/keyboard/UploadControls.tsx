@@ -105,13 +105,11 @@ export function UploadButton({
   kind,
   inputRef,
   keyClass,
-  squareKeyClass,
   vibrate,
 }: {
   kind: keyof typeof UPLOAD_BUTTONS;
   inputRef: RefObject<HTMLInputElement | null>;
   keyClass: string;
-  squareKeyClass: string;
   vibrate: () => void;
 }) {
   const { t } = useSettings();
@@ -142,8 +140,7 @@ export function UploadButton({
       disabled={isUploading}
       className={cn(
         CAP_BASE,
-        // Square while it is an icon; the percentage needs a word's width.
-        showsProgress ? keyClass : squareKeyClass,
+        keyClass,
         isUploading
           ? 'border-tui-border-dim bg-tui-surface opacity-60 cursor-not-allowed'
           : CAP_IDLE,
@@ -151,7 +148,14 @@ export function UploadButton({
       title={isUploading ? uploadProgress.statusText : t(button.title)}
       aria-label={t(button.label)}
     >
-      {showsProgress ? <span>{`${uploadProgress.percent}%`}</span> : <KeyIcon name={button.icon} />}
+      {showsProgress ? (
+        <span>{`${uploadProgress.percent}%`}</span>
+      ) : (
+        <>
+          <KeyIcon name={button.icon} />
+          <span>{t(button.label)}</span>
+        </>
+      )}
     </button>
   );
 }

@@ -363,18 +363,16 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               kind="file"
               inputRef={anyFileInputRef}
               keyClass={keyClass}
-              squareKeyClass={squareKeyClass}
               vibrate={vibrate}
             />
             <UploadButton
               kind="image"
               inputRef={fileInputRef}
               keyClass={keyClass}
-              squareKeyClass={squareKeyClass}
               vibrate={vibrate}
             />
-            <PasteButton squareKeyClass={squareKeyClass} vibrate={vibrate} />
-            <FileListButton squareKeyClass={squareKeyClass} vibrate={vibrate} />
+            <PasteButton capClass={keyClass} vibrate={vibrate} />
+            <FileListButton capClass={keyClass} vibrate={vibrate} />
           </div>
           {moreToRight && (
             <span

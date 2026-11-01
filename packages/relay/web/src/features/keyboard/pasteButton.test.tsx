@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyToolbar } from './KeyToolbar';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import { saveSettings } from '@/features/settings/storage';
-import * as clipboardModule from '@/shared/lib/clipboard';
 
 describe('KeyToolbar paste button', () => {
   let terminalCtx: ReturnType<typeof useTerminal> | undefined;
@@ -29,15 +28,7 @@ describe('KeyToolbar paste button', () => {
     vi.restoreAllMocks();
   });
 
-  it('opens the manual paste box and sends the typed text', async () => {
-    vi.spyOn(clipboardModule, 'readClipboardImage').mockResolvedValue({
-      ok: false,
-      reason: 'insecure',
-    });
-    vi.spyOn(clipboardModule, 'readClipboardText').mockResolvedValue({
-      ok: false,
-      reason: 'insecure',
-    });
+  it('opens a text-only paste box and sends the typed text', async () => {
     saveSettings({ language: 'zh', toolbarVisible: true });
     renderToolbar();
     await waitFor(() => expect(terminalCtx).toBeDefined());
@@ -51,6 +42,8 @@ describe('KeyToolbar paste button', () => {
     const unsub = terminalCtx!.observeKeyInput(inputSpy);
     fireEvent.click(await screen.findByTestId('paste-btn'));
     const textarea = await screen.findByTestId('paste-fallback-input');
+    // Text-only: the image/file entries stay on their own toolbar buttons.
+    expect(screen.queryByTestId('paste-fallback-file-input')).toBeNull();
     fireEvent.change(textarea, { target: { value: 'git pull origin main' } });
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
     await waitFor(() => expect(inputSpy).toHaveBeenCalled());

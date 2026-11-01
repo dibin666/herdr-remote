@@ -1,29 +1,19 @@
 import { useState } from 'react';
-import type { PreparedImagePaste } from '@/features/paste/imagePaste';
-import {
-  useConnection,
-  useSettings,
-  useTerminalIO,
-  useToasts,
-  useUpload,
-} from '@/context/TerminalContext';
+import { useConnection, useSettings, useTerminalIO, useToasts } from '@/context/TerminalContext';
 import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
 import { cn } from '@/shared/lib/cn';
 import { CAP_BASE, CAP_IDLE } from './caps';
 import { KeyIcon } from './KeyLabel';
 
-/** A paste control that can read the clipboard on tap or accept typed text. */
-export function PasteButton({
-  squareKeyClass,
-  vibrate,
-}: {
-  squareKeyClass: string;
-  vibrate: () => void;
-}) {
+/**
+ * Opens a text box whose contents are typed into the terminal on send: the
+ * fallback for browsers that cannot hand us the clipboard directly. Images and
+ * files keep their own buttons beside it, so this one stays text-only.
+ */
+export function PasteButton({ capClass, vibrate }: { capClass: string; vibrate: () => void }) {
   const { t } = useSettings();
   const { isController } = useConnection();
   const { sendKey, warnViewerMode } = useTerminalIO();
-  const { uploadImage } = useUpload();
   const { addToast } = useToasts();
   const [open, setOpen] = useState(false);
 
@@ -47,23 +37,18 @@ export function PasteButton({
         type="button"
         data-testid="paste-btn"
         onClick={handleClick}
-        className={cn(CAP_BASE, squareKeyClass, CAP_IDLE)}
+        className={cn(CAP_BASE, capClass, CAP_IDLE)}
         title={t('clipboard.paste')}
         aria-label={t('clipboard.paste')}
       >
-        <KeyIcon name="attach" />
+        <KeyIcon name="paste" />
+        <span>{t('clipboard.paste')}</span>
       </button>
       <PasteFallbackModal
         isOpen={open}
+        allowImage={false}
         onClose={() => setOpen(false)}
-        onSend={(text) => {
-          pasteText(text);
-          setOpen(false);
-        }}
-        onSendImage={async (image: PreparedImagePaste) => {
-          await uploadImage(image);
-          setOpen(false);
-        }}
+        onSend={pasteText}
       />
     </>
   );

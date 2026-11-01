@@ -339,7 +339,7 @@ describe('FileListButton', () => {
     render(
       <TerminalProvider>
         <ContextCollector />
-        <FileListButton squareKeyClass="h-8 w-8" />
+        <FileListButton capClass="h-8 min-w-[2rem] px-1.5" />
         <ToastContainer />
       </TerminalProvider>,
     );

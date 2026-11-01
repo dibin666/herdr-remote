@@ -8,13 +8,7 @@ import { CAP_BASE, CAP_IDLE } from '@/features/keyboard/caps';
 import { KeyIcon } from '@/features/keyboard/KeyLabel';
 import { FileListModal } from './FileListModal';
 
-export function FileListButton({
-  squareKeyClass,
-  vibrate,
-}: {
-  squareKeyClass: string;
-  vibrate?: () => void;
-}) {
+export function FileListButton({ capClass, vibrate }: { capClass: string; vibrate?: () => void }) {
   const { t } = useSettings();
   const { isController } = useConnection();
   const { warnViewerMode } = useTerminalIO();
@@ -35,11 +29,12 @@ export function FileListButton({
         type="button"
         data-testid="file-list-btn"
         onClick={handleClick}
-        className={cn(CAP_BASE, squareKeyClass, CAP_IDLE)}
+        className={cn(CAP_BASE, capClass, CAP_IDLE)}
         title={t('virtualKeyboard.fileListTitle')}
         aria-label={t('virtualKeyboard.fileList')}
       >
         <KeyIcon name="folder" />
+        <span>{t('virtualKeyboard.fileList')}</span>
       </button>
       <FileListModal isOpen={open} onClose={() => setOpen(false)} />
     </>

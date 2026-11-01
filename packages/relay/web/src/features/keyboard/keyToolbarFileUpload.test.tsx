@@ -90,7 +90,8 @@ describe('KeyToolbar file upload', () => {
     const btn = screen.getByTestId('file-upload-btn');
     expect(btn).toHaveAttribute('aria-label', 'Upload File');
     expect(btn).toHaveAttribute('title', expect.stringContaining('any file'));
-    expect(btn.textContent).toBe('\u{F03E2}');
+    expect(btn.textContent).toContain('\u{F03E2}');
+    expect(btn.textContent).toContain('Upload File');
     expect(btn.nextElementSibling).toBe(screen.getByTestId('image-upload-btn'));
   });
 
@@ -136,7 +137,7 @@ describe('KeyToolbar file upload', () => {
     // Only the button that started the upload shows its percentage.
     expect(screen.getByTestId('file-upload-btn').textContent).toBe('88%');
     expect(screen.getByTestId('image-upload-btn')).toBeDisabled();
-    expect(screen.getByTestId('image-upload-btn').textContent).toBe('\u{F02E9}');
+    expect(screen.getByTestId('image-upload-btn').textContent).toContain('\u{F02E9}');
 
     await act(async () => {
       emitAdapterEvent(getCtx(), 'pasteFileReady', '/state/pasted/uuid-notes.txt');
