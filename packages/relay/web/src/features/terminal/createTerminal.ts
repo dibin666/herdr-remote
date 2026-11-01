@@ -56,6 +56,13 @@ export function createTerminal({
     console.debug('Unicode11 addon unavailable, using default width table:', e);
   }
 
+  // xterm otherwise turns Ctrl/Cmd+V into C0.SYN and cancels browser paste.
+  // Let the browser event carry the controller's clipboard to the PTY.
+  term.attachCustomKeyEventHandler((event) => {
+    const isPasteKey = event.code === 'KeyV' || event.key.toLowerCase() === 'v';
+    return !(isPasteKey && (event.ctrlKey || event.metaKey) && !event.altKey);
+  });
+
   try {
     // Bare URLs printed as text, which is most of what an agent produces.
     // While a pane has mouse reporting on, xterm hands clicks to the pane and
