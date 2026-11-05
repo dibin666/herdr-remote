@@ -38,6 +38,8 @@ export interface RelayHost {
   adminTabsAvailable: boolean;
   /** The host saves pasted files of any type, not just images. */
   pasteAnyFile: boolean;
+  /** The host pulls chunked uploads of any size, a slice at a time. */
+  pasteStream: boolean;
   /** The host lists its terminal's working directory and stages downloads from it. */
   fsBrowse: boolean;
   arch: string;
@@ -107,6 +109,18 @@ export interface RelayClient {
   fsChunkRequests?: number[];
   /** Transfers this window may pull by request id, with their chunk counts. */
   fsDownloads?: Map<string, number>;
+  /** Chunked uploads this window announced, by request id. */
+  pasteUploads?: Map<string, PasteUpload>;
+}
+
+/** What the relay remembers about one chunked upload a window announced. */
+interface PasteUpload {
+  /** Slices the upload consists of: `ceil(size / PASTE_CHUNK_BYTES)`. */
+  totalChunks: number;
+  /** Declared content type; the first slice's bytes must prove an image. */
+  mime: string;
+  /** Slices the workstation asked for and the window has not yet answered. */
+  requested: Set<number>;
 }
 
 /** Requests from one address within the current minute. */

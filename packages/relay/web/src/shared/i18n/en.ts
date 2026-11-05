@@ -661,6 +661,7 @@ export const en = {
     paste_file_host_outdated:
       'The workstation is too old to receive files. Update herdr-remote there.',
     paste_file_empty: 'Pasted image payload is empty.',
+    paste_file_busy: 'Another upload is still in progress.',
     paste_file_corrupt: 'Pasted image data is corrupt or does not match declared MIME.',
     viewer_mode: 'Viewer mode cannot paste to terminal.',
     no_session: 'Terminal session is not ready.',

@@ -63,11 +63,14 @@ export type AdapterEventMap = {
     hostVersion?: string | null,
     herdrPrefixKeys?: string[],
     fileListSupported?: boolean,
+    pasteStreamSupported?: boolean,
   ) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;
   rttUpdate: (rttMs: number) => void;
-  pasteFileReady: (path: string) => void;
+  pasteFileReady: (path: string, requestId?: string) => void;
+  /** The workstation asks for one slice of an upload this window announced. */
+  pasteFileChunkRequest: (requestId: string, index: number) => void;
   /** A link this window clicked in Herdr, which Herdr asked to open. */
   openLink: (url: string) => void;
   /** This window's session wrote to the clipboard; the text goes in this browser's. */
@@ -118,6 +121,7 @@ export class AdapterEvents {
     binaryData: new Set(),
     rttUpdate: new Set(),
     pasteFileReady: new Set(),
+    pasteFileChunkRequest: new Set(),
     openLink: new Set(),
     clipboardWrite: new Set(),
     clipboardRead: new Set(),

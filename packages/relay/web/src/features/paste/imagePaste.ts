@@ -115,6 +115,19 @@ export function getBase64ByteLength(base64: string): number {
 }
 
 /**
+ * Base64 of bytes, for one upload slice. `btoa` only takes binary strings, so
+ * the input crosses in pieces small enough for a spread call.
+ */
+export function encodeBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const STEP = 0x8000;
+  for (let i = 0; i < bytes.length; i += STEP) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + STEP));
+  }
+  return btoa(binary);
+}
+
+/**
  * Formats byte size into human-readable units (B, KB, MB) for display in modals.
  */
 export function formatByteSize(bytes: number): string {

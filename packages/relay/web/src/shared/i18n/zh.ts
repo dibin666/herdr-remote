@@ -639,6 +639,7 @@ export const zh: TranslationSchema = {
     paste_file_write_failed: '工作站保存图片或文件失败。',
     paste_file_host_outdated: '工作站上的 herdr-remote 版本过旧，无法接收文件，请先更新。',
     paste_file_empty: '粘贴图片内容为空。',
+    paste_file_busy: '另一个上传仍在进行中。',
     paste_file_corrupt: '粘贴图片数据损坏或与声明格式不符。',
     viewer_mode: '观察者模式无法粘贴到终端。',
     no_session: '终端会话未准备就绪。',

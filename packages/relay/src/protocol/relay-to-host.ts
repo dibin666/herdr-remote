@@ -75,6 +75,24 @@ export interface RelayPasteFileMessage extends StreamAddressed {
   name?: string;
 }
 
+/** A window's announced upload, after the relay checked it. */
+export interface RelayPasteFileBeginMessage extends StreamAddressed {
+  type: 'paste_file_begin';
+  requestId: string;
+  mime: string;
+  /** Sanitized file name, present only when `mime` is `PASTE_FILE_MIME`. */
+  name?: string;
+  size: number;
+}
+
+/** One slice the host asked for, answered by the window. */
+export interface RelayPasteFileChunkMessage extends StreamAddressed {
+  type: 'paste_file_chunk';
+  requestId: string;
+  index: number;
+  dataBase64: string;
+}
+
 /** Sent instead of `host_ready` when the handshake is refused. */
 export interface RelayErrorMessage {
   type: 'error';
@@ -94,6 +112,8 @@ export type RelayToHostMessage =
   | RelayHostFontChunkRequestMessage
   | RelayHostFontSubsetRequestMessage
   | RelayPasteFileMessage
+  | RelayPasteFileBeginMessage
+  | RelayPasteFileChunkMessage
   | Fs.RelayFsListRequestMessage
   | Fs.RelayFsDownloadRequestMessage
   | Fs.RelayFsDownloadChunkRequestMessage

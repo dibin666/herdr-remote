@@ -20,6 +20,8 @@ export interface SessionState {
   adminTerminalSupported?: boolean;
   /** The workstation can list its terminal's working directory and send files from it. */
   fileListSupported?: boolean;
+  /** The workstation pulls chunked uploads; without it only 3 MB one-shot pastes work. */
+  pasteStreamSupported?: boolean;
   /**
    * The workstation's herdr-remote release: null when it is too old to say,
    * undefined before the relay has said anything.
@@ -75,6 +77,7 @@ export type SessionEvent =
       shellProfile?: ShellProfile;
       adminTerminalSupported?: boolean;
       fileListSupported?: boolean;
+      pasteStreamSupported?: boolean;
       palette?: HostTerminalPalette | null;
       hostVersion?: string | null;
       herdrPrefixKeys?: string[];
@@ -104,6 +107,7 @@ const HOST_PRESENTATION = {
   platform: undefined,
   adminTerminalSupported: undefined,
   fileListSupported: undefined,
+  pasteStreamSupported: undefined,
   hostVersion: undefined,
   herdrPrefixKeys: undefined,
   shellProfile: 'posix',
@@ -136,6 +140,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         platform: message.platform,
         adminTerminalSupported: message.adminTerminalSupported,
         fileListSupported: message.fileListSupported,
+        pasteStreamSupported: message.pasteStreamSupported,
         hostVersion: message.hostVersion,
         herdrPrefixKeys: message.herdrPrefixKeys,
         shellProfile: defaultShellProfile(message.platform, message.shellProfile),
@@ -154,6 +159,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         platform: event.platform,
         adminTerminalSupported: event.adminTerminalSupported,
         fileListSupported: event.fileListSupported,
+        pasteStreamSupported: event.pasteStreamSupported,
         hostVersion: event.hostVersion,
         herdrPrefixKeys: event.herdrPrefixKeys,
         shellProfile: defaultShellProfile(event.platform, event.shellProfile),
