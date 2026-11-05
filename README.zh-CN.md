@@ -30,7 +30,7 @@ herdr-remote
 
 | 浏览器标签页里的工作区 | 终端设置 |
 | :---: | :---: |
-| ![浏览器中的 Herdr 工作区，运行着三个 Claude Code 智能体](docs/screenshots/zh/workspace.png) | ![终端设置对话框](docs/screenshots/zh/settings.png) |
+| ![浏览器中的 Herdr 工作区：Claude Code 的编辑审批 diff 与 Codex 智能体](docs/screenshots/zh/workspace.png) | ![终端设置对话框](docs/screenshots/zh/settings.png) |
 | **多工作站切换** | **Relay 管理面板** |
 | ![Herdr 实例切换器](docs/screenshots/zh/switcher.png) | ![Relay 管理面板](docs/screenshots/zh/admin.png) |
 

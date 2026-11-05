@@ -30,7 +30,7 @@ The first run launches a setup wizard, after which the services run in the backg
 
 | Your workspace in a browser tab | Terminal preferences |
 | :---: | :---: |
-| ![Herdr workspace with three Claude Code agents in the browser](docs/screenshots/en/workspace.png) | ![Terminal preferences dialog](docs/screenshots/en/settings.png) |
+| ![Herdr workspace in a browser tab with a Claude Code edit-approval diff and a Codex agent](docs/screenshots/en/workspace.png) | ![Terminal preferences dialog](docs/screenshots/en/settings.png) |
 | **Several workstations in one browser** | **Relay dashboard** |
 | ![Herdr instance switcher](docs/screenshots/en/switcher.png) | ![Relay operator dashboard](docs/screenshots/en/admin.png) |
 
