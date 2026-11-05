@@ -4,12 +4,12 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import { type RelayToHostMessage, unpackStreamFrame } from 'herdr-remote-relay/protocol';
+import type { RelayToHostMessage } from 'herdr-remote-relay/protocol';
 import type { RawData } from 'ws';
 import { WebSocket } from 'ws';
 import { type Config, loadConfig } from '../config.js';
 import { EXIT_AUTH_FAILED, EXIT_REPLACED } from '../exit-codes.js';
-import { cleanPastedDir, savePasteReply } from '../pasted-files.js';
+import { PasteUploads, cleanPastedDir } from '../pasted-files.js';
 import { stateDir } from '../paths.js';
 import { hostWebSocketUrl, resolveHostRelayUrl } from '../relay-urls.js';
 import { resolveSocketPath } from '../socket-discovery.js';
@@ -78,6 +78,7 @@ export class HostConnector {
   readonly sessions: Sessions;
   readonly font: FontServer;
   readonly files: HostFiles;
+  readonly pasteUploads: PasteUploads;
   readonly agents: AgentWatch;
   readonly updates: UpdateReport;
   readonly tools: ToolForward;
@@ -129,6 +130,7 @@ export class HostConnector {
       },
     );
     this.font = new FontServer(options, send);
+    this.pasteUploads = new PasteUploads(send);
     this.files = new HostFiles(
       {
         socketPath: this.socketPath,
@@ -207,6 +209,7 @@ export class HostConnector {
     this.legacyHeartbeat = false;
     this.tools.setRelayCapabilities(undefined);
     this.files.stopAll();
+    this.pasteUploads.stopAll();
     this.sessions.stopAll();
   }
 
@@ -308,7 +311,7 @@ export class HostConnector {
 
   handleMessage(raw: RawData | string, isBinary = false): Promise<void> | undefined {
     if (isBinary) {
-      this.handleFrame(raw as Buffer);
+      this.sessions.writeFrame(raw as Buffer);
       return undefined;
     }
     let message: RelayToHostMessage;
@@ -349,13 +352,16 @@ export class HostConnector {
       case 'session_stop': {
         const streamId = streamOf(message);
         if (streamId) this.sessions.stop(streamId);
+        this.pasteUploads.drop(streamId);
         return undefined;
       }
       case 'resize':
         this.sessions.resize(message);
         return undefined;
       case 'paste_file':
-        savePasteReply((payload) => sendJson(this.ws, payload), streamOf(message), message);
+      case 'paste_file_begin':
+      case 'paste_file_chunk':
+        this.pasteUploads.handle(streamOf(message), message);
         return undefined;
       case 'fs_list_request':
       case 'fs_download_request':
@@ -381,23 +387,6 @@ export class HostConnector {
       default:
         return undefined;
     }
-  }
-
-  private handleFrame(raw: Buffer): void {
-    let frame: ReturnType<typeof unpackStreamFrame>;
-    try {
-      frame = unpackStreamFrame(raw);
-    } catch (error) {
-      process.stderr.write(
-        `herdr-remote host connector: invalid relay frame: ${(error as Error).message}\n`,
-      );
-      return;
-    }
-    if (frame.type !== 'input') return;
-    this.sessions.write(
-      frame.version === 2 ? { streamIndex: frame.streamIndex } : { streamId: frame.streamId },
-      frame.payload,
-    );
   }
 
   private hostReady(message: { clientCount?: number; capabilities?: unknown }): void {

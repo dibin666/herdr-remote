@@ -34,6 +34,8 @@ export const CAPABILITY = {
   adminTabs: 'admin_tabs',
   /** The host saves pasted files of any type, not just images. */
   pasteAnyFile: 'paste_any_file',
+  /** The host pulls chunked uploads of any size, a slice at a time. */
+  pasteStream: 'paste_stream',
   /** The relay hands a link the host opens to the window that clicked it. */
   openLink: 'open_link',
   /** The relay routes clipboard reads and writes to the window that owns the stream. */
@@ -88,6 +90,27 @@ export interface ClientPasteFileMessage {
 }
 
 /**
+ * Announce a chunked upload: `size` decoded bytes the workstation then pulls
+ * as `PASTE_CHUNK_BYTES` slices, a few ahead, through `paste_file_chunk_request`.
+ */
+export interface ClientPasteFileBeginMessage {
+  type: 'paste_file_begin';
+  requestId: string;
+  mime: string;
+  /** The file's own name; only read when `mime` is `PASTE_FILE_MIME`. */
+  name?: string;
+  size: number;
+}
+
+/** One slice of an upload, sent only after the workstation asked for it. */
+export interface ClientPasteFileChunkMessage {
+  type: 'paste_file_chunk';
+  requestId: string;
+  index: number;
+  dataBase64: string;
+}
+
+/**
  * Start Herdr on the workstation this window is paired to. Carries nothing:
  * the relay routes it to the window's own host, and the host decides where and
  * as whom Herdr runs.
@@ -134,6 +157,8 @@ export type ClientJsonMessage =
   | ClientResizeMessage
   | ClientPingMessage
   | ClientPasteFileMessage
+  | ClientPasteFileBeginMessage
+  | ClientPasteFileChunkMessage
   | Clipboard.ClientClipboardReadReplyMessage
   | ClientHerdrStartMessage
   | ClientAdminTabOpenMessage
@@ -160,6 +185,8 @@ export interface ServerReadyMessage {
   adminTerminalSupported?: boolean;
   /** The workstation can list its terminal's working directory and send files from it. */
   fileListSupported?: boolean;
+  /** The workstation pulls chunked uploads; without it only 3 MB one-shot pastes work. */
+  pasteStreamSupported?: boolean;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
@@ -215,6 +242,8 @@ export interface ServerSessionRestartedMessage {
   adminTerminalSupported?: boolean;
   /** As in `ready`: the host may have come back on another release. */
   fileListSupported?: boolean;
+  /** As in `ready`: the host may have come back on another release. */
+  pasteStreamSupported?: boolean;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
   /** As in `ready`: the host may have come back on another release. */
@@ -244,6 +273,15 @@ export interface ServerPongMessage {
 export interface ServerPasteFileReadyMessage {
   type: 'paste_file_ready';
   path: string;
+  /** The chunked upload it answers; a one-shot `paste_file` has none. */
+  requestId?: string;
+}
+
+/** The workstation asks for one slice of an upload this window announced. */
+export interface ServerPasteFileChunkRequestMessage {
+  type: 'paste_file_chunk_request';
+  requestId: string;
+  index: number;
 }
 
 /** A link this window clicked in Herdr, to open in this browser. */
@@ -295,6 +333,7 @@ export type ServerJsonMessage =
   | ServerErrorMessage
   | ServerPongMessage
   | ServerPasteFileReadyMessage
+  | ServerPasteFileChunkRequestMessage
   | ServerOpenLinkMessage
   | Fs.ServerFsListResponseMessage
   | Fs.ServerFsDownloadReadyMessage
@@ -381,6 +420,15 @@ export interface HostSessionExitMessage extends StreamAddressed {
 export interface HostPasteFileReadyMessage extends StreamAddressed {
   type: 'paste_file_ready';
   path: string;
+  /** The chunked upload it answers; a one-shot `paste_file` has none. */
+  requestId?: string;
+}
+
+/** The host asks the window behind this stream for one slice of its upload. */
+export interface HostPasteFileChunkRequestMessage extends StreamAddressed {
+  type: 'paste_file_chunk_request';
+  requestId: string;
+  index: number;
 }
 
 /**
@@ -418,6 +466,7 @@ export type HostMessage =
   | HostFontChunkMessage
   | HostFontSubsetMessage
   | HostPasteFileReadyMessage
+  | HostPasteFileChunkRequestMessage
   | HostOpenLinkMessage
   | Fs.HostFsListResponseMessage
   | Fs.HostFsDownloadReadyMessage

@@ -2,39 +2,33 @@
 // the key bar. One file at a time crosses the socket: a picked batch is a
 // queue on top of the same single-file pipeline, each file waiting for the
 // host's answer before the next one is read.
+//
+// The transports themselves — claiming the upload slot, the stall watchdog,
+// and answering the workstation's slice pulls — live in useUploadTransport;
+// this is the preparation and batching on top of it.
 
 import type { ClientRole } from '@protocol/messages';
 import { PASTE_FILE_MIME, PASTE_MAX_BYTES } from '@protocol/paste';
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
+import { useCallback } from 'react';
 import type { Translate } from '@/shared/i18n';
 import type { HerdrClientAdapter } from '@/connection/clientAdapter';
 import type { ConnectionState } from '@/connection/types';
+import { decodeBase64 } from '@/features/hostFont/hostFont';
 import {
   compressAndPrepareImage,
   IDLE_IMAGE_UPLOAD_PROGRESS,
-  type ImageUploadProgress,
   type PreparedImagePaste,
   type UploadKind,
 } from '@/features/paste/imagePaste';
+import { useUploadTransport } from './useUploadTransport';
 import type { ToastItem } from './useToastQueue';
-
-/** How long the workstation may take to confirm it saved the file. */
-const UPLOAD_CONFIRM_TIMEOUT_MS = 30_000;
-/** How long "completed" stays on the progress bar. */
-const UPLOAD_DONE_LINGER_MS = 1200;
-
-/** What the host's `paste_file_ready` resolves: the file it just confirmed. */
-interface HostWaiter {
-  taskId: number;
-  resolve: (ok: boolean) => void;
-  /** Part of a batch: the batch shows its own progress, not the flash. */
-  quiet: boolean;
-}
 
 export function useImageUpload({
   adapterRef,
   role,
   connectionState,
+  pasteStreamSupported,
   warnViewerMode,
   addToast,
   t,
@@ -43,152 +37,35 @@ export function useImageUpload({
   adapterRef: RefObject<HerdrClientAdapter | null>;
   role: ClientRole;
   connectionState: ConnectionState;
+  pasteStreamSupported?: boolean;
   warnViewerMode: () => void;
   addToast: (type: ToastItem['type'], message: string) => void;
   t: Translate;
   sendPasteFile: (mime: string, dataBase64: string, name?: string) => boolean;
 }) {
-  const [progress, setUploadProgress] = useState<ImageUploadProgress>(IDLE_IMAGE_UPLOAD_PROGRESS);
-  const [uploadKind, setUploadKind] = useState<UploadKind>('image');
-  const uploadProgress = useMemo(() => ({ ...progress, kind: uploadKind }), [progress, uploadKind]);
-  const activeUploadTaskIdRef = useRef<number | null>(null);
-  const uploadTaskIdCounterRef = useRef<number>(0);
-  const uploadTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const hostWaiterRef = useRef<HostWaiter | null>(null);
-
-  const clearUploadTimer = useCallback(() => {
-    if (uploadTimeoutTimerRef.current) {
-      clearTimeout(uploadTimeoutTimerRef.current);
-      uploadTimeoutTimerRef.current = null;
-    }
-  }, []);
-
-  const settleHostWaiter = useCallback((ok: boolean) => {
-    hostWaiterRef.current?.resolve(ok);
-    hostWaiterRef.current = null;
-  }, []);
-
-  const resetUploadProgress = useCallback(() => {
-    clearUploadTimer();
-    settleHostWaiter(false);
-    activeUploadTaskIdRef.current = null;
-    setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
-  }, [clearUploadTimer, settleHostWaiter]);
-
-  /** A relay error ends any upload in flight; the error itself is toasted elsewhere. */
-  const abortUpload = useCallback(() => {
-    if (activeUploadTaskIdRef.current !== null) resetUploadProgress();
-  }, [resetUploadProgress]);
-
-  /** The completed flash, guarded so a stale one cannot wipe a newer upload. */
-  const flashCompleted = useCallback((taskId: number, statusText: string) => {
-    setUploadProgress({
-      active: true,
-      phase: 'completed' as const,
-      ratio: 1.0,
-      percent: 100,
-      statusText,
-    });
-    setTimeout(() => {
-      if (activeUploadTaskIdRef.current === taskId) {
-        activeUploadTaskIdRef.current = null;
-        setUploadProgress(IDLE_IMAGE_UPLOAD_PROGRESS);
-      }
-    }, UPLOAD_DONE_LINGER_MS);
-  }, []);
-
-  /** The workstation saved the file: resolve its waiter, flash it if not quiet. */
-  const completeUpload = useCallback(() => {
-    const currentTaskId = activeUploadTaskIdRef.current;
-    const waiter = hostWaiterRef.current;
-    if (currentTaskId === null || !waiter || waiter.taskId !== currentTaskId) return;
-    hostWaiterRef.current = null;
-    clearUploadTimer();
-    waiter.resolve(true);
-    if (!waiter.quiet) flashCompleted(currentTaskId, t('virtualKeyboard.uploadProgressCompleted'));
-  }, [clearUploadTimer, flashCompleted, t]);
-
-  useEffect(() => {
-    if (connectionState !== 'connected') abortUpload();
-  }, [connectionState, abortUpload]);
-
-  useEffect(() => clearUploadTimer, [clearUploadTimer]);
-
-  /** Claims the one upload slot this window has, or says why it cannot. */
-  const beginUpload = useCallback(
-    (kind: UploadKind): number | null => {
-      if (role !== 'controller') {
-        warnViewerMode();
-        return null;
-      }
-      if (!adapterRef.current || connectionState !== 'connected') {
-        addToast('error', t('serverErrors.host_offline'));
-        return null;
-      }
-      if (activeUploadTaskIdRef.current !== null) return null;
-      const taskId = ++uploadTaskIdCounterRef.current;
-      activeUploadTaskIdRef.current = taskId;
-      setUploadKind(kind);
-      clearUploadTimer();
-      return taskId;
-    },
-    [adapterRef, role, connectionState, warnViewerMode, addToast, t, clearUploadTimer],
-  );
-
-  const giveUp = useCallback(
-    (message?: string) => {
-      if (message) addToast('error', message);
-      resetUploadProgress();
-      return false;
-    },
-    [addToast, resetUploadProgress],
-  );
-
-  /** Sends the payload, resolving once the host says it saved the file. */
-  const sendAndAwaitHost = useCallback(
-    (
-      taskId: number,
-      mime: string,
-      dataBase64: string,
-      name: string | undefined,
-      quiet: boolean,
-      suffix: string,
-    ): Promise<boolean> => {
-      return new Promise<boolean>((resolve) => {
-        setUploadProgress({
-          active: true,
-          phase: 'sending',
-          ratio: 0.75,
-          percent: 75,
-          statusText: t('virtualKeyboard.uploadProgressSending') + suffix,
-        });
-
-        const sent = sendPasteFile(mime, dataBase64, name);
-        if (activeUploadTaskIdRef.current !== taskId) return resolve(false);
-        if (!sent) {
-          giveUp();
-          return resolve(false);
-        }
-
-        setUploadProgress({
-          active: true,
-          phase: 'waitingHost',
-          ratio: 0.88,
-          percent: 88,
-          statusText: t('virtualKeyboard.uploadProgressWaitingHost') + suffix,
-        });
-
-        settleHostWaiter(false);
-        hostWaiterRef.current = { taskId, resolve, quiet };
-        uploadTimeoutTimerRef.current = setTimeout(() => {
-          if (activeUploadTaskIdRef.current === taskId) {
-            giveUp(t('serverErrors.paste_file_write_failed'));
-          }
-        }, UPLOAD_CONFIRM_TIMEOUT_MS);
-      });
-    },
-    [t, sendPasteFile, giveUp, settleHostWaiter],
-  );
+  const {
+    uploadProgress,
+    activeUploadTaskIdRef,
+    streamSupportedRef,
+    setUploadProgress,
+    beginUpload,
+    sendWholeAndAwaitHost,
+    streamAndAwaitHost,
+    handleUploadChunkRequest,
+    completeUpload,
+    flashCompleted,
+    resetUploadProgress,
+    abortUpload,
+  } = useUploadTransport({
+    adapterRef,
+    role,
+    connectionState,
+    pasteStreamSupported,
+    warnViewerMode,
+    addToast,
+    t,
+    sendPasteFile,
+  });
 
   const uploadOneImage = useCallback(
     async (
@@ -251,7 +128,18 @@ export function useImageUpload({
           });
         }
 
-        return await sendAndAwaitHost(
+        if (streamSupportedRef.current) {
+          // The host pulls slices, so the payload leaves memory as bytes.
+          return await streamAndAwaitHost(
+            taskId,
+            prepared.mime,
+            decodeBase64(prepared.dataBase64),
+            undefined,
+            quiet,
+            suffix,
+          );
+        }
+        return await sendWholeAndAwaitHost(
           taskId,
           prepared.mime,
           prepared.dataBase64,
@@ -267,15 +155,27 @@ export function useImageUpload({
         return false;
       }
     },
-    [sendAndAwaitHost, addToast, t],
+    [
+      streamAndAwaitHost,
+      sendWholeAndAwaitHost,
+      setUploadProgress,
+      activeUploadTaskIdRef,
+      streamSupportedRef,
+      addToast,
+      t,
+    ],
   );
 
   const uploadOneFile = useCallback(
     async (taskId: number, file: File, quiet: boolean, suffix: string): Promise<boolean> => {
-      // Checked before reading: a file over the cap is refused, never shrunk.
+      // Checked before anything is read: an empty file is refused either way.
       if (file.size === 0) {
         addToast('error', t('clipboard.fileEmpty'));
         return false;
+      }
+      if (streamSupportedRef.current) {
+        // No size cap and no whole-file read: the host pulls slices on demand.
+        return await streamAndAwaitHost(taskId, PASTE_FILE_MIME, file, file.name, quiet, suffix);
       }
       if (file.size > PASTE_MAX_BYTES) {
         addToast('error', t('clipboard.fileTooLarge'));
@@ -298,7 +198,7 @@ export function useImageUpload({
         });
         if (activeUploadTaskIdRef.current !== taskId) return false;
         const dataBase64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
-        return await sendAndAwaitHost(
+        return await sendWholeAndAwaitHost(
           taskId,
           PASTE_FILE_MIME,
           dataBase64,
@@ -314,7 +214,15 @@ export function useImageUpload({
         return false;
       }
     },
-    [sendAndAwaitHost, addToast, t],
+    [
+      streamAndAwaitHost,
+      sendWholeAndAwaitHost,
+      setUploadProgress,
+      activeUploadTaskIdRef,
+      streamSupportedRef,
+      addToast,
+      t,
+    ],
   );
 
   /**
@@ -358,7 +266,15 @@ export function useImageUpload({
       }
       return true;
     },
-    [beginUpload, uploadOneImage, uploadOneFile, flashCompleted, t],
+    [
+      beginUpload,
+      uploadOneImage,
+      uploadOneFile,
+      activeUploadTaskIdRef,
+      setUploadProgress,
+      flashCompleted,
+      t,
+    ],
   );
 
   const uploadImage = useCallback(
@@ -390,5 +306,6 @@ export function useImageUpload({
     resetUploadProgress,
     abortUpload,
     completeUpload,
+    handleUploadChunkRequest,
   };
 }

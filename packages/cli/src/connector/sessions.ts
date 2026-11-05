@@ -7,6 +7,7 @@ import {
   packStreamFrameV2,
   type RelayResizeMessage,
   type RelaySessionStartMessage,
+  unpackStreamFrame,
 } from 'herdr-remote-relay/protocol';
 import {
   type HerdrLookup,
@@ -376,6 +377,27 @@ export class Sessions {
       'Check that it runs from a terminal, and see the host connector log for what it printed.';
     process.stderr.write(`herdr-remote host connector: ${message}\n`);
     this.sendError(streamId, 'herdr_start_failed', message);
+  }
+
+  /**
+   * One binary frame off the relay socket. Only input frames carry anything
+   * for sessions; output travels the other way.
+   */
+  writeFrame(raw: Buffer): void {
+    let frame: ReturnType<typeof unpackStreamFrame>;
+    try {
+      frame = unpackStreamFrame(raw);
+    } catch (error) {
+      process.stderr.write(
+        `herdr-remote host connector: invalid relay frame: ${(error as Error).message}\n`,
+      );
+      return;
+    }
+    if (frame.type !== 'input') return;
+    this.write(
+      frame.version === 2 ? { streamIndex: frame.streamIndex } : { streamId: frame.streamId },
+      frame.payload,
+    );
   }
 
   /** Keyboard input for the session behind a stream id or v2 index. */

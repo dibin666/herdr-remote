@@ -118,10 +118,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     resetUploadProgress,
     abortUpload,
     completeUpload,
+    handleUploadChunkRequest,
   } = useImageUpload({
     adapterRef,
     role,
     connectionState: session.connectionState,
+    pasteStreamSupported: session.pasteStreamSupported,
     warnViewerMode: input.warnViewerMode,
     addToast,
     t,
@@ -176,6 +178,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       hostVersion,
       herdrPrefixKeys,
       fileListSupported,
+      pasteStreamSupported,
     ) => {
       clearPendingOutput();
       dispatch({
@@ -186,6 +189,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         shellProfile,
         adminTerminalSupported,
         fileListSupported,
+        pasteStreamSupported,
         hostVersion,
         herdrPrefixKeys,
       });
@@ -233,9 +237,12 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         : err.message || `[${err.code}]`;
       addToast('error', message);
     },
-    pasteFileReady: (path) => {
-      completeUpload();
+    pasteFileReady: (path, requestId) => {
+      completeUpload(requestId);
       input.notifyPasteFileReady(path);
+    },
+    pasteFileChunkRequest: (requestId, index) => {
+      void handleUploadChunkRequest(requestId, index);
     },
     openLink: (url) => openTerminalLink(url),
     // The session's clipboard is this window's own: what the remote copy

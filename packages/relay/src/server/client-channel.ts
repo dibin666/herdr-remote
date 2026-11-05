@@ -8,17 +8,13 @@ import {
   type ClientHelloMessage,
   type ClientJsonMessage,
   FRAME_TYPE_INPUT,
-  PASTE_FILE_MIME,
-  PASTE_MAX_BYTES,
   PROTOCOL_VERSION,
-  hasImageSignature,
-  isPasteImageMime,
   packStreamFrame,
   packStreamFrameV2,
   sanitizeClipboardRequestId,
   sanitizeClipboardText,
-  sanitizePasteFileName,
 } from '../protocol/index.js';
+import { requestPasteFile, requestPasteFileBegin, requestPasteFileChunk } from './paste-proxy.js';
 import { requestFontChunk, requestFontSubset } from './font-proxy.js';
 import {
   requestFsChunk,
@@ -70,18 +66,6 @@ const FONT_REFRESH_REPEAT_MS = 2_000;
 
 /** A window opens an administrator tab at most this often. */
 const ADMIN_TAB_REPEAT_MS = 1_000;
-
-function verifyImageMagicBytes(mime: string, dataBase64: unknown): boolean {
-  if (typeof dataBase64 !== 'string' || dataBase64.length === 0) return false;
-  let headerBuf: Buffer;
-  try {
-    headerBuf = Buffer.from(dataBase64.slice(0, 32), 'base64');
-  } catch {
-    return false;
-  }
-  if (headerBuf.length === 0) return false;
-  return hasImageSignature(mime, headerBuf);
-}
 
 export function handleClientConnection(
   relay: RelayContext,
@@ -207,6 +191,7 @@ export function handleClientConnection(
         ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
         adminTerminalSupported: host.adminTabsAvailable,
         fileListSupported: host.fsBrowse,
+        pasteStreamSupported: host.pasteStream,
         clientId: client.id,
         // Delivered with `ready`, before the first PTY byte, so the terminal
         // is painted in the host's colors from its very first frame.
@@ -396,55 +381,10 @@ function handleClientMessage(
       text,
     });
   } else if (message.type === 'paste_file') {
-    const reject = (code: string, text: string) =>
-      jsonSend(client.ws, { type: 'error', code, message: text });
-    if (client.role === 'viewer') {
-      reject('viewer_mode', 'Viewer mode cannot paste to terminal');
-      return;
-    }
-    const isFile = message.mime === PASTE_FILE_MIME;
-    if (!isFile && !isPasteImageMime(message.mime)) {
-      reject('paste_file_unsupported', 'Unsupported paste image format');
-      return;
-    }
-    if (typeof message.dataBase64 !== 'string') {
-      reject('paste_file_unsupported', 'Invalid paste payload');
-      return;
-    }
-    const rawLength = Buffer.byteLength(message.dataBase64, 'base64');
-    if (rawLength === 0) {
-      reject('paste_file_empty', 'Pasted payload is empty');
-      return;
-    }
-    if (rawLength > PASTE_MAX_BYTES) {
-      reject('paste_file_too_large', 'Pasted payload exceeds 3 MB limit');
-      return;
-    }
-    if (!isFile && !verifyImageMagicBytes(message.mime, message.dataBase64)) {
-      reject('paste_file_unsupported', 'Pasted image content does not match declared MIME type');
-      return;
-    }
-    if (!isOpen(host?.ws)) {
-      reject('host_offline', 'Host is offline or disconnected');
-      return;
-    }
-    // A host from before any-file pastes would refuse the type after the
-    // whole payload had crossed; saying so here is quicker and clearer.
-    if (isFile && !host.pasteAnyFile) {
-      reject('paste_file_host_outdated', 'Host is too old to receive files; update herdr-remote');
-      return;
-    }
-    if (!client.session) {
-      reject('no_session', 'Terminal session is not ready');
-      return;
-    }
-    jsonSend(host.ws, {
-      type: 'paste_file',
-      clientId: client.session.streamId,
-      streamId: client.session.streamId,
-      mime: message.mime,
-      dataBase64: message.dataBase64,
-      ...(isFile ? { name: sanitizePasteFileName(message.name) } : {}),
-    });
+    requestPasteFile(host, client, message);
+  } else if (message.type === 'paste_file_begin') {
+    requestPasteFileBegin(host, client, message);
+  } else if (message.type === 'paste_file_chunk') {
+    requestPasteFileChunk(host, client, message);
   }
 }

@@ -30,6 +30,7 @@ import {
   forwardFsPreview,
   forwardFsReady,
 } from './fs-proxy.js';
+import { forwardPasteFileChunkRequest, settlePasteUpload } from './paste-proxy.js';
 import {
   broadcastAgentStatus,
   broadcastTerminalFont,
@@ -97,6 +98,7 @@ function createHostRecord(
     handoffCapable: capabilities.includes(CAPABILITY.hostHandoff),
     binaryFrameV2: capabilities.includes(CAPABILITY.binaryFrameV2),
     pasteAnyFile: capabilities.includes(CAPABILITY.pasteAnyFile),
+    pasteStream: capabilities.includes(CAPABILITY.pasteStream),
     fsBrowse: capabilities.includes(CAPABILITY.fsBrowse),
     streamIndices: new Map(),
     nextStreamIndex: 0,
@@ -316,10 +318,14 @@ function handleHostMessage(
   } else if (message.type === 'fs_mutation_done') {
     forwardFsMutationDone(client, message);
   } else if (message.type === 'paste_file_ready') {
+    settlePasteUpload(client, message.requestId);
     jsonSend(client.ws, {
       type: 'paste_file_ready',
       path: message.path,
+      ...(typeof message.requestId === 'string' ? { requestId: message.requestId } : {}),
     });
+  } else if (message.type === 'paste_file_chunk_request') {
+    forwardPasteFileChunkRequest(client, message);
   } else if (message.type === 'open_link') {
     const url = sanitizeOpenLinkUrl(message.url);
     if (url) jsonSend(client.ws, { type: 'open_link', url });
@@ -339,6 +345,7 @@ function handleHostMessage(
       settleFontSubset(client);
     }
     if (message.code === 'host_font_subset_failed') settleFontSubset(client);
+    settlePasteUpload(client, message.requestId);
     jsonSend(client.ws, {
       type: 'error',
       code: message.code || 'host_error',

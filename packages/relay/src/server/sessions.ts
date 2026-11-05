@@ -45,6 +45,8 @@ export function releaseSession(
   }
   relay.streams.delete(session.streamId);
   client.session = null;
+  // Uploads lived on that stream's host pulls; they do not survive it.
+  client.pasteUploads?.clear();
 }
 
 /** Start a dedicated PTY session for one attached client. */
@@ -91,6 +93,7 @@ export function startSession(
       ...(host.shellProfile ? { shellProfile: host.shellProfile } : {}),
       adminTerminalSupported: host.adminTabsAvailable,
       fileListSupported: host.fsBrowse,
+      pasteStreamSupported: host.pasteStream,
       terminalPalette: host.terminalPalette || null,
       terminalFont: host.terminalFont || null,
       hostVersion: host.version,

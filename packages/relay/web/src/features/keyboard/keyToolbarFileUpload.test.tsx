@@ -30,6 +30,12 @@ function sentPastes(ws: MockWebSocket) {
     .filter((m) => m?.type === 'paste_file');
 }
 
+function sentType(ws: MockWebSocket, type: string) {
+  return ws.sent
+    .map((s) => (typeof s === 'string' ? JSON.parse(s) : null))
+    .filter((m) => m?.type === type);
+}
+
 describe('KeyToolbar file upload', () => {
   const originalMatchMedia = window.matchMedia;
 
@@ -190,6 +196,96 @@ describe('KeyToolbar file upload', () => {
     expect(await screen.findByText('文件超过 3 MB 上传上限。')).toBeInTheDocument();
     expect(sentPastes(ws)).toHaveLength(0);
     expect(screen.queryByTestId('key-toolbar-progress')).toBeNull();
+  });
+
+  it('streams a picked file a slice at a time when the host pulls chunks', async () => {
+    const { getCtx, ws } = setupTestSession();
+    // A host that can pull chunked uploads says so in ready.
+    act(() => {
+      emitAdapterEvent(getCtx(), 'ready', {
+        role: 'controller',
+        pasteStreamSupported: true,
+      });
+    });
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+    const term = xtermInstances[0];
+    term.paste = vi.fn();
+
+    const file = new File(['hello, sliced world'], 'notes.txt', { type: 'text/plain' });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('key-toolbar-any-file-input'), {
+        target: { files: [file] },
+      });
+    });
+
+    // The whole payload does not cross: the window announces the upload only.
+    await waitFor(() => expect(sentType(ws, 'paste_file_begin')).toHaveLength(1));
+    expect(sentPastes(ws)).toHaveLength(0);
+    const begin = sentType(ws, 'paste_file_begin')[0];
+    expect(begin.mime).toBe('application/octet-stream');
+    expect(begin.name).toBe('notes.txt');
+    expect(begin.size).toBe(file.size);
+
+    // The workstation pulls slice 0; only then do its bytes cross.
+    await act(async () => {
+      emitAdapterEvent(getCtx(), 'pasteFileChunkRequest', begin.requestId, 0);
+    });
+    await waitFor(() => expect(sentType(ws, 'paste_file_chunk')).toHaveLength(1));
+    const chunk = sentType(ws, 'paste_file_chunk')[0];
+    expect(chunk.requestId).toBe(begin.requestId);
+    expect(chunk.index).toBe(0);
+    expect(chunk.dataBase64).toBe('aGVsbG8sIHNsaWNlZCB3b3JsZA==');
+
+    await act(async () => {
+      emitAdapterEvent(getCtx(), 'pasteFileReady', '/state/pasted/uuid-notes.txt', begin.requestId);
+    });
+    expect(term.paste).toHaveBeenCalledWith('/state/pasted/uuid-notes.txt');
+    expect(screen.getByText('完成')).toBeInTheDocument();
+  });
+
+  it('accepts a file over the old limit when the host streams uploads', async () => {
+    const { getCtx, ws } = setupTestSession();
+    act(() => {
+      emitAdapterEvent(getCtx(), 'ready', {
+        role: 'controller',
+        pasteStreamSupported: true,
+      });
+    });
+    const file = new File(['x'], 'big.bin');
+    Object.defineProperty(file, 'size', { value: PASTE_MAX_BYTES + 1 });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('key-toolbar-any-file-input'), {
+        target: { files: [file] },
+      });
+    });
+    await waitFor(() => expect(sentType(ws, 'paste_file_begin')).toHaveLength(1));
+    expect(screen.queryByText('文件超过 3 MB 上传上限。')).toBeNull();
+  });
+
+  it('answers only the slices the host actually pulled', async () => {
+    const { getCtx, ws } = setupTestSession();
+    act(() => {
+      emitAdapterEvent(getCtx(), 'ready', {
+        role: 'controller',
+        pasteStreamSupported: true,
+      });
+    });
+    const file = new File(['data'], 'a.bin');
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('key-toolbar-any-file-input'), {
+        target: { files: [file] },
+      });
+    });
+    await waitFor(() => expect(sentType(ws, 'paste_file_begin')).toHaveLength(1));
+    const begin = sentType(ws, 'paste_file_begin')[0];
+
+    // A pull for another request id, or a stale index, gets no answer.
+    await act(async () => {
+      emitAdapterEvent(getCtx(), 'pasteFileChunkRequest', 'someone-else', 0);
+      emitAdapterEvent(getCtx(), 'pasteFileChunkRequest', begin.requestId, 7);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sentType(ws, 'paste_file_chunk')).toHaveLength(0);
   });
 
   it('explains when the workstation is too old to receive files', async () => {

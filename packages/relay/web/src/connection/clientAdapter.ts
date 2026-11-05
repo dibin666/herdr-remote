@@ -95,6 +95,7 @@ export class HerdrClientAdapter extends RelaySocket {
           msg.hostVersion,
           msg.herdrPrefixKeys,
           msg.fileListSupported,
+          msg.pasteStreamSupported,
         );
         this.emit('terminalFont', msg.terminalFont ?? null);
         break;
@@ -152,7 +153,12 @@ export class HerdrClientAdapter extends RelaySocket {
       }
 
       case 'paste_file_ready': {
-        this.emit('pasteFileReady', msg.path);
+        this.emit('pasteFileReady', msg.path, msg.requestId);
+        break;
+      }
+
+      case 'paste_file_chunk_request': {
+        this.emit('pasteFileChunkRequest', msg.requestId, msg.index);
         break;
       }
 
@@ -280,6 +286,22 @@ export class HerdrClientAdapter extends RelaySocket {
       dataBase64,
       ...(name === undefined ? {} : { name }),
     });
+  }
+
+  /** Announce a chunked upload the workstation then pulls a slice at a time. */
+  public sendPasteFileBegin(requestId: string, mime: string, size: number, name?: string): void {
+    this.sendJson({
+      type: 'paste_file_begin',
+      requestId,
+      mime,
+      size,
+      ...(name === undefined ? {} : { name }),
+    });
+  }
+
+  /** One slice of an upload, answering the workstation's pull. */
+  public sendPasteFileChunk(requestId: string, index: number, dataBase64: string): void {
+    this.sendJson({ type: 'paste_file_chunk', requestId, index, dataBase64 });
   }
 
   /** One slice of an announced terminal font file, by the file's hash. */
