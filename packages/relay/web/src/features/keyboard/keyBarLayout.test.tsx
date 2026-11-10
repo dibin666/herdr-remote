@@ -54,8 +54,15 @@ describe('Touch key bar layout', () => {
     const last = buttons[buttons.length - 1];
 
     expect(last).toHaveAttribute('aria-label', expect.stringMatching(/enter/i));
-    // ...and the way out is at the other end, not occupying the thumb's spot.
-    expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/collapse/i));
+    // ...and the way out is at the scroll strip's tail, not the head where a
+    // thumb could hit it mid-session.
+    expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/esc/i));
+    const strip = screen.getByTestId('key-toolbar-scroll');
+    const stripButtons = within(strip).getAllByRole('button');
+    expect(stripButtons[stripButtons.length - 1]).toHaveAttribute(
+      'aria-label',
+      expect.stringMatching(/collapse/i),
+    );
   });
 
   it('points the Fn arrow at the drawer, which opens upwards', () => {
@@ -179,8 +186,9 @@ describe('Touch key bar layout', () => {
     const strip = screen.getByTestId('key-toolbar-scroll');
     expect(strip.className).toContain('overflow-x-auto');
     expect(within(strip).queryByRole('button', { name: /enter/i })).toBeNull();
-    // Everything else, the image button included, still scrolls.
-    expect(within(strip).getByTestId('image-upload-btn')).toBeInTheDocument();
+    // The pinned cluster stays outside: paste, image and Enter never scroll.
+    expect(within(strip).queryByTestId('image-upload-btn')).toBeNull();
+    expect(within(strip).queryByTestId('paste-btn')).toBeNull();
 
     const enter = within(screen.getByTestId('key-toolbar-row')).getByRole('button', {
       name: /enter/i,

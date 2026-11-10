@@ -331,24 +331,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             onScroll={measureScroll}
             className="scrollbar-none flex flex-nowrap touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain"
           >
-            {/* The way out sits at the *left* end of the row, away from Enter
-                at the right: a collapse control is something nobody presses
-                mid-session and has no claim on the most reachable spot. */}
-            <button
-              type="button"
-              onClick={() => updateSettings({ toolbarVisible: false })}
-              className={cn(
-                CAP_BASE,
-                squareKeyClass,
-                'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text',
-              )}
-              title={t('virtualKeyboard.collapseToolbar')}
-              aria-label={t('virtualKeyboard.collapseToolbar')}
-              aria-expanded={true}
-            >
-              <KeyIcon name="close" />
-            </button>
-
             {configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
             <AdminTerminalButton squareKeyClass={squareKeyClass} />
             <AgentKeyActions
@@ -357,31 +339,48 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               onCustomize={onCustomize}
               sendCombo={sendCombo}
             />
-            {/* Images stay nearest Enter: on a phone they are the upload
-                reached for far more often than any other file. */}
+            {/* The uploads reached for less often stay in the scrollable
+                strip; paste and image move beside Enter, always on screen. */}
             <UploadButton
               kind="file"
               inputRef={anyFileInputRef}
               keyClass={keyClass}
               vibrate={vibrate}
             />
-            <UploadButton
-              kind="image"
-              inputRef={fileInputRef}
-              keyClass={keyClass}
-              vibrate={vibrate}
-            />
-            <PasteButton capClass={keyClass} vibrate={vibrate} />
             <FileListButton capClass={keyClass} vibrate={vibrate} />
+            {/* The way out sits at the strip's tail, never the head: at the
+                front it was the first thing a thumb met and read as "more
+                keys"; at the tail it cannot be hit by accident, and the
+                sheet and settings can still collapse the bar either way. */}
+            <button
+              type="button"
+              onClick={() => updateSettings({ toolbarVisible: false })}
+              className={cn(
+                CAP_BASE,
+                squareKeyClass,
+                'border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text',
+              )}
+              title={t('virtualKeyboard.collapseToolbar')}
+              aria-label={t('virtualKeyboard.collapseToolbar')}
+              aria-expanded={true}
+            >
+              <KeyIcon name="close" />
+            </button>
           </div>
           {moreToRight && (
             <span
               aria-hidden="true"
               data-testid="key-toolbar-more"
-              className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-tui-mantle"
-            />
+              className="pointer-events-none absolute inset-y-0 right-0 flex w-8 items-center justify-end bg-gradient-to-l from-tui-mantle via-tui-mantle/80 pr-0.5 text-tui-faint"
+            >
+              ›
+            </span>
           )}
         </div>
+        {/* Paste and image upload pinned beside Enter: the two actions a
+            phone reaches for constantly must never scroll out of sight. */}
+        <PasteButton capClass={keyClass} vibrate={vibrate} />
+        <UploadButton kind="image" inputRef={fileInputRef} keyClass={keyClass} vibrate={vibrate} />
         {enterKey && renderKey(enterKey)}
       </div>
     </div>

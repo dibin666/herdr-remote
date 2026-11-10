@@ -76,7 +76,7 @@ export const Modal: React.FC<{
           {/* Where the subtitle does not fit beside the title it drops to its
               own line: an ellipsis on a phone left three words of it. */}
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-            <h2 id={titleId} className="break-words text-tui font-bold text-tui-accent">
+            <h2 id={titleId} className="break-words text-tui-lg font-bold text-tui-accent">
               {title}
             </h2>
             {subtitle ? (

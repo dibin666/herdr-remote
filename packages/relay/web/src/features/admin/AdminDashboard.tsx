@@ -243,7 +243,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       hints={[
         ...(data
           ? [
-              { keys: '1–4', action: t('admin.hintTabs') },
+              { keys: `1–${tabs.length}`, action: t('admin.hintTabs') },
               { keys: 'r', action: t('admin.hintRefresh') },
             ]
           : []),

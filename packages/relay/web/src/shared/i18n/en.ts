@@ -63,6 +63,7 @@ export const en = {
     viewerWithController: 'Viewer (Active: {controllerId})',
     /** This window types into its terminal. */
     sharedControl: 'Full control',
+    controlBadge: 'control',
     sharedWindows: '{count} windows',
     modeLabel: 'Input mode',
     controlHint: 'Keys, paste and clicks go to the terminal',
@@ -167,7 +168,7 @@ export const en = {
     subtitle: 'Interface, font, input and alerts',
     subtitleInstance: 'Only for {name}',
     tabGeneral: 'General',
-    sectionInterface: 'Interface',
+    sectionShared: 'Shared across instances',
     sectionFont: 'Font',
     sectionInput: 'Input',
     sectionAdmin: 'Administration',
@@ -181,6 +182,8 @@ export const en = {
     tabAgentKeymaps: 'Agent Keys',
     fontFamilyLabel: 'Monospace Font',
     fontSizeHint: 'This window only',
+    fontSizeHintOverridesFollow:
+      'This window only — moving the slider turns off “same size as the workstation”',
     fontSizeLabel: 'Terminal Text Size ({size}px)',
     predictiveEchoLabel: 'Predictive Echo',
     predictiveEchoAuto: 'Auto',
@@ -208,6 +211,7 @@ export const en = {
     languageLabel: 'Language',
     languageHint: 'Shared by every instance',
     resetDefaults: 'Reset to Defaults',
+    resetDefaultsConfirm: 'Press again to reset everything',
     resetDefaultsToast: 'Settings reset to defaults',
     fontSizeFollowHost: 'Same size as the workstation terminal ({size}px)',
     fontSizeFollowHostUnknown: 'Same size as the workstation terminal (not reported)',
@@ -251,6 +255,7 @@ export const en = {
       'Tap to choose which {profile} shortcuts appear on the key bar ({count} shown); base keys are on the Virtual Keys tab.',
     restoreBar: 'Restore default keys',
     customizeBar: 'Choose which shortcuts the key bar shows',
+    customizeBarShort: 'Custom',
     shortcutLabel: 'Shortcut',
     comboPlaceholder: 'e.g. ctrl+e or esc esc',
     invalidCombo: 'Invalid shortcut: {error}',
@@ -412,6 +417,7 @@ export const en = {
     rename: 'Rename instance',
     remove: 'Remove locally',
     removeConfirm: 'Remove this saved connection from this browser?',
+    removeConfirmYes: 'Yes, remove it',
   },
   mobile: {
     sessionControls: 'Session controls',
@@ -423,6 +429,8 @@ export const en = {
     quickInputAria: 'Toggle quick commands',
     /** Legend over the sheet's action list. */
     menu: 'Menu',
+    connectionDetails: 'Connection details',
+    languageRow: 'Language · 语言',
     statusBarAria: 'Session status bar',
   },
   terminal: {

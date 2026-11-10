@@ -51,7 +51,15 @@ export function AgentKeyActions({
         type="button"
         data-testid={`agent-key-${item.id}`}
         onClick={() => sendCombo(item.combo)}
-        className={cn(CAP_BASE, keyClass, 'font-bold', CHORD_TONE_CLASS[tone])}
+        className={cn(
+          CAP_BASE,
+          keyClass,
+          'font-bold',
+          CHORD_TONE_CLASS[tone],
+          // The interrupt key is the one cap that can lose work: keep it a
+          // step away from the harmless shortcuts beside it.
+          tone === 'bad' && 'ml-1.5',
+        )}
         title={`${caption} ${label}`.trim()}
         aria-label={`${caption} ${label}`.trim()}
       >
@@ -90,6 +98,7 @@ export function AgentKeyActions({
           aria-label={t('agentKeymaps.customizeBar')}
         >
           <KeyIcon name="customize" />
+          <span className="text-tui-sm">{t('agentKeymaps.customizeBarShort')}</span>
         </button>
       )}
     </div>

@@ -41,12 +41,13 @@ describe('TerminalSelectionMenu Unit Tests', () => {
     );
 
     const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(5);
+    expect(items).toHaveLength(4);
     expect(items[0]).toHaveTextContent('复制选中');
     expect(items[1]).toHaveTextContent('复制本行');
     expect(items[2]).toHaveTextContent('复制整屏');
     expect(items[3]).toHaveTextContent('粘贴');
-    expect(items[4]).toHaveTextContent('取消');
+    // No cancel row: tapping outside the menu already dismisses it.
+    expect(items.some((item) => item.textContent === '取消')).toBe(false);
 
     // Clicking an item calls action and closes menu
     fireEvent.click(items[0]);
@@ -130,7 +131,7 @@ describe('TerminalSelectionMenu Unit Tests', () => {
 
     expect(screen.queryByText('复制选中')).toBeNull();
     const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(4);
+    expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent('复制本行');
   });
 
@@ -154,9 +155,8 @@ describe('TerminalSelectionMenu Unit Tests', () => {
 
     expect(screen.queryByText('粘贴')).toBeNull();
     const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(4);
+    expect(items).toHaveLength(3);
     expect(items[2]).toHaveTextContent('复制整屏');
-    expect(items[3]).toHaveTextContent('取消');
   });
 
   it('maintains strict uniform h-11 action row classes across all items and bodyClassName for gap', () => {

@@ -78,17 +78,6 @@ const KEY_CAPTIONS: Record<string, string> = {
   '+': '+',
 };
 
-const SUPER_DIGITS: Record<number, string> = {
-  2: '²',
-  3: '³',
-  4: '⁴',
-  5: '⁵',
-  6: '⁶',
-  7: '⁷',
-  8: '⁸',
-  9: '⁹',
-};
-
 function parseStep(token: string, index: number): ParsedKeyStep {
   const parts = token.toLowerCase().split('+');
   if (parts.some((part) => !part))
@@ -180,7 +169,9 @@ export function formatComboCaption(combo: string): string {
     tokens.length > 1 &&
     tokens.every((token) => ['esc', 'escape'].includes(token.toLowerCase()))
   ) {
-    return `ESC${SUPER_DIGITS[tokens.length] || ` ×${tokens.length}`}`;
+    // `ESC×2`, not `ESC²`: a superscript reads as decoration, a multiplier
+    // says the key is pressed twice.
+    return `ESC×${tokens.length}`;
   }
 
   return tokens

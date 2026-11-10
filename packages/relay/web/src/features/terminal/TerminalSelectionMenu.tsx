@@ -7,7 +7,7 @@
  * touch target for copying words, lines, full screens, and triggering paste.
  *
  * Critical constraints:
- *   - Strict viewport boundary clamping: The terminal layer is `inset-x-0 top-12 bottom-11`
+ *   - Strict viewport boundary clamping: The terminal layer is `inset-x-0 top-8 bottom-11`
  *     (App.tsx:257). The menu MUST clamp within the visible container with an 8px margin
  *     and flip vertically above the touch point when needed to prevent being cropped by the
  *     top header or bottom status/keyboard bars.
@@ -26,8 +26,10 @@ import { useSettings } from '@/context/TerminalContext';
 const actionRowClass =
   'tui-focusable group flex h-11 w-full select-none items-center gap-2 border px-2 text-left text-tui transition-colors';
 
+/* Rows read as offered actions, not disabled text: muted grey on a menu you
+   just summoned looks like it cannot be pressed. */
 const idleRowClass =
-  'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
+  'border-tui-border text-tui-text hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
 
 export interface TerminalSelectionMenuProps {
   /** Touch anchor coordinate relative to the terminal main container. */
@@ -94,12 +96,13 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
     x = Math.max(8, Math.min(Math.max(8, containerWidth - menuWidth - 8), x));
 
     // Vertical: prefer flipping above the touch point so thumb does not cover the menu.
-    // Flip below only if there is not enough clearance above.
+    // Flip below only if there is not enough clearance above, and then drop a
+    // full row further so the menu never sits on the line just long-pressed.
     let y = anchorPoint.y - menuHeight - 8;
     if (y < 8) {
-      y = anchorPoint.y + 8;
+      y = anchorPoint.y + 28;
     }
-    // Hard clamp vertically so it never gets clipped by top-12 or bottom-11 bounds
+    // Hard clamp vertically so it never gets clipped by top-8 or bottom-11 bounds
     y = Math.max(8, Math.min(Math.max(8, containerHeight - menuHeight - 8), y));
 
     setCoords({ x, y });
@@ -230,17 +233,8 @@ export const TerminalSelectionMenu: React.FC<TerminalSelectionMenuProps> = ({
           </button>
         )}
 
-        <button
-          type="button"
-          role="menuitem"
-          className={cn(actionRowClass, idleRowClass)}
-          onClick={onClose}
-        >
-          <span aria-hidden="true" className="shrink-0 text-tui-faint group-hover:text-tui-accent">
-            {GLYPH.cursor}
-          </span>
-          <span className="truncate">{t('clipboard.cancel')}</span>
-        </button>
+        {/* No cancel row: a tap anywhere outside dismisses the menu, so the
+            entry only spent a row restating the obvious. */}
       </Panel>
     </div>
   );

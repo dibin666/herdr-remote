@@ -98,7 +98,7 @@ describe('KeyToolbar file upload', () => {
     expect(btn).toHaveAttribute('title', expect.stringContaining('any file'));
     expect(btn.textContent).toContain('\u{F03E2}');
     expect(btn.textContent).toContain('Upload File');
-    expect(btn.nextElementSibling).toBe(screen.getByTestId('image-upload-btn'));
+    expect(btn.nextElementSibling).toBe(screen.getByTestId('file-list-btn'));
   });
 
   it('opens a picker that accepts any file type', () => {

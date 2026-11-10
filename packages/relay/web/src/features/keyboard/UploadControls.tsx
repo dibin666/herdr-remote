@@ -43,14 +43,6 @@ export function UploadFileInputs({
         onChange={handleFileInputChange}
       />
       <input
-        type="file"
-        accept={IMAGE_ACCEPT}
-        capture="environment"
-        className="hidden"
-        data-testid="key-toolbar-camera-input"
-        onChange={handleFileInputChange}
-      />
-      <input
         ref={anyFileInputRef}
         type="file"
         multiple

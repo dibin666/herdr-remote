@@ -50,7 +50,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     expect(screen.getByText(/herdr-remote pair/i)).toBeInTheDocument();
 
     // Verifies pairing code input and connect CTA
-    expect(screen.getByPlaceholderText(/e\.g\. 7X9K2A/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/6-character Pairing Code/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
   });
 

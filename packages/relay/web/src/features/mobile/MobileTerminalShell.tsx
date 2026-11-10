@@ -4,7 +4,7 @@ import { useSettings, useConnection } from '@/context/TerminalContext';
 import { MobileControlSheet } from './MobileControlSheet';
 import { describeConnection } from '@/connection/connectionStatus';
 import { cn } from '@/shared/lib/cn';
-import { GLYPH, Sep, StatusDot } from '@/shared/ui';
+import { Sep, StatusDot } from '@/shared/ui';
 import { MobileStatusBar } from './MobileStatusBar';
 
 export interface MobileTerminalShellProps {
@@ -29,6 +29,30 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   const sheetRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => setIsOpen(false), []);
+
+  /* A bottom sheet lets go the way a thumb expects: grabbed by its handle and
+     pulled down. 64px of downward travel commits the close; less snaps back. */
+  const dragStartYRef = useRef<number | null>(null);
+  const sheetDragRef = useRef(0);
+  const onSheetTouchStart = useCallback((event: React.TouchEvent) => {
+    dragStartYRef.current = event.touches[0]?.clientY ?? null;
+    sheetDragRef.current = 0;
+  }, []);
+  const onSheetTouchMove = useCallback((event: React.TouchEvent) => {
+    if (dragStartYRef.current === null) return;
+    const dy = (event.touches[0]?.clientY ?? 0) - dragStartYRef.current;
+    sheetDragRef.current = Math.max(0, dy);
+    if (sheetRef.current && dy > 0) {
+      sheetRef.current.style.transform = `translateY(${dy}px)`;
+    }
+  }, []);
+  const onSheetTouchEnd = useCallback(() => {
+    const dy = sheetDragRef.current;
+    dragStartYRef.current = null;
+    sheetDragRef.current = 0;
+    if (sheetRef.current) sheetRef.current.style.transform = '';
+    if (dy > 64) close();
+  }, [close]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -75,7 +99,7 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
         data-testid="mobile-topbar"
         role="toolbar"
         aria-label={t('mobile.sessionControls')}
-        className="pointer-events-none absolute inset-x-0 top-0 z-40 flex h-12 items-center justify-between gap-2 border-b border-tui-border bg-tui-mantle px-2 text-tui"
+        className="pointer-events-none absolute inset-x-0 top-0 z-40 flex h-8 items-center justify-between gap-2 border-b border-tui-border bg-tui-mantle px-2 text-tui"
       >
         <div className="flex min-w-0 items-center gap-1.5 text-tui-sm text-tui-muted">
           <span aria-hidden="true" className="shrink-0 font-bold text-tui-accent">
@@ -95,18 +119,14 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
           aria-haspopup="dialog"
           className={cn(
             'tui-focusable pointer-events-auto flex h-9 shrink-0 select-none items-center gap-1.5 border px-2 text-tui uppercase transition-colors',
-            status.needsAttention
+            status.needsAttention || !isController
               ? 'border-tui-warn text-tui-warn'
-              : isController
-                ? 'border-tui-border text-tui-muted'
-                : 'border-tui-accent text-tui-accent',
+              : 'border-tui-border text-tui-muted',
           )}
         >
-          {!isController && !status.needsAttention && (
-            <span className="max-w-[8rem] truncate">{t('common.viewer')}</span>
-          )}
+          {!isController && <span className="max-w-[8rem] truncate">{t('common.viewer')}</span>}
           <span aria-hidden="true" className="text-tui">
-            {GLYPH.chevronDown}
+            ☰
           </span>
           <span aria-hidden="true">{t('mobile.menu')}</span>
         </button>
@@ -130,15 +150,24 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
             tabIndex={-1}
             className="herdr-sheet absolute inset-x-0 bottom-0 z-50 max-h-[85%] overflow-y-auto border-t border-tui-border bg-tui-base pb-3 focus:outline-none"
           >
+            {/* The grab strip: pulling it down closes the sheet, the gesture
+                every other bottom sheet on the phone already taught. */}
+            <div
+              data-testid="mobile-sheet-handle"
+              aria-hidden="true"
+              className="flex touch-none items-start justify-center pb-1 pt-1.5"
+              onTouchStart={onSheetTouchStart}
+              onTouchMove={onSheetTouchMove}
+              onTouchEnd={onSheetTouchEnd}
+              onTouchCancel={onSheetTouchEnd}
+            >
+              <span className="h-1 w-9 bg-tui-border-bright" />
+            </div>
             <MobileControlSheet
               onClose={close}
               onOpenSettings={() => {
                 close();
                 onOpenSettings();
-              }}
-              onAddProfile={() => {
-                close();
-                onAddProfile();
               }}
             />
           </div>

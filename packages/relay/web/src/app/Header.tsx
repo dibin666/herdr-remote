@@ -74,20 +74,23 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenS
       <div className="scrollbar-none flex min-h-[var(--tui-row)] items-center gap-2 overflow-x-auto text-tui">
         <span className="flex shrink-0 items-baseline gap-2">
           <span className="font-bold text-tui-accent">herdr-remote</span>
-          <span className="hidden text-tui-sm text-tui-faint sm:inline">{t('header.tagline')}</span>
         </span>
 
-        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
-
-        <Tabs
-          tabs={tabs}
-          activeId={currentView}
-          onSelect={(id) => onNavigate(id as 'terminal' | 'admin')}
-          ariaLabel={t('header.mainNavigationAria')}
-          className="shrink-0 gap-3"
-        />
-
-        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
+        {/* A tab strip of one tab is a label, not a navigation: it appears
+            only once the dashboard gave it somewhere to go back to. */}
+        {tabs.length > 1 && (
+          <>
+            <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
+            <Tabs
+              tabs={tabs}
+              activeId={currentView}
+              onSelect={(id) => onNavigate(id as 'terminal' | 'admin')}
+              ariaLabel={t('header.mainNavigationAria')}
+              className="shrink-0 gap-3"
+            />
+            <span aria-hidden="true" className="h-4 w-px shrink-0 bg-tui-border" />
+          </>
+        )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {/* Both languages on screen, each in its own script, so the way to

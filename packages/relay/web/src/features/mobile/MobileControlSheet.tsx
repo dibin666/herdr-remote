@@ -1,21 +1,20 @@
 import type React from 'react';
+import { useState } from 'react';
 import { useSettings, useConnection, useToasts } from '@/context/TerminalContext';
 import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { describeConnection } from '@/connection/connectionStatus';
 import { cn } from '@/shared/lib/cn';
 import { translate } from '@/shared/i18n';
-import { Button, GLYPH, Panel, Row, StatusDot } from '@/shared/ui';
-import { HostSwitcher } from '@/features/pairing/HostSwitcher';
+import { Button, GLYPH, Panel, StatusDot } from '@/shared/ui';
 import { useCopyFeedback } from '@/context/useCopyFeedback';
 
 export interface MobileControlSheetProps {
   onClose: () => void;
   onOpenSettings: () => void;
-  onAddProfile?: () => void;
 }
 
 /**
- * Everything the phone shell hides, as three framed panels.
+ * Everything the phone shell hides, as framed panels.
  *
  * Actions are full-width rows with the cursor glyph in front, the way a TUI
  * menu is navigated: a `▸` and a word, at a height a thumb hits without aiming.
@@ -27,8 +26,6 @@ const actionRowClass =
 
 const idleRowClass =
   'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
-
-const activeRowClass = 'border-tui-accent bg-tui-selection text-tui-accent';
 
 const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
   <span
@@ -45,15 +42,16 @@ const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
   onOpenSettings,
-  onAddProfile = () => {},
 }) => {
   const { settings, updateSettings, language, setLanguage, t } = useSettings();
-  const { connectionState, stateDetail, rttMs, hostId, connect } = useConnection();
+  const { connectionState, stateDetail, rttMs, hostId, assignedClientId, connect } =
+    useConnection();
   const { addToast } = useToasts();
 
   const { copied, copy } = useCopyFeedback();
   const copiedClientId = copied !== null;
   const status = describeConnection(connectionState, t);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   /**
    * Runs a sheet action with the pressed button already blurred.
@@ -82,24 +80,51 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
     );
   };
 
+  const detailRow = (label: string, value: string, copyable = false) => (
+    <button
+      type="button"
+      onClick={copyable ? copyClientId : undefined}
+      className={cn(
+        'flex w-full items-baseline gap-2 text-left text-tui-sm',
+        copyable && 'tui-focusable',
+      )}
+      title={copyable ? t('header.copyClientIdTitle') : undefined}
+      tabIndex={copyable ? 0 : -1}
+    >
+      <span className="shrink-0 text-tui-faint" style={{ width: '9ch' }}>
+        {label}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-tui-muted">{value}</span>
+      {copyable ? (
+        <span
+          aria-hidden="true"
+          className={cn('shrink-0', copiedClientId ? 'text-tui-ok' : 'text-tui-faint')}
+        >
+          {copiedClientId ? GLYPH.check : '⧉'}
+        </span>
+      ) : null}
+    </button>
+  );
+
   return (
-    <div className="flex flex-col gap-3 px-3 pb-2 pt-2">
+    <div className="flex flex-col gap-3 px-3 pb-2 pt-1">
       <div className="flex items-center justify-between gap-2 border-b border-tui-border pb-1.5">
         <h2 className="text-tui font-bold uppercase text-tui-accent">
           {t('mobile.sessionControls')}
         </h2>
-        <Button variant="ghost" onClick={onClose} aria-label={t('mobile.closeSessionControls')}>
-          esc
+        <Button
+          variant="ghost"
+          onClick={onClose}
+          aria-label={t('mobile.closeSessionControls')}
+          title={t('mobile.closeSessionControls')}
+        >
+          {GLYPH.cross}
         </Button>
       </div>
 
-      {/* Saved Herdr instances. This list is local-only and never comes from
-          relay-wide discovery. */}
-      <Panel title={t('profiles.title')} tone="accent" bodyClassName="space-y-1">
-        <HostSwitcher mobile onAddProfile={onAddProfile} />
-      </Panel>
-
-      {/* Connection */}
+      {/* Connection state, once: the top bar and the status bar both carry a
+          dot, so the sheet keeps the words and the retry, not another lamp.
+          The ids nobody reads mid-session fold into "details". */}
       <Panel
         title={t('common.status')}
         tone={status.level === 'ok' ? 'ok' : status.level === 'bad' ? 'bad' : 'warn'}
@@ -124,29 +149,30 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           <p className="text-tui-sm leading-snug text-tui-muted">{stateDetail}</p>
         )}
 
-        {hostId && (
-          <Row label={t('common.host')} labelWidth={9}>
-            {hostId}
-          </Row>
-        )}
-
         <button
           type="button"
-          onClick={copyClientId}
-          className="tui-focusable flex w-full items-baseline gap-2 text-left text-tui"
-          title={t('header.copyClientIdTitle')}
+          onClick={() => setDetailsOpen((open) => !open)}
+          aria-expanded={detailsOpen}
+          className={cn(actionRowClass, idleRowClass, 'h-9 text-tui-sm')}
         >
-          <span className="shrink-0 text-tui-muted" style={{ width: '9ch' }}>
-            {t('header.clientIdLabel')}
+          <span aria-hidden="true" className="shrink-0 text-tui-faint">
+            {detailsOpen ? GLYPH.chevronDown : GLYPH.chevronRight}
           </span>
-          <span className="min-w-0 flex-1 truncate text-tui-text">{settings.clientId}</span>
-          <span
-            aria-hidden="true"
-            className={cn('shrink-0', copiedClientId ? 'text-tui-ok' : 'text-tui-faint')}
-          >
-            {copiedClientId ? GLYPH.check : '⧉'}
-          </span>
+          <span className="truncate">{t('mobile.connectionDetails')}</span>
         </button>
+        {detailsOpen && (
+          <div className="space-y-1 border-l border-tui-border-dim pl-2">
+            {hostId ? detailRow(t('common.host'), hostId) : null}
+            {detailRow(
+              t('header.clientIdLabel').replace(/:$/, ''),
+              assignedClientId || settings.clientId,
+              true,
+            )}
+            {assignedClientId && assignedClientId !== settings.clientId
+              ? detailRow(t('role.thisWindow'), assignedClientId)
+              : null}
+          </div>
+        )}
       </Panel>
 
       {/* This window's input: full control, or only watching */}
@@ -158,18 +184,9 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         <ControlModeSwitch className="h-11" />
       </Panel>
 
-      {/* Menu */}
+      {/* Menu: the most-used first. Language is last because it is the one
+          choice a person makes once. */}
       <Panel title={t('mobile.menu')} tone="accent" bodyClassName="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={toggleLanguage}
-          className={cn(actionRowClass, idleRowClass)}
-          aria-label={t('header.languageToggleTitle')}
-        >
-          <Cursor />
-          <span className="truncate">{language === 'zh' ? 'English' : '中文'}</span>
-        </button>
-
         <button
           type="button"
           onClick={withoutFocusScroll(onOpenSettings)}
@@ -183,14 +200,33 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         <button
           type="button"
           onClick={() => updateSettings({ toolbarVisible: !settings.toolbarVisible })}
-          className={cn(actionRowClass, settings.toolbarVisible ? activeRowClass : idleRowClass)}
+          className={cn(actionRowClass, idleRowClass)}
           aria-label={t('mobile.keybarAria')}
           aria-pressed={settings.toolbarVisible}
         >
           <Cursor active={settings.toolbarVisible} />
           <span className="truncate">{t('common.keyBar')}</span>
-          <span aria-hidden="true" className="ml-auto shrink-0 text-tui-sm">
-            {settings.toolbarVisible ? '[x]' : '[ ]'}
+          <span
+            aria-hidden="true"
+            className={cn(
+              'ml-auto shrink-0 text-tui-sm',
+              settings.toolbarVisible ? 'text-tui-ok' : 'text-tui-faint',
+            )}
+          >
+            {settings.toolbarVisible ? t('settings.toggleOn') : t('settings.toggleOff')}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleLanguage}
+          className={cn(actionRowClass, idleRowClass)}
+          aria-label={t('header.languageToggleTitle')}
+        >
+          <Cursor />
+          <span className="truncate">{t('mobile.languageRow')}</span>
+          <span aria-hidden="true" className="ml-auto shrink-0 text-tui-sm text-tui-faint">
+            {language === 'zh' ? '中' : 'EN'}
           </span>
         </button>
       </Panel>

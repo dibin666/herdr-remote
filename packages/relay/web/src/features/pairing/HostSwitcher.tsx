@@ -34,6 +34,9 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
+  /* Removing a pairing has no undo, so the row asks once more in place of the
+     browser's `confirm`, which never matched the dialog around it anyway. */
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,18 +51,24 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
   const beginRename = (profileId: string, currentName: string) => {
     setEditingId(profileId);
     setNameDraft(currentName);
+    setConfirmingRemove(false);
   };
 
   const commitRename = (profileId: string) => {
     const value = nameDraft.trim();
     if (value) renameProfile(profileId, value);
     setEditingId(null);
+    setConfirmingRemove(false);
   };
 
   const remove = (profileId: string) => {
-    if (typeof window !== 'undefined' && !window.confirm(t('profiles.removeConfirm'))) return;
+    if (!confirmingRemove) {
+      setConfirmingRemove(true);
+      return;
+    }
     removeProfile(profileId);
     setEditingId(null);
+    setConfirmingRemove(false);
   };
 
   const label = activeProfile?.displayName || t('profiles.addHost');
@@ -184,6 +193,11 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
 
                   {editing && (
                     <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+                      {confirmingRemove && (
+                        <p className="col-span-2 text-tui-sm leading-snug text-tui-warn">
+                          {t('profiles.removeConfirm')}
+                        </p>
+                      )}
                       <input
                         // biome-ignore lint/a11y/noAutofocus: the user just asked to rename; the field is what they came for
                         autoFocus
@@ -209,8 +223,16 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                         variant="danger"
                         className="h-11 w-full min-w-0 whitespace-nowrap"
                       >
-                        {t('profiles.remove')}
+                        {confirmingRemove ? t('profiles.removeConfirmYes') : t('profiles.remove')}
                       </Button>
+                      {confirmingRemove && (
+                        <Button
+                          onClick={() => setConfirmingRemove(false)}
+                          className="col-span-2 h-11 w-full min-w-0 whitespace-nowrap"
+                        >
+                          {t('common.cancel')}
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

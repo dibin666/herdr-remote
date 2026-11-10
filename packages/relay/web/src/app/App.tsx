@@ -222,7 +222,7 @@ function AppContent() {
         {isTerminalMounted && (
           <div
             data-testid="terminal-layer"
-            className={`absolute ${isMobileShell ? 'inset-x-0 top-12 bottom-11' : 'inset-0'} flex flex-col min-h-0 w-full overflow-hidden`}
+            className={`absolute ${isMobileShell ? 'inset-x-0 top-8 bottom-11' : 'inset-0'} flex flex-col min-h-0 w-full overflow-hidden`}
             style={layerVisibilityStyle(isTerminalActive)}
             aria-hidden={!isTerminalActive}
           >

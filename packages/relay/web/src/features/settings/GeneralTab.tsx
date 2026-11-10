@@ -79,7 +79,9 @@ export const GeneralTab: React.FC<{ onOpenAdmin?: () => void }> = ({ onOpenAdmin
 
   return (
     <div className="space-y-4">
-      <SettingSection title={t('settings.sectionInterface')}>
+      {/* The one setting every instance shares gets its own section so the
+          dialog's "only this instance" subtitle cannot overrule it. */}
+      <SettingSection title={t('settings.sectionShared')}>
         <SettingRow
           label={t('settings.languageLabel')}
           hint={t('settings.languageHint')}
@@ -157,7 +159,11 @@ export const GeneralTab: React.FC<{ onOpenAdmin?: () => void }> = ({ onOpenAdmin
 
         <SettingRow
           label={t('settings.fontSizeLabel', { size: terminalFontSize })}
-          hint={t('settings.fontSizeHint')}
+          hint={
+            settings.fontSizeFollowsHost
+              ? t('settings.fontSizeHintOverridesFollow')
+              : t('settings.fontSizeHint')
+          }
           htmlFor="terminal-font-size"
           control={
             <div className={cn('flex items-center', CONTROL_H)}>

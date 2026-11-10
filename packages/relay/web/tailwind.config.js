@@ -60,8 +60,11 @@ export default {
           text: mocha.text,
           /** Labels, hints, paths — everything secondary. */
           muted: mocha.subtext0,
-          /** Quieter still: separators rendered as glyphs, disabled labels. */
-          faint: mocha.overlay0,
+          /* Quieter still: separators rendered as glyphs, disabled labels.
+             Overlay2 (#9399b2), not overlay0: on `base` overlay0 measured
+             ~3.4:1, under WCAG AA's 4.5:1 for the hint text this colour
+             mostly paints. */
+          faint: '#9399b2',
           /** Where you are, and what you can act on. */
           accent: mocha.blue,
           'accent-bright': mocha.sky,

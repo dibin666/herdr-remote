@@ -4,7 +4,7 @@ import { describeConnection } from '@/connection/connectionStatus';
 import { Segments, StatusDot, StatusLine } from '@/shared/ui';
 import { AgentStatusChip, agentStatusHasContent } from '@/features/agents/AgentStatusChip';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
-import { ControlModeSwitch } from './ControlModeSwitch';
+import { ControlModeBadge } from './ControlModeBadge';
 import { UpdateChip, useUpdateNoticeVisible } from './UpdateNotice';
 import { cn } from '@/shared/lib/cn';
 
@@ -51,30 +51,39 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
               // Nothing is being controlled while the session is down, so the
               // line says nothing about it rather than claiming a role that has
               // no session to apply to.
-              connected ? (
-                <ControlModeSwitch key="role" compact className={cn(FIXED, 'h-full w-auto')} />
-              ) : null,
+              connected ? <ControlModeBadge key="role" className={FIXED} /> : null,
               connected && sharedWindowCount > 1 ? (
                 <span key="windows" className={cn(FIXED, 'text-tui-muted')}>
                   {t('role.sharedWindows', { count: sharedWindowCount })}
                 </span>
               ) : null,
+              /* Once the session is up, the ids are reference material, not
+                 live state: one segment keeps the host name and the full ids
+                 are a hover away, instead of two long strings pushing the
+                 latency off the line. Before it connects, the client id is
+                 all the identity there is, so it keeps its own segment. */
               hostId ? (
-                <span key="host" className={GIVES_WAY}>
+                <span
+                  key="host"
+                  className={GIVES_WAY}
+                  title={`${t('common.host')}: ${hostId} · ${t('header.clientIdLabel')} ${assignedClientId || settings.clientId}`}
+                >
                   <span className="text-tui-faint">{t('common.host')}:</span>{' '}
                   <span className="text-tui-text">{hostId}</span>
                 </span>
-              ) : null,
-              <span key="client" className={GIVES_WAY}>
-                <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
-                <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
-              </span>,
+              ) : (
+                <span key="client" className={GIVES_WAY}>
+                  <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
+                  <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
+                </span>
+              ),
             ]}
           />
         </>
       }
       right={
         <Segments
+          data-testid="status-line-right"
           items={[
             updateVisible ? <UpdateChip key="update" /> : null,
             connected && agentStatusHasContent(agentStatus) ? (
@@ -85,9 +94,6 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
                 {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>
               </span>
             ) : null,
-            <span key="mode" className="hidden text-tui-faint sm:inline">
-              {t('header.tagline')}
-            </span>,
           ]}
         />
       }

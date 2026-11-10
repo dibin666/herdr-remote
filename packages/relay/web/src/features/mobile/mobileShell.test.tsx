@@ -204,12 +204,12 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
 
     // The whole main area is the terminal, and it is visible and interactive.
     const layer = screen.getByTestId('terminal-layer');
-    expect(layer.className).toContain('top-12');
+    expect(layer.className).toContain('top-8');
     expect(layer.className).toContain('bottom-11');
     expect(layer.style.visibility).toBe('visible');
 
     const topbar = screen.getByTestId('mobile-topbar');
-    expect(topbar.className).toContain('h-12');
+    expect(topbar.className).toContain('h-8');
     expect(topbar).toContainElement(screen.getByTestId('mobile-chrome-trigger'));
     expect(layer.style.pointerEvents).toBe('auto');
 
@@ -657,9 +657,11 @@ describe('Desktop shell is untouched by the phone layout', () => {
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Terminal$/i })).toBeInTheDocument();
-    // The Admin tab appears only while the dashboard is open; Settings leads there.
+    // A one-tab strip is a label, not a navigation, so no tab is drawn until
+    // the dashboard gives it somewhere to go back to.
+    expect(screen.queryByRole('button', { name: /^Terminal$/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Admin$/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument();
 
     // No phone chrome anywhere.
     expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();
