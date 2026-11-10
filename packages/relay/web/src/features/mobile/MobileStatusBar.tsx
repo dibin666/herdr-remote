@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useSettings, useConnection } from '@/context/TerminalContext';
 import { cn } from '@/shared/lib/cn';
-import { AgentStatusChip } from '@/features/agents/AgentStatusChip';
+import { AgentInbox } from '@/features/agents/AgentInbox';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
 import { UpdateChip } from '@/features/status/UpdateNotice';
 
@@ -35,7 +35,7 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
         the workstation reports, so the row's spacing is unchanged when there is
         nothing to say.
       */}
-      <AgentStatusChip compact />
+      <AgentInbox compact />
       <UpdateChip compact />
       <span
         className="flex shrink-0 items-center gap-1 px-1 text-tui-muted"

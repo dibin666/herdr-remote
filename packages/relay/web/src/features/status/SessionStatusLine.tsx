@@ -2,7 +2,8 @@ import type React from 'react';
 import { useSettings, useConnection } from '@/context/TerminalContext';
 import { describeConnection } from '@/connection/connectionStatus';
 import { Segments, StatusDot, StatusLine } from '@/shared/ui';
-import { AgentStatusChip, agentStatusHasContent } from '@/features/agents/AgentStatusChip';
+import { agentStatusHasContent } from '@/features/agents/AgentStatusChip';
+import { AgentInbox } from '@/features/agents/AgentInbox';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
 import { ControlModeBadge } from './ControlModeBadge';
 import { UpdateChip, useUpdateNoticeVisible } from './UpdateNotice';
@@ -86,9 +87,7 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
           data-testid="status-line-right"
           items={[
             updateVisible ? <UpdateChip key="update" /> : null,
-            connected && agentStatusHasContent(agentStatus) ? (
-              <AgentStatusChip key="agents" />
-            ) : null,
+            connected && agentStatusHasContent(agentStatus) ? <AgentInbox key="agents" /> : null,
             rttMs !== null ? (
               <span key="rtt" className="text-tui-muted">
                 {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>
