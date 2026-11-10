@@ -179,6 +179,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       herdrPrefixKeys,
       fileListSupported,
       pasteStreamSupported,
+      paneActionsSupported,
     ) => {
       clearPendingOutput();
       dispatch({
@@ -190,6 +191,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
         adminTerminalSupported,
         fileListSupported,
         pasteStreamSupported,
+        paneActionsSupported,
         hostVersion,
         herdrPrefixKeys,
       });

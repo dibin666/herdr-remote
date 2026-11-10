@@ -100,6 +100,7 @@ function createHostRecord(
     pasteAnyFile: capabilities.includes(CAPABILITY.pasteAnyFile),
     pasteStream: capabilities.includes(CAPABILITY.pasteStream),
     fsBrowse: capabilities.includes(CAPABILITY.fsBrowse),
+    paneActions: capabilities.includes(CAPABILITY.paneActions),
     streamIndices: new Map(),
     nextStreamIndex: 0,
     shutdownRequested: false,

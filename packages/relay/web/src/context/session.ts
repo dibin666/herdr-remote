@@ -22,6 +22,8 @@ export interface SessionState {
   fileListSupported?: boolean;
   /** The workstation pulls chunked uploads; without it only 3 MB one-shot pastes work. */
   pasteStreamSupported?: boolean;
+  /** The workstation can focus its Herdr panes and send them the canned keys. */
+  paneActionsSupported?: boolean;
   /**
    * The workstation's herdr-remote release: null when it is too old to say,
    * undefined before the relay has said anything.
@@ -78,6 +80,7 @@ export type SessionEvent =
       adminTerminalSupported?: boolean;
       fileListSupported?: boolean;
       pasteStreamSupported?: boolean;
+      paneActionsSupported?: boolean;
       palette?: HostTerminalPalette | null;
       hostVersion?: string | null;
       herdrPrefixKeys?: string[];
@@ -108,6 +111,7 @@ const HOST_PRESENTATION = {
   adminTerminalSupported: undefined,
   fileListSupported: undefined,
   pasteStreamSupported: undefined,
+  paneActionsSupported: undefined,
   hostVersion: undefined,
   herdrPrefixKeys: undefined,
   shellProfile: 'posix',
@@ -141,6 +145,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         adminTerminalSupported: message.adminTerminalSupported,
         fileListSupported: message.fileListSupported,
         pasteStreamSupported: message.pasteStreamSupported,
+        paneActionsSupported: message.paneActionsSupported,
         hostVersion: message.hostVersion,
         herdrPrefixKeys: message.herdrPrefixKeys,
         shellProfile: defaultShellProfile(message.platform, message.shellProfile),
@@ -160,6 +165,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         adminTerminalSupported: event.adminTerminalSupported,
         fileListSupported: event.fileListSupported,
         pasteStreamSupported: event.pasteStreamSupported,
+        paneActionsSupported: event.paneActionsSupported,
         hostVersion: event.hostVersion,
         herdrPrefixKeys: event.herdrPrefixKeys,
         shellProfile: defaultShellProfile(event.platform, event.shellProfile),

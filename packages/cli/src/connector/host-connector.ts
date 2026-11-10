@@ -16,6 +16,7 @@ import { resolveSocketPath } from '../socket-discovery.js';
 import { resolveHostPalette } from '../terminal-palette.js';
 import { randomToken } from 'herdr-remote-relay/state';
 import { openAdminTabFor } from './admin-tab.js';
+import { runPaneActionFor } from './pane-action.js';
 import { AgentWatch, type AgentWatchOptions } from './agent-watch.js';
 import { FontServer, type FontServerOptions } from './font-server.js';
 import { HostFiles } from './host-files.js';
@@ -345,6 +346,12 @@ export class HostConnector {
         return this.sessions.startHerdrFor(streamOf(message));
       case 'admin_tab_open':
         return openAdminTabFor(streamOf(message), {
+          socketPath: this.socketPath,
+          language: this.config.ui?.language,
+          send: (payload) => sendJson(this.ws, payload),
+        });
+      case 'pane_action':
+        return runPaneActionFor(streamOf(message), message, {
           socketPath: this.socketPath,
           language: this.config.ui?.language,
           send: (payload) => sendJson(this.ws, payload),

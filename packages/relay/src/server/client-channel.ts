@@ -67,6 +67,9 @@ const FONT_REFRESH_REPEAT_MS = 2_000;
 /** A window opens an administrator tab at most this often. */
 const ADMIN_TAB_REPEAT_MS = 1_000;
 
+/** Pane ids come from the host's own report; this caps what can be echoed back. */
+const MAX_PANE_ID_LENGTH = 128;
+
 export function handleClientConnection(
   relay: RelayContext,
   ws: RelaySocket,
@@ -192,6 +195,7 @@ export function handleClientConnection(
         adminTerminalSupported: host.adminTabsAvailable,
         fileListSupported: host.fsBrowse,
         pasteStreamSupported: host.pasteStream,
+        paneActionsSupported: host.paneActions,
         clientId: client.id,
         // Delivered with `ready`, before the first PTY byte, so the terminal
         // is painted in the host's colors from its very first frame.
@@ -326,6 +330,42 @@ function handleClientMessage(
       type: 'admin_tab_open',
       clientId: client.session.streamId,
       streamId: client.session.streamId,
+    });
+  } else if (message.type === 'pane_action') {
+    // Routed like admin_tab_open: only the workstation this window is paired
+    // to, and only when it said it can act on panes. The pane ids a window
+    // can name all came from this host's own agent_status report.
+    if (!client.session || !isOpen(host.ws)) return;
+    if (client.role !== 'controller') {
+      jsonSend(client.ws, {
+        type: 'error',
+        code: 'controller_required',
+        message: 'this window is a viewer and cannot act on agents',
+      });
+      return;
+    }
+    if (!host.paneActions) {
+      jsonSend(client.ws, {
+        type: 'error',
+        code: 'pane_actions_unsupported',
+        message: 'Update the host connector to act on agents.',
+      });
+      return;
+    }
+    const paneId =
+      typeof message.paneId === 'string' ? message.paneId.slice(0, MAX_PANE_ID_LENGTH) : '';
+    const action = message.action;
+    if (
+      !paneId ||
+      (action !== 'focus' && action !== 'approve' && action !== 'reject' && action !== 'interrupt')
+    )
+      return;
+    jsonSend(host.ws, {
+      type: 'pane_action',
+      clientId: client.session.streamId,
+      streamId: client.session.streamId,
+      paneId,
+      action,
     });
   } else if (message.type === 'host_font_chunk_request') {
     requestFontChunk(host, client, message);

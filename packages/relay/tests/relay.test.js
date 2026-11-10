@@ -1716,6 +1716,98 @@ test("an admin tab request reaches the window's own Windows host only when it ca
   );
 });
 
+test("a pane action reaches the window's own host, and only a controller's", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-pane-action-'));
+  const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });
+  const address = await relay.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${address.port}`;
+  const wsBase = `ws://127.0.0.1:${address.port}`;
+  t.onTestFinished(async () => {
+    await relay.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  async function pairedWindow(hostId, capabilities, mode) {
+    const host = await openWebSocket(`${wsBase}/ws/host`);
+    const received = [];
+    host.on('message', (data, isBinary) => {
+      if (!isBinary) received.push(JSON.parse(data.toString()));
+    });
+    const token = `${hostId}-token-123456789`;
+    host.send(JSON.stringify({ type: 'host_hello', protocol: 1, hostId, token, capabilities }));
+    await nextMessage(host, (message) => message.type === 'host_ready');
+    const pairing = await postJson(`${base}/api/pair/start`, {
+      'X-Herdr-Host-Id': hostId,
+      'X-Herdr-Host-Token': token,
+    });
+    const sessionStart = nextMessage(host, (message) => message.type === 'session_start');
+    const client = await openWebSocket(`${wsBase}/ws/client`);
+    const ready = nextMessage(client, (message) => message.type === 'ready');
+    client.send(
+      JSON.stringify({
+        type: 'hello',
+        protocol: 1,
+        pairCode: pairing.code,
+        clientId: `${hostId}-device`,
+        cols: 80,
+        rows: 24,
+        ...(mode ? { mode } : {}),
+      }),
+    );
+    const { value: readyMessage } = await ready;
+    const { value: started } = await sessionStart;
+    t.onTestFinished(() => {
+      client.close();
+      host.close();
+    });
+    return { host, received, client, readyMessage, started };
+  }
+
+  const able = await pairedWindow('host-able', ['pane_actions']);
+  assert.equal(able.readyMessage.paneActionsSupported, true);
+  const forwarded = nextMessage(able.host, (message) => message.type === 'pane_action');
+  // The relay fills the stream; nothing the window names decides where it goes.
+  able.client.send(
+    JSON.stringify({
+      type: 'pane_action',
+      streamId: 'someone-elses',
+      paneId: 'w1:p9',
+      action: 'approve',
+    }),
+  );
+  const { value } = await forwarded;
+  assert.equal(value.streamId, able.started.streamId);
+  assert.equal(value.clientId, able.started.streamId);
+  assert.equal(value.paneId, 'w1:p9');
+  assert.equal(value.action, 'approve');
+
+  // A pane id that is not a string, and an action that is not in the set,
+  // are dropped at the relay rather than relayed.
+  able.client.send(JSON.stringify({ type: 'pane_action', paneId: 42, action: 'focus' }));
+  able.client.send(JSON.stringify({ type: 'pane_action', paneId: 'w1:p9', action: 'rm -rf /' }));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(able.received.filter((message) => message.type === 'pane_action').length, 1);
+
+  // A viewer watches; acting on a pane is input.
+  const viewer = await pairedWindow('host-viewer', ['pane_actions'], 'viewer');
+  for (const c of relay.clients.values())
+    if (c.browserClientId === 'host-viewer-device') c.role = 'viewer';
+  const refusedViewer = nextMessage(viewer.client, (message) => message.type === 'error');
+  viewer.client.send(JSON.stringify({ type: 'pane_action', paneId: 'w1:p9', action: 'focus' }));
+  assert.equal((await refusedViewer).value.code, 'controller_required');
+
+  // An older host never advertised the capability.
+  const older = await pairedWindow('host-old-panes', []);
+  assert.equal(older.readyMessage.paneActionsSupported, false);
+  const refusedOld = nextMessage(older.client, (message) => message.type === 'error');
+  older.client.send(JSON.stringify({ type: 'pane_action', paneId: 'w1:p9', action: 'focus' }));
+  assert.equal((await refusedOld).value.code, 'pane_actions_unsupported');
+  assert.equal(
+    older.received.some((message) => message.type === 'pane_action'),
+    false,
+  );
+});
+
 test('a request to start Herdr reaches only the workstation the window is paired to', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-remote-relay-herdr-start-'));
   const relay = new RelayServer(config(), { stateFile: path.join(directory, 'auth.json') });

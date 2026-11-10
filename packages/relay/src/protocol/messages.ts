@@ -42,6 +42,8 @@ export const CAPABILITY = {
   clipboardForward: 'clipboard_forward',
   /** The host lists its terminal's working directory and stages downloads from it. */
   fsBrowse: 'fs_browse',
+  /** The host can focus one of its Herdr panes and send keys to it. */
+  paneActions: 'pane_actions',
 } as const;
 
 export type ClientRole = 'controller' | 'viewer';
@@ -127,6 +129,21 @@ export interface ClientAdminTabOpenMessage {
   type: 'admin_tab_open';
 }
 
+/** What a window may ask the host to do to one pane of its own Herdr. */
+export type PaneActionKind = 'focus' | 'approve' | 'reject' | 'interrupt';
+
+/**
+ * Act on one pane of the workstation's Herdr: jump to it, or jump and press
+ * the canned key for it. The pane ids a window sends came from that host's
+ * own `agent_status` report, and `focus` moves every client attached to that
+ * Herdr — there is no per-window focus.
+ */
+export interface ClientPaneActionMessage {
+  type: 'pane_action';
+  paneId: string;
+  action: PaneActionKind;
+}
+
 /** One slice of an announced font file, by the file's hash. */
 export interface ClientHostFontChunkRequestMessage {
   type: 'host_font_chunk_request';
@@ -162,6 +179,7 @@ export type ClientJsonMessage =
   | Clipboard.ClientClipboardReadReplyMessage
   | ClientHerdrStartMessage
   | ClientAdminTabOpenMessage
+  | ClientPaneActionMessage
   | Fs.ClientFsListRequestMessage
   | Fs.ClientFsDownloadRequestMessage
   | Fs.ClientFsDownloadChunkRequestMessage
@@ -187,6 +205,8 @@ export interface ServerReadyMessage {
   fileListSupported?: boolean;
   /** The workstation pulls chunked uploads; without it only 3 MB one-shot pastes work. */
   pasteStreamSupported?: boolean;
+  /** The workstation can focus its Herdr panes and send them the canned keys. */
+  paneActionsSupported?: boolean;
   clientId?: string;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
@@ -244,6 +264,8 @@ export interface ServerSessionRestartedMessage {
   fileListSupported?: boolean;
   /** As in `ready`: the host may have come back on another release. */
   pasteStreamSupported?: boolean;
+  /** As in `ready`: the host may have come back on another release. */
+  paneActionsSupported?: boolean;
   terminalPalette?: HostTerminalPalette | null;
   terminalFont?: HostTerminalFont | null;
   /** As in `ready`: the host may have come back on another release. */

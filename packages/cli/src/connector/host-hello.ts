@@ -40,6 +40,7 @@ export function hostHello(identity: HostHelloIdentity) {
       CAPABILITY.pasteAnyFile,
       CAPABILITY.pasteStream,
       CAPABILITY.fsBrowse,
+      CAPABILITY.paneActions,
       ...(process.platform === 'win32' ? [CAPABILITY.adminTabs] : []),
     ],
   };

@@ -860,6 +860,30 @@ notification: the LAN relay is plain HTTP, where the Notification API does not
 exist, and an alert per state change is the flood a status line exists to
 replace.
 
+### Acting on a pane (`pane_action`)
+
+The `paneId` in each `agent_status` entry also names the pane a window may act
+on. A window holding the control lease can send:
+
+```json
+{ "type": "pane_action", "paneId": "wM:p4", "action": "approve" }
+```
+
+`action` is one of `focus`, `approve`, `reject`, `interrupt`. The relay forwards
+it to that window's own host, addressed to the window's own stream, only when
+the host advertised `pane_actions` and the window is a controller; anything
+else gets an `error` (`pane_actions_unsupported`, `controller_required`) or is
+dropped. `ready.paneActionsSupported` — and `session_restarted`'s copy — tells
+the browser whether the buttons exist before it draws them.
+
+The host runs the action through Herdr's socket API, always focusing the pane
+first so the canned key lands in the pane the user was looking at: `pane.focus`
+for every action, then `pane.send_keys` with `enter` for approve, `escape` for
+reject, `ctrl+c` for interrupt. The focus is global — `pane.focus` moves every
+client attached to that Herdr, not just the window that asked; a pane cannot be
+focused for one browser only. Success answers nothing; failure answers
+`{ "type": "error", "code": "pane_action_failed" }` to the window that asked.
+
 ## Update status (`update_status`)
 
 Whether the workstation runs the newest herdr-remote. The host connector asks
