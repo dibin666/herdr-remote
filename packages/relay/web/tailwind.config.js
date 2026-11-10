@@ -119,7 +119,7 @@ export default {
          */
         tui: ['13px', { lineHeight: '20px' }],
         'tui-sm': ['12px', { lineHeight: '18px' }],
-        /* Reserved for a headline figure on the status board. Never for text. */
+        /* Headline figures and section titles; never inside a line of running text. */
         'tui-lg': ['15px', { lineHeight: '22px' }],
       },
       keyframes: {
