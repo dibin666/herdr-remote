@@ -395,7 +395,6 @@ export const zh: TranslationSchema = {
     uploadProgressWaitingHost: '等待工作站保存...',
     uploadProgressCompleted: '完成',
     uploadProgressFailed: '上传失败',
-    pagesSwipe: '左右滑动翻页',
     pageBase: '基础键',
     pageAgent: '智能体 · 文件',
   },

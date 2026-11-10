@@ -388,7 +388,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
                 <AdminTerminalButton squareKeyClass={squareKeyClass} />
                 <AgentKeyActions
                   keyClass={keyClass}
-                  squareKeyClass={squareKeyClass}
                   onCustomize={onCustomize}
                   sendCombo={sendCombo}
                 />
@@ -399,8 +398,9 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
                   inputRef={anyFileInputRef}
                   keyClass={keyClass}
                   vibrate={vibrate}
+                  iconOnly={compact}
                 />
-                <FileListButton capClass={keyClass} vibrate={vibrate} />
+                <FileListButton capClass={keyClass} vibrate={vibrate} iconOnly={compact} />
                 {/* The way out sits at the strip's tail, never the head: at
                     the front it was the first thing a thumb met and read as
                     "more keys"; at the tail it cannot be hit by accident, and
@@ -435,8 +435,14 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         </div>
         {/* Paste and image upload pinned beside Enter: the two actions a
             phone reaches for constantly must never scroll out of sight. */}
-        <PasteButton capClass={keyClass} vibrate={vibrate} />
-        <UploadButton kind="image" inputRef={fileInputRef} keyClass={keyClass} vibrate={vibrate} />
+        <PasteButton capClass={keyClass} vibrate={vibrate} iconOnly={compact} />
+        <UploadButton
+          kind="image"
+          inputRef={fileInputRef}
+          keyClass={keyClass}
+          vibrate={vibrate}
+          iconOnly={compact}
+        />
         {enterKey && renderKey(enterKey)}
       </div>
 
@@ -464,10 +470,6 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
               {page === index ? '●' : '○'}
             </button>
           ))}
-          <span aria-hidden="true">
-            {t('virtualKeyboard.pagesSwipe')}: {t('virtualKeyboard.pageBase')} /{' '}
-            {t('virtualKeyboard.pageAgent')}
-          </span>
         </div>
       )}
     </div>

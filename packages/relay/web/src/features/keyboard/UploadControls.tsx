@@ -98,11 +98,14 @@ export function UploadButton({
   inputRef,
   keyClass,
   vibrate,
+  iconOnly = false,
 }: {
   kind: keyof typeof UPLOAD_BUTTONS;
   inputRef: RefObject<HTMLInputElement | null>;
   keyClass: string;
   vibrate: () => void;
+  /** Phone shell: caps stay square, the name lives in the tooltip. */
+  iconOnly?: boolean;
 }) {
   const { t } = useSettings();
   const { isController } = useConnection();
@@ -145,7 +148,7 @@ export function UploadButton({
       ) : (
         <>
           <KeyIcon name={button.icon} />
-          <span>{t(button.label)}</span>
+          {!iconOnly && <span>{t(button.label)}</span>}
         </>
       )}
     </button>

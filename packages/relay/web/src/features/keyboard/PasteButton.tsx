@@ -10,7 +10,16 @@ import { KeyIcon } from './KeyLabel';
  * fallback for browsers that cannot hand us the clipboard directly. Images and
  * files keep their own buttons beside it, so this one stays text-only.
  */
-export function PasteButton({ capClass, vibrate }: { capClass: string; vibrate: () => void }) {
+export function PasteButton({
+  capClass,
+  vibrate,
+  iconOnly = false,
+}: {
+  capClass: string;
+  vibrate: () => void;
+  /** Phone shell: caps stay square, the name lives in the tooltip. */
+  iconOnly?: boolean;
+}) {
   const { t } = useSettings();
   const { isController } = useConnection();
   const { sendKey, warnViewerMode } = useTerminalIO();
@@ -42,7 +51,7 @@ export function PasteButton({ capClass, vibrate }: { capClass: string; vibrate: 
         aria-label={t('clipboard.paste')}
       >
         <KeyIcon name="paste" />
-        <span>{t('clipboard.paste')}</span>
+        {!iconOnly && <span>{t('clipboard.paste')}</span>}
       </button>
       <PasteFallbackModal
         isOpen={open}

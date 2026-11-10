@@ -401,7 +401,6 @@ export const en = {
     uploadProgressWaitingHost: 'Waiting for host...',
     uploadProgressCompleted: 'Completed',
     uploadProgressFailed: 'Upload failed',
-    pagesSwipe: 'swipe sideways',
     pageBase: 'base keys',
     pageAgent: 'agent · files',
   },

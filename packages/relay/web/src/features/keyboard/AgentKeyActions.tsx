@@ -13,12 +13,10 @@ import { KeyIcon, KeyLabel } from './KeyLabel';
 
 export function AgentKeyActions({
   keyClass,
-  squareKeyClass,
   onCustomize,
   sendCombo,
 }: {
   keyClass: string;
-  squareKeyClass: string;
   /** Opens settings on the agent keys tab, where the user picks what the bar shows. */
   onCustomize?: () => void;
   sendCombo: (combo: string) => void;
@@ -91,7 +89,9 @@ export function AgentKeyActions({
           onClick={onCustomize}
           className={cn(
             CAP_BASE,
-            squareKeyClass,
+            // A word-length cap, not a square one: the label is text, not an
+            // icon, and a fixed width cut `自定义` down to `自定`.
+            keyClass,
             'border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent',
           )}
           title={t('agentKeymaps.customizeBar')}
