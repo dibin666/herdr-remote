@@ -119,9 +119,9 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
       </TerminalProvider>,
     );
 
-    // Switch to Virtual Keys Tab
+    // Switch to the Key bar tab
     const virtualKeysTab = screen.getByRole('button', {
-      name: /Virtual (Keys|Keyboard)|虚拟按键/i,
+      name: /Key bar|按键条/i,
     });
     fireEvent.click(virtualKeysTab);
 
@@ -143,7 +143,7 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <SettingsModal isOpen={true} onClose={() => {}} initialTab="virtualKeys" />
+        <SettingsModal isOpen={true} onClose={() => {}} initialTab="keyBar" />
       </TerminalProvider>,
     );
 
@@ -160,7 +160,7 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     );
 
     const virtualKeysTab = screen.getByRole('button', {
-      name: /Virtual (Keys|Keyboard)|虚拟按键/i,
+      name: /Key bar|按键条/i,
     });
     fireEvent.click(virtualKeysTab);
 
@@ -191,7 +191,7 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     );
 
     const virtualKeysTab = screen.getByRole('button', {
-      name: /Virtual (Keys|Keyboard)|虚拟按键/i,
+      name: /Key bar|按键条/i,
     });
     fireEvent.click(virtualKeysTab);
 

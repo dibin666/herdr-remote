@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { KeyToolbar } from './KeyToolbar';
-import { Header } from '@/app/Header';
+import { MobileControlSheet } from '@/features/mobile/MobileControlSheet';
 import { TerminalProvider } from '@/context/TerminalContext';
-import { saveSettings } from '@/features/settings/storage';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
 import { ALL_AVAILABLE_KEYS, DEFAULT_TOOLBAR_KEYS, sanitizeVirtualKeys } from './virtualKeys';
 
 /**
@@ -135,11 +135,20 @@ describe('Touch key bar layout', () => {
         <KeyToolbar compact={compact} onCustomize={() => {}} />
       </TerminalProvider>,
     );
+    // Compact keeps the agent row (and its customize affordance) on the
+    // second page; the function-key drawer stays on the first.
+    if (compact) {
+      fireEvent.click(screen.getByRole('button', { name: 'agent · files' }));
+      expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'base keys' }));
+    } else {
+      expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
+    }
     fireEvent.click(screen.getByRole('button', { name: /function keys/i }));
-
-    const buttons = within(screen.getByTestId('key-toolbar')).getAllByRole('button');
-    expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'F7' })).toBeInTheDocument();
+
+    // Page dots are navigation, not caps — only the bar's own buttons count.
+    const buttons = within(screen.getByTestId('key-toolbar-row')).getAllByRole('button');
     for (const button of buttons) {
       const tokens = button.className.split(/\s+/);
       const label = button.getAttribute('aria-label') ?? button.textContent;
@@ -216,32 +225,35 @@ describe('Header commands', () => {
     sessionStorage.clear();
   });
 
-  const renderHeader = () =>
+  // The language switch lives in the session sheet now; the desktop row is
+  // one word in Settings either way.
+  const renderSheet = () =>
     render(
       <TerminalProvider>
-        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
+        <MobileControlSheet onClose={() => {}} onOpenSettings={() => {}} />
       </TerminalProvider>,
     );
 
   it('offers both languages by name and switches with one tap', () => {
     saveSettings({ language: 'zh' });
-    renderHeader();
+    renderSheet();
 
-    const zh = screen.getByRole('radio', { name: '中' });
-    const en = screen.getByRole('radio', { name: 'EN' });
-    expect(zh).toBeChecked();
-    fireEvent.click(en);
-    expect(screen.getByRole('radio', { name: 'EN' })).toBeChecked();
-    expect(screen.getByRole('button', { name: /terminal settings/i }).textContent).toBe('cfg');
+    // The sheet's language row flips to the other locale, no submenu.
+    const row = screen.getByRole('button', { name: '界面语言' });
+    expect(row).toHaveTextContent('中');
+    fireEvent.click(row);
+    expect(loadSettings().language).toBe('en');
+    expect(screen.getByRole('button', { name: 'Interface language' })).toHaveTextContent('EN');
+    expect(screen.getByRole('button', { name: /terminal settings/i })).toBeInTheDocument();
   });
 
   it('has no command helper or pairing button', () => {
     saveSettings({ language: 'zh' });
-    renderHeader();
+    renderSheet();
 
     expect(screen.getAllByRole('button').map((button) => button.textContent)).not.toEqual(
       expect.arrayContaining(['命令', '配对']),
     );
-    expect(screen.getByRole('button', { name: '终端设置' }).textContent).toBe('设置');
+    expect(screen.getByRole('button', { name: '终端设置' })).toBeInTheDocument();
   });
 });

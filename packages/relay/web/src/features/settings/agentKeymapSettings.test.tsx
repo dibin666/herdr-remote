@@ -53,7 +53,7 @@ const ToolbarOpensSettings: React.FC<{
       <KeyToolbar onCustomize={() => setSettingsOpen(true)} />
       <SettingsModal
         isOpen={settingsOpen}
-        initialTab="agentKeymaps"
+        initialTab="keyBar"
         onClose={() => setSettingsOpen(false)}
       />
     </>
@@ -101,7 +101,7 @@ describe('Agent keymap settings', () => {
       </TerminalProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys|智能体按键/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
     expect(screen.getByText(/Agent profile|智能体方案/i)).toBeInTheDocument();
 
     const profile = screen.getByRole('combobox', { name: /Agent profile|智能体方案/i });
@@ -131,7 +131,7 @@ describe('Agent keymap settings', () => {
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <SettingsModal isOpen={true} onClose={() => {}} initialTab="agentKeymaps" />
+        <SettingsModal isOpen={true} onClose={() => {}} initialTab="keyBar" />
       </TerminalProvider>,
     );
     fireEvent.change(screen.getByRole('combobox', { name: /Agent profile/i }), {
@@ -154,7 +154,7 @@ describe('Agent keymap settings', () => {
         <SettingsModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /智能体按键/i }));
+    fireEvent.click(screen.getByRole('button', { name: /按键条/i }));
     fireEvent.change(screen.getByRole('combobox', { name: /智能体方案/i }), {
       target: { value: 'claude' },
     });
@@ -171,7 +171,7 @@ describe('Agent keymap settings', () => {
         <SettingsModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys|智能体按键/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
     fireEvent.change(screen.getByRole('combobox', { name: /Agent profile|智能体方案/i }), {
       target: { value: 'claude' },
     });
@@ -199,7 +199,7 @@ describe('Agent keymap settings', () => {
         <SettingsModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys|智能体按键/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
     fireEvent.change(screen.getByRole('combobox', { name: /Agent profile/i }), {
       target: { value: 'shell' },
     });
@@ -257,7 +257,7 @@ describe('Agent keymap settings', () => {
     });
     const sendInput = vi.spyOn(context!.adapter!, 'sendInput');
 
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Agent profile' }), {
       target: { value: 'claude' },
     });
@@ -270,7 +270,7 @@ describe('Agent keymap settings', () => {
     fireEvent.blur(details);
     fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
 
     expect(screen.getByRole('textbox', { name: 'Shortcut Details' })).toHaveValue('ctrl+e');
     fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
@@ -287,7 +287,7 @@ describe('Agent keymap settings', () => {
       </TerminalProvider>,
     );
     await connectFocused('claude');
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
 
     const background = screen.getByTestId('agent-bar-toggle-background');
     expect(background).toHaveAttribute('aria-pressed', 'false');
@@ -333,7 +333,7 @@ describe('Agent keymap settings', () => {
     await connectFocused('claude');
     expect(screen.getByTestId('agent-key-custom-1')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Agent Keys/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Key bar|按键条/i }));
     fireEvent.click(screen.getByTestId('agent-bar-toggle-custom-1'));
     expect(screen.queryByTestId('agent-key-custom-1')).not.toBeInTheDocument();
   });

@@ -159,16 +159,17 @@ describe('Mobile shell selection', () => {
     expect(isMobileShellViewport()).toBe(false);
   });
 
-  it('uses the width when a narrow window has a precise pointer', () => {
-    // Desktop devtools emulating a phone reports a mouse; the chrome still does
-    // not fit, so the phone shell is the right one.
+  it('uses the pointer kind in the tablet band, the width below it', () => {
+    // Too narrow for the desktop chrome regardless of the pointer.
     setPointerKind('fine');
     setViewport({ width: 420, height: 900 });
     expect(isMobileShellViewport()).toBe(true);
 
-    // The landscape-phone band must use the same safe shell even when Chrome
-    // is in desktop mode and reports a fine pointer.
+    // In the tablet band the pointer decides: an iPad with a keyboard or a
+    // narrow desktop window keeps the desktop shell, a finger gets the phone.
     setViewport({ width: 800, height: 500 });
+    expect(isMobileShellViewport()).toBe(false);
+    setPointerKind('coarse');
     expect(isMobileShellViewport()).toBe(true);
   });
 });
@@ -179,9 +180,9 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     xtermInstances.length = 0;
     webSocketInstances.length = 0;
     window.history.pushState({}, '', '/');
-    saveSettings({ token: 'test-token-mobile-shell' });
     setPointerKind('coarse');
     setViewport(PHONE);
+    saveSettings({ token: 'test-token-mobile-shell' });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -204,16 +205,17 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
 
     // The whole main area is the terminal, and it is visible and interactive.
     const layer = screen.getByTestId('terminal-layer');
-    expect(layer.className).toContain('top-8');
+    expect(layer.className).toContain('top-0');
     expect(layer.className).toContain('bottom-11');
     expect(layer.style.visibility).toBe('visible');
 
-    const topbar = screen.getByTestId('mobile-topbar');
-    expect(topbar.className).toContain('h-8');
-    expect(topbar).toContainElement(screen.getByTestId('mobile-chrome-trigger'));
+    // No top bar: the terminal owns the screen down to the dock, where the
+    // menu trigger sits under the thumb.
+    expect(screen.queryByTestId('mobile-topbar')).toBeNull();
+    const statusBar = screen.getByTestId('mobile-status-bar');
+    expect(statusBar).toContainElement(screen.getByTestId('mobile-chrome-trigger'));
     expect(layer.style.pointerEvents).toBe('auto');
 
-    const statusBar = screen.getByTestId('mobile-status-bar');
     expect(statusBar).toContainElement(
       screen.getByRole('button', { name: 'Switch Herdr instance' }),
     );
@@ -265,18 +267,29 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     );
   });
 
-  it('folds the desktop header on a narrow fine-pointer window too', async () => {
-    // A phone browser in desktop-site mode can report a fine primary pointer.
-    // The header still cannot fit the view switcher and action strip in this
-    // width, so controls must stay in the collision-free sheet.
+  it('keeps the phone shell under the tablet band regardless of pointer', async () => {
+    // A phone browser in desktop-site mode can report a fine primary pointer;
+    // below the tablet band the dock is still the only chrome that fits.
     setPointerKind('fine');
-    setViewport({ width: 800, height: 500 });
+    setViewport({ width: 500, height: 800 });
 
     await renderPhoneApp();
 
-    expect(screen.queryByRole('banner')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Admin$/i })).toBeNull();
+    expect(screen.queryByTestId('status-line-segments')).toBeNull();
     expect(screen.getByTestId('mobile-chrome-trigger')).toBeInTheDocument();
+  });
+
+  it('gives a fine-pointer window in the tablet band the desktop chrome', async () => {
+    // An iPad docked with a keyboard, or a desktop window resized narrow: the
+    // one-row status line still fits and the desktop shell is the right one.
+    setPointerKind('fine');
+    setViewport({ width: 800, height: 500 });
+
+    render(<App />);
+    await waitFor(() => expect(xtermInstances.length).toBe(1));
+
+    expect(screen.getByTestId('status-line-segments')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();
   });
 
   it('clips the shell in both axes so nothing can overflow sideways', async () => {
@@ -362,9 +375,9 @@ describe('Phone control sheet', () => {
     xtermInstances.length = 0;
     webSocketInstances.length = 0;
     window.history.pushState({}, '', '/');
-    saveSettings({ token: 'test-token-mobile-sheet' });
     setPointerKind('coarse');
     setViewport(PHONE);
+    saveSettings({ token: 'test-token-mobile-sheet' });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -598,7 +611,7 @@ describe('Crossing the shell breakpoint', () => {
 
     const term = xtermInstances[0];
     const container = document.querySelector('#terminal-container');
-    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(screen.getByTestId('status-line-segments')).toBeInTheDocument();
     expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();
 
     // Rotate into a phone viewport.
@@ -609,7 +622,7 @@ describe('Crossing the shell breakpoint', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    expect(screen.queryByRole('banner')).toBeNull();
+    expect(screen.queryByTestId('status-line-segments')).toBeNull();
     expect(screen.getByTestId('mobile-chrome-trigger')).toBeInTheDocument();
     expect(xtermInstances.length).toBe(1);
     expect(xtermInstances[0]).toBe(term);
@@ -626,7 +639,7 @@ describe('Crossing the shell breakpoint', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(screen.getByTestId('status-line-segments')).toBeInTheDocument();
     expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();
     expect(xtermInstances.length).toBe(1);
     expect(xtermInstances[0]).toBe(term);
@@ -652,22 +665,27 @@ describe('Desktop shell is untouched by the phone layout', () => {
     setVisualViewport(null);
   });
 
-  it('keeps the header, the view switcher and the full-width key toolbar', async () => {
+  it('keeps the one-line status chrome and a collapsed key bar', async () => {
     render(<App />);
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
-    expect(screen.getByRole('banner')).toBeInTheDocument();
-    // A one-tab strip is a label, not a navigation, so no tab is drawn until
-    // the dashboard gives it somewhere to go back to.
-    expect(screen.queryByRole('button', { name: /^Terminal$/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Admin$/i })).toBeNull();
-    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument();
+    // Brand, host, inbox, tools, settings and the admin entry share one row.
+    const right = screen.getByTestId('status-line-right');
+    expect(within(right).getByRole('button', { name: /Terminal settings/i })).toBeInTheDocument();
+    expect(within(right).getByRole('button', { name: /^Admin$/i })).toBeInTheDocument();
+    expect(screen.getByTestId('tools-menu-trigger')).toBeInTheDocument();
 
     // No phone chrome anywhere.
     expect(screen.queryByTestId('mobile-chrome-trigger')).toBeNull();
     expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
 
-    // The toolbar starts with its controls and can scroll without hiding either edge.
+    // A fine-pointer desktop hides the touch bar by default; its handle stays.
+    expect(screen.queryByTestId('key-toolbar-row')).toBeNull();
+    const handle = screen.getByRole('button', { name: /Expand Toolbar|Show the key bar/i });
+    expect(handle).toBeInTheDocument();
+
+    // Shown once, it scrolls without hiding either edge.
+    fireEvent.click(handle);
     const row = screen.getByTestId('key-toolbar-row');
     expect(row.className).toContain('justify-start');
     expect(row.className).toContain('flex-nowrap');
@@ -679,6 +697,10 @@ describe('Desktop shell is untouched by the phone layout', () => {
   it('collapses the key bar to a handle and restores it from there', async () => {
     render(<App />);
     await waitFor(() => expect(xtermInstances.length).toBe(1));
+
+    // Desktop starts collapsed; expand, then collapse again.
+    fireEvent.click(screen.getByRole('button', { name: /Expand Toolbar|Show the key bar/i }));
+    expect(screen.getByTestId('key-toolbar')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Collapse Toolbar|Hide the key bar/i }));
 

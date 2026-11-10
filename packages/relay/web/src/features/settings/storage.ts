@@ -18,6 +18,7 @@ import {
   clampFontSize,
   DEFAULT_DESKTOP_FONT_SIZE,
   DEFAULT_MOBILE_FONT_SIZE,
+  isCoarsePointerDevice,
 } from '@/features/terminal/terminalLayout';
 import { DEFAULT_TERMINAL_FONT, migrateFontFamily } from '@/features/terminal/theme';
 import {
@@ -128,7 +129,10 @@ export function getDefaultSettings(): StoredSettings {
     fontSize: isMobile ? DEFAULT_MOBILE_FONT_SIZE : DEFAULT_DESKTOP_FONT_SIZE,
     fontSizeFollowsHost: true,
     fontFamily: DEFAULT_TERMINAL_FONT,
-    toolbarVisible: true,
+    /* A key bar is only worth a screen row where the keys are the keyboard:
+       on touch devices. A mouse-and-keyboard window hides it by default —
+       Settings and the tools menu bring it back. */
+    toolbarVisible: isCoarsePointerDevice(),
     toolbarPosition: 'bottom',
     vibrateOnKeyPress: true,
     touchKeyboardTrigger: 'tap',

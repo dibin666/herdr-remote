@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TerminalProvider } from '@/context/TerminalContext';
 import { OnboardingView } from './OnboardingView';
-import { Header } from '@/app/Header';
+import { SettingsModal } from '@/features/settings/SettingsModal';
 import { getDefaultSettings, loadSettings } from '@/features/settings/storage';
 
 describe('Onboarding UX and Herdr Dark Theme System', () => {
@@ -81,7 +81,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
   it('does not expose an interface theme toggle', () => {
     render(
       <TerminalProvider>
-        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
+        <SettingsModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
 

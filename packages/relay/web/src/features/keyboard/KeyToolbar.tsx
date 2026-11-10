@@ -58,9 +58,54 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
   const [showSymbols, setShowSymbols] = useState(false);
   const [showQuickChords, setShowQuickChords] = useState(false);
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  /* Compact mode splits the bar into two pages a thumb can flip between:
+     the base keys, then the agent·file cluster. Page state rather than
+     scroll-snap: a page's own overflow still scrolls sideways, and a swipe
+     that reaches a strip's end flips the page instead of fighting it. */
+  const [page, setPage] = useState(0);
+  const swipeStartRef = useRef<{ x: number; scrollLeft: number } | null>(null);
+  const onStripTouchStart = useCallback(
+    (event: React.TouchEvent) => {
+      if (!compact) return;
+      const strip = scrollRef.current;
+      swipeStartRef.current = {
+        x: event.touches[0]?.clientX ?? 0,
+        scrollLeft: strip?.scrollLeft ?? 0,
+      };
+    },
+    [compact],
+  );
+  const onStripTouchEnd = useCallback(
+    (event: React.TouchEvent) => {
+      if (!compact) return;
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+      const strip = scrollRef.current;
+      if (!start || !strip) return;
+      const dx = start.x - (event.changedTouches[0]?.clientX ?? start.x);
+      const atRightEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 4;
+      const atLeftEnd = strip.scrollLeft <= 4;
+      // A swipe is a page flip only once the strip beneath it can scroll no
+      // further in that direction; anywhere else it was just scrolling.
+      if (dx > 48 && atRightEnd) {
+        setPage(1);
+        strip.scrollLeft = 0;
+      } else if (dx < -48 && atLeftEnd) {
+        setPage(0);
+        strip.scrollLeft = 0;
+      }
+    },
+    [compact],
+  );
+  const onPageTap = useCallback((next: number) => {
+    setPage(next);
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+  }, []);
+
   // Whether the sideways strip hides keys past its right edge, which is when it
   // fades out there to say so.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [moreToRight, setMoreToRight] = useState(false);
   const measureScroll = useCallback(() => {
     const strip = scrollRef.current;
@@ -79,7 +124,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     const observer = new ResizeObserver(measureScroll);
     observer.observe(strip);
     return () => observer.disconnect();
-  }, [measureScroll, settings.toolbarVisible]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: a page flip replaces the strip's content, so it is measured again
+  }, [measureScroll, settings.toolbarVisible, page]);
 
   const clearModifierPressTimer = () => {
     if (modifierPressTimerRef.current) clearTimeout(modifierPressTimerRef.current);
@@ -311,12 +357,12 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       {showQuickChords && <ChordsDrawer capHeight={capHeight} onKey={handleKeyPress} />}
       {showSymbols && <SymbolsDrawer squareKeyClass={squareKeyClass} onKey={handleKeyPress} />}
 
-      {/* Everything but Enter shares one strip that scrolls sideways when it
-          runs out of room. Enter stays outside it, pinned under the thumb: a
-          phone's bar is always wider than its screen, and the key that commits
-          a command must never be the one scrolled out of reach. The strip only
-          takes the width its keys need, so a desktop wide enough for all of
-          them keeps Enter right after the last key instead of across a gap. */}
+      {/* Everything but the pinned cluster shares one strip that scrolls
+          sideways when it runs out of room. Paste, image and Enter stay
+          outside it, pinned under the thumb: the key that commits a command
+          must never be the one scrolled out of reach. On the phone shell the
+          strip is paged — the base keys, then the agent·file cluster — so a
+          page worth of shortcuts never hides behind one long scroll. */}
       <div
         data-testid="key-toolbar-row"
         className={cn(
@@ -324,48 +370,58 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
           compact ? 'px-1.5 py-1' : 'px-2 py-1.5',
         )}
       >
-        <div className="relative min-w-0">
+        <div
+          className="relative min-w-0"
+          onTouchStart={onStripTouchStart}
+          onTouchEnd={onStripTouchEnd}
+        >
           <div
             ref={scrollRef}
             data-testid="key-toolbar-scroll"
             onScroll={measureScroll}
             className="scrollbar-none flex flex-nowrap touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain"
           >
-            {configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
-            <AdminTerminalButton squareKeyClass={squareKeyClass} />
-            <AgentKeyActions
-              keyClass={keyClass}
-              squareKeyClass={squareKeyClass}
-              onCustomize={onCustomize}
-              sendCombo={sendCombo}
-            />
-            {/* The uploads reached for less often stay in the scrollable
-                strip; paste and image move beside Enter, always on screen. */}
-            <UploadButton
-              kind="file"
-              inputRef={anyFileInputRef}
-              keyClass={keyClass}
-              vibrate={vibrate}
-            />
-            <FileListButton capClass={keyClass} vibrate={vibrate} />
-            {/* The way out sits at the strip's tail, never the head: at the
-                front it was the first thing a thumb met and read as "more
-                keys"; at the tail it cannot be hit by accident, and the
-                sheet and settings can still collapse the bar either way. */}
-            <button
-              type="button"
-              onClick={() => updateSettings({ toolbarVisible: false })}
-              className={cn(
-                CAP_BASE,
-                squareKeyClass,
-                'border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text',
-              )}
-              title={t('virtualKeyboard.collapseToolbar')}
-              aria-label={t('virtualKeyboard.collapseToolbar')}
-              aria-expanded={true}
-            >
-              <KeyIcon name="close" />
-            </button>
+            {(!compact || page === 0) &&
+              configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
+            {(!compact || page === 1) && (
+              <>
+                <AdminTerminalButton squareKeyClass={squareKeyClass} />
+                <AgentKeyActions
+                  keyClass={keyClass}
+                  squareKeyClass={squareKeyClass}
+                  onCustomize={onCustomize}
+                  sendCombo={sendCombo}
+                />
+                {/* The uploads reached for less often stay in the scrollable
+                    strip; paste and image move beside Enter, always on screen. */}
+                <UploadButton
+                  kind="file"
+                  inputRef={anyFileInputRef}
+                  keyClass={keyClass}
+                  vibrate={vibrate}
+                />
+                <FileListButton capClass={keyClass} vibrate={vibrate} />
+                {/* The way out sits at the strip's tail, never the head: at
+                    the front it was the first thing a thumb met and read as
+                    "more keys"; at the tail it cannot be hit by accident, and
+                    the sheet and settings can still collapse the bar either
+                    way. */}
+                <button
+                  type="button"
+                  onClick={() => updateSettings({ toolbarVisible: false })}
+                  className={cn(
+                    CAP_BASE,
+                    squareKeyClass,
+                    'border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text',
+                  )}
+                  title={t('virtualKeyboard.collapseToolbar')}
+                  aria-label={t('virtualKeyboard.collapseToolbar')}
+                  aria-expanded={true}
+                >
+                  <KeyIcon name="close" />
+                </button>
+              </>
+            )}
           </div>
           {moreToRight && (
             <span
@@ -383,6 +439,37 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
         <UploadButton kind="image" inputRef={fileInputRef} keyClass={keyClass} vibrate={vibrate} />
         {enterKey && renderKey(enterKey)}
       </div>
+
+      {/* Page dots and the swipe hint, on the phone shell only: a desktop's
+          bar has one page and nothing to flip. */}
+      {compact && (
+        <div
+          data-testid="key-toolbar-pages"
+          className="flex items-center justify-center gap-2 pb-0.5 text-tui-sm text-tui-faint"
+        >
+          {[0, 1].map((index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => onPageTap(index)}
+              aria-label={
+                index === 0 ? t('virtualKeyboard.pageBase') : t('virtualKeyboard.pageAgent')
+              }
+              aria-current={page === index}
+              className={cn(
+                'tui-focusable px-0.5',
+                page === index ? 'text-tui-accent' : 'text-tui-faint',
+              )}
+            >
+              {page === index ? '●' : '○'}
+            </button>
+          ))}
+          <span aria-hidden="true">
+            {t('virtualKeyboard.pagesSwipe')}: {t('virtualKeyboard.pageBase')} /{' '}
+            {t('virtualKeyboard.pageAgent')}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

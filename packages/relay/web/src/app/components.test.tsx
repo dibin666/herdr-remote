@@ -65,6 +65,7 @@ describe('UI Components', () => {
   });
 
   it('renders KeyToolbar with touch keys', () => {
+    saveSettings({ toolbarVisible: true });
     render(
       <TerminalProvider>
         <KeyToolbar />

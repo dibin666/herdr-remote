@@ -2,9 +2,6 @@ import type { TranslationSchema } from './en';
 
 export const zh: TranslationSchema = {
   header: {
-    appName: 'Herdr',
-    tagline: '远程终端客户端',
-    terminalTab: '终端',
     adminTab: '管理面板',
     rttMs: '{rtt}ms',
     hostLabel: '主机',
@@ -14,7 +11,6 @@ export const zh: TranslationSchema = {
     settingsTitle: '终端设置',
     latencyTitle: '网络延迟 (RTT)',
     mainNavigationAria: '主导航菜单',
-    actionSettings: '设置',
   },
   common: {
     connecting: '连接中...',
@@ -172,8 +168,7 @@ export const zh: TranslationSchema = {
     adminEntry: 'Relay 管理面板',
     adminEntryHint: '主机、设备与流量；需要管理员令牌',
     adminEntryOpen: '打开',
-    tabVirtualKeys: '虚拟按键',
-    tabAgentKeymaps: '智能体按键',
+    tabKeyBar: '按键条',
     fontFamilyLabel: '等宽字体',
     fontSizeHint: '只影响当前窗口',
     fontSizeHintOverridesFollow: '仅本窗口——拖动滑块将关闭「与宿主机同字号」',
@@ -400,6 +395,9 @@ export const zh: TranslationSchema = {
     uploadProgressWaitingHost: '等待工作站保存...',
     uploadProgressCompleted: '完成',
     uploadProgressFailed: '上传失败',
+    pagesSwipe: '左右滑动翻页',
+    pageBase: '基础键',
+    pageAgent: '智能体 · 文件',
   },
   profiles: {
     title: 'Herdr 实例',
@@ -414,6 +412,7 @@ export const zh: TranslationSchema = {
   },
   mobile: {
     sessionControls: '会话控制',
+    sessionPanel: '会话',
     closeSessionControls: '关闭会话控制面板',
     terminalControlAria: '终端控制权',
     inputControl: '输入控制权',
@@ -727,6 +726,9 @@ export const zh: TranslationSchema = {
     textSectionTitle: '文本',
     imageCompressing: '正在处理图片...',
     removeImage: '移除图片',
+  },
+  tools: {
+    label: '工具',
   },
   files: {
     title: '文件列表',

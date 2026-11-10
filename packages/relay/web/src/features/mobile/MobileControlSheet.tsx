@@ -1,11 +1,14 @@
 import type React from 'react';
-import { useState } from 'react';
-import { useSettings, useConnection, useToasts } from '@/context/TerminalContext';
+import { useRef, useState } from 'react';
+import { useSettings, useConnection, useToasts, useTerminalIO } from '@/context/TerminalContext';
 import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { describeConnection } from '@/connection/connectionStatus';
+import { FileListModal } from '@/features/files/FileListModal';
+import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
+import { UploadFileInputs } from '@/features/keyboard/UploadControls';
 import { cn } from '@/shared/lib/cn';
 import { translate } from '@/shared/i18n';
-import { Button, GLYPH, Panel, StatusDot } from '@/shared/ui';
+import { Button, GLYPH, Notice, Panel, StatusDot } from '@/shared/ui';
 import { useCopyFeedback } from '@/context/useCopyFeedback';
 
 export interface MobileControlSheetProps {
@@ -14,57 +17,40 @@ export interface MobileControlSheetProps {
 }
 
 /**
- * Everything the phone shell hides, as framed panels.
+ * Everything the phone shell hides, opened from the dock's ☰.
  *
- * Actions are full-width rows with the cursor glyph in front, the way a TUI
- * menu is navigated: a `▸` and a word, at a height a thumb hits without aiming.
- * They are not a grid of icon tiles — an icon has to be learnt, a word does not,
- * and a translated word never overflows a 48px square.
+ * The quick actions lead because they are why the sheet was opened most of
+ * the time; the session rows below are words, not icon tiles — an icon has
+ * to be learnt, a word does not, and a translated word never overflows a
+ * 48px square.
  */
 const actionRowClass =
-  'tui-focusable group flex h-11 w-full select-none items-center gap-2 border px-2 text-left text-tui transition-colors';
+  'tui-focusable group flex h-11 w-full select-none items-center gap-2 border border-tui-border px-2 text-left text-tui transition-colors';
 
 const idleRowClass =
-  'border-tui-border text-tui-muted hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
+  'text-tui-muted hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
 
-const Cursor: React.FC<{ active?: boolean }> = ({ active = false }) => (
-  <span
-    aria-hidden="true"
-    className={cn(
-      'shrink-0',
-      active ? 'text-tui-accent' : 'text-tui-faint group-hover:text-tui-accent',
-    )}
-  >
-    {GLYPH.cursor}
-  </span>
-);
+const quickCellClass =
+  'tui-focusable flex h-11 select-none items-center justify-center gap-1.5 border border-tui-border text-tui text-tui-text transition-colors hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
 
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
   onOpenSettings,
 }) => {
   const { settings, updateSettings, language, setLanguage, t } = useSettings();
-  const { connectionState, stateDetail, rttMs, hostId, assignedClientId, connect } =
+  const { connectionState, stateDetail, rttMs, hostId, assignedClientId, isController, connect } =
     useConnection();
+  const { sendKey, warnViewerMode } = useTerminalIO();
   const { addToast } = useToasts();
 
   const { copied, copy } = useCopyFeedback();
   const copiedClientId = copied !== null;
   const status = describeConnection(connectionState, t);
   const [detailsOpen, setDetailsOpen] = useState(false);
-
-  /**
-   * Runs a sheet action with the pressed button already blurred.
-   *
-   * The action unmounts this sheet. A focused element disappearing mid-frame
-   * makes the browser hunt for somewhere to put focus and scroll there, which
-   * is seen as the page jumping the instant a panel opens.
-   */
-  const withoutFocusScroll = (action: () => void) => () => {
-    const focused = document.activeElement as HTMLElement | null;
-    focused?.blur?.();
-    action();
-  };
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const anyFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const copyClientId = () =>
     copy(settings.clientId, t('toasts.clientIdCopied', { id: settings.clientId }), 'info');
@@ -80,8 +66,17 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
     );
   };
 
+  const pickFile = (ref: React.RefObject<HTMLInputElement | null>) => () => {
+    if (!isController) {
+      warnViewerMode();
+      return;
+    }
+    ref.current?.click();
+  };
+
   const detailRow = (label: string, value: string, copyable = false) => (
     <button
+      key={label}
       type="button"
       onClick={copyable ? copyClientId : undefined}
       className={cn(
@@ -108,6 +103,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
 
   return (
     <div className="flex flex-col gap-3 px-3 pb-2 pt-1">
+      <UploadFileInputs fileInputRef={fileInputRef} anyFileInputRef={anyFileInputRef} />
       <div className="flex items-center justify-between gap-2 border-b border-tui-border pb-1.5">
         <h2 className="text-tui font-bold uppercase text-tui-accent">
           {t('mobile.sessionControls')}
@@ -122,80 +118,60 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         </Button>
       </div>
 
-      {/* Connection state, once: the top bar and the status bar both carry a
-          dot, so the sheet keeps the words and the retry, not another lamp.
-          The ids nobody reads mid-session fold into "details". */}
-      <Panel
-        title={t('common.status')}
-        tone={status.level === 'ok' ? 'ok' : status.level === 'bad' ? 'bad' : 'warn'}
-        bodyClassName="space-y-1.5"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <StatusDot level={status.level} />
-            <span className="truncate text-tui uppercase text-tui-text">{status.label}</span>
-            {connectionState === 'connected' && rttMs !== null && (
-              <span className="text-tui-sm text-tui-muted">{rttMs}ms</span>
-            )}
-          </div>
-          {status.actionLabel && (
-            <Button variant="primary" onClick={() => connect()} className="shrink-0">
-              {status.actionLabel}
-            </Button>
+      {status.needsAttention && (
+        <Notice
+          tone={status.level === 'bad' ? 'bad' : 'warn'}
+          action={
+            status.actionLabel ? (
+              <Button variant="warn" onClick={() => connect()}>
+                {status.actionLabel}
+              </Button>
+            ) : undefined
+          }
+        >
+          <span className="block font-bold">{status.label}</span>
+          {stateDetail ? <span className="block text-tui-muted">{stateDetail}</span> : null}
+        </Notice>
+      )}
+
+      {/* The three taps the sheet exists for, first. */}
+      <div className="grid grid-cols-3 gap-1">
+        <button
+          type="button"
+          className={quickCellClass}
+          onClick={() => (isController ? setPasteOpen(true) : warnViewerMode())}
+        >
+          {t('clipboard.paste')}
+        </button>
+        <button type="button" className={quickCellClass} onClick={pickFile(fileInputRef)}>
+          {t('virtualKeyboard.uploadImage')}
+        </button>
+        <button type="button" className={quickCellClass} onClick={pickFile(anyFileInputRef)}>
+          {t('virtualKeyboard.uploadFile')}
+        </button>
+      </div>
+
+      {/* Session rows: the things a phone needs that are not keys. */}
+      <Panel title={t('mobile.sessionPanel')} tone="accent" bodyClassName="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 px-1 py-0.5 text-tui-sm">
+          <StatusDot level={status.level} />
+          <span className="truncate uppercase text-tui-text">{status.label}</span>
+          {connectionState === 'connected' && rttMs !== null && (
+            <span className="text-tui-muted">{rttMs}ms</span>
           )}
+          <button
+            type="button"
+            className="tui-focusable ml-auto flex h-11 items-center px-2 text-tui text-tui-muted hover:text-tui-accent"
+            onClick={() => (isController ? setFilesOpen(true) : warnViewerMode())}
+          >
+            {t('virtualKeyboard.fileList')} ›
+          </button>
         </div>
 
-        {status.needsAttention && stateDetail && (
-          <p className="text-tui-sm leading-snug text-tui-muted">{stateDetail}</p>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setDetailsOpen((open) => !open)}
-          aria-expanded={detailsOpen}
-          className={cn(actionRowClass, idleRowClass, 'h-9 text-tui-sm')}
-        >
-          <span aria-hidden="true" className="shrink-0 text-tui-faint">
-            {detailsOpen ? GLYPH.chevronDown : GLYPH.chevronRight}
-          </span>
-          <span className="truncate">{t('mobile.connectionDetails')}</span>
-        </button>
-        {detailsOpen && (
-          <div className="space-y-1 border-l border-tui-border-dim pl-2">
-            {hostId ? detailRow(t('common.host'), hostId) : null}
-            {detailRow(
-              t('header.clientIdLabel').replace(/:$/, ''),
-              assignedClientId || settings.clientId,
-              true,
-            )}
-            {assignedClientId && assignedClientId !== settings.clientId
-              ? detailRow(t('role.thisWindow'), assignedClientId)
-              : null}
-          </div>
-        )}
-      </Panel>
-
-      {/* This window's input: full control, or only watching */}
-      <Panel
-        title={t('mobile.inputControl')}
-        tone="accent"
-        aria-label={t('mobile.terminalControlAria')}
-      >
-        <ControlModeSwitch className="h-11" />
-      </Panel>
-
-      {/* Menu: the most-used first. Language is last because it is the one
-          choice a person makes once. */}
-      <Panel title={t('mobile.menu')} tone="accent" bodyClassName="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={withoutFocusScroll(onOpenSettings)}
-          className={cn(actionRowClass, idleRowClass)}
-          aria-label={t('mobile.settingsAria')}
-        >
-          <Cursor />
-          <span className="truncate">{t('common.settings')}</span>
-        </button>
+        <div className="px-1 py-0.5">
+          <div className="pb-1 text-tui-sm text-tui-faint">{t('mobile.inputControl')}</div>
+          <ControlModeSwitch className="h-11" />
+        </div>
 
         <button
           type="button"
@@ -204,7 +180,6 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           aria-label={t('mobile.keybarAria')}
           aria-pressed={settings.toolbarVisible}
         >
-          <Cursor active={settings.toolbarVisible} />
           <span className="truncate">{t('common.keyBar')}</span>
           <span
             aria-hidden="true"
@@ -219,17 +194,65 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
 
         <button
           type="button"
+          onClick={() => {
+            const focused = document.activeElement as HTMLElement | null;
+            focused?.blur?.();
+            onOpenSettings();
+          }}
+          className={cn(actionRowClass, idleRowClass)}
+          aria-label={t('mobile.settingsAria')}
+        >
+          <span className="truncate">{t('common.settings')}</span>
+          <span aria-hidden="true" className="ml-auto shrink-0 text-tui-faint">
+            {GLYPH.chevronRight}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((open) => !open)}
+          aria-expanded={detailsOpen}
+          className={cn(actionRowClass, idleRowClass)}
+        >
+          <span aria-hidden="true" className="shrink-0 text-tui-faint">
+            {detailsOpen ? GLYPH.chevronDown : GLYPH.chevronRight}
+          </span>
+          <span className="truncate">{t('mobile.connectionDetails')}</span>
+        </button>
+        {detailsOpen && (
+          <div className="space-y-1 border-l border-tui-border-dim pb-1 pl-2">
+            {hostId ? detailRow(t('common.host'), hostId) : null}
+            {detailRow(
+              t('header.clientIdLabel').replace(/:$/, ''),
+              assignedClientId || settings.clientId,
+              true,
+            )}
+            {assignedClientId && assignedClientId !== settings.clientId
+              ? detailRow(t('role.thisWindow'), assignedClientId)
+              : null}
+          </div>
+        )}
+
+        <button
+          type="button"
           onClick={toggleLanguage}
           className={cn(actionRowClass, idleRowClass)}
           aria-label={t('header.languageToggleTitle')}
         >
-          <Cursor />
           <span className="truncate">{t('mobile.languageRow')}</span>
           <span aria-hidden="true" className="ml-auto shrink-0 text-tui-sm text-tui-faint">
             {language === 'zh' ? '中' : 'EN'}
           </span>
         </button>
       </Panel>
+
+      <PasteFallbackModal
+        isOpen={pasteOpen}
+        allowImage={false}
+        onClose={() => setPasteOpen(false)}
+        onSend={(text) => sendKey(text)}
+      />
+      <FileListModal isOpen={filesOpen} onClose={() => setFilesOpen(false)} />
     </div>
   );
 };

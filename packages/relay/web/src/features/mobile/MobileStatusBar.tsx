@@ -7,16 +7,23 @@ import { UpdateChip } from '@/features/status/UpdateNotice';
 
 interface MobileStatusBarProps {
   onAddProfile: () => void;
+  onOpenMenu: () => void;
+  menuOpen: boolean;
 }
 
 /**
- * The phone's only persistent navigation: a compact, touch-sized session bar.
- * Keep this intentionally smaller than the control sheet — switching hosts and
- * checking latency are the two actions needed while watching a terminal.
+ * The phone's only chrome: a compact, thumb-high dock bar. Switching hosts,
+ * answering a waiting agent and opening the menu are the three things a phone
+ * needs while watching a terminal, and all of them are on this row — the
+ * terminal keeps the rest of the screen.
  */
-export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }) => {
+export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({
+  onAddProfile,
+  onOpenMenu,
+  menuOpen,
+}) => {
   const { t } = useSettings();
-  const { rttMs } = useConnection();
+  const { rttMs, isController } = useConnection();
 
   return (
     <footer
@@ -37,6 +44,11 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
       */}
       <AgentInbox compact />
       <UpdateChip compact />
+      {!isController && (
+        <span className="shrink-0 px-1 font-bold uppercase text-tui-warn">
+          {t('common.viewer')}
+        </span>
+      )}
       <span
         className="flex shrink-0 items-center gap-1 px-1 text-tui-muted"
         title={t('header.latencyTitle')}
@@ -46,6 +58,20 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ onAddProfile }
           {rttMs === null ? '—' : `${rttMs}ms`}
         </span>
       </span>
+      <button
+        type="button"
+        data-testid="mobile-chrome-trigger"
+        onClick={onOpenMenu}
+        aria-label={t('mobile.sessionControls')}
+        aria-expanded={menuOpen}
+        aria-haspopup="dialog"
+        className="tui-focusable ml-auto flex h-9 shrink-0 select-none items-center gap-1.5 border border-tui-border px-2 text-tui uppercase text-tui-muted transition-colors hover:border-tui-accent hover:text-tui-accent"
+      >
+        <span aria-hidden="true" className="text-tui">
+          ☰
+        </span>
+        <span aria-hidden="true">{t('mobile.menu')}</span>
+      </button>
     </footer>
   );
 };

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { WS_CLIENT_PATH } from '@protocol/messages';
 import { TerminalProvider, useSettings, useConnection } from '@/context/TerminalContext';
 import { useAgentAlerts } from '@/features/agents/useAgentAlerts';
-import { Header } from './Header';
 import { StatusBanner } from '@/features/status/StatusBanner';
 import { TerminalView } from '@/features/terminal/TerminalView';
 import { OnboardingView } from '@/features/pairing/OnboardingView';
@@ -204,15 +203,6 @@ function AppContent() {
         e.stopPropagation();
       }}
     >
-      {/* Top Header — desktop only; the phone shell folds this into its sheet */}
-      {!isMobileShell && (
-        <Header
-          currentView={currentView}
-          onNavigate={handleNavigate}
-          onOpenSettings={() => openSettings()}
-        />
-      )}
-
       {/* Global Connection / Reconnect Banner */}
       {!isMobileShell && !showOnboarding && <StatusBanner />}
 
@@ -222,12 +212,12 @@ function AppContent() {
         {isTerminalMounted && (
           <div
             data-testid="terminal-layer"
-            className={`absolute ${isMobileShell ? 'inset-x-0 top-8 bottom-11' : 'inset-0'} flex flex-col min-h-0 w-full overflow-hidden`}
+            className={`absolute ${isMobileShell ? 'inset-x-0 top-0 bottom-11' : 'inset-0'} flex flex-col min-h-0 w-full overflow-hidden`}
             style={layerVisibilityStyle(isTerminalActive)}
             aria-hidden={!isTerminalActive}
           >
             <TerminalView isActive={isTerminalActive} />
-            <KeyToolbar compact={isMobileShell} onCustomize={() => openSettings('agentKeymaps')} />
+            <KeyToolbar compact={isMobileShell} onCustomize={() => openSettings('keyBar')} />
             <HerdrStartPrompt />
             <HostFontPrompt />
           </div>
@@ -252,7 +242,7 @@ function AppContent() {
             <AdminDashboard
               onBackToTerminal={() => handleNavigate('terminal')}
               onOpenPairing={openAddHost}
-              showBack={isMobileShell}
+              showBack
             />
           </div>
         )}
@@ -263,11 +253,14 @@ function AppContent() {
         )}
       </div>
 
-      {/* Desktop status area: one TUI line for the live session facts. Mobile
-          uses its own compact bottom bar for switching and latency, while the
-          remaining controls stay in the sheet. */}
+      {/* Desktop chrome: one TUI line for the session facts and every tool.
+          Mobile keeps its own compact bottom bar plus a sheet. */}
       {!isMobileShell && currentView !== 'admin' && (
-        <SessionStatusLine onAddProfile={openAddHost} />
+        <SessionStatusLine
+          onAddProfile={openAddHost}
+          onOpenSettings={() => openSettings()}
+          onOpenAdmin={() => handleNavigate('admin')}
+        />
       )}
 
       {/* Modals & Floating Overlays */}

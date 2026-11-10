@@ -165,8 +165,8 @@ describe('herdr-remote update notice', () => {
 
     session.report({});
     expect(within(right()).getByTestId('update-chip')).toBeInTheDocument();
-    // The chip is alone on its side: a single item needs no separator.
-    expect(separators()).toBe(before);
+    // Update joins the permanent tools entry: one item, one separator.
+    expect(separators()).toBe(before + 1);
   });
 
   it('never opens the right-hand segments with a separator for an agent chip that draws nothing', () => {
@@ -175,9 +175,9 @@ describe('herdr-remote update notice', () => {
     session.report({});
 
     const right = screen.getByTestId('status-line-right') as HTMLElement;
-    // The chip is alone: a ghost agent chip must not leave a separator.
+    // Update and the permanent tools entry: exactly one separator between.
     expect(right.firstElementChild).toBe(screen.getByTestId('update-chip'));
-    expect(right.querySelectorAll(':scope > [aria-hidden="true"]').length).toBe(0);
+    expect(right.querySelectorAll(':scope > [aria-hidden="true"]').length).toBe(1);
   });
 
   it('asks a workstation too old to name its release to update, once per page', () => {

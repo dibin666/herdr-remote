@@ -1,8 +1,5 @@
 export const en = {
   header: {
-    appName: 'Herdr',
-    tagline: 'remote terminal client',
-    terminalTab: 'Terminal',
     adminTab: 'Admin',
     rttMs: '{rtt}ms',
     hostLabel: 'Host',
@@ -12,8 +9,6 @@ export const en = {
     settingsTitle: 'Terminal settings',
     latencyTitle: 'Round-trip latency (RTT)',
     mainNavigationAria: 'Main Navigation',
-    /** Translated like every other word: a Chinese UI saying `CFG` has English left in it. */
-    actionSettings: 'cfg',
   },
   common: {
     connecting: 'Connecting...',
@@ -178,8 +173,7 @@ export const en = {
     adminEntry: 'Relay dashboard',
     adminEntryHint: 'Hosts, devices and traffic; needs the admin token',
     adminEntryOpen: 'Open',
-    tabVirtualKeys: 'Virtual Keys',
-    tabAgentKeymaps: 'Agent Keys',
+    tabKeyBar: 'Key bar',
     fontFamilyLabel: 'Monospace Font',
     fontSizeHint: 'This window only',
     fontSizeHintOverridesFollow:
@@ -407,6 +401,9 @@ export const en = {
     uploadProgressWaitingHost: 'Waiting for host...',
     uploadProgressCompleted: 'Completed',
     uploadProgressFailed: 'Upload failed',
+    pagesSwipe: 'swipe sideways',
+    pageBase: 'base keys',
+    pageAgent: 'agent · files',
   },
   profiles: {
     title: 'Herdr instances',
@@ -421,6 +418,8 @@ export const en = {
   },
   mobile: {
     sessionControls: 'Session controls',
+    /** Title of the panel grouping the session actions. */
+    sessionPanel: 'Session',
     closeSessionControls: 'Close session controls',
     terminalControlAria: 'Terminal control',
     inputControl: 'Input control',
@@ -755,6 +754,9 @@ export const en = {
     textSectionTitle: 'Text',
     imageCompressing: 'Processing image...',
     removeImage: 'Remove image',
+  },
+  tools: {
+    label: 'Tools',
   },
   files: {
     title: 'Files',

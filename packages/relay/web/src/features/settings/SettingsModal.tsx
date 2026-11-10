@@ -9,7 +9,10 @@ import { DANGER_GHOST } from './styles';
 import { VirtualKeysTab } from './VirtualKeysTab';
 import { Button, Modal, Tabs } from '@/shared/ui';
 
-export type SettingsTab = 'general' | 'virtualKeys' | 'agentKeymaps';
+/* The key bar's two halves — its base keys and its agent shortcuts — are one
+   tab because they draw the same row of caps; two tabs for one bar made the
+   dialog promise a split the bar does not have. */
+export type SettingsTab = 'general' | 'keyBar';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -124,8 +127,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <Tabs
         tabs={[
           { id: 'general', label: t('settings.tabGeneral'), index: 1 },
-          { id: 'virtualKeys', label: t('settings.tabVirtualKeys'), index: 2 },
-          { id: 'agentKeymaps', label: t('settings.tabAgentKeymaps'), index: 3 },
+          { id: 'keyBar', label: t('settings.tabKeyBar'), index: 2 },
         ]}
         activeId={activeTab}
         onSelect={(id) => setActiveTab(id as SettingsTab)}
@@ -133,9 +135,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       />
 
       {activeTab === 'general' && <GeneralTab onOpenAdmin={onOpenAdmin} />}
-      {activeTab === 'virtualKeys' && <VirtualKeysTab />}
-      {activeTab === 'agentKeymaps' && (
-        <AgentKeymapsTab profile={settingsAgentProfile} onProfileChange={setSettingsAgentProfile} />
+      {activeTab === 'keyBar' && (
+        <div className="space-y-4">
+          <AgentKeymapsTab
+            profile={settingsAgentProfile}
+            onProfileChange={setSettingsAgentProfile}
+          />
+          <VirtualKeysTab />
+        </div>
       )}
     </Modal>
   );
