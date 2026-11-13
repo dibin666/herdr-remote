@@ -115,6 +115,8 @@ const zh: Record<MessageKey, string> = {
     '管理员终端 broker 尚未运行。请打开 herdr-remote TUI，进入「保活」并选择「设置管理员终端」。',
   'adminShell.tabLabel': '管理员',
 
+  'agents.actionFailed': '无法对智能体窗格执行操作：{error}',
+
   'relay.title': 'Relay 设置',
   'relay.settings': '设置',
   'relay.locked': '固定',

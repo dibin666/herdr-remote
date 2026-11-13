@@ -58,9 +58,10 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
   const [showSymbols, setShowSymbols] = useState(false);
   const [showQuickChords, setShowQuickChords] = useState(false);
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
   // Whether the sideways strip hides keys past its right edge, which is when it
   // fades out there to say so.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [moreToRight, setMoreToRight] = useState(false);
   const measureScroll = useCallback(() => {
     const strip = scrollRef.current;
@@ -153,7 +154,10 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
     return (
       <div
         data-testid="key-toolbar-collapsed"
-        className="z-20 flex shrink-0 flex-col border-t border-tui-border bg-tui-mantle pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]"
+        className={cn(
+          'z-20 flex shrink-0 flex-col border-t border-tui-border bg-tui-mantle',
+          !compact && 'pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]',
+        )}
       >
         <UploadFileInputs fileInputRef={fileInputRef} anyFileInputRef={anyFileInputRef} />
         <UploadProgressBar collapsed />
@@ -298,9 +302,8 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       data-testid="key-toolbar"
       className={cn(
         'z-20 flex shrink-0 select-none flex-col border-t border-tui-border bg-tui-mantle',
-        compact
-          ? 'pb-[max(env(safe-area-inset-bottom,0px),0.125rem)]'
-          : 'pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]',
+        // The phone shell owns the safe area below its status bar.
+        compact ? 'pb-0' : 'pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]',
       )}
       role="toolbar"
       aria-label={t('virtualKeyboard.touchKeyboardShortcuts')}
@@ -311,12 +314,9 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
       {showQuickChords && <ChordsDrawer capHeight={capHeight} onKey={handleKeyPress} />}
       {showSymbols && <SymbolsDrawer squareKeyClass={squareKeyClass} onKey={handleKeyPress} />}
 
-      {/* Everything but Enter shares one strip that scrolls sideways when it
-          runs out of room. Enter stays outside it, pinned under the thumb: a
-          phone's bar is always wider than its screen, and the key that commits
-          a command must never be the one scrolled out of reach. The strip only
-          takes the width its keys need, so a desktop wide enough for all of
-          them keeps Enter right after the last key instead of across a gap. */}
+      {/* Native scrolling lets a drag cross every key group without replacing
+          the content. Paste, image and Enter stay pinned so the frequent
+          actions never scroll out of reach. */}
       <div
         data-testid="key-toolbar-row"
         className={cn(
@@ -329,59 +329,38 @@ export const KeyToolbar: React.FC<KeyToolbarProps> = ({ compact = false, onCusto
             ref={scrollRef}
             data-testid="key-toolbar-scroll"
             onScroll={measureScroll}
-            className="scrollbar-none flex flex-nowrap touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain"
+            className="scrollbar-none flex flex-nowrap touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
           >
-            {/* The way out sits at the *left* end of the row, away from Enter
-                at the right: a collapse control is something nobody presses
-                mid-session and has no claim on the most reachable spot. */}
-            <button
-              type="button"
-              onClick={() => updateSettings({ toolbarVisible: false })}
-              className={cn(
-                CAP_BASE,
-                squareKeyClass,
-                'mr-1 border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-border hover:text-tui-text',
-              )}
-              title={t('virtualKeyboard.collapseToolbar')}
-              aria-label={t('virtualKeyboard.collapseToolbar')}
-              aria-expanded={true}
-            >
-              <KeyIcon name="close" />
-            </button>
-
             {configuredKeys.filter((keyDef) => keyDef.id !== 'enter').map(renderKey)}
             <AdminTerminalButton squareKeyClass={squareKeyClass} />
-            <AgentKeyActions
-              keyClass={keyClass}
-              squareKeyClass={squareKeyClass}
-              onCustomize={onCustomize}
-              sendCombo={sendCombo}
-            />
-            {/* Images stay nearest Enter: on a phone they are the upload
-                reached for far more often than any other file. */}
+            <AgentKeyActions keyClass={keyClass} onCustomize={onCustomize} sendCombo={sendCombo} />
             <UploadButton
               kind="file"
               inputRef={anyFileInputRef}
               keyClass={keyClass}
               vibrate={vibrate}
+              iconOnly={compact}
             />
-            <UploadButton
-              kind="image"
-              inputRef={fileInputRef}
-              keyClass={keyClass}
-              vibrate={vibrate}
-            />
-            <PasteButton capClass={keyClass} vibrate={vibrate} />
-            <FileListButton capClass={keyClass} vibrate={vibrate} />
+            <FileListButton capClass={keyClass} vibrate={vibrate} iconOnly={compact} />
           </div>
           {moreToRight && (
             <span
               aria-hidden="true"
               data-testid="key-toolbar-more"
-              className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-tui-mantle"
-            />
+              className="pointer-events-none absolute inset-y-0 right-0 flex w-8 items-center justify-end bg-gradient-to-l from-tui-mantle via-tui-mantle/80 pr-0.5 text-tui-faint"
+            >
+              ›
+            </span>
           )}
         </div>
+        <PasteButton capClass={keyClass} vibrate={vibrate} iconOnly={compact} />
+        <UploadButton
+          kind="image"
+          inputRef={fileInputRef}
+          keyClass={keyClass}
+          vibrate={vibrate}
+          iconOnly={compact}
+        />
         {enterKey && renderKey(enterKey)}
       </div>
     </div>

@@ -45,7 +45,7 @@ describe('agent key combo encoding', () => {
     expect(formatComboCaption('ctrl+o')).toBe('^O');
     expect(formatComboCaption('alt+p')).toBe('Alt+P');
     expect(formatComboCaption('shift+tab')).toBe('⇧TAB');
-    expect(formatComboCaption('esc esc')).toBe('ESC²');
+    expect(formatComboCaption('esc esc')).toBe('ESC×2');
     expect(formatComboCaption('ctrl+x m')).toBe('^X M');
     expect(formatComboCaption('ctrl+enter')).toBe('^⏎');
     expect(formatComboCaption('ctrl+m')).toBe('^M');

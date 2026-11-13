@@ -6,7 +6,7 @@
 
 import type * as Clipboard from './clipboard.js';
 import type * as Fs from './files.js';
-import type { ClientRole, StreamAddressed } from './messages.js';
+import type { ClientRole, PaneActionKind, StreamAddressed } from './messages.js';
 
 export interface RelayHostReadyMessage {
   type: 'host_ready';
@@ -48,6 +48,13 @@ export interface RelayHerdrStartMessage extends StreamAddressed {
 
 export interface RelayAdminTabOpenMessage extends StreamAddressed {
   type: 'admin_tab_open';
+}
+
+/** One canned action a window asked for on a pane of this workstation's Herdr. */
+export interface RelayPaneActionMessage extends StreamAddressed {
+  type: 'pane_action';
+  paneId: string;
+  action: PaneActionKind;
 }
 
 export interface RelayHostFontRefreshMessage extends StreamAddressed {
@@ -108,6 +115,7 @@ export type RelayToHostMessage =
   | RelayResizeMessage
   | RelayHerdrStartMessage
   | RelayAdminTabOpenMessage
+  | RelayPaneActionMessage
   | RelayHostFontRefreshMessage
   | RelayHostFontChunkRequestMessage
   | RelayHostFontSubsetRequestMessage

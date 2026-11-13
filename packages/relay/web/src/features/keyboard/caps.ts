@@ -18,9 +18,11 @@ export const CAP_IDLE =
 /** A latched modifier or an open drawer: inverse video, as in a terminal. */
 export const CAP_ACTIVE = 'border-tui-accent bg-tui-accent text-tui-crust font-bold';
 
-/** Enter is the one key that always commits something, so it leads in accent. */
+/** Enter is the one key that always commits something — an action, not a
+    state, so it is drawn in teal rather than the green that means
+    "on / online / in control". */
 export const CAP_COMMIT =
-  'border-tui-ok bg-transparent text-tui-ok hover:bg-tui-ok hover:text-tui-crust font-bold';
+  'border-tui-info bg-transparent text-tui-info hover:bg-tui-info hover:text-tui-crust font-bold';
 
 export const CHORD_TONE_CLASS = {
   default: CAP_IDLE,

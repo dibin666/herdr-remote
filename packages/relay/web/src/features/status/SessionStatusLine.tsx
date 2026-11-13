@@ -2,30 +2,36 @@ import type React from 'react';
 import { useSettings, useConnection } from '@/context/TerminalContext';
 import { describeConnection } from '@/connection/connectionStatus';
 import { Segments, StatusDot, StatusLine } from '@/shared/ui';
-import { AgentStatusChip, agentStatusHasContent } from '@/features/agents/AgentStatusChip';
+import { agentStatusHasContent } from '@/features/agents/AgentStatusChip';
+import { AgentInbox } from '@/features/agents/AgentInbox';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
-import { ControlModeSwitch } from './ControlModeSwitch';
+import { ToolsMenu } from '@/features/keyboard/ToolsMenu';
+import { useViewportWidth } from '@/features/mobile/mobileShell';
+import { ControlModeBadge } from './ControlModeBadge';
 import { UpdateChip, useUpdateNoticeVisible } from './UpdateNotice';
 import { cn } from '@/shared/lib/cn';
-
 const FIXED = 'shrink-0 whitespace-nowrap';
 const GIVES_WAY = 'min-w-0 truncate whitespace-nowrap';
 
+const actionClass =
+  'tui-focusable select-none whitespace-nowrap text-tui-muted hover:text-tui-accent';
+
 interface SessionStatusLineProps {
   onAddProfile?: () => void;
+  onOpenSettings?: () => void;
+  onOpenAdmin?: () => void;
 }
 
 /**
- * The status area shared by every desktop view.
- *
- * It deliberately is not a banner and it is not a collection of cards. Herdr's
- * TUI keeps facts about the current session on one compact line at the bottom:
- * connection state, role, host, client and latency. The content view above can
- * then be a terminal, a wizard, or an admin screen without changing the shell
- * around it.
+ * The desktop's one chrome line — the program name, the session facts, and
+ * the way to its few tools, all on the bottom row a multiplexer keeps them
+ * on. There is deliberately no header above the terminal: this line says
+ * everything a header would have, in a fifth of the height.
  */
 export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
   onAddProfile = () => {},
+  onOpenSettings,
+  onOpenAdmin,
 }) => {
   const { settings, t } = useSettings();
   const { connectionState, hostId, assignedClientId, sharedWindowCount, rttMs, agentStatus } =
@@ -33,14 +39,24 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
   const status = describeConnection(connectionState, t);
   const connected = connectionState === 'connected';
   const updateVisible = useUpdateNoticeVisible();
-
+  /* Below this width the single line cannot carry every token — the right
+     group is all fixed text, so a squeezable segment would still leave the
+     buttons overlapping. The id is a hover away on the host name; the
+     latency is the least-wanted number up to the phone shell taking over. */
+  const viewportWidth = useViewportWidth();
+  const roomForIds = viewportWidth >= 768;
+  const roomForRtt = viewportWidth >= 700;
   return (
     <StatusLine
       left={
         <>
+          <span className={cn(FIXED, 'font-bold text-tui-accent')}>herdr-remote</span>
+          <span aria-hidden="true" className="shrink-0 text-tui-border">
+            │
+          </span>
           <HostSwitcher onAddProfile={onAddProfile} />
           {/* One row: no segment may wrap. The state and the role keep their
-              width; the long host and client ids are what truncate. */}
+              width; the long host id is what truncates. */}
           <Segments
             data-testid="status-line-segments"
             items={[
@@ -51,43 +67,74 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
               // Nothing is being controlled while the session is down, so the
               // line says nothing about it rather than claiming a role that has
               // no session to apply to.
-              connected ? (
-                <ControlModeSwitch key="role" compact className={cn(FIXED, 'h-full w-auto')} />
-              ) : null,
+              connected ? <ControlModeBadge key="role" className={FIXED} /> : null,
               connected && sharedWindowCount > 1 ? (
                 <span key="windows" className={cn(FIXED, 'text-tui-muted')}>
                   {t('role.sharedWindows', { count: sharedWindowCount })}
                 </span>
               ) : null,
-              hostId ? (
-                <span key="host" className={GIVES_WAY}>
-                  <span className="text-tui-faint">{t('common.host')}:</span>{' '}
-                  <span className="text-tui-text">{hostId}</span>
-                </span>
+              /* Once the session is up, the ids are reference material, not
+                 live state: one segment keeps the host name and the full ids
+                 are a hover away, instead of two long strings pushing the
+                 latency off the line. Before it connects, the client id is
+                 all the identity there is, so it keeps its own segment. */
+              roomForIds ? (
+                hostId ? (
+                  <span
+                    key="host"
+                    className={GIVES_WAY}
+                    title={`${t('common.host')}: ${hostId} · ${t('header.clientIdLabel')} ${assignedClientId || settings.clientId}`}
+                  >
+                    <span className="text-tui-faint">{t('common.host')}:</span>{' '}
+                    <span className="text-tui-text">{hostId}</span>
+                  </span>
+                ) : (
+                  <span key="client" className={GIVES_WAY}>
+                    <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
+                    <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
+                  </span>
+                )
               ) : null,
-              <span key="client" className={GIVES_WAY}>
-                <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
-                <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
-              </span>,
             ]}
           />
         </>
       }
       right={
         <Segments
+          data-testid="status-line-right"
           items={[
             updateVisible ? <UpdateChip key="update" /> : null,
-            connected && agentStatusHasContent(agentStatus) ? (
-              <AgentStatusChip key="agents" />
-            ) : null,
-            rttMs !== null ? (
-              <span key="rtt" className="text-tui-muted">
-                {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>
+            connected && agentStatusHasContent(agentStatus) ? <AgentInbox key="agents" /> : null,
+            rttMs !== null && roomForRtt ? (
+              <span key="rtt" className="text-tui-muted" title={t('header.latencyTitle')}>
+                <span className="text-tui-text">{rttMs}ms</span>
               </span>
             ) : null,
-            <span key="mode" className="hidden text-tui-faint sm:inline">
-              {t('header.tagline')}
-            </span>,
+            <ToolsMenu key="tools" />,
+            onOpenSettings ? (
+              <button
+                key="settings"
+                type="button"
+                onClick={onOpenSettings}
+                className={actionClass}
+                title={t('header.settingsTitle')}
+                aria-label={t('header.settingsTitle')}
+              >
+                {t('common.settings')}
+              </button>
+            ) : null,
+            onOpenAdmin ? (
+              <button
+                key="admin"
+                type="button"
+                onClick={onOpenAdmin}
+                className={actionClass}
+                title={t('header.adminTab')}
+                aria-label={t('header.adminTab')}
+              >
+                {t('common.admin')}
+              </button>
+            ) : null,
           ]}
         />
       }

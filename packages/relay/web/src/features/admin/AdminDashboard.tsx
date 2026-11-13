@@ -199,7 +199,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </span>
       {data ? (
         <>
-          <label className="hidden items-center gap-1.5 text-tui-sm text-tui-muted md:flex">
+          <label className="flex items-center gap-1.5 text-tui-sm text-tui-muted">
             <span>{t('admin.autoRefresh')}</span>
             <Select
               value={refreshInterval}
@@ -243,7 +243,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       hints={[
         ...(data
           ? [
-              { keys: '1–4', action: t('admin.hintTabs') },
+              { keys: `1–${tabs.length}`, action: t('admin.hintTabs') },
               { keys: 'r', action: t('admin.hintRefresh') },
             ]
           : []),

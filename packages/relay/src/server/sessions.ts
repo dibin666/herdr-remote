@@ -94,6 +94,7 @@ export function startSession(
       adminTerminalSupported: host.adminTabsAvailable,
       fileListSupported: host.fsBrowse,
       pasteStreamSupported: host.pasteStream,
+      paneActionsSupported: host.paneActions,
       terminalPalette: host.terminalPalette || null,
       terminalFont: host.terminalFont || null,
       hostVersion: host.version,

@@ -1,7 +1,7 @@
 /**
- * Rectangular selection inside one pane of a split Herdr screen: finding the
- * column band a touch landed in, keeping a drag inside it, and reading the
- * text of the rectangle.
+ * Pane-aware selection geometry on a split Herdr screen: locating the region a
+ * touch landed in — column band and row band — keeping a drag inside it, and
+ * reading the text it holds.
  */
 
 import type { Terminal } from '@xterm/xterm';
@@ -15,12 +15,11 @@ export interface PaneColumnBand {
 }
 
 /**
- * Closed bounding box of a rectangular selection in terminal buffer coordinates.
- * Both columns and rows are inclusive (e.g. startCol: 0, endCol: 3 covers 4 columns).
+ * A pane rectangle on the visible grid: the column band a vertical divider
+ * pair leaves, intersected with the row band the horizontal rules leave.
+ * All four bounds are inclusive terminal buffer rows/columns.
  */
-export interface TerminalSelectionRect {
-  startCol: number;
-  endCol: number;
+export interface PaneRegion extends PaneColumnBand {
   startRow: number;
   endRow: number;
 }
@@ -66,6 +65,10 @@ export const PANE_DIVIDER_THRESHOLD = 0.6;
 
 /**
  * Horizontal border characters used in pane split lines (e.g. ─── or ━━━).
+ *
+ * ASCII '-' is deliberately absent: a horizontal rule must be drawn with
+ * box-drawing glyphs, otherwise every `----` comment line or `====` banner in
+ * command output would cut the screen into fake panes.
  */
 const HORIZONTAL_BORDER_CHARS = new Set([
   '─', // U+2500 Light Horizontal
@@ -75,7 +78,6 @@ const HORIZONTAL_BORDER_CHARS = new Set([
   '┅', // U+2505 Heavy Triple Dash Horizontal
   '┈', // U+2508 Light Quadruple Dash Horizontal
   '┉', // U+2509 Heavy Quadruple Dash Horizontal
-  '-', // ASCII hyphen
 ]);
 
 /**
@@ -90,14 +92,27 @@ const HORIZONTAL_BORDER_CHARS = new Set([
  */
 const LOCAL_PANE_DIVIDER_THRESHOLD = 0.8;
 
-function isHorizontalRuleRow(
-  line: { length: number; getCell(x: number): { getChars(): string } | undefined } | undefined,
-  cols: number,
-): boolean {
+/** Fraction of a column band a rule row must cover to split the rows in it. */
+const ROW_DIVIDER_COVERAGE = 0.85;
+
+type LineReader =
+  | { length: number; getCell(x: number): { getChars(): string } | undefined }
+  | undefined;
+
+/**
+ * A row is a horizontal rule inside `band` when border glyphs cover nearly all
+ * of the band's width. Checking coverage inside the band rather than the whole
+ * line is what makes a rule that spans one pane count without demanding the
+ * neighbouring panes draw it too.
+ */
+function isHorizontalRuleRow(line: LineReader, cols: number, band?: PaneColumnBand): boolean {
   if (!line) return false;
+  const start = band ? band.startCol : 0;
+  const end = band ? band.endCol : cols - 1;
+  const width = end - start + 1;
+  if (width < 3) return false;
   let count = 0;
-  const maxC = Math.min(cols, line.length);
-  for (let c = 0; c < maxC; c++) {
+  for (let c = start; c <= Math.min(end, line.length - 1); c++) {
     const cell = line.getCell(c);
     if (cell) {
       const chars = cell.getChars();
@@ -106,283 +121,360 @@ function isHorizontalRuleRow(
       }
     }
   }
-  return count >= Math.max(5, Math.min(cols * 0.25, 10));
+  return count >= Math.max(3, Math.ceil(width * ROW_DIVIDER_COVERAGE));
 }
 
-/**
- * Detects the split pane column band containing the specified column coordinate.
- *
- * Why we inspect visible rows via column histogram instead of single-row scanning:
- * Herdr and terminal multiplexers partition a single xterm grid into multiple panes
- * using box-drawing characters. An incidental vertical bar character (e.g. '|' in a shell
- * pipeline or '│' in a markdown table) on a single row must NEVER be mistaken for a pane
- * boundary. A genuine pane divider spans almost all rows of the viewport.
- * By constructing a frequency histogram across visible viewport rows, only columns
- * exceeding `PANE_DIVIDER_THRESHOLD` (60%) are treated as dividers.
- *
- * Hierarchical fallback (pure increment):
- * When Herdr splits vertically within a sub-region (e.g. top full-width pane + bottom left/right panes),
- * no divider spans 60% of the entire viewport. If the primary global histogram detects 0 dividers,
- * we inspect the horizontal row-band bounded by adjacent horizontal divider rules around `bufferRow`.
- * If a column spans >= 80% of rows in that sub-band, it is recognized as a local pane divider.
- *
- * Boundary rules:
- * - If dividers exist to the left and right of `col`, the band spans `(leftDivider + 1)`
- *   to `(rightDivider - 1)` (excluding the border columns themselves).
- * - If no divider exists on a side, that side extends to the grid boundary (0 or cols - 1).
- * - If the touch point lands directly on a divider column itself, the band collapses to
- *   `{ startCol: col, endCol: col }` to prevent dragging or selecting across into either pane.
- * - If no dividers exist anywhere, the band covers the entire line width `[0, cols - 1]`.
- */
-export function paneColumnBand(term: Terminal, col: number, bufferRow?: number): PaneColumnBand {
-  if (!term?.buffer?.active || term.cols <= 0) {
-    return { startCol: 0, endCol: 0 };
+/** Columns whose border glyphs cover `requiredCount` of the rows sampled. */
+function dividerColumns(histogram: Int32Array, requiredCount: number): number[] {
+  const out: number[] = [];
+  for (let c = 0; c < histogram.length; c++) {
+    if (histogram[c] >= requiredCount) out.push(c);
   }
+  return out;
+}
 
+/** Count border glyphs per column across the given buffer rows. */
+function columnHistogram(
+  term: Terminal,
+  rows: number[],
+  viewportY: number,
+  colStart = 0,
+  colEnd = term.cols - 1,
+): Int32Array {
   const active = term.buffer.active;
   const cols = term.cols;
-  const clampedCol = Math.max(0, Math.min(cols - 1, col));
-
-  // Sample across visible viewport rows.
-  // Visible rows represent the visual layout of panes currently presented to the user.
-  const viewportY = active.viewportY ?? 0;
-  const rowCount = term.rows > 0 ? term.rows : 1;
-
-  // Build a column histogram of vertical border characters across visible rows.
-  // We inspect cells using `line.getCell(c)` directly by column index to prevent CJK
-  // double-width characters from shifting character offsets.
-  const colHistogram = new Int32Array(cols);
-  let sampledRows = 0;
-
-  for (let r = 0; r < rowCount; r++) {
+  const histogram = new Int32Array(cols);
+  for (const r of rows) {
     const line = active.getLine(viewportY + r);
-    // Count each viewport row towards sampledRows even if unallocated, as an empty row
-    // on screen is still a valid visible row devoid of dividers.
-    sampledRows++;
-    if (!line) {
-      continue;
-    }
-    const maxC = Math.min(cols, line.length);
-    for (let c = 0; c < maxC; c++) {
+    if (!line) continue;
+    const maxC = Math.min(cols, line.length, colEnd + 1);
+    for (let c = colStart; c < maxC; c++) {
       const cell = line.getCell(c);
       if (cell) {
         const chars = cell.getChars();
         if (chars && VERTICAL_BORDER_CHARS.has(chars)) {
-          colHistogram[c]++;
+          histogram[c]++;
         }
       }
     }
   }
+  return histogram;
+}
 
-  if (sampledRows === 0) {
-    return { startCol: 0, endCol: cols - 1 };
-  }
-
-  const requiredCount = sampledRows * PANE_DIVIDER_THRESHOLD;
-  const isDividerCol = (c: number): boolean => colHistogram[c] >= requiredCount;
-
-  // 1. Primary path: Global divider histogram across the entire viewport.
-  let hasGlobalDivider = false;
-  for (let c = 0; c < cols; c++) {
-    if (isDividerCol(c)) {
-      hasGlobalDivider = true;
-      break;
+/**
+ * Rows inside `band` that read as horizontal rules: the row indices (viewport-
+ * relative) where the selection must not cross.
+ */
+function ruleRowsInBand(
+  term: Terminal,
+  rows: number[],
+  viewportY: number,
+  band: PaneColumnBand,
+): number[] {
+  const active = term.buffer.active;
+  const rules: number[] = [];
+  for (const r of rows) {
+    if (isHorizontalRuleRow(active.getLine(viewportY + r), term.cols, band)) {
+      rules.push(r);
     }
   }
+  return rules;
+}
 
-  if (hasGlobalDivider) {
-    // Tapping directly on the divider border column itself:
-    if (isDividerCol(clampedCol)) {
-      return { startCol: clampedCol, endCol: clampedCol };
+/** The row interval containing `rowRel`, bounded by `rules`. */
+function rowBandAround(rowRel: number, rows: number[], rules: number[]): [number, number] {
+  const lo = Math.min(...rows);
+  const hi = Math.max(...rows);
+  let start = lo;
+  for (const r of rules) if (r < rowRel && r + 1 > start) start = r + 1;
+  let end = hi;
+  for (const r of rules) if (r > rowRel && r - 1 < end) end = r - 1;
+  return [start, end];
+}
+
+/** The column band containing `col`, given divider columns. */
+function colBandAround(col: number, cols: number, dividers: number[]): PaneColumnBand {
+  // Pressed dead-on a divider: the finger means the pane, not the hairline.
+  // Take the pane opening to the right, or the one ending to the left when
+  // the right side is another divider or the screen edge.
+  if (dividers.includes(col)) {
+    const right = dividers.filter((d) => d > col).sort((a, b) => a - b)[0];
+    const rightEnd = (right ?? cols) - 1;
+    if (col + 1 <= rightEnd && !dividers.includes(col + 1)) {
+      return { startCol: col + 1, endCol: rightEnd };
     }
+    const left = dividers.filter((d) => d < col).sort((a, b) => b - a)[0];
+    return { startCol: (left ?? -1) + 1, endCol: col - 1 };
+  }
+  let start = 0;
+  for (const d of dividers) if (d < col && d + 1 > start) start = d + 1;
+  let end = cols - 1;
+  for (const d of dividers) if (d > col && d - 1 < end) end = d - 1;
+  if (start > end) return { startCol: col, endCol: col };
+  return { startCol: start, endCol: end };
+}
 
-    // Locate nearest divider to the left of clampedCol
-    let leftDivider = -1;
-    for (let c = clampedCol - 1; c >= 0; c--) {
-      if (isDividerCol(c)) {
-        leftDivider = c;
-        break;
-      }
-    }
+/** The row band containing `rowRel`, given rule rows; rules snap down. */
+function rowBandSnap(rowRel: number, rows: number[], rules: number[]): [number, number] {
+  const lo = Math.min(...rows);
+  const next = rules.filter((r) => r > rowRel).sort((a, b) => a - b)[0];
+  const start = rowRel + 1;
+  const end = next !== undefined ? next - 1 : Math.max(...rows);
+  if (start <= end) return [start, end];
+  // The rule is the last line: the pane it borders lives above it.
+  const prev = rules.filter((r) => r < rowRel).sort((a, b) => b - a)[0];
+  return [prev !== undefined ? prev + 1 : lo, rowRel - 1];
+}
 
-    // Locate nearest divider to the right of clampedCol
-    let rightDivider = cols;
-    for (let c = clampedCol + 1; c < cols; c++) {
-      if (isDividerCol(c)) {
-        rightDivider = c;
-        break;
-      }
-    }
+/**
+ * The pane region containing `(col, bufferRow)` on the visible screen.
+ *
+ * Layouts covered, in detection order:
+ * 1. Vertical splits spanning the viewport → column bands, then each band's
+ *    own horizontal rules bound the row band (per-pane horizontal splits).
+ * 2. No full-height divider → Herdr's stacked layouts: the horizontal rules
+ *    around the row bound a sub-band, and a vertical divider spanning ≥80% of
+ *    that sub-band splits it (bottom half split left/right under a full-width
+ *    top pane).
+ * 3. Neither → the whole visible grid.
+ *
+ * Landing on a divider snaps to the adjacent pane instead of collapsing to
+ * a one-cell band: a finger cannot aim at a hairline and never means to.
+ */
+export function paneRegionAt(term: Terminal, col: number, bufferRow: number): PaneRegion {
+  const active = term?.buffer?.active;
+  const cols = term?.cols ?? 0;
+  if (!active || cols <= 0) {
+    return { startCol: 0, endCol: 0, startRow: 0, endRow: 0 };
+  }
 
+  const clampedCol = Math.max(0, Math.min(cols - 1, col));
+  const viewportY = active.viewportY ?? 0;
+  const rowCount = term.rows > 0 ? term.rows : 1;
+  const clampedRow = Math.max(viewportY, Math.min(viewportY + rowCount - 1, bufferRow));
+  const rowRel = clampedRow - viewportY;
+  const allRows = Array.from({ length: rowCount }, (_, r) => r);
+
+  // 1. Global vertical dividers: a column spine that runs the viewport.
+  const globalHistogram = columnHistogram(term, allRows, viewportY);
+  const globalDividers = dividerColumns(globalHistogram, rowCount * PANE_DIVIDER_THRESHOLD);
+
+  if (globalDividers.length > 0) {
+    const vBand = colBandAround(clampedCol, cols, globalDividers);
+    const rules = ruleRowsInBand(term, allRows, viewportY, vBand);
+    const onRule = rules.includes(rowRel);
+    const [startRel, endRel] = onRule
+      ? rowBandSnap(rowRel, allRows, rules)
+      : rowBandAround(rowRel, allRows, rules);
     return {
-      startCol: leftDivider + 1,
-      endCol: rightDivider - 1,
+      startCol: vBand.startCol,
+      endCol: vBand.endCol,
+      startRow: viewportY + startRel,
+      endRow: viewportY + endRel,
     };
   }
 
-  // 2. Incremental fallback: Hierarchical / sub-band split pane detection.
-  // When no global vertical dividers span the full viewport, the layout may contain stacked
-  // splits (e.g. full-width top pane + two split bottom panes). We determine the vertical row
-  // band bounded by adjacent horizontal divider rules around `bufferRow`, and check if any
-  // vertical column spans >= 80% of that sub-band.
-  if (bufferRow !== undefined) {
-    const targetRow = Math.max(viewportY, Math.min(viewportY + rowCount - 1, bufferRow));
-    const targetLine = active.getLine(targetRow);
+  // 2. Stacked layouts: the horizontal rules around the touched row bound a
+  //    sub-band; a vertical spine inside it splits it. Coverage is measured
+  //    against the full line width here — a stacked split always draws its
+  //    rule across every column of the screen.
+  const targetLine = active.getLine(clampedRow);
+  if (!isHorizontalRuleRow(targetLine, cols)) {
+    let subRowStart = viewportY;
+    for (let r = clampedRow - 1; r >= viewportY; r--) {
+      if (isHorizontalRuleRow(active.getLine(r), cols)) {
+        subRowStart = r + 1;
+        break;
+      }
+    }
+    let subRowEnd = viewportY + rowCount - 1;
+    for (let r = clampedRow + 1; r <= viewportY + rowCount - 1; r++) {
+      if (isHorizontalRuleRow(active.getLine(r), cols)) {
+        subRowEnd = r - 1;
+        break;
+      }
+    }
 
-    if (!isHorizontalRuleRow(targetLine, cols)) {
-      let subRowStart = viewportY;
-      for (let r = targetRow - 1; r >= viewportY; r--) {
-        if (isHorizontalRuleRow(active.getLine(r), cols)) {
-          subRowStart = r + 1;
-          break;
-        }
+    const subBandHeight = subRowEnd - subRowStart + 1;
+    if (subBandHeight >= 2) {
+      const subRows = Array.from({ length: subBandHeight }, (_, r) => subRowStart - viewportY + r);
+      const localHistogram = columnHistogram(term, subRows, viewportY);
+      const localDividers = dividerColumns(
+        localHistogram,
+        subBandHeight * LOCAL_PANE_DIVIDER_THRESHOLD,
+      );
+
+      if (localDividers.length > 0) {
+        const vBand = colBandAround(clampedCol, cols, localDividers);
+        // The local band can itself carry horizontal rules inside its own
+        // column band (a stacked split under a side-by-side split).
+        const innerRules = ruleRowsInBand(term, subRows, viewportY, vBand);
+        const [startRel, endRel] = innerRules.includes(rowRel)
+          ? rowBandSnap(rowRel, subRows, innerRules)
+          : rowBandAround(rowRel, subRows, innerRules);
+        return {
+          startCol: vBand.startCol,
+          endCol: vBand.endCol,
+          startRow: viewportY + startRel,
+          endRow: viewportY + endRel,
+        };
       }
 
-      let subRowEnd = viewportY + rowCount - 1;
-      for (let r = targetRow + 1; r <= viewportY + rowCount - 1; r++) {
-        if (isHorizontalRuleRow(active.getLine(r), cols)) {
-          subRowEnd = r - 1;
-          break;
-        }
-      }
-
-      const subBandHeight = subRowEnd - subRowStart + 1;
-      if (subBandHeight >= 2) {
-        const localHistogram = new Int32Array(cols);
-        for (let r = subRowStart; r <= subRowEnd; r++) {
-          const line = active.getLine(r);
-          if (!line) continue;
-          const maxC = Math.min(cols, line.length);
-          for (let c = 0; c < maxC; c++) {
-            const cell = line.getCell(c);
-            if (cell) {
-              const chars = cell.getChars();
-              if (chars && VERTICAL_BORDER_CHARS.has(chars)) {
-                localHistogram[c]++;
-              }
-            }
-          }
-        }
-
-        const localRequired = subBandHeight * LOCAL_PANE_DIVIDER_THRESHOLD;
-        const isLocalDividerCol = (c: number): boolean => localHistogram[c] >= localRequired;
-
-        let hasLocalDivider = false;
-        for (let c = 0; c < cols; c++) {
-          if (isLocalDividerCol(c)) {
-            hasLocalDivider = true;
-            break;
-          }
-        }
-
-        if (hasLocalDivider) {
-          if (isLocalDividerCol(clampedCol)) {
-            return { startCol: clampedCol, endCol: clampedCol };
-          }
-
-          let leftDivider = -1;
-          for (let c = clampedCol - 1; c >= 0; c--) {
-            if (isLocalDividerCol(c)) {
-              leftDivider = c;
-              break;
-            }
-          }
-
-          let rightDivider = cols;
-          for (let c = clampedCol + 1; c < cols; c++) {
-            if (isLocalDividerCol(c)) {
-              rightDivider = c;
-              break;
-            }
-          }
-
-          return {
-            startCol: leftDivider + 1,
-            endCol: rightDivider - 1,
-          };
-        }
-      }
+      // The sub-band has no vertical split of its own: it is a pane.
+      return {
+        startCol: 0,
+        endCol: cols - 1,
+        startRow: subRowStart,
+        endRow: subRowEnd,
+      };
     }
   }
 
-  // If no dividers could be determined globally or locally, return full line width
-  return { startCol: 0, endCol: cols - 1 };
-}
+  // 3. Landing on a horizontal rule: snap to the pane below it.
+  if (isHorizontalRuleRow(targetLine, cols)) {
+    const rules: number[] = [];
+    for (let r = 0; r < rowCount; r++) {
+      if (isHorizontalRuleRow(active.getLine(viewportY + r), cols)) rules.push(r);
+    }
+    const [startRel, endRel] = rowBandSnap(rowRel, allRows, rules);
+    return {
+      startCol: 0,
+      endCol: cols - 1,
+      startRow: viewportY + startRel,
+      endRow: viewportY + endRel,
+    };
+  }
 
-/**
- * Clamps a selection rectangle horizontally to stay strictly within a pane column band.
- *
- * Why this is needed:
- * During multi-line selection or touch dragging on a multi-pane terminal screen, touch
- * movements or programmatic ranges must never spill across pane divider borders into
- * neighboring terminal panes.
- */
-export function clampRectToBand(
-  rect: TerminalSelectionRect,
-  band: PaneColumnBand,
-): TerminalSelectionRect {
-  const minCol = Math.min(rect.startCol, rect.endCol);
-  const maxCol = Math.max(rect.startCol, rect.endCol);
-  const minRow = Math.min(rect.startRow, rect.endRow);
-  const maxRow = Math.max(rect.startRow, rect.endRow);
-
+  // 4. No structure at all: the whole grid is the pane.
   return {
-    startCol: Math.max(band.startCol, Math.min(band.endCol, minCol)),
-    endCol: Math.max(band.startCol, Math.min(band.endCol, maxCol)),
-    startRow: minRow,
-    endRow: maxRow,
+    startCol: 0,
+    endCol: cols - 1,
+    startRow: viewportY,
+    endRow: viewportY + rowCount - 1,
   };
 }
 
+/** The column band of the region at `(col, bufferRow)`; divider hits snap right. */
+export function paneColumnBand(term: Terminal, col: number, bufferRow?: number): PaneColumnBand {
+  const region = paneRegionAt(term, col, bufferRow ?? term?.buffer?.active?.viewportY ?? 0);
+  return { startCol: region.startCol, endCol: region.endCol };
+}
+
 /**
- * Extracts text from a closed rectangular region across buffer lines.
- *
- * Why we extract rectangular slices via `line.translateToString` instead of `term.getSelection()`:
- * 1. Standard xterm selections are 1D linear character streams that span from (startCol, startRow)
- *    to (endCol, endRow), inevitably capturing entire middle lines (including pane borders and
- *    neighboring pane text) on multi-pane layouts.
- * 2. `line.translateToString(trimRight, startCol, endCol)` operates strictly in column coordinates
- *    and natively accounts for CJK double-width glyphs, preserving exact visual boundaries.
- * 3. Note that xterm's `endColumn` parameter is EXCLUSIVE (per node_modules/@xterm/xterm/typings/xterm.d.ts:1590),
- *    whereas our `TerminalSelectionRect.endCol` is INCLUSIVE (closed interval). Therefore we must
- *    pass `endCol + 1` to capture the final selected column.
- *
- * Each line is stripped of trailing whitespace and lines are joined with '\n'.
+ * The region rectangles that tile the visible screen: every pane the user
+ * could want to select inside, derived once for the copy-mode mirror.
+ * Enumerates column bands between global dividers; a column band that no
+ * divider bounds is one band wide, and each band is cut by its horizontal rules.
  */
-export function rectText(term: Terminal, rect: TerminalSelectionRect): string {
-  if (!term?.buffer?.active || term.cols <= 0) {
-    return '';
+export function paneRegions(term: Terminal): PaneRegion[] {
+  const active = term?.buffer?.active;
+  const cols = term?.cols ?? 0;
+  const rows = term?.rows ?? 0;
+  if (!active || cols <= 0 || rows <= 0) return [];
+
+  const viewportY = active.viewportY ?? 0;
+  const allRows = Array.from({ length: rows }, (_, r) => r);
+  const globalHistogram = columnHistogram(term, allRows, viewportY);
+  const globalDividers = dividerColumns(globalHistogram, rows * PANE_DIVIDER_THRESHOLD);
+
+  // Column bands between the global spines (or one full-width band).
+  const bounds = [-1, ...globalDividers, cols];
+  const bands: PaneColumnBand[] = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    bands.push({ startCol: bounds[i] + 1, endCol: bounds[i + 1] - 1 });
   }
 
-  const active = term.buffer.active;
-  const cols = term.cols;
-
-  // Normalize coordinates so start <= end regardless of drag direction
-  const minRow = Math.min(rect.startRow, rect.endRow);
-  const maxRow = Math.max(rect.startRow, rect.endRow);
-  const minCol = Math.max(0, Math.min(rect.startCol, rect.endCol));
-  const maxCol = Math.min(cols - 1, Math.max(rect.startCol, rect.endCol));
-
-  if (minCol > maxCol || minRow > maxRow) {
-    return '';
-  }
-
-  const lines: string[] = [];
-
-  for (let row = minRow; row <= maxRow; row++) {
-    const line = active.getLine(row);
-    if (!line) {
-      lines.push('');
-      continue;
+  const regions: PaneRegion[] = [];
+  for (const band of bands) {
+    if (band.startCol > band.endCol) continue;
+    const rules = ruleRowsInBand(term, allRows, viewportY, band);
+    const cuts = [Math.min(...allRows) - 1, ...rules, Math.max(...allRows) + 1];
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const startRel = cuts[i] + 1;
+      const endRel = cuts[i + 1] - 1;
+      if (startRel > endRel) continue;
+      regions.push(
+        ...splitRegionLeaf(
+          term,
+          {
+            startCol: band.startCol,
+            endCol: band.endCol,
+            startRow: viewportY + startRel,
+            endRow: viewportY + endRel,
+          },
+          viewportY,
+          0,
+        ),
+      );
     }
+  }
+  return regions;
+}
 
-    // xterm's translateToString:
-    // param 1 (trimRight): true
-    // param 2 (startColumn): inclusive column index
-    // param 3 (endColumn): exclusive column index -> maxCol + 1
-    const raw = line.translateToString(true, minCol, maxCol + 1);
-    lines.push(raw.trimEnd());
+/**
+ * Split one leaf rectangle by any local split drawn inside it: a vertical
+ * spine covering ≥80% of its rows (Herdr's stacked splits) or a horizontal
+ * rule covering its columns. Two passes cover Herdr's layouts; deeper
+ * nesting collapses into the enclosing leaf, which is the right trade for
+ * a selection mirror.
+ */
+function splitRegionLeaf(
+  term: Terminal,
+  leaf: PaneRegion,
+  viewportY: number,
+  depth: number,
+): PaneRegion[] {
+  if (depth >= 2) return [leaf];
+  const rowStart = leaf.startRow - viewportY;
+  const height = leaf.endRow - leaf.startRow + 1;
+  if (height < 2) return [leaf];
+  const leafRows = Array.from({ length: height }, (_, r) => rowStart + r);
+
+  const histogram = columnHistogram(term, leafRows, viewportY, leaf.startCol, leaf.endCol);
+  const dividers = dividerColumns(histogram, height * LOCAL_PANE_DIVIDER_THRESHOLD);
+
+  if (dividers.length > 0) {
+    const bounds = [leaf.startCol - 1, ...dividers, leaf.endCol + 1];
+    const out: PaneRegion[] = [];
+    for (let i = 0; i < bounds.length - 1; i++) {
+      const startCol = bounds[i] + 1;
+      const endCol = bounds[i + 1] - 1;
+      if (startCol > endCol) continue;
+      out.push(
+        ...splitRegionLeaf(
+          term,
+          { startCol, endCol, startRow: leaf.startRow, endRow: leaf.endRow },
+          viewportY,
+          depth + 1,
+        ),
+      );
+    }
+    return out;
   }
 
-  return lines.join('\n');
+  const rules = leafRows.filter((r) =>
+    isHorizontalRuleRow(term.buffer.active.getLine(viewportY + r), term.cols, leaf),
+  );
+  if (rules.length === 0) return [leaf];
+  const cuts = [rowStart - 1, ...rules, rowStart + height];
+  const out: PaneRegion[] = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const startRel = cuts[i] + 1;
+    const endRel = cuts[i + 1] - 1;
+    if (startRel > endRel) continue;
+    out.push(
+      ...splitRegionLeaf(
+        term,
+        {
+          startCol: leaf.startCol,
+          endCol: leaf.endCol,
+          startRow: viewportY + startRel,
+          endRow: viewportY + endRel,
+        },
+        viewportY,
+        depth + 1,
+      ),
+    );
+  }
+  return out;
 }

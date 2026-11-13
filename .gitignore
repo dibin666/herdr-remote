@@ -22,3 +22,4 @@ packages/relay/web/dist/
 
 # Release assets produced by .github/scripts/pack-release.sh.
 /dist/
+herdr-remote-ui-review/

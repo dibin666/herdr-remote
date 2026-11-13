@@ -176,7 +176,7 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
 
     // Every window has its own Herdr view and its own PTY, so the size set
     // here is this window's and nobody else's.
-    expect(screen.getByText('This window only')).toBeInTheDocument();
+    expect(screen.getByText(/This window only/)).toBeInTheDocument();
     expect(screen.queryByText(/view isolation/i)).not.toBeInTheDocument();
 
     // Nothing a host says about its own build may put the old copy back.
@@ -261,8 +261,11 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     fireEvent.click(alwaysRadio);
     expect(loadSettings().predictiveEcho).toBe('always');
 
+    // Reset asks for a second press before it touches anything.
     const resetButton = screen.getByRole('button', { name: /Reset to Defaults/i });
     fireEvent.click(resetButton);
+    expect(loadSettings().predictiveEcho).toBe('always');
+    fireEvent.click(screen.getByRole('button', { name: /reset everything/i }));
     expect(loadSettings().predictiveEcho).toBe('auto');
   });
 

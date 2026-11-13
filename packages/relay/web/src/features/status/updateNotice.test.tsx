@@ -156,7 +156,7 @@ describe('herdr-remote update notice', () => {
   it('adds no empty segment to the status line when there is nothing to say', () => {
     const session = mount(<SessionStatusLine />);
     // The right-hand segments end with the tagline; count the separators there.
-    const right = () => screen.getByText('remote terminal client').parentElement as HTMLElement;
+    const right = () => screen.getByTestId('status-line-right') as HTMLElement;
     const separators = () => right().querySelectorAll(':scope > [aria-hidden="true"]').length;
     const before = separators();
 
@@ -165,6 +165,7 @@ describe('herdr-remote update notice', () => {
 
     session.report({});
     expect(within(right()).getByTestId('update-chip')).toBeInTheDocument();
+    // Update joins the permanent tools entry: one item, one separator.
     expect(separators()).toBe(before + 1);
   });
 
@@ -173,8 +174,8 @@ describe('herdr-remote update notice', () => {
     session.emit('agentStatus', { type: 'agent_status', counts: {}, total: 0, agents: [] });
     session.report({});
 
-    const right = screen.getByText('remote terminal client').parentElement as HTMLElement;
-    // Chip, separator, tagline: nothing invisible between them.
+    const right = screen.getByTestId('status-line-right') as HTMLElement;
+    // Update and the permanent tools entry: exactly one separator between.
     expect(right.firstElementChild).toBe(screen.getByTestId('update-chip'));
     expect(right.querySelectorAll(':scope > [aria-hidden="true"]').length).toBe(1);
   });

@@ -1,259 +1,41 @@
+import type React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { TerminalSelectionMenu } from '@/features/terminal/TerminalSelectionMenu';
 import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
 import { TerminalView } from '@/features/terminal/TerminalView';
+import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
-import * as clipboardModule from '@/shared/lib/clipboard';
 import { saveSettings } from '@/features/settings/storage';
-import type { MockTerminalInstance } from '@/test/setup';
+import type { MockTerminalInstance, MockWebSocket } from '@/test/setup';
 
-const xtermInstances = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
+const terminals = (globalThis as unknown as { __xtermInstances: MockTerminalInstance[] })
   .__xtermInstances;
+const sockets = (globalThis as unknown as { __webSocketInstances: MockWebSocket[] })
+  .__webSocketInstances;
 
-describe('TerminalSelectionMenu Unit Tests', () => {
-  beforeEach(() => {
-    saveSettings({ language: 'zh' });
-  });
-
-  it('renders all menu items in order when selection exists and is controller', () => {
-    const onCopySelection = vi.fn();
-    const onCopyLine = vi.fn();
-    const onCopyScreen = vi.fn();
-    const onPaste = vi.fn();
-    const onClose = vi.fn();
-
-    render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 400, height: 600 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 200, y: 300 }}
-            hasSelection={true}
-            isController={true}
-            onCopySelection={onCopySelection}
-            onCopyLine={onCopyLine}
-            onCopyScreen={onCopyScreen}
-            onPaste={onPaste}
-            onClose={onClose}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(5);
-    expect(items[0]).toHaveTextContent('复制选中');
-    expect(items[1]).toHaveTextContent('复制本行');
-    expect(items[2]).toHaveTextContent('复制整屏');
-    expect(items[3]).toHaveTextContent('粘贴');
-    expect(items[4]).toHaveTextContent('取消');
-
-    // Clicking an item calls action and closes menu
-    fireEvent.click(items[0]);
-    expect(onCopySelection).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  // A tap is forwarded to the pane as a mouse report, so the long-press menu is
-  // the only way a finger reaches a link. The host is shown so the tap is not
-  // a blind one.
-  it('offers the link under the touch point first, named by its host', () => {
-    const onOpenLink = vi.fn();
-    const onClose = vi.fn();
-
-    render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 400, height: 600 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 200, y: 300 }}
-            hasSelection={false}
-            isController={true}
-            linkUrl="https://github.com/herdrdev/herdr"
-            onOpenLink={onOpenLink}
-            onCopySelection={vi.fn()}
-            onCopyLine={vi.fn()}
-            onCopyScreen={vi.fn()}
-            onPaste={vi.fn()}
-            onClose={onClose}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    const items = screen.getAllByRole('menuitem');
-    expect(items[0]).toHaveTextContent('打开链接');
-    expect(items[0]).toHaveTextContent('github.com');
-
-    fireEvent.click(items[0]);
-    expect(onOpenLink).toHaveBeenCalledWith('https://github.com/herdrdev/herdr');
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('offers nothing to open when the tapped row carries no link', () => {
-    render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 400, height: 600 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 200, y: 300 }}
-            hasSelection={false}
-            isController={true}
-            onCopySelection={vi.fn()}
-            onCopyLine={vi.fn()}
-            onCopyScreen={vi.fn()}
-            onPaste={vi.fn()}
-            onClose={vi.fn()}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    expect(screen.queryByText('打开链接')).not.toBeInTheDocument();
-  });
-
-  it('omits "复制选中" when hasSelection is false', () => {
-    render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 400, height: 600 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 200, y: 300 }}
-            hasSelection={false}
-            isController={true}
-            onCopySelection={vi.fn()}
-            onCopyLine={vi.fn()}
-            onCopyScreen={vi.fn()}
-            onPaste={vi.fn()}
-            onClose={vi.fn()}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    expect(screen.queryByText('复制选中')).toBeNull();
-    const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(4);
-    expect(items[0]).toHaveTextContent('复制本行');
-  });
-
-  it('omits "粘贴" when isController is false (viewer mode)', () => {
-    render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 400, height: 600 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 200, y: 300 }}
-            hasSelection={true}
-            isController={false}
-            onCopySelection={vi.fn()}
-            onCopyLine={vi.fn()}
-            onCopyScreen={vi.fn()}
-            onPaste={vi.fn()}
-            onClose={vi.fn()}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    expect(screen.queryByText('粘贴')).toBeNull();
-    const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(4);
-    expect(items[2]).toHaveTextContent('复制整屏');
-    expect(items[3]).toHaveTextContent('取消');
-  });
-
-  it('maintains strict uniform h-11 action row classes across all items and bodyClassName for gap', () => {
-    const { container } = render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 400, height: 600 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 200, y: 300 }}
-            hasSelection={true}
-            isController={true}
-            onCopySelection={vi.fn()}
-            onCopyLine={vi.fn()}
-            onCopyScreen={vi.fn()}
-            onPaste={vi.fn()}
-            onClose={vi.fn()}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    const items = screen.getAllByRole('menuitem');
-    for (const item of items) {
-      expect(item.className).toContain('h-11');
-      expect(item.className).toContain('border');
-    }
-
-    // Panel children container must receive gap-1 via bodyClassName
-    const bodyContainer = container.querySelector('.flex.flex-col.gap-1');
-    expect(bodyContainer).toBeTruthy();
-  });
-
-  it('flips vertically above the touch anchor when anchor is near container bottom and stays within bounds', () => {
-    const { container } = render(
-      <TerminalProvider>
-        <div style={{ position: 'relative', width: 360, height: 640 }}>
-          <TerminalSelectionMenu
-            anchorPoint={{ x: 350, y: 580 }}
-            hasSelection={true}
-            isController={true}
-            onCopySelection={vi.fn()}
-            onCopyLine={vi.fn()}
-            onCopyScreen={vi.fn()}
-            onPaste={vi.fn()}
-            onClose={vi.fn()}
-          />
-        </div>
-      </TerminalProvider>,
-    );
-
-    const menu = container.querySelector('[role="menu"]') as HTMLElement;
-    expect(menu).toBeTruthy();
-
-    const top = parseFloat(menu.style.top);
-    const left = parseFloat(menu.style.left);
-
-    // Hard bounds: top and left must respect 8px margin
-    expect(left).toBeGreaterThanOrEqual(8);
-    expect(top).toBeGreaterThanOrEqual(8);
-    // When anchor is near bottom (580px of 640px), menu must flip above touch point
-    expect(top).toBeLessThan(580);
-  });
-});
-
+/** Native copying replaces the old terminal menu; pasting stays on the key bar. */
 describe('PasteFallbackModal', () => {
-  beforeEach(() => {
-    saveSettings({ language: 'zh' });
-  });
+  beforeEach(() => saveSettings({ language: 'zh' }));
 
-  it('renders modal with textarea, autoFocus, and enables send button upon user input', () => {
+  it('accepts native pasted text and sends it when the user confirms', () => {
     const onSend = vi.fn();
     const onClose = vi.fn();
-
     render(
       <TerminalProvider>
-        <PasteFallbackModal isOpen={true} onClose={onClose} onSend={onSend} />
+        <PasteFallbackModal isOpen onClose={onClose} onSend={onSend} />
       </TerminalProvider>,
     );
-
-    expect(screen.getByText('粘贴内容')).toBeInTheDocument();
-    expect(screen.getByText('长按此处粘贴，然后按发送')).toBeInTheDocument();
-
     const textarea = screen.getByPlaceholderText('长按此处粘贴，然后按发送');
-    expect(textarea).toBeInTheDocument();
-
-    const sendBtn = screen.getByRole('button', { name: '发送' });
-    expect(sendBtn).toBeDisabled();
-
-    // Type or paste text
+    const send = screen.getByRole('button', { name: '发送' });
+    expect(send).toBeDisabled();
     fireEvent.change(textarea, { target: { value: 'pasted terminal command' } });
-    expect(sendBtn).not.toBeDisabled();
-
-    fireEvent.click(sendBtn);
+    expect(send).not.toBeDisabled();
+    fireEvent.click(send);
     expect(onSend).toHaveBeenCalledWith('pasted terminal command');
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('does not render when isOpen is false', () => {
+  it('does not render while closed', () => {
     render(
       <TerminalProvider>
         <PasteFallbackModal isOpen={false} onClose={vi.fn()} onSend={vi.fn()} />
@@ -263,33 +45,25 @@ describe('PasteFallbackModal', () => {
   });
 });
 
-describe('TerminalView mobile selection and clipboard integration', () => {
-  let terminalCtx: ReturnType<typeof useTerminal> | undefined;
+describe('Mobile key-bar paste alongside native copying', () => {
   const originalMatchMedia = window.matchMedia;
-
-  const CaptureContext: React.FC = () => {
-    terminalCtx = useTerminal();
+  let context: ReturnType<typeof useTerminal> | undefined;
+  const Probe: React.FC = () => {
+    context = useTerminal();
     return null;
   };
 
   beforeEach(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-    xtermInstances.length = 0;
     vi.restoreAllMocks();
-
-    saveSettings({ language: 'zh' });
-
-    // Simulate coarse-pointer touch mobile device
+    terminals.length = 0;
+    sockets.length = 0;
+    context = undefined;
+    saveSettings({ language: 'zh', toolbarVisible: true });
     window.matchMedia = ((query: string) => ({
       matches: /pointer:\s*coarse|hover:\s*none/.test(query),
       media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
+      addEventListener() {},
+      removeEventListener() {},
     })) as unknown as typeof window.matchMedia;
   });
 
@@ -297,266 +71,38 @@ describe('TerminalView mobile selection and clipboard integration', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  const renderMobileTerminal = () => {
-    terminalCtx = undefined;
-    return render(
+  async function mount(controller = true) {
+    render(
       <TerminalProvider>
-        <CaptureContext />
-        <TerminalView isActive={true} />
+        <Probe />
+        <TerminalView />
+        <KeyToolbar compact />
       </TerminalProvider>,
     );
-  };
-
-  it('tapping while selectionMenu is open dismisses the menu and swallows the gesture without starting a new one', async () => {
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-    const term = xtermInstances[0];
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-    expect(container).toBeTruthy();
-
-    // Simulate long press to open menu on container
-    act(() => {
-      const downEvent = new PointerEvent('pointerdown', {
-        clientX: 100,
-        clientY: 100,
-        pointerType: 'touch',
-        isPrimary: true,
-        bubbles: true,
-        cancelable: true,
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    if (!context?.adapter) throw new Error('Terminal context did not mount');
+    if (controller) {
+      act(() => {
+        // @ts-expect-error test event
+        context?.adapter?.emit('controlGranted');
       });
-      container.dispatchEvent(downEvent);
-    });
-    // Hold still until the menu opens automatically, before lifting the finger.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 1_020));
-    });
+    }
+    return vi.spyOn(context.adapter, 'sendInput');
+  }
 
-    const menu = screen.getByRole('menu', { name: '终端选择操作' });
-    expect(menu).toBeInTheDocument();
-
-    // Releasing the finger leaves the already-open menu in place.
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    // Tap on the terminal while menu is open: must close menu and swallow event
-    const tapEvent = new PointerEvent('pointerdown', {
-      clientX: 50,
-      clientY: 50,
-      pointerType: 'touch',
-      isPrimary: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    const preventDefaultSpy = vi.spyOn(tapEvent, 'preventDefault');
-    const stopPropagationSpy = vi.spyOn(tapEvent, 'stopPropagation');
-
-    act(() => {
-      container.dispatchEvent(tapEvent);
-    });
-
-    // Menu must be dismissed
-    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
-    // Event must be swallowed
-    expect(preventDefaultSpy).toHaveBeenCalled();
-    expect(stopPropagationSpy).toHaveBeenCalled();
-    // Must NOT call term.focus
-    expect(term.focus).not.toHaveBeenCalled();
-  });
-
-  it('copies selected text via copyText when "复制选中" is clicked', async () => {
-    const copyTextSpy = vi.spyOn(clipboardModule, 'copyText').mockResolvedValue('clipboard');
-
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-    const term = xtermInstances[0];
-
-    // Populate terminal buffer line with readable word "echo" at touch position
-    const lineContent = 'echo hello world';
-    term.buffer.active.getLine = vi.fn().mockImplementation((_y: number) => {
-      return {
-        isWrapped: false,
-        length: 80,
-        getCell: (x: number) => {
-          if (x < lineContent.length) {
-            return {
-              getWidth: () => 1,
-              getChars: () => lineContent[x],
-              getCode: () => lineContent.charCodeAt(x),
-            };
-          }
-          return {
-            getWidth: () => 1,
-            getChars: () => ' ',
-            getCode: () => 32,
-          };
-        },
-        translateToString: (trimRight = false, startCol = 0, endCol = 80) => {
-          const slice = lineContent.slice(startCol, endCol);
-          return trimRight ? slice.trimEnd() : slice;
-        },
-      };
-    });
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-
-    // Trigger long press on col 1 (where "echo" lives)
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 10,
-          clientY: 10,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 1_020));
-    });
-
-    // The menu has opened during the hold; release the finger.
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 10,
-          clientY: 10,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    const copyBtn = screen.getByRole('menuitem', { name: /复制选中/i });
-    act(() => {
-      fireEvent.click(copyBtn);
-    });
-
-    await waitFor(() => {
-      expect(copyTextSpy).toHaveBeenCalledWith('echo');
-    });
-  });
-
-  it('opens PasteFallbackModal when readClipboardText returns "insecure" and pastes on send', async () => {
-    vi.spyOn(clipboardModule, 'readClipboardText').mockResolvedValue({
-      ok: false,
-      reason: 'insecure',
-    });
-
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-    const term = xtermInstances[0];
-
-    // Grant controller role so paste is available
-    act(() => {
-      // @ts-expect-error test event
-      terminalCtx?.adapter?.emit('controlGranted');
-    });
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-
-    // Trigger long press
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 1_020));
-    });
-
-    // The menu has opened during the hold; release the finger.
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    const pasteBtn = screen.getByRole('menuitem', { name: /粘贴/i });
-    act(() => {
-      fireEvent.click(pasteBtn);
-    });
-
-    // Fallback modal opens
-    await waitFor(() => {
-      expect(screen.getByText('长按此处粘贴，然后按发送')).toBeInTheDocument();
-    });
-
-    const textarea = screen.getByPlaceholderText('长按此处粘贴，然后按发送');
+  it('opens the pinned paste box and sends text without a long-press menu', async () => {
+    const sendInput = await mount();
+    fireEvent.click(screen.getByTestId('paste-btn'));
+    const textarea = await screen.findByPlaceholderText('长按此处粘贴，然后按发送');
     fireEvent.change(textarea, { target: { value: 'git pull origin main' } });
-
-    const sendBtn = screen.getByRole('button', { name: '发送' });
-    act(() => {
-      fireEvent.click(sendBtn);
-    });
-
-    // term.paste must be called
-    expect(term.paste).toHaveBeenCalledWith('git pull origin main');
-    // Modal closed
-    expect(screen.queryByText('长按此处粘贴，然后按发送')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    expect(sendInput).toHaveBeenCalledWith(new TextEncoder().encode('git pull origin main'));
+    expect(screen.queryByPlaceholderText('长按此处粘贴，然后按发送')).toBeNull();
+    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
   });
 
-  it('keeps what is typed the instant the paste box opens', async () => {
-    vi.spyOn(clipboardModule, 'readClipboardText').mockResolvedValue({
-      ok: false,
-      reason: 'insecure',
-    });
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-    const term = xtermInstances[0];
-    act(() => {
-      // @ts-expect-error test event
-      terminalCtx?.adapter?.emit('controlGranted');
-    });
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-    const touch = (type: string) =>
-      container.dispatchEvent(
-        new PointerEvent(type, {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    act(() => touch('pointerdown'));
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 1_020));
-    });
-    act(() => touch('pointerup'));
-
-    // Type into the box in the same moment it appears, before React has run
-    // the effects of the render that showed it. The box used to clear itself
-    // in one of those effects, wiping this text: a flaky test on a busy CI.
+  it('keeps text typed the instant the paste box appears', async () => {
+    const sendInput = await mount();
     const typed = new Promise<void>((resolve) => {
       const observer = new MutationObserver(() => {
         const box = screen.queryByPlaceholderText('长按此处粘贴，然后按发送');
@@ -571,250 +117,19 @@ describe('TerminalView mobile selection and clipboard integration', () => {
       });
       observer.observe(document.body, { childList: true, subtree: true });
     });
-    fireEvent.click(screen.getByRole('menuitem', { name: /粘贴/i }));
-    await typed;
+    fireEvent.click(screen.getByTestId('paste-btn'));
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
+      await typed;
     });
-
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
-    expect(term.paste).toHaveBeenCalledWith('git pull origin main');
+    expect(sendInput).toHaveBeenCalledWith(new TextEncoder().encode('git pull origin main'));
   });
 
-  it('shows toast and does NOT open PasteFallbackModal when readClipboardText returns "empty"', async () => {
-    vi.spyOn(clipboardModule, 'readClipboardText').mockResolvedValue({
-      ok: false,
-      reason: 'empty',
-    });
-
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-
-    act(() => {
-      // @ts-expect-error test event
-      terminalCtx?.adapter?.emit('controlGranted');
-    });
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 1_020));
-    });
-
-    // The menu has opened during the hold; release the finger.
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    const pasteBtn = screen.getByRole('menuitem', { name: /粘贴/i });
-    act(() => {
-      fireEvent.click(pasteBtn);
-    });
-
-    // Wait and assert fallback modal did NOT open
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-    expect(screen.queryByText('长按此处粘贴，然后按发送')).toBeNull();
-  });
-
-  it('opens the menu after a stationary 1 second hold without waiting for release', async () => {
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-    const term = xtermInstances[0];
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-
-    // Touch down
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 60,
-          clientY: 60,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    // The word selection starts at 500ms; the menu appears at the 1 second mark.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
-    });
-    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 480));
-    });
-    expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
-
-    // Finger release keeps the already-open menu at its touch position.
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 60,
-          clientY: 60,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
-    // Non-focus invariant: lifting finger after longpress must NOT focus terminal textarea
-    expect(term.focus).not.toHaveBeenCalled();
-  });
-
-  it('CRITICAL B2: onRender redraw intersecting with selection invalidates highlight overlay while preserving menu and snapshot', async () => {
-    const copyTextSpy = vi.spyOn(clipboardModule, 'copyText').mockResolvedValue('clipboard');
-
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-    const term = xtermInstances[0];
-
-    // Set readable content on row 0
-    const lineContent = 'alpha beta gamma';
-    term.buffer.active.getLine = vi.fn().mockImplementation(() => ({
-      isWrapped: false,
-      length: 80,
-      getCell: (x: number) => ({
-        getWidth: () => 1,
-        getChars: () => (x < lineContent.length ? lineContent[x] : ' '),
-        getCode: () => (x < lineContent.length ? lineContent.charCodeAt(x) : 32),
-      }),
-      translateToString: (_trim = false, startCol = 0, endCol = 80) => {
-        return lineContent.slice(startCol, endCol).trimEnd();
-      },
-    }));
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-
-    // Longpress on "alpha" (col 1, row 0)
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 10,
-          clientY: 10,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-        }),
-      );
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
-    });
-
-    // Highlight overlay should be visible before finger lift
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 480));
-    });
-    expect(screen.getAllByTestId('terminal-selection-overlay').length).toBeGreaterThan(0);
-
-    // Wait until the menu opens during the stationary hold, then lift the finger.
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 10,
-          clientY: 10,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-        }),
-      );
-    });
-
-    const copyBtn = screen.getByRole('menuitem', { name: /复制选中/i });
-    expect(copyBtn).toBeInTheDocument();
-
-    // 1. Pure refresh() scenario (e.g. rotation, visibility change, resize fit):
-    // onRender fires without onWriteParsed. Highlight MUST REMAIN VISIBLE!
-    act(() => {
-      term.emitRender?.({ start: 0, end: 1 });
-    });
-    expect(screen.getByTestId('terminal-selection-overlay')).toBeInTheDocument();
-
-    // 2. Real data arrived from stream: onWriteParsed fires, then onRender redraws intersecting row
-    act(() => {
-      term.emitWriteParsed?.();
-      term.emitRender?.({ start: 0, end: 1 });
-    });
-
-    // Invariant: Highlight overlay MUST be removed because screen content was overwritten
-    expect(screen.queryByTestId('terminal-selection-overlay')).toBeNull();
-
-    // Invariant: Menu MUST still remain open and snapshot text MUST still be copied!
-    expect(screen.getByRole('menu', { name: '终端选择操作' })).toBeInTheDocument();
-    act(() => {
-      fireEvent.click(copyBtn);
-    });
-    await waitFor(() => {
-      expect(copyTextSpy).toHaveBeenCalledWith('alpha');
-    });
-  });
-
-  it('CRITICAL D5: pointercancel clears selection, highlight and does NOT open menu', async () => {
-    renderMobileTerminal();
-    await waitFor(() => expect(xtermInstances.length).toBe(1));
-
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 10,
-          clientY: 10,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-        }),
-      );
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 520));
-    });
-
-    // Gesture canceled by browser or multi-touch
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointercancel', {
-          clientX: 10,
-          clientY: 10,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-        }),
-      );
-    });
-
-    // Menu must never open
-    expect(screen.queryByRole('menu', { name: '终端选择操作' })).toBeNull();
-    // Overlay must be gone
-    expect(screen.queryByTestId('terminal-selection-overlay')).toBeNull();
+  it('keeps paste disabled for a viewer while native copy fields remain available', async () => {
+    const sendInput = await mount(false);
+    fireEvent.click(screen.getByTestId('paste-btn'));
+    expect(sendInput).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText('长按此处粘贴，然后按发送')).toBeNull();
+    expect(screen.getAllByTestId('terminal-copy-field').length).toBeGreaterThan(0);
   });
 });

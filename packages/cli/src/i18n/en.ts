@@ -114,6 +114,8 @@ const en = {
     'The administrator terminal broker is not running. Open the herdr-remote TUI, go to Keep-alive, and choose Set up admin terminal access.',
   'adminShell.tabLabel': 'Admin',
 
+  'agents.actionFailed': 'Could not act on the agent pane: {error}',
+
   'relay.title': 'Relay settings',
   'relay.settings': 'Settings',
   'relay.locked': 'fixed',

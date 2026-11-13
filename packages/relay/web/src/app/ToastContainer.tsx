@@ -2,6 +2,7 @@ import type React from 'react';
 import { type ToastItem, useSettings, useToasts } from '@/context/TerminalContext';
 import { cn } from '@/shared/lib/cn';
 import { GLYPH, type StatusLevel, TONE } from '@/shared/ui';
+import { useMobileShell } from '@/features/mobile/mobileShell';
 
 /**
  * Notifications, drawn the way a terminal program logs.
@@ -28,12 +29,20 @@ const TOAST_PREFIX: Record<ToastItem['type'], string> = {
 export const ToastContainer: React.FC = () => {
   const { t } = useSettings();
   const { toasts, removeToast } = useToasts();
+  const isMobileShell = useMobileShell();
 
   if (toasts.length === 0) return null;
 
+  /* On a phone the top of the terminal is Herdr's own tab row, and the bottom
+     is the status bar and key bar — toasts stack just above them. A desktop
+     keeps the top-right corner, dropped a row so the terminal's first line
+     stays uncovered. */
   return (
     <div
-      className="pointer-events-none fixed right-2 top-12 z-50 flex w-[calc(100vw-16px)] max-w-sm flex-col gap-1"
+      className={cn(
+        'pointer-events-none fixed z-50 flex w-[calc(100vw-16px)] max-w-sm flex-col gap-1',
+        isMobileShell ? 'bottom-28 right-2' : 'right-2 top-16',
+      )}
       aria-live="polite"
       aria-atomic="true"
     >

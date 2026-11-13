@@ -238,7 +238,7 @@ describe('Terminal geometry across view navigation', () => {
     setViewport(PHONE);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^Terminal$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Return to Terminal|返回终端/i }));
     });
     await settle();
 

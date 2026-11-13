@@ -64,6 +64,7 @@ export type AdapterEventMap = {
     herdrPrefixKeys?: string[],
     fileListSupported?: boolean,
     pasteStreamSupported?: boolean,
+    paneActionsSupported?: boolean,
   ) => void;
   error: (error: { code: string | number; message: string }) => void;
   binaryData: (data: Uint8Array) => void;

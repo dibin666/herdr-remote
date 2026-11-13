@@ -65,6 +65,8 @@ export interface ConnectionContextValue {
   adminTerminalSupported?: boolean;
   /** The workstation can list its terminal's working directory and send files from it. */
   fileListSupported?: boolean;
+  /** The workstation can focus its Herdr panes and send them the canned keys. */
+  paneActionsSupported?: boolean;
   /** The workstation's herdr-remote release; null when it is too old to say. */
   hostVersion?: string | null;
   shellProfile: ShellProfile;

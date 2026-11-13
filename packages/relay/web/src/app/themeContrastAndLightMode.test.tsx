@@ -102,7 +102,7 @@ describe('Herdr dark chrome with host-owned terminal colors', () => {
   it('keeps a scrolling dialog from carrying the whole frame off screen', () => {
     render(
       <TerminalProvider>
-        <SettingsModal isOpen={true} onClose={() => {}} initialTab="agentKeymaps" />
+        <SettingsModal isOpen={true} onClose={() => {}} initialTab="keyBar" />
       </TerminalProvider>,
     );
 

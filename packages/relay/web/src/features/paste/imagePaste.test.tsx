@@ -495,19 +495,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
   });
 
   it('rejects uncompressable oversized images without sending over websocket (防掉线断言)', async () => {
-    // Mock navigator.clipboard.read returning an image
-    const fakeBlob = new Blob(['oversized'], { type: 'image/png' });
-    Object.defineProperty(navigator, 'clipboard', {
-      writable: true,
-      value: {
-        read: vi.fn().mockResolvedValue([
-          {
-            types: ['image/png'],
-            getType: vi.fn().mockResolvedValue(fakeBlob),
-          },
-        ]),
-      },
-    });
+    const fakeImage = new File(['oversized'], 'oversized.png', { type: 'image/png' });
 
     // Mock compress pipeline returning null (failed compression / still exceeds 3 MB)
     vi.spyOn(imagePasteModule, 'compressAndPrepareImage').mockResolvedValue(null);
@@ -536,48 +524,13 @@ describe('TerminalView image paste integration (End-to-End)', () => {
       capturedCtx?.adapter?.emit('sessionReady', {});
     });
 
-    // Give control so paste option appears in menu
     act(() => {
       capturedCtx?.adapter?.emit('controlGranted');
     });
-
-    // Trigger long press gesture to open selection menu
-    const container = document.querySelector('#terminal-container') as HTMLElement;
-    expect(container).not.toBeNull();
-
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 1_020));
-    });
-
-    act(() => {
-      container.dispatchEvent(
-        new PointerEvent('pointerup', {
-          clientX: 100,
-          clientY: 100,
-          pointerType: 'touch',
-          isPrimary: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-
-    const pasteAction = await screen.findByRole('menuitem', { name: /粘贴/i });
-    await act(async () => {
-      fireEvent.click(pasteAction);
+      fireEvent.paste(term.textarea, {
+        clipboardData: { files: [fakeImage], items: [] },
+      });
     });
 
     // CRITICAL ASSERTION: No paste_file frame was sent over WebSocket because image was oversized
@@ -592,7 +545,7 @@ describe('TerminalView image paste integration (End-to-End)', () => {
     expect(await screen.findByText('图片超过 3 MB 限制且无法进一步压缩。')).toBeInTheDocument();
   });
 
-  it('viewer role clicking paste calls warnViewerMode and does NOT send anything', async () => {
+  it('refuses image upload from a viewer without sending anything', async () => {
     let capturedCtx: any = null;
     const CaptureContext = () => {
       capturedCtx = useTerminal();
@@ -612,35 +565,6 @@ describe('TerminalView image paste integration (End-to-End)', () => {
     });
 
     const lastWs = webSocketInstances[webSocketInstances.length - 1];
-
-    // Trigger long press to pop menu
-    const surface = document.querySelector('.terminal-container') || document.body;
-    surface.dispatchEvent(
-      new PointerEvent('pointerdown', {
-        clientX: 100,
-        clientY: 100,
-        pointerId: 1,
-        pointerType: 'touch',
-        isPrimary: true,
-      }),
-    );
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 600));
-    });
-
-    surface.dispatchEvent(
-      new PointerEvent('pointerup', {
-        clientX: 100,
-        clientY: 100,
-        pointerId: 1,
-        pointerType: 'touch',
-        isPrimary: true,
-      }),
-    );
-
-    // In viewer mode, menu does not show paste action (it is filtered out)
-    expect(screen.queryByText('粘贴')).toBeNull();
 
     // Direct invocation of sendPasteFile also refuses and warns viewer mode
     const sendResult = capturedCtx.sendPasteFile('image/png', 'AAAA');

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSettings, useToasts } from '@/context/TerminalContext';
 import type { AgentProfileId } from '@/features/agents/agentKeymaps';
 import { getDefaultSettings } from './storage';
@@ -9,7 +9,10 @@ import { DANGER_GHOST } from './styles';
 import { VirtualKeysTab } from './VirtualKeysTab';
 import { Button, Modal, Tabs } from '@/shared/ui';
 
-export type SettingsTab = 'general' | 'virtualKeys' | 'agentKeymaps';
+/* The key bar's two halves — its base keys and its agent shortcuts — are one
+   tab because they draw the same row of caps; two tabs for one bar made the
+   dialog promise a split the bar does not have. */
+export type SettingsTab = 'general' | 'keyBar';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -41,6 +44,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const { addToast } = useToasts();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
+  /* Reset has no undo and clears custom keys with everything else, so the
+     button asks to be pressed a second time before it does anything. */
+  const [resetArmed, setResetArmed] = useState(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isOpen) setResetArmed(false);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !initialTab) return;
@@ -53,6 +71,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Only this instance's settings: the language is every instance's, so
   // resetting one leaves it alone.
   const handleResetDefaults = () => {
+    if (!resetArmed) {
+      setResetArmed(true);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = setTimeout(() => setResetArmed(false), 4_000);
+      return;
+    }
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    setResetArmed(false);
     const defaults = getDefaultSettings();
     updateSettings({
       fontSize: defaults.fontSize,
@@ -85,21 +111,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       fixedHeight
       hints={[{ keys: 'esc', action: t('common.close') }]}
       footer={
-        <>
-          <Button variant="ghost" onClick={handleResetDefaults} className={DANGER_GHOST}>
-            {t('settings.resetDefaults')}
-          </Button>
-          <Button variant="primary" onClick={onClose}>
-            {t('common.done')}
-          </Button>
-        </>
+        /* No "done" button: settings apply the instant they change, and a
+           commit-looking control promises a save that does not exist. `esc`
+           on the title bar is the way out, as on every other dialog. */
+        <Button
+          variant="ghost"
+          onClick={handleResetDefaults}
+          className={DANGER_GHOST}
+          data-testid="settings-reset-defaults"
+        >
+          {resetArmed ? t('settings.resetDefaultsConfirm') : t('settings.resetDefaults')}
+        </Button>
       }
     >
       <Tabs
         tabs={[
           { id: 'general', label: t('settings.tabGeneral'), index: 1 },
-          { id: 'virtualKeys', label: t('settings.tabVirtualKeys'), index: 2 },
-          { id: 'agentKeymaps', label: t('settings.tabAgentKeymaps'), index: 3 },
+          { id: 'keyBar', label: t('settings.tabKeyBar'), index: 2 },
         ]}
         activeId={activeTab}
         onSelect={(id) => setActiveTab(id as SettingsTab)}
@@ -107,9 +135,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       />
 
       {activeTab === 'general' && <GeneralTab onOpenAdmin={onOpenAdmin} />}
-      {activeTab === 'virtualKeys' && <VirtualKeysTab />}
-      {activeTab === 'agentKeymaps' && (
-        <AgentKeymapsTab profile={settingsAgentProfile} onProfileChange={setSettingsAgentProfile} />
+      {activeTab === 'keyBar' && (
+        <div className="space-y-4">
+          <AgentKeymapsTab
+            profile={settingsAgentProfile}
+            onProfileChange={setSettingsAgentProfile}
+          />
+          <VirtualKeysTab />
+        </div>
       )}
     </Modal>
   );

@@ -28,7 +28,7 @@ export const SettingSection: React.FC<{
 }> = ({ title, aside, className, children }) => (
   <section className={cn('min-w-0', className)}>
     <div className="flex min-h-[var(--tui-row)] items-center gap-2 border-b border-tui-border pb-1">
-      <h3 className="text-tui font-bold text-tui-accent">{title}</h3>
+      <h3 className="text-tui-lg font-bold text-tui-accent">{title}</h3>
       {aside ? <div className="ml-auto flex shrink-0 items-center gap-1">{aside}</div> : null}
     </div>
     <div className="divide-y divide-tui-border-dim">{children}</div>

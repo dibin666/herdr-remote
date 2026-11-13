@@ -78,7 +78,9 @@ export function KeyIcon({ name }: { name: KeyIconName }) {
 /** A caption such as `⇧TAB` or `Alt+⏎`, its key symbols drawn as icons. */
 export function KeyLabel({ text }: { text: string }) {
   return (
-    <span className="inline-flex items-center">
+    // A hair of air between pieces: a caption like `^⇧C` packs two icons
+    // against letters and their oversize glyph boxes read as one smear.
+    <span className="inline-flex items-center gap-[0.12em]">
       {[...text].map((char, index) => {
         const icon = ICON_FOR_SYMBOL[char];
         // biome-ignore lint/suspicious/noArrayIndexKey: a caption's characters never reorder

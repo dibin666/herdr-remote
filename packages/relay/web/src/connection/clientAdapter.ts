@@ -96,6 +96,7 @@ export class HerdrClientAdapter extends RelaySocket {
           msg.herdrPrefixKeys,
           msg.fileListSupported,
           msg.pasteStreamSupported,
+          msg.paneActionsSupported,
         );
         this.emit('terminalFont', msg.terminalFont ?? null);
         break;
@@ -332,6 +333,18 @@ export class HerdrClientAdapter extends RelaySocket {
   /** Open an elevated PowerShell as a tab of the workstation's Herdr. */
   public sendAdminTabOpen(): void {
     this.sendJson({ type: 'admin_tab_open' });
+  }
+
+  /**
+   * Act on one of the workstation's Herdr panes; see `ClientPaneActionMessage`.
+   * The pane ids come from the host's own agent_status report, and the focus
+   * every action implies moves every client attached to that Herdr.
+   */
+  public sendPaneAction(
+    paneId: string,
+    action: 'focus' | 'approve' | 'reject' | 'interrupt',
+  ): void {
+    this.sendJson({ type: 'pane_action', paneId, action });
   }
 
   /**

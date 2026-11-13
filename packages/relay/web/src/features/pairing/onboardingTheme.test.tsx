@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TerminalProvider } from '@/context/TerminalContext';
 import { OnboardingView } from './OnboardingView';
-import { Header } from '@/app/Header';
+import { SettingsModal } from '@/features/settings/SettingsModal';
 import { getDefaultSettings, loadSettings } from '@/features/settings/storage';
 
 describe('Onboarding UX and Herdr Dark Theme System', () => {
@@ -50,7 +50,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     expect(screen.getByText(/herdr-remote pair/i)).toBeInTheDocument();
 
     // Verifies pairing code input and connect CTA
-    expect(screen.getByPlaceholderText(/e\.g\. 7X9K2A/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/6-character Pairing Code/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
   });
 
@@ -81,7 +81,7 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
   it('does not expose an interface theme toggle', () => {
     render(
       <TerminalProvider>
-        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
+        <SettingsModal isOpen={true} onClose={() => {}} />
       </TerminalProvider>,
     );
 

@@ -36,9 +36,8 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
 
   const handleCopyCommand = (cmd: string) => copy(cmd, t('toasts.commandCopied'));
 
-  const handlePairSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = pairCodeInput.trim().toUpperCase();
+  const submitPair = (codeOverride?: string) => {
+    const code = (codeOverride ?? pairCodeInput).trim().toUpperCase();
     if (!code && !token.trim()) {
       addToast('warning', t('toasts.connectionError'));
       return;
@@ -69,7 +68,24 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
     }
   };
 
+  const handlePairSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitPair();
+  };
+
   const isConnecting = connectionState === 'connecting' || connectionState === 'reconnecting';
+
+  /* The code is exactly six characters: typed into six cells, and the last
+     cell submitting the form is what a printed code asks for next anyway. */
+  const PAIR_CODE_LENGTH = 6;
+  const handleCodeChange = (raw: string) => {
+    const cleaned = raw
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, PAIR_CODE_LENGTH);
+    setPairCodeInput(cleaned);
+    if (cleaned.length === PAIR_CODE_LENGTH) submitPair(cleaned);
+  };
 
   const StepNumber: React.FC<{ n: number }> = ({ n }) => (
     <span aria-hidden="true" className="shrink-0 font-bold text-tui-accent">
@@ -89,14 +105,14 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
      * `items-center` alone would not do.
      */
     <div className="flex h-full w-full flex-1 justify-center overflow-y-auto bg-tui-crust p-2 sm:p-4">
-      <div className="my-auto w-full max-w-3xl space-y-3">
+      {/* Centred on a desktop window; on a phone the card starts at the top
+          instead of floating in the lower half it has to share with a
+          keyboard. */}
+      <div className="mb-auto mt-4 w-full max-w-3xl space-y-3 sm:my-auto sm:mt-0">
         {/* Banner: the program announcing itself, as a terminal program does. */}
         <div className="border border-tui-border bg-tui-base px-3 py-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span aria-hidden="true" className="font-bold text-tui-accent">
-              herdr-remote
-            </span>
-            <h1 className="text-tui font-bold text-tui-text">{t('onboarding.title')}</h1>
+            <h1 className="text-tui font-bold text-tui-accent">{t('onboarding.title')}</h1>
             <span className="text-tui uppercase text-tui-warn">
               {t('onboarding.firstTimeSetup')}
             </span>
@@ -160,6 +176,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
                     title={t('common.clickToCopy')}
                   >
                     <code>{TUI_COMMAND}</code>
+                    <span aria-hidden="true" className="ml-1 text-tui-faint">
+                      {copiedCommand === TUI_COMMAND ? GLYPH.check : '⧉'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -171,16 +190,38 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <StepNumber n={2} />
-                <Input
-                  type="text"
-                  value={pairCodeInput}
-                  onChange={(e) => setPairCodeInput(e.target.value.toUpperCase())}
-                  placeholder={t('onboarding.step2Placeholder')}
-                  maxLength={12}
-                  autoFocus
-                  aria-label={t('onboarding.step2Title')}
-                  className="font-bold uppercase"
-                />
+                <div className="relative min-w-0 flex-1">
+                  <input
+                    type="text"
+                    value={pairCodeInput}
+                    onChange={(e) => handleCodeChange(e.target.value)}
+                    maxLength={PAIR_CODE_LENGTH}
+                    // biome-ignore lint/a11y/noAutofocus: the code is the only thing this screen asks for
+                    autoFocus
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    inputMode="text"
+                    aria-label={t('onboarding.step2Title')}
+                    className="tui-focusable absolute inset-0 z-10 h-full w-full opacity-0"
+                  />
+                  <div aria-hidden="true" className="grid grid-cols-6 gap-1">
+                    {Array.from({ length: PAIR_CODE_LENGTH }, (_, i) => (
+                      <span
+                        // biome-ignore lint/suspicious/noArrayIndexKey: cells are fixed positions, never reordered
+                        key={i}
+                        className={cn(
+                          'flex h-11 items-center justify-center border text-tui font-bold uppercase',
+                          pairCodeInput[i]
+                            ? 'border-tui-accent bg-tui-mantle text-tui-text'
+                            : 'border-tui-border bg-tui-mantle text-tui-faint',
+                          i === pairCodeInput.length && 'border-tui-accent-bright',
+                        )}
+                      >
+                        {pairCodeInput[i] ?? ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
               <p className="text-tui-sm leading-snug text-tui-faint">{t('onboarding.step2Note')}</p>
             </div>

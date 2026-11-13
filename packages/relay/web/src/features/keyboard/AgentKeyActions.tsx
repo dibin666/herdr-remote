@@ -13,12 +13,10 @@ import { KeyIcon, KeyLabel } from './KeyLabel';
 
 export function AgentKeyActions({
   keyClass,
-  squareKeyClass,
   onCustomize,
   sendCombo,
 }: {
   keyClass: string;
-  squareKeyClass: string;
   /** Opens settings on the agent keys tab, where the user picks what the bar shows. */
   onCustomize?: () => void;
   sendCombo: (combo: string) => void;
@@ -51,7 +49,15 @@ export function AgentKeyActions({
         type="button"
         data-testid={`agent-key-${item.id}`}
         onClick={() => sendCombo(item.combo)}
-        className={cn(CAP_BASE, keyClass, 'font-bold', CHORD_TONE_CLASS[tone])}
+        className={cn(
+          CAP_BASE,
+          keyClass,
+          'font-bold',
+          CHORD_TONE_CLASS[tone],
+          // The interrupt key is the one cap that can lose work: keep it a
+          // step away from the harmless shortcuts beside it.
+          tone === 'bad' && 'ml-1.5',
+        )}
         title={`${caption} ${label}`.trim()}
         aria-label={`${caption} ${label}`.trim()}
       >
@@ -83,13 +89,16 @@ export function AgentKeyActions({
           onClick={onCustomize}
           className={cn(
             CAP_BASE,
-            squareKeyClass,
+            // A word-length cap, not a square one: the label is text, not an
+            // icon, and a fixed width cut `自定义` down to `自定`.
+            keyClass,
             'border-tui-border-dim bg-transparent text-tui-faint hover:border-tui-accent hover:text-tui-accent',
           )}
           title={t('agentKeymaps.customizeBar')}
           aria-label={t('agentKeymaps.customizeBar')}
         >
           <KeyIcon name="customize" />
+          <span className="text-tui-sm">{t('agentKeymaps.customizeBarShort')}</span>
         </button>
       )}
     </div>

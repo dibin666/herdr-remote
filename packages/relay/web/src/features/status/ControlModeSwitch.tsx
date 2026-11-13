@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useSettings, useConnection } from '@/context/TerminalContext';
-import { Row, Segmented } from '@/shared/ui';
+import { Segmented } from '@/shared/ui';
 
 type ControlMode = 'control' | 'observe';
 
@@ -18,7 +18,7 @@ export const ControlModeSwitch: React.FC<{ compact?: boolean; className?: string
   className,
 }) => {
   const { settings, updateSettings, t } = useSettings();
-  const { connectionState, sharedWindowCount, assignedClientId } = useConnection();
+  const { connectionState, sharedWindowCount } = useConnection();
   const observing = settings.observerMode;
 
   const toggle = (
@@ -49,11 +49,6 @@ export const ControlModeSwitch: React.FC<{ compact?: boolean; className?: string
         <p className="text-tui-sm text-tui-muted">
           {t('role.sharedWindows', { count: sharedWindowCount })}
         </p>
-      ) : null}
-      {assignedClientId ? (
-        <Row label={t('role.thisWindow')} labelWidth={9} className="text-tui-sm">
-          <span className="truncate text-tui-muted">{assignedClientId}</span>
-        </Row>
       ) : null}
     </div>
   );

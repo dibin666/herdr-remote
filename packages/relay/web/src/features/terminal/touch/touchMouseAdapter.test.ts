@@ -698,53 +698,70 @@ describe('TouchToMouseAdapter Unit Tests', () => {
       expect(controller.getState()).toBe('idle');
     });
 
-    describe('mobile longpress selection and extension', () => {
-      it('opens a stationary long-press menu after 1 second', () => {
-        vi.useFakeTimers();
-        const onLongPressMenu = vi.fn();
-        const controller = makeController({ longPressDelayMs: 500, onLongPressMenu });
+    describe('native copy gesture handoff', () => {
+      it.each(['touch', 'pen'])(
+        'preserves native %s holds without capture or custom selection',
+        (pointerType) => {
+          vi.useFakeTimers();
+          const onLongPress = vi.fn();
+          const capture = vi.spyOn(mockContainer, 'setPointerCapture');
+          const controller = makeController({ isNativeSelectionTarget: () => true, onLongPress });
+          const down = pointer('pointerdown', { pointerType, clientX: 120, clientY: 80 });
+          controller.handlePointerDown(down, mockContainer);
+          vi.advanceTimersByTime(600);
+          const move = pointer('pointermove', { pointerType, clientX: 130, clientY: 90 });
+          controller.handlePointerMove(move);
 
-        controller.handlePointerDown(
-          pointer('pointerdown', { clientX: 120, clientY: 80 }),
-          mockContainer,
-        );
-        vi.advanceTimersByTime(999);
-        expect(onLongPressMenu).not.toHaveBeenCalled();
-        vi.advanceTimersByTime(1);
-        expect(onLongPressMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
-      });
+          expect(down.defaultPrevented).toBe(false);
+          expect(move.defaultPrevented).toBe(false);
+          expect(capture).not.toHaveBeenCalled();
+          expect(onLongPress).not.toHaveBeenCalled();
+          expect(mockTerm.scrollLines).not.toHaveBeenCalled();
+          controller.handlePointerCancel();
+        },
+      );
 
-      it('does not open the long-press menu while the finger moves', () => {
+      it('preserves the native long-press touch fallback through release', () => {
         vi.useFakeTimers();
-        const onSelectionExtend = vi.fn();
-        const onLongPressMenu = vi.fn();
-        const controller = makeController({
-          longPressDelayMs: 500,
-          longPressMenuDelayMs: 1_000,
-          onSelectionExtend,
-          onLongPressMenu,
+        const onLongPress = vi.fn();
+        const controller = makeController({ isNativeSelectionTarget: () => true, onLongPress });
+        const start = new TouchEvent('touchstart', {
+          touches: [touch(120, 80)],
+          bubbles: true,
+          cancelable: true,
         });
+        controller.handleTouchStart(start, mockContainer);
+        vi.advanceTimersByTime(600);
+        const end = new TouchEvent('touchend', { bubbles: true, cancelable: true });
+        controller.handleTouchEnd(end);
 
-        controller.handlePointerDown(
-          pointer('pointerdown', { clientX: 120, clientY: 80 }),
-          mockContainer,
-        );
-        vi.advanceTimersByTime(500);
-        controller.handlePointerMove(pointer('pointermove', { clientX: 140, clientY: 80 }));
-        vi.advanceTimersByTime(500);
-
-        expect(onSelectionExtend).toHaveBeenCalled();
-        expect(onLongPressMenu).not.toHaveBeenCalled();
+        expect(start.defaultPrevented).toBe(false);
+        expect(end.defaultPrevented).toBe(false);
+        expect(onLongPress).not.toHaveBeenCalled();
       });
 
+      it('still cancels a native-field tap compatibility click after terminal focus', () => {
+        const onFocus = vi.fn();
+        const controller = makeController({ isNativeSelectionTarget: () => true, onFocus });
+        const start = new TouchEvent('touchstart', {
+          touches: [touch(100, 150)],
+          bubbles: true,
+          cancelable: true,
+        });
+        controller.handleTouchStart(start, mockContainer);
+        const end = new TouchEvent('touchend', { bubbles: true, cancelable: true });
+        controller.handleTouchEnd(end);
+
+        expect(start.defaultPrevented).toBe(false);
+        expect(end.defaultPrevented).toBe(true);
+        expect(onFocus).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('non-native longpress consumption', () => {
       it('triggers onLongPress with start coordinates after long press delay', async () => {
         const onLongPress = vi.fn();
-        const onSelectionExtend = vi.fn();
-        const controller = makeController({
-          longPressDelayMs: 50,
-          onLongPress,
-          onSelectionExtend,
-        });
+        const controller = makeController({ longPressDelayMs: 50, onLongPress });
 
         controller.handlePointerDown(
           pointer('pointerdown', { clientX: 120, clientY: 80 }),
@@ -759,35 +776,20 @@ describe('TouchToMouseAdapter Unit Tests', () => {
         expect(onLongPress).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
       });
 
-      it('triggers onSelectionExtend on drag after longpress and NEVER calls term.scrollLines', async () => {
-        const onLongPress = vi.fn();
-        const onSelectionExtend = vi.fn();
-        const controller = makeController({
-          longPressDelayMs: 50,
-          onLongPress,
-          onSelectionExtend,
-        });
-
+      it('consumes movement after a non-native hold without remote scrolling', () => {
+        vi.useFakeTimers();
+        const controller = makeController({ longPressDelayMs: 50 });
         controller.handlePointerDown(
           pointer('pointerdown', { clientX: 100, clientY: 100 }),
           mockContainer,
         );
-        await new Promise((r) => setTimeout(r, 70));
+        vi.advanceTimersByTime(50);
+        const move = pointer('pointermove', { clientX: 110, clientY: 180 });
+        controller.handlePointerMove(move);
+        expect(move.defaultPrevented).toBe(true);
         expect(controller.getState()).toBe('longpress');
-
-        // Large vertical finger drag (80px), which would trigger scrollLines in a normal gesture
-        const moveEvent = pointer('pointermove', { clientX: 110, clientY: 180 });
-        const preventDefaultSpy = vi.spyOn(moveEvent, 'preventDefault');
-        controller.handlePointerMove(moveEvent);
-
-        // Must trigger selection extension and prevent default
-        expect(onSelectionExtend).toHaveBeenCalledTimes(1);
-        expect(onSelectionExtend).toHaveBeenCalledWith({ clientX: 110, clientY: 180 });
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        // State stays longpress, never transitioned to scrolling
-        expect(controller.getState()).toBe('longpress');
-        // CRITICAL: Must NEVER trigger scrollLines
         expect(mockTerm.scrollLines).not.toHaveBeenCalled();
+        controller.handlePointerCancel();
       });
 
       it('does NOT call term.focus or emit mousedown/mouseup reports on pointer up after longpress', async () => {

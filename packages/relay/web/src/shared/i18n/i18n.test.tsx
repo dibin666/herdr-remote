@@ -13,7 +13,7 @@ import { PtysTable } from '@/features/admin/PtysTable';
 import { TerminalView } from '@/features/terminal/TerminalView';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { Header } from '@/app/Header';
+import { SessionStatusLine } from '@/features/status/SessionStatusLine';
 import { getLocalizedKeyTitle, ALL_AVAILABLE_KEYS } from '@/features/keyboard/virtualKeys';
 import { saveSettings } from '@/features/settings/storage';
 
@@ -24,8 +24,8 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
   });
 
   it('translates English and Chinese keys correctly', () => {
-    expect(translate('en', 'header.appName')).toBe('Herdr');
-    expect(translate('zh', 'header.appName')).toBe('Herdr');
+    expect(translate('en', 'common.admin')).toBe('Admin');
+    expect(translate('zh', 'common.admin')).toBe('管理面板');
 
     expect(translate('en', 'common.settings')).toBe('Settings');
     expect(translate('zh', 'common.settings')).toBe('设置');
@@ -263,7 +263,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
   it('renders KeyToolbar and SettingsModal with localized key titles', () => {
     // 1. KeyToolbar in Chinese
-    saveSettings({ language: 'zh' });
+    saveSettings({ language: 'zh', toolbarVisible: true });
     const { unmount } = render(
       <TerminalProvider>
         <KeyToolbar />
@@ -283,7 +283,7 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       </TerminalProvider>,
     );
 
-    fireEvent.click(screen.getByText('虚拟按键'));
+    fireEvent.click(screen.getByText('按键条'));
 
     expect(screen.getByText('Escape (ESC)')).toBeInTheDocument();
     expect(screen.getByText('回车 (Enter)')).toBeInTheDocument();
@@ -292,8 +292,6 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
 
   it('verifies all Header keys and tooltips resolve correctly without returning key paths', () => {
     const headerKeys = [
-      'header.appName',
-      'header.terminalTab',
       'header.adminTab',
       'header.hostLabel',
       'header.clientIdLabel',
@@ -314,29 +312,28 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
       expect(zhVal.length).toBeGreaterThan(0);
     }
 
-    // Render Header in Chinese and ensure all button tooltips and labels are translated
+    // The chrome row is the status line now: same keys, same tooltips.
     saveSettings({ language: 'zh' });
     const { unmount } = render(
       <TerminalProvider>
-        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
+        <SessionStatusLine onOpenSettings={() => {}} onOpenAdmin={() => {}} />
       </TerminalProvider>,
     );
 
-    expect(screen.getByRole('radiogroup', { name: '界面语言' })).toBeInTheDocument();
     expect(screen.getByTitle('终端设置')).toBeInTheDocument();
+    expect(screen.getByTitle('管理面板')).toBeInTheDocument();
 
     unmount();
 
-    // Render Header in English
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <Header currentView="terminal" onNavigate={() => {}} onOpenSettings={() => {}} />
+        <SessionStatusLine onOpenSettings={() => {}} onOpenAdmin={() => {}} />
       </TerminalProvider>,
     );
 
-    expect(screen.getByRole('radiogroup', { name: 'Interface language' })).toBeInTheDocument();
     expect(screen.getByTitle('Terminal settings')).toBeInTheDocument();
+    expect(screen.getByTitle('Admin')).toBeInTheDocument();
   });
 
   it('statically scans all web source files to ensure every static t(...) key resolves in en and zh', () => {

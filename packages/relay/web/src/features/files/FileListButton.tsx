@@ -8,7 +8,16 @@ import { CAP_BASE, CAP_IDLE } from '@/features/keyboard/caps';
 import { KeyIcon } from '@/features/keyboard/KeyLabel';
 import { FileListModal } from './FileListModal';
 
-export function FileListButton({ capClass, vibrate }: { capClass: string; vibrate?: () => void }) {
+export function FileListButton({
+  capClass,
+  vibrate,
+  iconOnly = false,
+}: {
+  capClass: string;
+  vibrate?: () => void;
+  /** Phone shell: caps stay square, the name lives in the tooltip. */
+  iconOnly?: boolean;
+}) {
   const { t } = useSettings();
   const { isController } = useConnection();
   const { warnViewerMode } = useTerminalIO();
@@ -34,7 +43,7 @@ export function FileListButton({ capClass, vibrate }: { capClass: string; vibrat
         aria-label={t('virtualKeyboard.fileList')}
       >
         <KeyIcon name="folder" />
-        <span>{t('virtualKeyboard.fileList')}</span>
+        {!iconOnly && <span>{t('virtualKeyboard.fileList')}</span>}
       </button>
       <FileListModal isOpen={open} onClose={() => setOpen(false)} />
     </>

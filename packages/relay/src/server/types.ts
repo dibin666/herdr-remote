@@ -42,6 +42,8 @@ export interface RelayHost {
   pasteStream: boolean;
   /** The host lists its terminal's working directory and stages downloads from it. */
   fsBrowse: boolean;
+  /** The host can focus its Herdr panes and send them keys on a window's behalf. */
+  paneActions: boolean;
   arch: string;
   connectedAt: string;
   connectedAtMs: number;

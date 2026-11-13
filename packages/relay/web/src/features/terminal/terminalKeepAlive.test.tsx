@@ -49,7 +49,8 @@ const goToAdmin = async () => {
     fireEvent.click(screen.getByRole('button', { name: /^Open$/ }));
   });
 };
-const goToTerminal = () => fireEvent.click(screen.getByRole('button', { name: /^Terminal$/i }));
+const goToTerminal = () =>
+  fireEvent.click(screen.getByRole('button', { name: /Return to Terminal|返回终端/i }));
 
 describe('Terminal keep-alive across view navigation', () => {
   beforeEach(() => {
