@@ -344,7 +344,6 @@ export const zh: TranslationSchema = {
     search: '搜索',
   },
   virtualKeyboard: {
-    collapseToolbar: '收起按键栏',
     expandToolbar: '展开按键栏',
     customizeTitle: '自定义虚拟按键',
     customizeDesc: '调整按键顺序与启禁用状态。',
@@ -395,8 +394,6 @@ export const zh: TranslationSchema = {
     uploadProgressWaitingHost: '等待工作站保存...',
     uploadProgressCompleted: '完成',
     uploadProgressFailed: '上传失败',
-    pageBase: '基础键',
-    pageAgent: '智能体 · 文件',
   },
   profiles: {
     title: 'Herdr 实例',
@@ -708,9 +705,7 @@ export const zh: TranslationSchema = {
   clipboard: {
     openLink: '打开链接',
     openLinkFailed: '该链接无法在浏览器中打开',
-    copySelection: '复制选中',
-    copyLine: '复制本行',
-    copyScreen: '复制整屏',
+    nativeCopyRegion: '终端文本：长按使用系统选区和复制菜单',
     paste: '粘贴',
     cancel: '取消',
     copied: '已复制到剪贴板',

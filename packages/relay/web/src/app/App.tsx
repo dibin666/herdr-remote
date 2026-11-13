@@ -6,6 +6,7 @@ import { StatusBanner } from '@/features/status/StatusBanner';
 import { TerminalView } from '@/features/terminal/TerminalView';
 import { OnboardingView } from '@/features/pairing/OnboardingView';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
+import { nativeCopyField } from '@/features/terminal/nativeCopy';
 import { AddHostModal } from '@/features/pairing/AddHostModal';
 import { SettingsModal, type SettingsTab } from '@/features/settings/SettingsModal';
 import { loadSettings } from '@/features/settings/storage';
@@ -199,6 +200,7 @@ function AppContent() {
       }
       className="flex h-full w-full select-none flex-col overflow-hidden bg-tui-crust font-mono text-tui text-tui-text"
       onContextMenu={(e) => {
+        if (nativeCopyField(e.target)) return;
         e.preventDefault();
         e.stopPropagation();
       }}

@@ -1,33 +1,24 @@
-// Pointer and touch input on the terminal: taps become terminal clicks and
-// focus, drags scroll, long presses select. One gesture stream drives it, and
-// the browser's own handling of the other is suppressed.
-
+// Taps and swipes drive the terminal; native copy controls own text selection.
 import type { Terminal } from '@xterm/xterm';
+import {
+  nativeCopyField,
+  nativeCopySelection,
+  TERMINAL_TOUCH_DRAG_THRESHOLD_PX,
+} from './nativeCopy';
 import { TerminalPointerController } from './touch/touchMouseAdapter';
 import type { TouchDebugUpdate } from './touchDebug';
 
 type Point = { clientX: number; clientY: number };
 
-export interface GestureSelection {
-  hasOpenMenu(): boolean;
-  hasSelectionExtension(): boolean;
-  clearSelection(): void;
-  openMenuAtGesture(): void;
-  handleLongPress(point: Point): void;
-  handleSelectionExtend(point: Point): void;
-}
-
-/** Wire gestures on `container` to `term`; returns what detaches them again. */
+/** Wire gestures on the container to xterm without cancelling native copying. */
 export function attachGestureInput({
   container,
   term,
-  isTouchDevice,
   debug,
   getTerminal,
   getIsController,
   getScale,
   getSurfaceElement,
-  getSelection,
   getImageAt,
   onImage,
   onFocus,
@@ -37,20 +28,14 @@ export function attachGestureInput({
 }: {
   container: HTMLElement;
   term: Terminal;
-  isTouchDevice: boolean;
   debug: TouchDebugUpdate;
   getTerminal: () => Terminal | null;
   getIsController: () => boolean;
   getScale: () => number;
   getSurfaceElement: () => HTMLElement | null;
-  /** Read at event time, so the handlers of the latest render run. */
-  getSelection: () => GestureSelection;
-  /** The kitty-graphic image under a point, when a terminal image is drawn there. */
   getImageAt?: (point: Point) => ImageBitmap | null;
-  /** Called with the image a click/tap landed on, to open it big. */
   onImage?: (image: ImageBitmap) => void;
   onFocus: () => void;
-  /** False when an input-row tap only offers the floating keyboard button. */
   getTapOpensKeyboard: () => boolean;
   onKeyboardOffer: () => void;
   onKeyboardOfferDismiss: () => void;
@@ -60,13 +45,9 @@ export function attachGestureInput({
     getIsController,
     getScale,
     getSurfaceElement,
-    // Never synthesize DOM mousedown events from this controller. xterm's
-    // native mousedown handler focuses its hidden textarea for every row;
-    // the core mouse service reports terminal clicks without opening the
-    // IME before the gesture has been classified. Keeping this disabled for
-    // the lifetime of the mounted terminal also covers a desktop-to-phone
-    // rotation without rebuilding the xterm instance.
+    // Compatibility mousedown would focus xterm before a swipe is classified.
     allowSyntheticMouseFallback: false,
+    isNativeSelectionTarget: (target) => nativeCopyField(target) !== null,
     onImageTap: getImageAt
       ? (point) => {
           const image = getImageAt(point);
@@ -76,18 +57,14 @@ export function attachGestureInput({
         }
       : undefined,
     onFocus: () => {
-      // With the keyboard already up there is nothing to offer: the tap just
-      // keeps typing where it was.
       if (!getTapOpensKeyboard() && document.activeElement !== term.textarea) {
         onKeyboardOffer();
         return;
       }
-      // A tap is the explicit terminal-input gesture. Vertical drags never
-      // reach this callback, so scrolling history cannot summon the IME.
       try {
         term.focus();
       } catch {
-        // ignore
+        // A terminal being disposed no longer has an input to focus.
       }
       debug?.((previous) => ({
         ...previous,
@@ -98,7 +75,6 @@ export function attachGestureInput({
     onTapOutsideInput: onKeyboardOfferDismiss,
     onGestureStateChange: (state) => {
       debug?.((previous) => ({ ...previous, state }));
-      // A scroll or selection moves away from the input the button was for.
       if (state !== 'idle' && state !== 'pending') onKeyboardOfferDismiss();
     },
     onGestureScroll: ({
@@ -125,31 +101,22 @@ export function attachGestureInput({
         scrollHeight,
         clientHeight,
         moved,
-        focused: document.activeElement === term.textarea,
         bufferType,
         baseY,
         cursorY,
         hasScrollback,
         mouseTracking,
         scrollMode,
+        focused: document.activeElement === term.textarea,
         scrollCalls: previous.scrollCalls + (lines !== 0 ? 1 : 0),
         lastScrollLines: lines,
       }));
     },
     longPressDelayMs: 500,
-    longPressMenuDelayMs: 1_000,
-    dragThresholdPx: 8,
+    dragThresholdPx: TERMINAL_TOUCH_DRAG_THRESHOLD_PX,
     scrollLineHeightPx: 18,
-    onLongPress: isTouchDevice ? (p) => getSelection().handleLongPress(p) : undefined,
-    onLongPressMenu: isTouchDevice ? () => getSelection().openMenuAtGesture() : undefined,
-    onSelectionExtend: isTouchDevice ? (p) => getSelection().handleSelectionExtend(p) : undefined,
   });
 
-  // The gesture is driven from PointerEvent wherever it exists. Measured on
-  // Android Chrome, one drag delivers a full-rate pointermove stream but only
-  // a single touchmove, so a touch-driven scroll threw most of the finger
-  // movement away and crawled. TouchEvent remains the fallback for engines
-  // with no PointerEvent at all.
   const usePointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
   const hasTouchEvents = typeof TouchEvent !== 'undefined';
   const detachInput: Array<() => void> = [];
@@ -163,8 +130,10 @@ export function attachGestureInput({
   };
   const eventIsInTerminal = (event: Event, allowActiveOutside = false): boolean => {
     const target = event.target;
-    const inside = target instanceof Node && container.contains(target);
-    return inside || (allowActiveOutside && pointerController.getState() !== 'idle');
+    return (
+      (target instanceof Node && container.contains(target)) ||
+      (allowActiveOutside && pointerController.getState() !== 'idle')
+    );
   };
   const countEvent = (field: 'pointerEvents' | 'touchEvents', name: string) => {
     debug?.((previous) => ({
@@ -173,36 +142,12 @@ export function attachGestureInput({
       lastInputEvent: name,
     }));
   };
-  /**
-   * A touch while the selection menu is up only closes it. Returns whether
-   * that is what this touch did.
-   */
-  const dismissOpenMenu = (e: Event): boolean => {
-    const selection = getSelection();
-    if (!selection.hasOpenMenu()) return false;
-    selection.clearSelection();
-    if (e.cancelable) e.preventDefault();
-    e.stopPropagation();
+  const selectionOwnsGesture = () => {
+    if (!nativeCopySelection(container)) return false;
+    pointerController.handlePointerCancel();
     return true;
   };
-  /** A dragged selection still opens its menu on release; a stationary hold opens it on timer. */
-  const openMenuAfterSelectionDrag = () => {
-    const selection = getSelection();
-    if (
-      pointerController.getState() === 'longpress' &&
-      selection.hasSelectionExtension() &&
-      !selection.hasOpenMenu()
-    ) {
-      selection.openMenuAtGesture();
-    }
-  };
-
-  /**
-   * A mouse press that landed on a terminal image. The controller never sees
-   * it — a click that stays put opens the preview, a drag goes nowhere rather
-   * than selecting over a picture. Taps on touch pointers keep flowing through
-   * the controller, which can still classify the gesture as a scroll drag.
-   */
+  let nativeTapEnded = false;
   let mouseImagePress: {
     image: ImageBitmap;
     pointerId: number;
@@ -212,130 +157,142 @@ export function attachGestureInput({
   } | null = null;
 
   if (usePointerEvents) {
-    listen('pointerdown', (e) => {
-      if (!eventIsInTerminal(e)) return;
+    listen('pointerdown', (event) => {
+      if (!eventIsInTerminal(event)) return;
       countEvent('pointerEvents', 'pointerdown');
-      if (dismissOpenMenu(e)) return;
-      if (e.pointerType === 'mouse' && e.button === 0 && getImageAt) {
-        const image = getImageAt(e);
+      nativeTapEnded = false;
+      const field = nativeCopyField(event.target);
+      const selected = nativeCopySelection(container);
+      if (selected) {
+        pointerController.handlePointerCancel();
+        if (!field) {
+          selected.blur();
+          if (event.cancelable) event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+      if (event.pointerType === 'mouse' && event.button === 0 && getImageAt) {
+        const image = getImageAt(event);
         if (image) {
           mouseImagePress = {
             image,
-            pointerId: e.pointerId,
-            x: e.clientX,
-            y: e.clientY,
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
             stillATap: true,
           };
-          if (e.cancelable) e.preventDefault();
-          e.stopPropagation();
+          if (event.cancelable) event.preventDefault();
+          event.stopPropagation();
           return;
         }
       }
-      const handled = pointerController.handlePointerDown(e, container);
-      if (handled) e.stopPropagation();
+      const handled = pointerController.handlePointerDown(event, container);
+      if (handled && !field) event.stopPropagation();
     });
-    listen('pointermove', (e) => {
-      if (!eventIsInTerminal(e, true)) return;
+    listen('pointermove', (event) => {
+      if (!eventIsInTerminal(event, true)) return;
       countEvent('pointerEvents', 'pointermove');
+      if (selectionOwnsGesture()) return;
       if (mouseImagePress) {
-        if (e.pointerId === mouseImagePress.pointerId) {
-          if (Math.hypot(e.clientX - mouseImagePress.x, e.clientY - mouseImagePress.y) > 8) {
+        if (event.pointerId === mouseImagePress.pointerId) {
+          if (
+            Math.hypot(event.clientX - mouseImagePress.x, event.clientY - mouseImagePress.y) >
+            TERMINAL_TOUCH_DRAG_THRESHOLD_PX
+          )
             mouseImagePress.stillATap = false;
-          }
-          e.stopPropagation();
+          event.stopPropagation();
         }
         return;
       }
-      pointerController.handlePointerMove(e);
-      if (e.pointerType !== 'mouse') e.stopPropagation();
+      pointerController.handlePointerMove(event);
+      if (event.pointerType !== 'mouse' && !nativeCopyField(event.target)) event.stopPropagation();
     });
-    listen('pointerup', (e) => {
-      if (!eventIsInTerminal(e, true)) return;
+    listen('pointerup', (event) => {
+      if (!eventIsInTerminal(event, true)) return;
       countEvent('pointerEvents', 'pointerup');
+      if (selectionOwnsGesture()) return;
       if (mouseImagePress) {
-        if (e.pointerId === mouseImagePress.pointerId) {
+        if (event.pointerId === mouseImagePress.pointerId) {
           if (mouseImagePress.stillATap) onImage?.(mouseImagePress.image);
           mouseImagePress = null;
-          if (e.cancelable) e.preventDefault();
-          e.stopPropagation();
+          if (event.cancelable) event.preventDefault();
+          event.stopPropagation();
         }
         return;
       }
-      // CRITICAL: Inspect longpress state BEFORE calling handlePointerUp(e).
-      // Calling handlePointerUp resets controller state to 'idle'.
-      openMenuAfterSelectionDrag();
-      pointerController.handlePointerUp(e);
-      if (e.pointerType !== 'mouse') e.stopPropagation();
+      const field = nativeCopyField(event.target);
+      nativeTapEnded = Boolean(field) && pointerController.getState() === 'pending';
+      pointerController.handlePointerUp(event);
+      if (event.pointerType !== 'mouse' && !field) event.stopPropagation();
     });
-    listen('pointercancel', (e) => {
-      if (!eventIsInTerminal(e, true)) return;
+    listen('pointercancel', (event) => {
+      if (!eventIsInTerminal(event, true)) return;
       countEvent('pointerEvents', 'pointercancel');
-      if (mouseImagePress?.pointerId === e.pointerId) mouseImagePress = null;
-      // Interrupted gesture: clear menu, selection and highlight without opening menu
-      getSelection().clearSelection();
-      pointerController.handlePointerCancel(e);
-      if (e.pointerType !== 'mouse') e.stopPropagation();
+      if (mouseImagePress?.pointerId === event.pointerId) mouseImagePress = null;
+      pointerController.handlePointerCancel(event);
+      // Native selection commonly cancels the pointer stream when handles open.
+      if (event.pointerType !== 'mouse' && !nativeCopyField(event.target)) event.stopPropagation();
     });
 
     if (hasTouchEvents) {
-      // The pointer stream owns the gesture, but the parallel touch stream
-      // still reaches xterm, whose own touchstart/touchmove handlers scroll
-      // the nested viewport and whose synthesized click focuses the hidden
-      // textarea. Consume that stream here so only one thing moves the
-      // terminal and a history swipe cannot summon the IME.
-      const suppressNativeTouch = (e: TouchEvent) => {
-        if (!eventIsInTerminal(e, true)) return;
+      const suppressNativeTouch = (event: TouchEvent) => {
+        if (!eventIsInTerminal(event, true)) return;
         debug?.((previous) => ({ ...previous, touchEvents: previous.touchEvents + 1 }));
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
+        if (nativeCopyField(event.target)) {
+          // A completed tap must not refocus the read-only field after xterm.
+          if (
+            event.type === 'touchend' &&
+            nativeTapEnded &&
+            !nativeCopySelection(container) &&
+            event.cancelable
+          )
+            event.preventDefault();
+          if (event.type === 'touchend' || event.type === 'touchcancel') nativeTapEnded = false;
+          return;
+        }
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
       };
       for (const name of ['touchstart', 'touchmove', 'touchend', 'touchcancel'] as const) {
         listen(name, suppressNativeTouch);
       }
     }
   } else {
-    listen('touchstart', (e) => {
-      if (!eventIsInTerminal(e)) return;
+    listen('touchstart', (event) => {
+      if (!eventIsInTerminal(event)) return;
       countEvent('touchEvents', 'touchstart');
-      if (dismissOpenMenu(e)) return;
-      if (e.touches.length === 1) e.stopPropagation();
-      pointerController.handleTouchStart(e, container);
+      if (selectionOwnsGesture()) return;
+      if (event.touches.length === 1 && !nativeCopyField(event.target)) event.stopPropagation();
+      pointerController.handleTouchStart(event, container);
     });
-    listen('touchmove', (e) => {
-      if (!eventIsInTerminal(e, true)) return;
+    listen('touchmove', (event) => {
+      if (!eventIsInTerminal(event, true)) return;
       countEvent('touchEvents', 'touchmove');
-      if (e.touches.length === 1) e.stopPropagation();
-      pointerController.handleTouchMove(e);
+      if (selectionOwnsGesture()) return;
+      if (event.touches.length === 1 && !nativeCopyField(event.target)) event.stopPropagation();
+      pointerController.handleTouchMove(event);
     });
-    listen('touchend', (e) => {
-      if (!eventIsInTerminal(e, true)) return;
+    listen('touchend', (event) => {
+      if (!eventIsInTerminal(event, true)) return;
       countEvent('touchEvents', 'touchend');
-      // CRITICAL: Determine whether this gesture was a longpress BEFORE pointerController.handleTouchEnd(e).
-      openMenuAfterSelectionDrag();
-      e.stopPropagation();
-      pointerController.handleTouchEnd(e);
+      if (selectionOwnsGesture()) return;
+      if (!nativeCopyField(event.target)) event.stopPropagation();
+      pointerController.handleTouchEnd(event);
     });
-    listen('touchcancel', (e) => {
-      if (!eventIsInTerminal(e, true)) return;
+    listen('touchcancel', (event) => {
+      if (!eventIsInTerminal(event, true)) return;
       countEvent('touchEvents', 'touchcancel');
-      // Cancellation: clear menu, selection and highlight without opening menu
-      getSelection().clearSelection();
-      e.stopPropagation();
       pointerController.handleTouchCancel();
+      if (!nativeCopyField(event.target)) event.stopPropagation();
     });
   }
 
-  // Right-click belongs to whatever is running in the terminal: Herdr draws
-  // its own menu when it receives the button-2 report, so xterm's mouse
-  // tracking is left to forward it. Only the browser's own menu is
-  // suppressed, and preventDefault on `contextmenu` alone does that without
-  // touching the button press xterm reports from.
-  const onContextMenuNative = (e: MouseEvent) => {
-    e.preventDefault();
+  const onContextMenu = (event: MouseEvent) => {
+    if (!nativeCopyField(event.target)) event.preventDefault();
   };
-  container.addEventListener('contextmenu', onContextMenuNative);
-  detachInput.push(() => container.removeEventListener('contextmenu', onContextMenuNative));
-
+  container.addEventListener('contextmenu', onContextMenu);
+  detachInput.push(() => container.removeEventListener('contextmenu', onContextMenu));
   return () => {
     pointerController.handlePointerCancel();
     for (const detach of detachInput) detach();

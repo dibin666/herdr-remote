@@ -29,7 +29,7 @@ import { type AttachedRenderer, attachTerminalRenderer } from './terminalRendere
 import type { hostPaletteToTheme } from './theme';
 import { writeBanner } from './banner';
 import { createTerminal } from './createTerminal';
-import { attachGestureInput, type GestureSelection } from './gestureInput';
+import { attachGestureInput } from './gestureInput';
 import { attachTerminalImages, type TerminalImages } from './images/attachTerminalImages';
 import { attachOsc52Clipboard } from './osc52Clipboard';
 import { attachLinkClickBridge } from './terminalLinks';
@@ -62,13 +62,6 @@ export interface XtermLive {
   openImagePreview: (image: ImageBitmap) => void;
 }
 
-/** Selection callbacks the terminal's own events drive. */
-export interface XtermSelection extends GestureSelection {
-  onTerminalRender(term: Terminal, start: number, end: number): void;
-  onTerminalScroll(term: Terminal): void;
-  onTerminalContentChanged(): void;
-}
-
 function refresh(term: Terminal | null): void {
   if (!term) return;
   try {
@@ -86,7 +79,6 @@ export function useXterm({
   currentScaleRef,
   initialBannerWrittenRef,
   live,
-  selection,
   prediction,
   fit,
   isTouchDevice,
@@ -109,7 +101,6 @@ export function useXterm({
   currentScaleRef: RefObject<number>;
   initialBannerWrittenRef: RefObject<boolean>;
   live: RefObject<XtermLive>;
-  selection: RefObject<XtermSelection>;
   prediction: ReturnType<typeof usePredictiveEcho>;
   fit: ReturnType<typeof useTerminalFit>;
   isTouchDevice: boolean;
@@ -291,12 +282,10 @@ export function useXterm({
       live.current.sendBinary(bytes);
     });
 
-    // Track terminal render updates and scroll events to invalidate highlight on redraw
-    // while keeping viewportY in sync across buffer scrolling.
+    // Font subsets follow rendered glyphs; native copy snapshots subscribe separately.
     const writeParsedDispose =
       typeof term.onWriteParsed === 'function'
         ? term.onWriteParsed(() => {
-            selection.current.onTerminalContentChanged();
             fieldProbe.invalidate();
             // Herdr fences every frame in ?2026, which xterm 5.5 ignores, and a
             // parse can end mid-frame. Judged against a half-drawn frame, good
@@ -328,14 +317,12 @@ export function useXterm({
               // ASCII never needs a cut; skip the common case cheaply.
               if (/[^\x00-\x7f]/.test(drawn)) live.current.ensureHostGlyphs(drawn);
             }
-            selection.current.onTerminalRender(term, e.start, e.end);
           })
         : { dispose: () => {} };
 
     const scrollDispose =
       typeof term.onScroll === 'function'
         ? term.onScroll(() => {
-            selection.current.onTerminalScroll(term);
             prediction.discard('scroll');
           })
         : { dispose: () => {} };
@@ -345,13 +332,11 @@ export function useXterm({
     const detachGestures = attachGestureInput({
       container,
       term,
-      isTouchDevice,
       debug,
       getTerminal: () => termRef.current,
       getIsController: () => live.current.isController,
       getScale: () => currentScaleRef.current,
       getSurfaceElement: () => surfaceRef.current,
-      getSelection: () => selection.current,
       getImageAt: (p) => images.imageAt(p.clientX, p.clientY),
       onImage: (image) => live.current.openImagePreview(image),
       onFocus: () => live.current.onTerminalFocus?.(),

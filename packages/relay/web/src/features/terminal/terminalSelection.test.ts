@@ -10,11 +10,13 @@ import {
 } from './terminalSelection';
 import {
   paneColumnBand,
-  clampRectToBand,
-  rectText,
   VERTICAL_BORDER_CHARS,
   PANE_DIVIDER_THRESHOLD,
+  paneRegionAt,
+  paneRegions,
 } from './paneSelection';
+import { clampRectToBand, flowRangeRows, flowRangeText, rectText } from './flowSelection';
+import { mirrorRangeOffsets, mirrorRegion } from './copyMode';
 
 /**
  * Creates a mock terminal cell.
@@ -611,9 +613,10 @@ describe('terminalSelection utils', () => {
       expect(rightResult).toEqual({ startCol: 41, endCol: 79 });
 
       // 3. Touch directly on the border column itself (col 40)
-      // Returns { startCol: 40, endCol: 40 } to isolate the divider without bleeding into either pane.
+      // A finger cannot aim at a hairline: it snaps to the pane opening to
+      // the right rather than collapsing to a dead one-column band.
       const borderResult = paneColumnBand(term, 40, 4);
-      expect(borderResult).toEqual({ startCol: 40, endCol: 40 });
+      expect(borderResult).toEqual({ startCol: 41, endCol: 79 });
     });
 
     it('returns full terminal width when no pane dividers exist on screen', () => {
@@ -647,12 +650,12 @@ describe('terminalSelection utils', () => {
 
       // Left pane (cols 0..24)
       expect(paneColumnBand(term, 10, 0)).toEqual({ startCol: 0, endCol: 24 });
-      // Left border (col 25)
-      expect(paneColumnBand(term, 25, 0)).toEqual({ startCol: 25, endCol: 25 });
+      // Left border (col 25) snaps to the pane opening to its right
+      expect(paneColumnBand(term, 25, 0)).toEqual({ startCol: 26, endCol: 54 });
       // Middle pane (cols 26..54)
       expect(paneColumnBand(term, 35, 0)).toEqual({ startCol: 26, endCol: 54 });
-      // Right border (col 55)
-      expect(paneColumnBand(term, 55, 0)).toEqual({ startCol: 55, endCol: 55 });
+      // Right border (col 55) snaps to the pane opening to its right
+      expect(paneColumnBand(term, 55, 0)).toEqual({ startCol: 56, endCol: 79 });
       // Right pane (cols 56..79)
       expect(paneColumnBand(term, 70, 0)).toEqual({ startCol: 56, endCol: 79 });
     });
@@ -705,8 +708,289 @@ describe('terminalSelection utils', () => {
       expect(paneColumnBand(term, 10, 7)).toEqual({ startCol: 0, endCol: 39 });
       // Touching right sub-pane (col 60) resolves to [41, 79]
       expect(paneColumnBand(term, 60, 7)).toEqual({ startCol: 41, endCol: 79 });
-      // Touching border directly (col 40) collapses to [40, 40]
-      expect(paneColumnBand(term, 40, 7)).toEqual({ startCol: 40, endCol: 40 });
+      // Touching border directly (col 40) snaps to the pane opening to its right
+      expect(paneColumnBand(term, 40, 7)).toEqual({ startCol: 41, endCol: 79 });
+    });
+  });
+
+  describe('paneRegionAt', () => {
+    function gridTerm(lines: ReturnType<typeof buildTerminalLine>[], cols = 80, viewportY = 0) {
+      return {
+        cols,
+        rows: lines.length,
+        buffer: {
+          active: {
+            viewportY,
+            length: lines.length,
+            getLine: (y: number) => lines[y],
+          },
+        },
+      } as unknown as Terminal;
+    }
+
+    function dividedLine(left: string, dividerCol: number, right: string, totalCols = 80) {
+      const cells: Array<{ char: string; width: number }> = [];
+      let x = 0;
+      for (const ch of left) {
+        if (x >= dividerCol) break;
+        cells.push({ char: ch, width: 1 });
+        x++;
+      }
+      while (cells.length < dividerCol) cells.push({ char: ' ', width: 1 });
+      cells[dividerCol] = { char: '│', width: 1 };
+      let rx = dividerCol + 1;
+      for (const ch of right) {
+        if (rx >= totalCols) break;
+        cells.push({ char: ch, width: 1 });
+        rx++;
+      }
+      while (cells.length < totalCols) cells.push({ char: '', width: 1 });
+      return createMockBufferLine(cells, totalCols);
+    }
+
+    it('bounds a stacked layout: full-width top pane above a split bottom', () => {
+      // Rows 0-4: full-width text; row 5: rule; rows 6-9: split at col 40.
+      const lines: ReturnType<typeof buildTerminalLine>[] = [];
+      for (let r = 0; r < 5; r++) lines.push(buildTerminalLine(`top line ${r}`, 80));
+      lines.push(buildTerminalLine('─'.repeat(80), 80));
+      for (let r = 6; r < 10; r++) lines.push(dividedLine(`left ${r}`, 40, `right ${r}`));
+      const term = gridTerm(lines, 80);
+
+      expect(paneRegionAt(term, 30, 2)).toEqual({
+        startCol: 0,
+        endCol: 79,
+        startRow: 0,
+        endRow: 4,
+      });
+      expect(paneRegionAt(term, 10, 8)).toEqual({
+        startCol: 0,
+        endCol: 39,
+        startRow: 6,
+        endRow: 9,
+      });
+      expect(paneRegionAt(term, 60, 8)).toEqual({
+        startCol: 41,
+        endCol: 79,
+        startRow: 6,
+        endRow: 9,
+      });
+    });
+
+    it('a side-by-side split keeps the row band bounded by rules inside the band', () => {
+      // Divider at col 40 full height; a '─' rule across the LEFT pane only at row 5.
+      const lines: ReturnType<typeof buildTerminalLine>[] = [];
+      for (let r = 0; r < 10; r++) {
+        if (r === 5) {
+          lines.push(
+            createMockBufferLine(
+              [
+                ...'─'
+                  .repeat(40)
+                  .split('')
+                  .map((ch) => ({ char: ch, width: 1 })),
+                { char: '│', width: 1 },
+                ...`right content ${r}`.split('').map((ch) => ({ char: ch, width: 1 })),
+                ...Array.from({ length: 65 }, () => ({ char: '', width: 1 })),
+              ].slice(0, 80),
+              80,
+            ),
+          );
+        } else {
+          lines.push(dividedLine(`left ${r}`, 40, `right ${r}`));
+        }
+      }
+      const term = gridTerm(lines, 80);
+
+      // Below the left-only rule: the region's row band stops at the viewport.
+      const lower = paneRegionAt(term, 10, 7);
+      expect(lower.startCol).toBe(0);
+      expect(lower.endCol).toBe(39);
+      expect(lower.startRow).toBe(6);
+
+      // Above it.
+      const upper = paneRegionAt(term, 10, 2);
+      expect(upper.endRow).toBe(4);
+
+      // The right pane sees no rule and spans all rows.
+      const right = paneRegionAt(term, 60, 7);
+      expect(right.startRow).toBe(0);
+      expect(right.endRow).toBe(9);
+    });
+
+    it('touching a horizontal rule snaps to the pane below it', () => {
+      const lines: ReturnType<typeof buildTerminalLine>[] = [];
+      for (let r = 0; r < 5; r++) lines.push(buildTerminalLine(`above ${r}`, 80));
+      lines.push(buildTerminalLine('─'.repeat(80), 80));
+      for (let r = 6; r < 10; r++) lines.push(buildTerminalLine(`below ${r}`, 80));
+      const term = gridTerm(lines, 80);
+
+      const region = paneRegionAt(term, 30, 5);
+      expect(region.startRow).toBe(6);
+      expect(region.endRow).toBe(9);
+      expect(region.startCol).toBe(0);
+      expect(region.endCol).toBe(79);
+    });
+  });
+
+  describe('flowRangeText / flowRangeRows', () => {
+    function gridTerm(lines: ReturnType<typeof buildTerminalLine>[], cols = 80, viewportY = 0) {
+      return {
+        cols,
+        rows: lines.length,
+        buffer: {
+          active: {
+            viewportY,
+            length: lines.length,
+            getLine: (y: number) => lines[y],
+          },
+        },
+      } as unknown as Terminal;
+    }
+
+    it('a wrapped URL copies whole instead of chopping at the band edge', () => {
+      const url = 'https://example.com/very/long/path/that/wraps/across/lines';
+      const lines = [
+        buildTerminalLine(`prefix ${url.slice(0, 20)}`, 80),
+        // isWrapped marks the line as the continuation of the previous one:
+        // the three visual rows are one logical line and join without '\n'.
+        { ...buildTerminalLine(url.slice(20, 45), 80), isWrapped: true },
+        { ...buildTerminalLine(`${url.slice(45)} suffix`, 80), isWrapped: true },
+      ];
+      const term = gridTerm(lines, 80);
+      const region = { startCol: 0, endCol: 79, startRow: 0, endRow: 2 };
+      const range = {
+        anchor: { col: 7, row: 0 },
+        caret: { col: url.slice(45).length - 1, row: 2 },
+      };
+      const text = flowRangeText(term, range, region);
+      expect(text).toBe(url);
+    });
+
+    it('reversed drags produce the same text in reading order', () => {
+      const lines = [buildTerminalLine('hello world', 80)];
+      const term = gridTerm(lines, 80);
+      const region = { startCol: 0, endCol: 79, startRow: 0, endRow: 0 };
+      const text = flowRangeText(
+        term,
+        { anchor: { col: 10, row: 0 }, caret: { col: 0, row: 0 } },
+        region,
+      );
+      expect(text).toBe('hello world');
+    });
+
+    it('flowRangeRows paints a middle row as the full band', () => {
+      const region = { startCol: 10, endCol: 30, startRow: 0, endRow: 4 };
+      const range = {
+        anchor: { col: 12, row: 1 },
+        caret: { col: 20, row: 3 },
+      };
+      const rows = flowRangeRows(range, region);
+      expect(rows).toEqual([
+        { row: 1, startCol: 12, endCol: 30 },
+        { row: 2, startCol: 10, endCol: 30 },
+        { row: 3, startCol: 10, endCol: 20 },
+      ]);
+    });
+  });
+
+  describe('paneRegions', () => {
+    function gridTerm(lines: ReturnType<typeof buildTerminalLine>[], cols = 80, viewportY = 0) {
+      return {
+        cols,
+        rows: lines.length,
+        buffer: {
+          active: {
+            viewportY,
+            length: lines.length,
+            getLine: (y: number) => lines[y],
+          },
+        },
+      } as unknown as Terminal;
+    }
+
+    function dividedLine(left: string, dividerCol: number, right: string, totalCols = 80) {
+      const cells: Array<{ char: string; width: number }> = [];
+      let x = 0;
+      for (const ch of left) {
+        if (x >= dividerCol) break;
+        cells.push({ char: ch, width: 1 });
+        x++;
+      }
+      while (cells.length < dividerCol) cells.push({ char: ' ', width: 1 });
+      cells[dividerCol] = { char: '│', width: 1 };
+      let rx = dividerCol + 1;
+      for (const ch of right) {
+        if (rx >= totalCols) break;
+        cells.push({ char: ch, width: 1 });
+        rx++;
+      }
+      while (cells.length < totalCols) cells.push({ char: '', width: 1 });
+      return createMockBufferLine(cells, totalCols);
+    }
+
+    it('enumerates a stacked layout into three leaf panes', () => {
+      const lines: ReturnType<typeof buildTerminalLine>[] = [];
+      for (let r = 0; r < 5; r++) lines.push(buildTerminalLine(`top line ${r}`, 80));
+      lines.push(buildTerminalLine('─'.repeat(80), 80));
+      for (let r = 6; r < 10; r++) lines.push(dividedLine(`left ${r}`, 40, `right ${r}`));
+      const term = gridTerm(lines, 80);
+
+      const regions = paneRegions(term);
+      expect(regions).toHaveLength(3);
+      expect(regions).toContainEqual({ startCol: 0, endCol: 79, startRow: 0, endRow: 4 });
+      expect(regions).toContainEqual({ startCol: 0, endCol: 39, startRow: 6, endRow: 9 });
+      expect(regions).toContainEqual({ startCol: 41, endCol: 79, startRow: 6, endRow: 9 });
+    });
+
+    it('an unsplit screen is one full-width region', () => {
+      const lines = Array.from({ length: 5 }, (_, r) => buildTerminalLine(`plain ${r}`, 80));
+      const term = gridTerm(lines, 80);
+      expect(paneRegions(term)).toEqual([{ startCol: 0, endCol: 79, startRow: 0, endRow: 4 }]);
+    });
+  });
+
+  describe('copyMode mirror', () => {
+    function gridTerm(lines: ReturnType<typeof buildTerminalLine>[], cols = 80, viewportY = 0) {
+      return {
+        cols,
+        rows: lines.length,
+        buffer: {
+          active: {
+            viewportY,
+            length: lines.length,
+            getLine: (y: number) => lines[y],
+          },
+        },
+      } as unknown as Terminal;
+    }
+
+    it('mirrorRegion maps a CJK cell to one code unit across two columns', () => {
+      const lines = [buildTerminalLine('ab中文cd', 80)];
+      const term = gridTerm(lines, 80);
+      const region = { startCol: 0, endCol: 7, startRow: 0, endRow: 0 };
+      const mirror = mirrorRegion(term, region);
+      expect(mirror.rows).toHaveLength(1);
+      // 'a'(col0) 'b'(col1) '中'(col2-3) '文'(col4-5) 'c'(col6) 'd'(col7)
+      expect(mirror.rows[0].text.startsWith('ab中文cd')).toBe(true);
+      // The continuation column of 中 (col 3) maps to the next cell's start
+      // offset, so a DOM boundary there lands after the wide glyph.
+      expect(mirror.rows[0].colCharStart[3]).toBe(mirror.rows[0].colCharStart[4]);
+      expect(mirror.rows[0].colCharStart[2]).toBe(2);
+    });
+
+    it('mirrorRangeOffsets converts a flow range to flat text offsets', () => {
+      const lines = [buildTerminalLine('first row', 80), buildTerminalLine('second row', 80)];
+      const term = gridTerm(lines, 80);
+      const region = { startCol: 0, endCol: 79, startRow: 0, endRow: 1 };
+      const mirror = mirrorRegion(term, region);
+      const offsets = mirrorRangeOffsets(mirror, {
+        anchor: { col: 1, row: 0 },
+        caret: { col: 2, row: 1 },
+      });
+      expect(offsets).not.toBeNull();
+      // Row 0 occupies 80 chars + '\n' = 81; anchor offset 1, caret 81+2.
+      expect(offsets?.anchor).toBe(1);
+      expect(offsets?.caret).toBe(83);
     });
   });
 

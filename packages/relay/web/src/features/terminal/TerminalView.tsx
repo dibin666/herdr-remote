@@ -12,12 +12,11 @@ import { attentionCounts } from '@/features/agents/agentAttention';
 import { applyDocumentTitle } from '@/features/agents/documentTitle';
 import { KeyboardOfferButton, useKeyboardOffer } from './KeyboardOfferButton';
 import { isCoarsePointerDevice } from './terminalLayout';
-import { openTerminalLink } from './terminalLinks';
 import type { AttachedRenderer } from './terminalRenderer';
+import { TerminalCopySurface } from './TerminalCopySurface';
+import { nativeCopyField } from './nativeCopy';
 import { hostPaletteToTheme } from './theme';
-import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
 import { ImageLightbox } from './images/ImageLightbox';
-import { TerminalSelectionMenu } from './TerminalSelectionMenu';
 import {
   INITIAL_TOUCH_DEBUG,
   isTouchDebugEnabled,
@@ -29,7 +28,6 @@ import { useLatest } from './useLatest';
 import { usePasteActions } from './usePasteActions';
 import { usePredictiveEcho } from '@/features/prediction/usePredictiveEcho';
 import { useTerminalFit } from './useTerminalFit';
-import { SelectionOverlay, useTerminalSelection } from './useTerminalSelection';
 import { useXterm, type XtermLive } from './useXterm';
 
 export {
@@ -162,21 +160,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
    */
   const [terminalTitle, setTerminalTitle] = useState<string | null>(null);
 
-  const selection = useTerminalSelection({
-    termRef,
-    surfaceRef,
-    mainRef,
-    currentScaleRef,
-    addToast,
-    t,
-  });
-  const selectionRef = useLatest(selection);
+  const [nativeCopyActive, setNativeCopyActive] = useState(false);
 
-  const paste = usePasteActions({
+  usePasteActions({
     termRef,
-    isController,
-    warnViewerMode,
-    uploadImage,
     addToast,
     t,
     onPaste: () => prediction.discard('paste'),
@@ -205,7 +192,6 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
     currentScaleRef,
     initialBannerWrittenRef,
     live,
-    selection: selectionRef,
     prediction,
     fit,
     isTouchDevice,
@@ -271,7 +257,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
    * makes Herdr's own menu appear, at the cell the user actually clicked.
    */
   const suppressBrowserMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
+    if (!nativeCopyField(e.target)) e.preventDefault();
   };
 
   return (
@@ -316,6 +302,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
               height: '100%',
             }}
           />
+          {isTouchDevice && isActive && termRef.current && (
+            <TerminalCopySurface
+              term={termRef.current}
+              surface={surfaceRef.current}
+              container={containerRef.current}
+              t={t}
+              onSelectionChange={setNativeCopyActive}
+            />
+          )}
         </div>
       </div>
 
@@ -332,18 +327,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
         />
       )}
 
-      {isTouchDevice && selection.selectionRect && selection.isHighlightVisible && (
-        <SelectionOverlay
-          term={termRef.current}
-          surface={surfaceRef.current}
-          main={mainRef.current}
-          rect={selection.selectionRect}
-          viewportY={selection.viewportY}
-        />
-      )}
-
-      {/* A selection is somewhere else the finger is working; keep out of its way. */}
-      {keyboardOffer.box && !selection.selectionRect && !selection.selectionMenu && (
+      {/* The native selection owns the finger until it is dismissed. */}
+      {keyboardOffer.box && !nativeCopyActive && (
         <KeyboardOfferButton
           term={termRef.current}
           surface={surfaceRef.current}
@@ -354,38 +339,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ onTerminalFocus, isA
         />
       )}
 
-      {isTouchDevice && selection.selectionMenu && (
-        <TerminalSelectionMenu
-          anchorPoint={selection.selectionMenu}
-          hasSelection={Boolean(selection.selectionSnapshot)}
-          isController={isController}
-          vibrateOnKeyPress={settings.vibrateOnKeyPress}
-          linkUrl={selection.selectionMenu.link ?? null}
-          onOpenLink={(url) => {
-            if (!openTerminalLink(url)) addToast('warning', t('clipboard.openLinkFailed'));
-          }}
-          onCopySelection={selection.handleCopySelection}
-          onCopyLine={selection.handleCopyLine}
-          onCopyScreen={selection.handleCopyScreen}
-          onPaste={paste.handlePaste}
-          onClose={selection.clearSelection}
-        />
-      )}
-
       {previewImage ? (
         <ImageLightbox image={previewImage} onClose={() => setPreviewImage(null)} />
       ) : null}
-
-      {/* Mounted only while open, so each opening starts empty. Clearing it in
-          an effect on open raced a paste made the instant it appeared. */}
-      {isTouchDevice && paste.isPasteFallbackOpen && (
-        <PasteFallbackModal
-          isOpen={paste.isPasteFallbackOpen}
-          onClose={paste.closePasteFallback}
-          onSend={paste.handleFallbackPasteSend}
-          onSendImage={paste.handleFallbackImageSend}
-        />
-      )}
     </main>
   );
 };

@@ -11,9 +11,8 @@
  *  - a vertical drag scrolls xterm's normal-buffer scrollback, or becomes an
  *    application wheel/arrow gesture when the foreground app owns an
  *    alternate-screen buffer;
- *  - a long press is consumed rather than becoming an accidental text
- *    selection/copy gesture. Keyboard input is an explicit UI action on touch
- *    devices.
+ *  - a long press on a read-only copy control keeps the native selection
+ *    gesture; other holds are consumed so they cannot become terminal clicks.
  *
  * Touch/pen gestures are handled by the controller so a vertical swipe can be
  * scrolled deterministically. Touch pointers are never captured, because
@@ -37,8 +36,7 @@ import {
 
 export interface TouchMouseOptions extends PointerDeliveryOptions {
   onLongPress?: (point: { clientX: number; clientY: number }) => void;
-  onLongPressMenu?: (point: { clientX: number; clientY: number }) => void;
-  onSelectionExtend?: (point: { clientX: number; clientY: number }) => void;
+  isNativeSelectionTarget?: (target: EventTarget | null) => boolean;
   onFocus?: () => void;
   /** A tap that missed the live input row, or came from a viewer. */
   onTapOutsideInput?: () => void;
@@ -66,7 +64,6 @@ export interface TouchMouseOptions extends PointerDeliveryOptions {
     scrollMode: 'buffer' | 'application-mouse' | 'application-keys' | 'none';
   }) => void;
   longPressDelayMs?: number;
-  longPressMenuDelayMs?: number;
   dragThresholdPx?: number;
   scrollLineHeightPx?: number;
 }
@@ -86,7 +83,7 @@ export class TerminalPointerController {
   private lastY = 0;
   private activeTarget: EventTarget | null = null;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
-  private longPressMenuTimer: ReturnType<typeof setTimeout> | null = null;
+  private nativeSelectionGesture = false;
   private capturedPointerId: number | null = null;
   private captureElement: HTMLElement | null = null;
   private scrollRemainderY = 0;
@@ -95,7 +92,6 @@ export class TerminalPointerController {
   constructor(options: TouchMouseOptions) {
     this.options = {
       longPressDelayMs: 500,
-      longPressMenuDelayMs: 1_000,
       dragThresholdPx: 8,
       scrollLineHeightPx: 18,
       ...options,
@@ -115,7 +111,7 @@ export class TerminalPointerController {
 
   // ---------------------------------------------------------------- gestures
 
-  private beginGesture(point: GesturePoint, container: HTMLElement): void {
+  private beginGesture(point: GesturePoint, container: HTMLElement, nativeSelection = false): void {
     this.startX = point.clientX;
     this.startY = point.clientY;
     this.lastX = point.clientX;
@@ -123,20 +119,16 @@ export class TerminalPointerController {
     this.setGestureState('pending');
     this.scrollRemainderY = 0;
     this.activeTarget = this.delivery.resolveDispatchTarget(point, container);
-
+    this.nativeSelectionGesture = nativeSelection;
     this.clearLongPressTimer();
     this.longPressTimer = setTimeout(() => {
       if (this.state === 'pending') {
         this.setGestureState('longpress');
-        this.options.onLongPress?.({ clientX: this.startX, clientY: this.startY });
+        if (!this.nativeSelectionGesture) {
+          this.options.onLongPress?.({ clientX: this.startX, clientY: this.startY });
+        }
       }
     }, this.options.longPressDelayMs);
-    this.longPressMenuTimer = setTimeout(() => {
-      this.longPressMenuTimer = null;
-      if (this.state === 'longpress') {
-        this.options.onLongPressMenu?.({ clientX: this.startX, clientY: this.startY });
-      }
-    }, this.options.longPressMenuDelayMs);
   }
 
   private moveGesture(point: GesturePoint, event?: CancellableEvent): void {
@@ -147,9 +139,7 @@ export class TerminalPointerController {
     const distance = Math.hypot(dx, dy);
 
     if (this.state === 'longpress') {
-      if (distance > (this.options.dragThresholdPx || 8)) this.clearLongPressMenuTimer();
-      this.options.onSelectionExtend?.({ clientX: point.clientX, clientY: point.clientY });
-      if (event?.cancelable) event.preventDefault?.();
+      if (!this.nativeSelectionGesture && event?.cancelable) event.preventDefault?.();
       return;
     }
     if (this.state === 'scrolling') {
@@ -329,15 +319,16 @@ export class TerminalPointerController {
     // must not reach xterm's native mousedown handler (which focuses the
     // hidden textarea for every row). Focus is requested only after a tap is
     // classified and lands on the live input row.
-    if (e.cancelable) e.preventDefault();
-    this.beginGesture(e, container);
+    const native = this.options.isNativeSelectionTarget?.(e.target) === true;
+    if (!native && e.cancelable) e.preventDefault();
+    this.beginGesture(e, container, native);
 
     // Do not capture touch pointers: capture can prevent Android's compositor
     // from handing a vertical gesture to the native xterm viewport. The touch
     // event path is preferred on phones; this pointer path remains a fallback
     // for browsers without TouchEvent. Non-touch pointers may still be
     // captured so an application mouse drag can finish outside the terminal.
-    if (e.pointerType !== 'touch') {
+    if (!native && e.pointerType !== 'touch') {
       try {
         if (typeof container.setPointerCapture === 'function') {
           container.setPointerCapture(e.pointerId);
@@ -359,6 +350,7 @@ export class TerminalPointerController {
   public handlePointerUp(e: PointerEvent): void {
     if (e.pointerType === 'mouse' || this.state === 'idle') return;
     this.releasePointerCapture();
+    if (this.nativeSelectionGesture && this.state === 'pending' && e.cancelable) e.preventDefault();
     this.endGesture(e, e);
   }
 
@@ -378,8 +370,9 @@ export class TerminalPointerController {
     // Own the full touch sequence. This suppresses xterm's compatibility
     // mousedown focus and leaves the controller as the only path that can
     // focus the helper textarea after a live-input-row tap.
-    if (e.cancelable) e.preventDefault();
-    this.beginGesture(e.touches[0], container);
+    const native = this.options.isNativeSelectionTarget?.(e.target) === true;
+    if (!native && e.cancelable) e.preventDefault();
+    this.beginGesture(e.touches[0], container, native);
   }
 
   public handleTouchMove(e: TouchEvent): void {
@@ -391,7 +384,9 @@ export class TerminalPointerController {
     // Prevent the compatibility click that mobile browsers synthesize after
     // touchend. That click would reach xterm's native handler and focus its
     // helper textarea even when this gesture was a history swipe.
-    if (e.cancelable) e.preventDefault();
+    if (e.cancelable && (!this.nativeSelectionGesture || this.state !== 'longpress')) {
+      e.preventDefault();
+    }
     this.endGesture(null, e);
   }
 
@@ -443,18 +438,11 @@ export class TerminalPointerController {
       clearTimeout(this.longPressTimer);
       this.longPressTimer = null;
     }
-    this.clearLongPressMenuTimer();
-  }
-
-  private clearLongPressMenuTimer(): void {
-    if (this.longPressMenuTimer) {
-      clearTimeout(this.longPressMenuTimer);
-      this.longPressMenuTimer = null;
-    }
   }
 
   private reset(): void {
     this.clearLongPressTimer();
+    this.nativeSelectionGesture = false;
     this.releasePointerCapture();
     this.setGestureState('idle');
     this.activeTarget = null;

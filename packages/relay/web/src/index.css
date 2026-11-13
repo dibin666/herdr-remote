@@ -41,7 +41,7 @@
   --tui-border-bright: #585b70;
   --tui-text: #cdd6f4;
   --tui-muted: #a6adc8;
-  --tui-faint: #6c7086;
+  --tui-faint: #9399b2;
   --tui-accent: #89b4fa;
   --tui-ok: #a6e3a1;
   --tui-warn: #f9e2af;
@@ -284,6 +284,13 @@ select.tui-input option {
      remainder centres the grid, so both edges get the same few pixels. */
   #terminal-surface .xterm-screen {
     margin-inline: auto;
+  }
+}
+
+/* A narrow mouse-driven window still sends its clicks to xterm. */
+@media (pointer: fine) {
+  .terminal-copy-field {
+    pointer-events: none;
   }
 }
 

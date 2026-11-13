@@ -350,7 +350,6 @@ export const en = {
     search: 'Search',
   },
   virtualKeyboard: {
-    collapseToolbar: 'Collapse Toolbar',
     expandToolbar: 'Expand Toolbar',
     customizeTitle: 'Custom Key Toolbar',
     customizeDesc: 'Reorder, enable, or disable keys for your toolbar.',
@@ -401,8 +400,6 @@ export const en = {
     uploadProgressWaitingHost: 'Waiting for host...',
     uploadProgressCompleted: 'Completed',
     uploadProgressFailed: 'Upload failed',
-    pageBase: 'base keys',
-    pageAgent: 'agent · files',
   },
   profiles: {
     title: 'Herdr instances',
@@ -736,9 +733,7 @@ export const en = {
   clipboard: {
     openLink: 'Open Link',
     openLinkFailed: 'This link cannot be opened from the browser',
-    copySelection: 'Copy Selection',
-    copyLine: 'Copy Line',
-    copyScreen: 'Copy Screen',
+    nativeCopyRegion: 'Terminal text: long-press to use system selection and Copy',
     paste: 'Paste',
     cancel: 'Cancel',
     copied: 'Copied to clipboard',
