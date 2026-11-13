@@ -1,6 +1,7 @@
 /** Read-only text controls give a canvas terminal the phone's native copy UI. */
 import type { Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { Translate } from '@/shared/i18n';
 import { mirrorRegion, mirrorSelectionText, type MirrorRegion } from './copyMode';
 import {
@@ -10,6 +11,9 @@ import {
 } from './nativeCopy';
 import { paneRegions } from './paneSelection';
 import { measureCellDimensions } from './terminalFit';
+
+/** Buffer-quiet interval before the mirror fields are rewritten. */
+const MIRROR_REFRESH_MS = 100;
 
 interface RegionLayout {
   mirror: MirrorRegion;
@@ -36,21 +40,36 @@ export function TerminalCopySurface({
   const rootRef = useRef<HTMLDivElement>(null);
   const fieldRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const frozenRef = useRef(false);
-  const frameRef = useRef<number | null>(null);
+  const timerRef = useRef<number | null>(null);
   const pressRef = useRef<{ x: number; y: number } | null>(null);
   const [revision, setRevision] = useState(0);
   const [fontRevision, setFontRevision] = useState(0);
-  const [pressedField, setPressedField] = useState<HTMLTextAreaElement | null>(null);
   const [selectedField, setSelectedField] = useState<HTMLTextAreaElement | null>(null);
 
+  // Buffer churn during a scroll swipe arrives every frame; rewriting the
+  // mirror fields that often makes the overlay flicker over the canvas. Wait
+  // for a pause instead — nobody can hold a selection mid-swipe.
   const refresh = useCallback(() => {
-    if (frameRef.current !== null) return;
-    frameRef.current = requestAnimationFrame(() => {
-      frameRef.current = null;
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
       const root = rootRef.current;
       if (frozenRef.current || (root && nativeCopySelection(root))) return;
       setRevision((value) => value + 1);
-    });
+    }, MIRROR_REFRESH_MS);
+  }, []);
+
+  // A press freezes updates for the hold, so the mirror must be caught up
+  // first — a debounced update still pending from the last scroll would
+  // otherwise leave the field showing pre-scroll text.
+  const refreshNow = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const root = rootRef.current;
+    if (frozenRef.current || (root && nativeCopySelection(root))) return;
+    flushSync(() => setRevision((value) => value + 1));
   }, []);
 
   const readSelection = useCallback(() => {
@@ -65,7 +84,6 @@ export function TerminalCopySurface({
   const clearSelection = useCallback(() => {
     pressRef.current = null;
     frozenRef.current = false;
-    setPressedField(null);
     setSelectedField(null);
     onSelectionChange(false);
     refresh();
@@ -81,7 +99,6 @@ export function TerminalCopySurface({
       if (field && rootRef.current?.contains(field)) field.blur();
       pressRef.current = null;
       frozenRef.current = false;
-      setPressedField(null);
       readSelection();
       refresh();
     });
@@ -100,8 +117,8 @@ export function TerminalCopySurface({
       resize.dispose();
       document.removeEventListener('selectionchange', readSelection);
       fonts?.removeEventListener?.('loadingdone', onFontsLoaded);
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
       onSelectionChange(false);
     };
   }, [term, onSelectionChange, readSelection, refresh]);
@@ -147,14 +164,13 @@ export function TerminalCopySurface({
 
   const prepare = (field: HTMLTextAreaElement, point: { clientX: number; clientY: number }) => {
     // Focus can blur another copy field; freeze only after that cleanup runs.
+    refreshNow();
     field.focus({ preventScroll: true });
     frozenRef.current = true;
     pressRef.current = { x: point.clientX, y: point.clientY };
-    setPressedField(field);
   };
   const release = () => {
     pressRef.current = null;
-    setPressedField(null);
     readSelection();
   };
   const move = (point: { clientX: number; clientY: number }) => {
@@ -178,8 +194,9 @@ export function TerminalCopySurface({
       className="pointer-events-none absolute inset-0 z-20"
     >
       {layout.regions.map((region, index) => {
-        const active =
-          fieldRefs.current[index] === pressedField || fieldRefs.current[index] === selectedField;
+        // Only a real selection turns the mirror opaque: showing it on press
+        // alone flashes a solid block over the canvas on every scroll swipe.
+        const active = fieldRefs.current[index] === selectedField;
         return (
           <textarea
             key={region.key}
