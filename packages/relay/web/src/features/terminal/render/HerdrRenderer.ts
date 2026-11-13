@@ -329,12 +329,16 @@ export class HerdrRenderer implements XtermRenderer {
     const began = this.now();
     const buffer = this.buffer();
     const ydisp = buffer.ydisp;
-    if (ydisp !== this.lastYdisp) {
+    const viewportMoved = ydisp !== this.lastYdisp;
+    if (viewportMoved) {
       this.lastYdisp = ydisp;
+      // Scrolling is a direct manipulation, not typing: no cell fades or caret glide.
       this.cells.fades.clear();
-      this.redrawDecor();
+      this.glide.reset();
+      this.slidingCaret = null;
     }
-    const zone = this.reducedMotion?.matches ? null : (this.typingZoneProvider?.() ?? null);
+    const zone =
+      this.reducedMotion?.matches || viewportMoved ? null : (this.typingZoneProvider?.() ?? null);
     const typingY = zone ? zone.row - ydisp : -1;
 
     const overlay = this.overlayProvider?.() ?? null;
@@ -363,14 +367,19 @@ export class HerdrRenderer implements XtermRenderer {
       const typing = y === typingY ? { start: zone!.startCol, end: zone!.endCol } : null;
       cells += this.cells.paintRow(y, cursor, typing, began);
     }
-    // A fade or a slide still running needs the next frame too.
+    // A fade or a slide still running needs the next frame too. A viewport
+    // move is finished in this paint instead of being continued as typing.
     if (this.cells.fades.size > 0) {
-      this.requestAbsoluteRows([...this.cells.fades.rows(this.cols)].map((y) => y + ydisp));
+      if (viewportMoved) this.cells.fades.clear();
+      else this.requestAbsoluteRows([...this.cells.fades.rows(this.cols)].map((y) => y + ydisp));
     }
     if (sliding || this.slidingCaret) {
       this.slidingCaret = sliding;
       this.redrawDecor();
       if (sliding) this.requestAbsoluteRows([sliding.y + ydisp]);
+    } else if (viewportMoved) {
+      this.slidingCaret = null;
+      this.redrawDecor(null);
     }
 
     this.paintedOverlayRows = new Set(overlayByRow.keys());
@@ -423,7 +432,7 @@ export class HerdrRenderer implements XtermRenderer {
   // ---------------------------------------------------------------------------
   // Selection and link underline, on their own layer
 
-  private redrawDecor(): void {
+  private redrawDecor(caret: SlidingCaret | null = this.slidingCaret): void {
     this.surface.decor.paint({
       dims: this.dimensions.device,
       rows: this.rows,
@@ -433,7 +442,7 @@ export class HerdrRenderer implements XtermRenderer {
       focused: this.core._coreBrowserService.isFocused,
       dpr: this.core._coreBrowserService.dpr,
       cursorWidth: this.core.optionsService.rawOptions.cursorWidth,
-      caret: this.slidingCaret,
+      caret,
     });
   }
 

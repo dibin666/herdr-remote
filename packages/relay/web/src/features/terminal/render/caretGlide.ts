@@ -37,6 +37,7 @@ export class CaretGlide {
   private toX = 0;
   private start = 0;
   private sliding = false;
+  private skipUpdate = false;
 
   /**
    * Follows the caret to `target`. A move along viewport row `typingY` slides
@@ -44,6 +45,12 @@ export class CaretGlide {
    * Returns the caret while it slides, and null once it rests.
    */
   update(target: CaretTarget | null, typingY: number, now: number): SlidingCaret | null {
+    if (this.skipUpdate) {
+      this.skipUpdate = false;
+      this.sliding = false;
+      this.last = target && { x: target.x, y: target.y };
+      return null;
+    }
     const last = this.last;
     this.last = target && { x: target.x, y: target.y };
     if (!target) {
@@ -67,6 +74,13 @@ export class CaretGlide {
       return null;
     }
     return { x: this.x(now), y: target.y, shape: target.shape, css: target.css };
+  }
+
+  /** A viewport move jumps the caret to where the buffer is now. */
+  reset(): void {
+    this.last = null;
+    this.sliding = false;
+    this.skipUpdate = true;
   }
 
   private x(now: number): number {

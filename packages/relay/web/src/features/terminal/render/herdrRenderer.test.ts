@@ -532,6 +532,25 @@ describe('HerdrRenderer caret glide', () => {
     return t;
   }
 
+  it('does not animate a frame caused only by the viewport moving', async () => {
+    const t = await typing();
+    const renderer = t.renderer as unknown as {
+      cells: { fades: { size: number } };
+      glide: { last: { x: number; y: number } | null };
+      slidingCaret: { x: number; y: number } | null;
+    };
+    await t.write('c');
+    t.frame();
+    const fading = renderer.cells.fades.size;
+    expect(fading).toBeGreaterThan(0);
+    renderer.glide.last = { x: 2, y: 0 };
+    renderer.slidingCaret = { x: 2, y: 0 };
+    const buffer = (t.term as unknown as { buffer: { active: { ydisp: number } } }).buffer.active;
+    buffer.ydisp = 1;
+    t.frame();
+    expect(renderer.cells.fades.size).toBeLessThanOrEqual(fading);
+  });
+
   it('slides the cursor along the typing row above the text, then paints it into its cell', async () => {
     const t = await typing();
     await t.write('c');

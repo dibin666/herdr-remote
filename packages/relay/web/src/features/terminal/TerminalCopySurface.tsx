@@ -129,7 +129,7 @@ export function TerminalCopySurface({
       });
     }
     return { regions, cellWidth: cell.cellWidth, cellHeight: cell.cellHeight };
-  }, [term, surface, container, revision]);
+  }, [term, surface, container, revision, fontRevision]);
 
   const family = term.options.fontFamily || 'monospace';
   const baseFontSize = term.options.fontSize || 14;
