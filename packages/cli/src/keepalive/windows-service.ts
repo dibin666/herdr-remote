@@ -77,7 +77,7 @@ export function windowsServiceSddl(userSid: string): string {
     '(A;;CCLCSWLOCRRC;;;SU)',
     `(A;;CCLCSWRPWPDTLOCRRC;;;${userSid})`,
   ];
-  return 'D:' + accessEntries.join('');
+  return `D:${accessEntries.join('')}`;
 }
 
 export function renderWinswConfig(options: WinswConfigOptions): string {

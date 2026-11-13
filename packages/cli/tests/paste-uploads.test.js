@@ -139,7 +139,7 @@ test('a valid image signature passes; files are never sniffed', (t) => {
 });
 
 test('a duplicate or uninvited slice is ignored, not written twice', (t) => {
-  const { uploads, sent, tmpDir } = setup(t);
+  const { uploads, sent } = setup(t);
   const bytes = Buffer.from('hello world, this is one small file');
   uploads.begin('stream-1', {
     requestId: 'up5',
@@ -173,7 +173,7 @@ test('a duplicate or uninvited slice is ignored, not written twice', (t) => {
 });
 
 test('dropping a stream erases its partial upload', (t) => {
-  const { uploads, sent, tmpDir } = setup(t);
+  const { uploads, tmpDir } = setup(t);
   uploads.begin('stream-1', {
     requestId: 'up6',
     mime: 'application/octet-stream',
