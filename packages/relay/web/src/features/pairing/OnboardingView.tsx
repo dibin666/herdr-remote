@@ -112,10 +112,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
         {/* Banner: the program announcing itself, as a terminal program does. */}
         <div className="border border-tui-border bg-tui-base px-3 py-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span aria-hidden="true" className="font-bold text-tui-accent">
-              herdr-remote
-            </span>
-            <h1 className="text-tui font-bold text-tui-text">{t('onboarding.title')}</h1>
+            <h1 className="text-tui font-bold text-tui-accent">{t('onboarding.title')}</h1>
             <span className="text-tui uppercase text-tui-warn">
               {t('onboarding.firstTimeSetup')}
             </span>

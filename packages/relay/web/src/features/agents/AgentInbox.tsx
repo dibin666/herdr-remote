@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AgentStatusEntry, ServerAgentStatusMessage } from '@protocol/messages';
 import { useConnection, useSettings } from '@/context/TerminalContext';
 import { useMobileShell } from '@/features/mobile/mobileShell';
+import { useSheetDragClose } from '@/features/mobile/sheetDrag';
 import { cn } from '@/shared/lib/cn';
 import { GLYPH, type StatusLevel, TONE } from '@/shared/ui';
 import type { TranslationKey } from '@/shared/i18n';
@@ -28,7 +29,7 @@ const STATUS_TONE: Record<string, { level: StatusLevel; glyph: string; key: Tran
 type PaneAction = 'focus' | 'approve' | 'reject' | 'interrupt';
 
 const actionClass =
-  'tui-focusable select-none border border-tui-border bg-tui-mantle px-1.5 py-0.5 text-tui-sm transition-colors hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
+  'tui-focusable shrink-0 select-none whitespace-nowrap border border-tui-border bg-tui-mantle px-1.5 py-0.5 text-tui-sm transition-colors hover:border-tui-accent hover:text-tui-accent active:bg-tui-selection';
 
 function ActionButton({
   action,
@@ -57,11 +58,13 @@ function ActionButton({
 
 function AgentRow({
   agent,
+  current,
   actionable,
   onAction,
   t,
 }: {
   agent: AgentStatusEntry;
+  current: boolean;
   actionable: boolean;
   onAction: (paneId: string, action: PaneAction) => void;
   t: (k: TranslationKey) => string;
@@ -71,58 +74,69 @@ function AgentRow({
   return (
     <div
       data-testid="agent-inbox-row"
-      className={cn('border border-tui-border px-2 py-1.5 text-tui', blocked && 'border-tui-warn')}
+      aria-current={current ? 'true' : undefined}
+      className={cn(
+        'flex items-center gap-2 border border-tui-border px-2 py-1.5 text-tui',
+        blocked && 'border-tui-warn',
+        current && 'bg-tui-accent/10',
+        current && !blocked && 'border-tui-accent',
+      )}
     >
-      <div className="flex items-center gap-1.5">
-        <span aria-hidden="true" className={cn('shrink-0', TONE[tone.level].text)}>
-          {tone.glyph}
-        </span>
-        <span className={cn('shrink-0 text-tui-sm', TONE[tone.level].text)}>{t(tone.key)}</span>
-        <span className="min-w-0 truncate text-tui-text">
-          {[agent.workspaceId, agent.agent].filter(Boolean).join(' · ') || t('agents.unnamed')}
-        </span>
-        {agent.focused ? (
-          <span aria-hidden="true" className="ml-auto shrink-0 text-tui-sm text-tui-accent">
-            {GLYPH.cursor}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span aria-hidden="true" className={cn('shrink-0', TONE[tone.level].text)}>
+            {tone.glyph}
           </span>
+          <span className={cn('shrink-0 text-tui-sm', TONE[tone.level].text)}>{t(tone.key)}</span>
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate',
+              current ? 'font-bold text-tui-accent' : 'text-tui-text',
+            )}
+          >
+            {[agent.workspaceId, agent.agent].filter(Boolean).join(' · ') || t('agents.unnamed')}
+          </span>
+          {current ? (
+            <span aria-hidden="true" className="shrink-0 text-tui-sm text-tui-accent">
+              {GLYPH.cursor}
+            </span>
+          ) : null}
+        </div>
+        {agent.title ? (
+          <div className="truncate pl-4 text-tui-sm text-tui-muted" title={agent.title}>
+            {agent.title}
+          </div>
+        ) : null}
+        {actionable && blocked ? (
+          <div className="mt-1 flex flex-wrap items-center gap-1 pl-4">
+            <ActionButton
+              action="approve"
+              label={`${t('agents.approve')} ⏎`}
+              hint={t('agents.approveHint')}
+              onAction={(action) => onAction(agent.paneId as string, action)}
+            />
+            <ActionButton
+              action="reject"
+              label={`${t('agents.reject')} Esc`}
+              hint={t('agents.rejectHint')}
+              onAction={(action) => onAction(agent.paneId as string, action)}
+            />
+            <ActionButton
+              action="interrupt"
+              label={`${t('agents.interrupt')} ^C`}
+              hint={t('agents.interruptHint')}
+              onAction={(action) => onAction(agent.paneId as string, action)}
+            />
+          </div>
         ) : null}
       </div>
-      {agent.title ? (
-        <div className="truncate pl-4 text-tui-sm text-tui-muted" title={agent.title}>
-          {agent.title}
-        </div>
-      ) : null}
       {actionable ? (
-        <div className="mt-1 flex flex-wrap items-center gap-1 pl-4">
-          {blocked ? (
-            <>
-              <ActionButton
-                action="approve"
-                label={`${t('agents.approve')} ⏎`}
-                hint={t('agents.approveHint')}
-                onAction={(action) => onAction(agent.paneId as string, action)}
-              />
-              <ActionButton
-                action="reject"
-                label={`${t('agents.reject')} Esc`}
-                hint={t('agents.rejectHint')}
-                onAction={(action) => onAction(agent.paneId as string, action)}
-              />
-              <ActionButton
-                action="interrupt"
-                label={`${t('agents.interrupt')} ^C`}
-                hint={t('agents.interruptHint')}
-                onAction={(action) => onAction(agent.paneId as string, action)}
-              />
-            </>
-          ) : null}
-          <ActionButton
-            action="focus"
-            label={`${t('agents.jumpTo')} ›`}
-            hint={t('agents.jumpToHint')}
-            onAction={(action) => onAction(agent.paneId as string, action)}
-          />
-        </div>
+        <ActionButton
+          action="focus"
+          label={`${t('agents.jumpTo')} ›`}
+          hint={t('agents.jumpToHint')}
+          onAction={(action) => onAction(agent.paneId as string, action)}
+        />
       ) : null}
     </div>
   );
@@ -175,6 +189,12 @@ function AgentInboxList({
           <AgentRow
             key={agent.paneId ?? agent.title}
             agent={agent}
+            current={
+              agent.paneId !== null &&
+              (status.focusedPaneId
+                ? agent.paneId === status.focusedPaneId
+                : agent.focused === true)
+            }
             actionable={actionable && agent.paneId !== null}
             onAction={onAction}
             t={t}
@@ -202,22 +222,29 @@ export const AgentInbox: React.FC<{ compact?: boolean; className?: string }> = (
   const isMobileShell = useMobileShell();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const closeSheet = () => setOpen(false);
+  const { onTouchStart, onTouchMove, onTouchEnd } = useSheetDragClose(closeSheet, sheetRef);
 
+  const isMobileSheet = open && isMobileShell;
   useEffect(() => {
-    if (!open || isMobileShell) return;
+    if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('pointerdown', onPointerDown);
+    // The phone sheet has a scrim of its own — outside presses there close it
+    // through the scrim, and listening for them here would close the sheet the
+    // instant a drag on the terminal lands. Escape still applies on both.
+    if (!isMobileSheet) document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
+      if (!isMobileSheet) document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, isMobileShell]);
+  }, [open, isMobileSheet]);
 
   // Nothing to list until the workstation has reported — the chip hides then
   // too, so the affordance and the panel appear together.
@@ -256,13 +283,25 @@ export const AgentInbox: React.FC<{ compact?: boolean; className?: string }> = (
             aria-hidden="true"
           />
           <div
+            ref={sheetRef}
             role="dialog"
             aria-modal="true"
             aria-label={t('agents.title')}
             data-testid="agent-inbox-sheet"
-            className="herdr-sheet fixed inset-x-0 bottom-0 z-50 max-h-[70%] overflow-y-auto border-t border-tui-border bg-tui-base px-3 pb-4 pt-2"
+            className="herdr-sheet fixed inset-x-0 bottom-0 z-50 max-h-[70%] overflow-y-auto border-t border-tui-border bg-tui-base px-3 pb-4 pt-1"
           >
-            <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 bg-tui-border-bright" />
+            {/* The same pull-down the session sheet's handle teaches. */}
+            <div
+              data-testid="agent-inbox-handle"
+              aria-hidden="true"
+              className="flex touch-none items-start justify-center pb-1 pt-1.5"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              onTouchCancel={onTouchEnd}
+            >
+              <span className="h-1 w-9 bg-tui-border-bright" />
+            </div>
             <AgentInboxList status={agentStatus!} actionable={actionable} onAction={onAction} />
           </div>
         </>

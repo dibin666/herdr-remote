@@ -51,9 +51,9 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   const [filesOpen, setFilesOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const anyFileInputRef = useRef<HTMLInputElement | null>(null);
-
+  const displayedClientId = assignedClientId || settings.clientId;
   const copyClientId = () =>
-    copy(settings.clientId, t('toasts.clientIdCopied', { id: settings.clientId }), 'info');
+    copy(displayedClientId, t('toasts.clientIdCopied', { id: displayedClientId }), 'info');
 
   const toggleLanguage = () => {
     const nextLang = language === 'zh' ? 'en' : 'zh';
@@ -222,14 +222,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         {detailsOpen && (
           <div className="space-y-1 border-l border-tui-border-dim pb-1 pl-2">
             {hostId ? detailRow(t('common.host'), hostId) : null}
-            {detailRow(
-              t('header.clientIdLabel').replace(/:$/, ''),
-              assignedClientId || settings.clientId,
-              true,
-            )}
-            {assignedClientId && assignedClientId !== settings.clientId
-              ? detailRow(t('role.thisWindow'), assignedClientId)
-              : null}
+            {detailRow(t('header.clientIdLabel').replace(/:$/, ''), displayedClientId, true)}
           </div>
         )}
 

@@ -6,10 +6,10 @@ import { agentStatusHasContent } from '@/features/agents/AgentStatusChip';
 import { AgentInbox } from '@/features/agents/AgentInbox';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
 import { ToolsMenu } from '@/features/keyboard/ToolsMenu';
+import { useViewportWidth } from '@/features/mobile/mobileShell';
 import { ControlModeBadge } from './ControlModeBadge';
 import { UpdateChip, useUpdateNoticeVisible } from './UpdateNotice';
 import { cn } from '@/shared/lib/cn';
-
 const FIXED = 'shrink-0 whitespace-nowrap';
 const GIVES_WAY = 'min-w-0 truncate whitespace-nowrap';
 
@@ -39,7 +39,13 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
   const status = describeConnection(connectionState, t);
   const connected = connectionState === 'connected';
   const updateVisible = useUpdateNoticeVisible();
-
+  /* Below this width the single line cannot carry every token — the right
+     group is all fixed text, so a squeezable segment would still leave the
+     buttons overlapping. The id is a hover away on the host name; the
+     latency is the least-wanted number up to the phone shell taking over. */
+  const viewportWidth = useViewportWidth();
+  const roomForIds = viewportWidth >= 768;
+  const roomForRtt = viewportWidth >= 700;
   return (
     <StatusLine
       left={
@@ -72,21 +78,23 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
                  are a hover away, instead of two long strings pushing the
                  latency off the line. Before it connects, the client id is
                  all the identity there is, so it keeps its own segment. */
-              hostId ? (
-                <span
-                  key="host"
-                  className={GIVES_WAY}
-                  title={`${t('common.host')}: ${hostId} · ${t('header.clientIdLabel')} ${assignedClientId || settings.clientId}`}
-                >
-                  <span className="text-tui-faint">{t('common.host')}:</span>{' '}
-                  <span className="text-tui-text">{hostId}</span>
-                </span>
-              ) : (
-                <span key="client" className={GIVES_WAY}>
-                  <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
-                  <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
-                </span>
-              ),
+              roomForIds ? (
+                hostId ? (
+                  <span
+                    key="host"
+                    className={GIVES_WAY}
+                    title={`${t('common.host')}: ${hostId} · ${t('header.clientIdLabel')} ${assignedClientId || settings.clientId}`}
+                  >
+                    <span className="text-tui-faint">{t('common.host')}:</span>{' '}
+                    <span className="text-tui-text">{hostId}</span>
+                  </span>
+                ) : (
+                  <span key="client" className={GIVES_WAY}>
+                    <span className="text-tui-faint">{t('header.clientIdLabel')}</span>{' '}
+                    <span className="text-tui-text">{assignedClientId || settings.clientId}</span>
+                  </span>
+                )
+              ) : null,
             ]}
           />
         </>
@@ -97,9 +105,9 @@ export const SessionStatusLine: React.FC<SessionStatusLineProps> = ({
           items={[
             updateVisible ? <UpdateChip key="update" /> : null,
             connected && agentStatusHasContent(agentStatus) ? <AgentInbox key="agents" /> : null,
-            rttMs !== null ? (
-              <span key="rtt" className="text-tui-muted">
-                {t('header.latencyTitle')}: <span className="text-tui-text">{rttMs}ms</span>
+            rttMs !== null && roomForRtt ? (
+              <span key="rtt" className="text-tui-muted" title={t('header.latencyTitle')}>
+                <span className="text-tui-text">{rttMs}ms</span>
               </span>
             ) : null,
             <ToolsMenu key="tools" />,

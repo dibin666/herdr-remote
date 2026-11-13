@@ -430,7 +430,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     expect(screen.getByTestId('image-upload-btn')).toBeInTheDocument();
   });
 
-  it('keeps Enter as the right-hand key and collapse at the scroll strip tail without breaking toolbar key layout in desktop and compact modes', () => {
+  it('keeps Enter as the right-hand key and the file actions at the scroll strip tail without breaking toolbar key layout in desktop and compact modes', () => {
     // 1. Desktop mode
     saveSettings({ toolbarVisible: true, language: 'zh' });
     const { unmount } = render(
@@ -442,7 +442,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     let row = screen.getByTestId('key-toolbar-row');
     let buttons = within(row).getAllByRole('button');
 
-    // First button is the first virtual key; collapse left the head.
+    // First button is the first virtual key.
     expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/esc/i));
 
     // Last button is Enter
@@ -459,14 +459,12 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     const pasteBtn = buttons[buttons.length - 3];
     expect(pasteBtn).toHaveAttribute('data-testid', 'paste-btn');
     expect(pasteBtn.className).toContain('h-7');
-    // The scroll strip's tail is the way out, then the file list and the
-    // any-file upload, all the same cap height.
-    const collapseBtn = buttons[buttons.length - 4];
-    expect(collapseBtn).toHaveAttribute('aria-label', expect.stringMatching(/收起按键|collapse/i));
-    const listBtn = buttons[buttons.length - 5];
+    // The scroll strip's tail is the file list and the any-file upload, all
+    // the same cap height; collapsing is the sheet's and settings' job.
+    const listBtn = buttons[buttons.length - 4];
     expect(listBtn).toHaveAttribute('data-testid', 'file-list-btn');
     expect(listBtn.className).toContain('h-7');
-    const fileBtn = buttons[buttons.length - 6];
+    const fileBtn = buttons[buttons.length - 5];
     expect(fileBtn).toHaveAttribute('data-testid', 'file-upload-btn');
     expect(fileBtn.className).toContain('h-7');
 
@@ -485,7 +483,7 @@ describe('KeyToolbar Image Upload & Progress Integration', () => {
     row = screen.getByTestId('key-toolbar-row');
     buttons = within(row).getAllByRole('button');
 
-    // First button is the first virtual key; collapse left the head.
+    // First button is the first virtual key.
     expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/esc/i));
 
     // Last button is Enter

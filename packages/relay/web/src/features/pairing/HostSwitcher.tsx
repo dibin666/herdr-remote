@@ -141,6 +141,11 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
             profiles.map((profile) => {
               const active = profile.id === activeProfileId;
               const editing = profile.id === editingId;
+              // A profile named after its host has nothing else to say under
+              // itself — printing the same string twice reads as a duplicate
+              // row, not a subtitle.
+              const sub = profile.hostname || profile.hostId || profile.wsUrl;
+              const showSub = sub && sub !== profile.displayName;
               return (
                 <div
                   key={profile.id}
@@ -166,12 +171,11 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-bold">{profile.displayName}</span>
-                        <span
-                          className="block truncate text-tui-sm text-tui-faint"
-                          title={profile.hostname || profile.hostId}
-                        >
-                          {profile.hostname || profile.hostId || profile.wsUrl}
-                        </span>
+                        {showSub ? (
+                          <span className="block truncate text-tui-sm text-tui-faint" title={sub}>
+                            {sub}
+                          </span>
+                        ) : null}
                       </span>
                       {active && (
                         <span className="shrink-0 text-tui-sm text-tui-ok">

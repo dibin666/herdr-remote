@@ -90,6 +90,63 @@ describe('agent inbox', () => {
     expect(screen.getByTestId('agent-inbox-list')).toHaveTextContent('1 waiting');
   });
 
+  it('highlights the current pane, not another agent with the same name, and follows focus updates', () => {
+    const inbox = mount();
+    const agents = AGENTS.map((agent) => ({ ...agent, focused: agent.paneId === 'p3' }));
+    const report = { counts: { blocked: 1, working: 1, idle: 1 }, total: 3, agents };
+    inbox.push({ ...report, focusedPaneId: 'p2' });
+    fireEvent.click(screen.getByTestId('agent-inbox-trigger'));
+
+    let rows = screen.getAllByTestId('agent-inbox-row');
+    expect(rows[1]).toHaveAttribute('aria-current', 'true');
+    expect(rows[1].className).toContain('bg-tui-accent/10');
+    expect(rows[1].className).toContain('border-tui-accent');
+    expect(within(rows[1]).getByText('web · pi').className).toContain('text-tui-accent');
+    expect(rows[2]).not.toHaveAttribute('aria-current');
+    expect(rows.filter((row) => row.getAttribute('aria-current') === 'true')).toHaveLength(1);
+
+    inbox.push({ ...report, focusedPaneId: 'p3' });
+    rows = screen.getAllByTestId('agent-inbox-row');
+    expect(rows[1]).not.toHaveAttribute('aria-current');
+    expect(rows[1].className).not.toContain('bg-tui-accent/10');
+    expect(rows[2]).toHaveAttribute('aria-current', 'true');
+    expect(rows[2].className).toContain('bg-tui-accent/10');
+  });
+
+  it('uses legacy focused flags only when no current pane ID is reported', () => {
+    const inbox = mount();
+    const report = {
+      counts: { idle: 1 },
+      total: 1,
+      agents: [{ ...AGENTS[0], focused: true }],
+    };
+    inbox.push(report);
+    fireEvent.click(screen.getByTestId('agent-inbox-trigger'));
+    expect(screen.getByTestId('agent-inbox-row')).toHaveAttribute('aria-current', 'true');
+
+    inbox.push({ ...report, focusedPaneId: 'unlisted-shell-pane' });
+    const row = screen.getByTestId('agent-inbox-row');
+    expect(row).not.toHaveAttribute('aria-current');
+    expect(row.className).not.toContain('bg-tui-accent/10');
+  });
+
+  it('retains the warning tone when the current agent is blocked', () => {
+    const inbox = mount();
+    inbox.push({
+      counts: { blocked: 1 },
+      total: 1,
+      agents: [AGENTS[1]],
+      focusedPaneId: 'p1',
+    });
+    fireEvent.click(screen.getByTestId('agent-inbox-trigger'));
+
+    const row = screen.getByTestId('agent-inbox-row');
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(row.className).toContain('bg-tui-accent/10');
+    expect(row.className).toContain('border-tui-warn');
+    expect(within(row).getByText('blocked')).toBeInTheDocument();
+  });
+
   it('closes on Escape and on the scrim', () => {
     const inbox = mount();
     inbox.push({ counts: { blocked: 1 }, total: 1, agents: [AGENTS[1]] });
@@ -102,6 +159,33 @@ describe('agent inbox', () => {
 
 describe('agent inbox actions', () => {
   const blockedAgent = AGENTS[1];
+
+  it('keeps Jump at the trailing edge beside the details and blocked controls', () => {
+    const inbox = mount();
+    act(() => {
+      // @ts-expect-error test mock
+      inbox.ctx().adapter.emit('controlGranted');
+    });
+    inbox.push({ counts: { blocked: 1, working: 1, idle: 1 }, total: 3, agents: AGENTS });
+    fireEvent.click(screen.getByTestId('agent-inbox-trigger'));
+
+    const rows = screen.getAllByTestId('agent-inbox-row');
+    for (const row of rows) {
+      const jump = within(row).getByTestId('agent-action-focus');
+      const details = row.firstElementChild as HTMLElement;
+      expect(row.className).toContain('flex');
+      expect(row.className).toContain('items-center');
+      expect(details.className).toContain('flex-1');
+      expect(details.className).toContain('min-w-0');
+      expect(row.lastElementChild).toBe(jump);
+      expect(jump.className).toContain('shrink-0');
+      expect(details).not.toContainElement(jump);
+    }
+    const blockedDetails = rows[0].firstElementChild as HTMLElement;
+    expect(within(blockedDetails).getByTestId('agent-action-approve')).toBeInTheDocument();
+    expect(within(blockedDetails).getByTestId('agent-action-reject')).toBeInTheDocument();
+    expect(within(blockedDetails).getByTestId('agent-action-interrupt')).toBeInTheDocument();
+  });
 
   it('sends the canned actions for a blocked agent, and a jump for any other', () => {
     const inbox = mount();
@@ -179,9 +263,12 @@ describe('agent inbox actions', () => {
     inbox.push({
       counts: { blocked: 1 },
       total: 1,
-      agents: [{ ...blockedAgent, paneId: null }],
+      agents: [{ ...blockedAgent, paneId: null, focused: true }],
+      focusedPaneId: null,
     });
     fireEvent.click(screen.getByTestId('agent-inbox-trigger'));
-    expect(screen.getAllByTestId('agent-inbox-row')[0].querySelectorAll('button')).toHaveLength(0);
+    const row = screen.getByTestId('agent-inbox-row');
+    expect(row.querySelectorAll('button')).toHaveLength(0);
+    expect(row).not.toHaveAttribute('aria-current');
   });
 });

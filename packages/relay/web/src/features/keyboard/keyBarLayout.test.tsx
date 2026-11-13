@@ -20,11 +20,11 @@ describe('Touch key bar layout', () => {
     sessionStorage.clear();
   });
 
-  const renderToolbar = () => {
+  const renderToolbar = (compact = false) => {
     saveSettings({ toolbarVisible: true, language: 'en' });
     return render(
       <TerminalProvider>
-        <KeyToolbar />
+        <KeyToolbar compact={compact} />
       </TerminalProvider>,
     );
   };
@@ -54,15 +54,9 @@ describe('Touch key bar layout', () => {
     const last = buttons[buttons.length - 1];
 
     expect(last).toHaveAttribute('aria-label', expect.stringMatching(/enter/i));
-    // ...and the way out is at the scroll strip's tail, not the head where a
-    // thumb could hit it mid-session.
-    expect(buttons[0]).toHaveAttribute('aria-label', expect.stringMatching(/esc/i));
-    const strip = screen.getByTestId('key-toolbar-scroll');
-    const stripButtons = within(strip).getAllByRole('button');
-    expect(stripButtons[stripButtons.length - 1]).toHaveAttribute(
-      'aria-label',
-      expect.stringMatching(/collapse/i),
-    );
+    // The bar has no collapse cap: hiding it belongs to the sheet and
+    // settings, not to a key a thumb can hit mid-session.
+    expect(within(row).queryByRole('button', { name: /collapse|收起按键/i })).toBeNull();
   });
 
   it('points the Fn arrow at the drawer, which opens upwards', () => {
@@ -123,8 +117,66 @@ describe('Touch key bar layout', () => {
     expect(sanitizeVirtualKeys(custom).map((key) => key.id)).toEqual(custom.map((key) => key.id));
   });
 
-  // Agent shortcuts at h-8 beside h-9 keys were reported as "一大一小": every
-  // cap on the bar, drawers and shortcuts included, shares one height.
+  it('keeps base, agent and file keys in one continuous phone strip without a pager row', () => {
+    renderToolbar(true);
+
+    const strip = screen.getByTestId('key-toolbar-scroll');
+    expect(within(strip).getByRole('button', { name: /esc/i })).toBeInTheDocument();
+    expect(strip).toContainElement(screen.getByTestId('agent-key-actions'));
+    expect(strip).toContainElement(screen.getByTestId('file-upload-btn'));
+    expect(strip).toContainElement(screen.getByTestId('file-list-btn'));
+    expect(screen.queryByTestId('key-toolbar-pages')).toBeNull();
+    expect(strip.className).toContain('overflow-x-auto');
+    expect(strip.className).toContain('touch-pan-x');
+    expect(strip.className).toContain('[-webkit-overflow-scrolling:touch]');
+    expect(strip.className).not.toMatch(/\bsnap-/);
+  });
+
+  it.each([
+    { direction: 'left', scrollLeft: 760, startX: 240, endX: 80 },
+    { direction: 'right', scrollLeft: 3, startX: 80, endX: 240 },
+  ])(
+    'preserves the native scroll position and key contents after a $direction edge swipe',
+    ({ scrollLeft, startX, endX }) => {
+      renderToolbar(true);
+
+      const strip = screen.getByTestId('key-toolbar-scroll');
+      const keys = within(strip)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'));
+      Object.defineProperties(strip, {
+        clientWidth: { configurable: true, value: 240 },
+        scrollWidth: { configurable: true, value: 1_000 },
+      });
+      strip.scrollLeft = scrollLeft;
+      fireEvent.touchStart(strip, { touches: [{ clientX: startX }] });
+      fireEvent.touchEnd(strip, { changedTouches: [{ clientX: endX }] });
+
+      expect(strip.scrollLeft).toBe(scrollLeft);
+      expect(
+        within(strip)
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label')),
+      ).toEqual(keys);
+    },
+  );
+
+  it.each([true, false])(
+    'leaves bottom safe-area spacing to the phone shell (toolbar visible: %s)',
+    (toolbarVisible) => {
+      saveSettings({ toolbarVisible, language: 'en' });
+      render(
+        <TerminalProvider>
+          <KeyToolbar compact />
+        </TerminalProvider>,
+      );
+
+      const bar = screen.getByTestId(toolbarVisible ? 'key-toolbar' : 'key-toolbar-collapsed');
+      expect(bar.className).not.toContain('safe-area-inset-bottom');
+    },
+  );
+
+  // Agent shortcuts and base keys share a height so the bar reads as one row.
   it.each([
     { compact: false, height: 'h-7' },
     { compact: true, height: 'h-8' },
@@ -135,19 +187,9 @@ describe('Touch key bar layout', () => {
         <KeyToolbar compact={compact} onCustomize={() => {}} />
       </TerminalProvider>,
     );
-    // Compact keeps the agent row (and its customize affordance) on the
-    // second page; the function-key drawer stays on the first.
-    if (compact) {
-      fireEvent.click(screen.getByRole('button', { name: 'agent · files' }));
-      expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'base keys' }));
-    } else {
-      expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
-    }
+    expect(screen.getByTestId('agent-key-customize')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /function keys/i }));
     expect(screen.getByRole('button', { name: 'F7' })).toBeInTheDocument();
-
-    // Page dots are navigation, not caps — only the bar's own buttons count.
     const buttons = within(screen.getByTestId('key-toolbar-row')).getAllByRole('button');
     for (const button of buttons) {
       const tokens = button.className.split(/\s+/);

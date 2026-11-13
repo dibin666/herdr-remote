@@ -76,3 +76,25 @@ export function useMobileShell(): boolean {
 
   return isMobileShell;
 }
+
+/**
+ * The live viewport width, re-rendered on resize. Status lines and toolbars
+ * use it to drop their least-wanted tokens before they are squeezed into
+ * overlapping ones.
+ */
+export function useViewportWidth(): number {
+  const [width, setWidth] = useState(getViewportWidth);
+
+  useEffect(() => {
+    const sync = () => setWidth(getViewportWidth());
+    sync();
+    window.addEventListener('resize', sync);
+    window.visualViewport?.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('resize', sync);
+      window.visualViewport?.removeEventListener('resize', sync);
+    };
+  }, []);
+
+  return width;
+}

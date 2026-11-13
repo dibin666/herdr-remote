@@ -60,7 +60,7 @@ export const ControlModeBadge: React.FC<{ className?: string }> = ({ className }
           aria-label={t('role.modeLabel')}
           className="absolute bottom-full left-0 z-[100] mb-1 w-72 max-w-[calc(100vw-1rem)] border border-tui-border bg-tui-base p-2 shadow-lg"
         >
-          <ControlModeSwitch className="h-8" />
+          <ControlModeSwitch compact className="h-8" />
           <p className="mt-1.5 text-tui-sm leading-snug text-tui-faint">
             {observing ? t('role.observerHint') : t('role.controlHint')}
           </p>

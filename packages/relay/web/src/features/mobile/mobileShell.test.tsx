@@ -698,11 +698,13 @@ describe('Desktop shell is untouched by the phone layout', () => {
     render(<App />);
     await waitFor(() => expect(xtermInstances.length).toBe(1));
 
-    // Desktop starts collapsed; expand, then collapse again.
+    // Desktop starts collapsed; expand, then put it away from the tools menu —
+    // the bar itself carries no collapse cap.
     fireEvent.click(screen.getByRole('button', { name: /Expand Toolbar|Show the key bar/i }));
     expect(screen.getByTestId('key-toolbar')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Collapse Toolbar|Hide the key bar/i }));
+    fireEvent.click(screen.getByTestId('tools-menu-trigger'));
+    fireEvent.click(screen.getByRole('button', { name: /Touch key toolbar|touch key toolbar/i }));
 
     expect(screen.queryByTestId('key-toolbar')).toBeNull();
     const handle = screen.getByRole('button', { name: /Expand Toolbar|Show the key bar/i });

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettings } from '@/context/TerminalContext';
 import { MobileControlSheet } from './MobileControlSheet';
 import { MobileStatusBar } from './MobileStatusBar';
+import { useSheetDragClose } from './sheetDrag';
 
 export interface MobileTerminalShellProps {
   onOpenSettings: () => void;
@@ -20,33 +21,13 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
 }) => {
   const { t } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => setIsOpen(false), []);
 
   /* A bottom sheet lets go the way a thumb expects: grabbed by its handle and
      pulled down. 64px of downward travel commits the close; less snaps back. */
-  const dragStartYRef = useRef<number | null>(null);
-  const sheetDragRef = useRef(0);
-  const onSheetTouchStart = useCallback((event: React.TouchEvent) => {
-    dragStartYRef.current = event.touches[0]?.clientY ?? null;
-    sheetDragRef.current = 0;
-  }, []);
-  const onSheetTouchMove = useCallback((event: React.TouchEvent) => {
-    if (dragStartYRef.current === null) return;
-    const dy = (event.touches[0]?.clientY ?? 0) - dragStartYRef.current;
-    sheetDragRef.current = Math.max(0, dy);
-    if (sheetRef.current && dy > 0) {
-      sheetRef.current.style.transform = `translateY(${dy}px)`;
-    }
-  }, []);
-  const onSheetTouchEnd = useCallback(() => {
-    const dy = sheetDragRef.current;
-    dragStartYRef.current = null;
-    sheetDragRef.current = 0;
-    if (sheetRef.current) sheetRef.current.style.transform = '';
-    if (dy > 64) close();
-  }, [close]);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const { onTouchStart, onTouchMove, onTouchEnd } = useSheetDragClose(close, sheetRef);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -106,10 +87,10 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
               data-testid="mobile-sheet-handle"
               aria-hidden="true"
               className="flex touch-none items-start justify-center pb-1 pt-1.5"
-              onTouchStart={onSheetTouchStart}
-              onTouchMove={onSheetTouchMove}
-              onTouchEnd={onSheetTouchEnd}
-              onTouchCancel={onSheetTouchEnd}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              onTouchCancel={onTouchEnd}
             >
               <span className="h-1 w-9 bg-tui-border-bright" />
             </div>
