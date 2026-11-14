@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FsListEntry } from '@protocol/files';
 import { useConnection, useSettings } from '@/context/TerminalContext';
 import { cn } from '@/shared/lib/cn';
-import { Button, Gauge, Modal, Spinner } from '@/shared/ui';
+import { Button, Gauge, Modal, Notice, Spinner } from '@/shared/ui';
 import type { TranslationKey } from '@/shared/i18n';
 import { formatByteSize } from '@/features/paste/imagePaste';
 import { isCoarsePointerDevice } from '@/features/terminal/terminalLayout';
@@ -22,6 +22,7 @@ import {
   sortFsEntries,
 } from './fileList';
 import { FsRequestError, useHostFiles } from './useHostFiles';
+import { useRowLongPress } from './useRowLongPress';
 
 const FS_ERROR_KEYS: Record<string, TranslationKey | undefined> = {
   fs_unsupported: 'files.errors.unsupported',
@@ -47,10 +48,8 @@ function fsErrorText(error: unknown, t: (key: TranslationKey) => string): string
   return error instanceof Error && error.message ? error.message : t('files.errors.failed');
 }
 
-type ListView =
-  | { state: 'loading' }
-  | { state: 'error'; message: string }
-  | { state: 'ready'; cwd: string; entries: FsListEntry[] };
+type ReadyView = { state: 'ready'; cwd: string; entries: FsListEntry[] };
+type ListView = { state: 'loading' } | { state: 'error'; message: string } | ReadyView;
 
 export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { t } = useSettings();
@@ -70,11 +69,11 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const [deleting, setDeleting] = useState<FsListEntry | null>(null);
   const [propsOf, setPropsOf] = useState<FsListEntry | null>(null);
   const [mutating, setMutating] = useState(false);
-  const touchRef = useRef<{
-    x: number;
-    y: number;
-    timer: ReturnType<typeof setTimeout>;
-  } | null>(null);
+  /* What went wrong with the last thing asked of the listing on screen. The
+     listing stays: a failed rename three directories down is not a reason to
+     be sent back to where the terminal is. */
+  const [actionError, setActionError] = useState<string | null>(null);
+  const shownRef = useRef<ReadyView | null>(null);
 
   /**
    * `dir` moves relative to the shown listing — `'.'` re-reads it, `'..'` its
@@ -83,14 +82,27 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
    */
   const navigate = useCallback(
     async (dir?: string) => {
+      // Without `dir` the dialog starts over from the terminal's directory.
+      if (dir === undefined) shownRef.current = null;
       setView({ state: 'loading' });
       setSelected(new Set());
       setMenu(null);
+      setActionError(null);
       try {
         const result = await listFiles(dir);
-        setView({ state: 'ready', cwd: result.cwd, entries: result.entries });
+        const ready: ReadyView = { state: 'ready', cwd: result.cwd, entries: result.entries };
+        shownRef.current = ready;
+        setView(ready);
       } catch (error) {
-        setView({ state: 'error', message: fsErrorText(error, t) });
+        const message = fsErrorText(error, t);
+        // A step that failed leaves the host on the listing it came from, so
+        // that listing goes back up with the reason above it.
+        if (shownRef.current) {
+          setView(shownRef.current);
+          setActionError(message);
+        } else {
+          setView({ state: 'error', message });
+        }
       }
     },
     [listFiles, t],
@@ -130,6 +142,7 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const startDownload = async (names: string[]) => {
     if (names.length === 0 || download) return;
     setDownload({ received: 0, total: 0 });
+    setActionError(null);
     try {
       const result = await downloadFiles(names, (received, total) =>
         setDownload({ received, total }),
@@ -137,13 +150,14 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
       saveBlobAs(result.name, result.blob);
       setSelected(new Set());
     } catch (error) {
-      setView({ state: 'error', message: fsErrorText(error, t) });
+      setActionError(fsErrorText(error, t));
     } finally {
       setDownload(null);
     }
   };
 
   const openMenu = (x: number, y: number, entry: FsListEntry) => setMenu({ x, y, entry });
+  const longPress = useRowLongPress(openMenu);
 
   const onMenuAction = async (action: FileMenuAction) => {
     const entry = action.entry;
@@ -190,7 +204,7 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
       await navigate('.');
     } catch (error) {
       setRenaming(null);
-      setView({ state: 'error', message: fsErrorText(error, t) });
+      setActionError(fsErrorText(error, t));
     } finally {
       setMutating(false);
     }
@@ -206,7 +220,7 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
       await navigate('.');
     } catch (error) {
       setDeleting(null);
-      setView({ state: 'error', message: fsErrorText(error, t) });
+      setActionError(fsErrorText(error, t));
     } finally {
       setMutating(false);
     }
@@ -276,6 +290,14 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
         </div>
       ) : (
         <div className="flex flex-col gap-2">
+          {actionError ? (
+            <Notice
+              tone="bad"
+              action={<Button onClick={() => setActionError(null)}>{t('common.close')}</Button>}
+            >
+              <span data-testid="files-action-error">{actionError}</span>
+            </Notice>
+          ) : null}
           {download ? (
             <Gauge
               ratio={download.total > 0 ? download.received / download.total : 0}
@@ -346,6 +368,7 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                       <tr
                         key={entry.name}
                         onClick={() => {
+                          if (longPress.isReleaseClick()) return;
                           // On a coarse pointer there is no reliable double tap: a
                           // dir opens on the first tap, selection goes through the
                           // row's checkbox. Desktop keeps click to pick, double
@@ -360,35 +383,7 @@ export function FileListModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                           e.preventDefault();
                           openMenu(e.clientX, e.clientY, entry);
                         }}
-                        onTouchStart={(e) => {
-                          const touch = e.touches[0];
-                          touchRef.current = {
-                            x: touch.clientX,
-                            y: touch.clientY,
-                            timer: setTimeout(
-                              () => openMenu(touch.clientX, touch.clientY, entry),
-                              500,
-                            ),
-                          };
-                        }}
-                        onTouchMove={(e) => {
-                          const held = touchRef.current;
-                          if (!held) return;
-                          const touch = e.touches[0];
-                          // A moved finger scrolls; it is not a long press.
-                          if (Math.hypot(touch.clientX - held.x, touch.clientY - held.y) > 10) {
-                            clearTimeout(held.timer);
-                            touchRef.current = null;
-                          }
-                        }}
-                        onTouchEnd={() => {
-                          if (touchRef.current) clearTimeout(touchRef.current.timer);
-                          touchRef.current = null;
-                        }}
-                        onTouchCancel={() => {
-                          if (touchRef.current) clearTimeout(touchRef.current.timer);
-                          touchRef.current = null;
-                        }}
+                        {...longPress.touchHandlers(entry)}
                         className={cn(
                           'cursor-pointer border-b border-tui-border-dim last:border-b-0 hover:bg-tui-selection',
                           checked && 'bg-tui-selection',

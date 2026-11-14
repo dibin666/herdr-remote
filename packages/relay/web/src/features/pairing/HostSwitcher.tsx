@@ -40,12 +40,25 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // A half-finished rename — or a removal already asked for once — does
+      // not wait behind a closed menu: opened again, its first press deleted.
+      setEditingId(null);
+      setConfirmingRemove(false);
+      return;
+    }
     const handlePointerDown = (event: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [open]);
 
   const beginRename = (profileId: string, currentName: string) => {
@@ -210,7 +223,11 @@ export const HostSwitcher: React.FC<HostSwitcherProps> = ({
                         onChange={(event) => setNameDraft(event.target.value)}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') commitRename(profile.id);
-                          if (event.key === 'Escape') setEditingId(null);
+                          if (event.key === 'Escape') {
+                            // Leaves the rename, not the whole menu.
+                            event.stopPropagation();
+                            setEditingId(null);
+                          }
                         }}
                         aria-label={t('profiles.rename')}
                         className="tui-input col-span-2 h-11 min-w-0 px-2 py-1 text-tui"

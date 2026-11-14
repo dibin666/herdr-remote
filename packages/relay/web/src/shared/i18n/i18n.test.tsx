@@ -130,7 +130,12 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'zh' });
     const { unmount } = render(
       <TerminalProvider>
-        <MobileControlSheet onClose={() => {}} onOpenSettings={() => {}} />
+        <MobileControlSheet
+          onClose={() => {}}
+          onOpenSettings={() => {}}
+          onOpenPaste={() => {}}
+          onOpenFiles={() => {}}
+        />
       </TerminalProvider>,
     );
 
@@ -148,7 +153,12 @@ describe('i18n Internationalization Infrastructure & Full Coverage', () => {
     saveSettings({ language: 'en' });
     render(
       <TerminalProvider>
-        <MobileControlSheet onClose={() => {}} onOpenSettings={() => {}} />
+        <MobileControlSheet
+          onClose={() => {}}
+          onOpenSettings={() => {}}
+          onOpenPaste={() => {}}
+          onOpenFiles={() => {}}
+        />
       </TerminalProvider>,
     );
 

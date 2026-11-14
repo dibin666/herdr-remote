@@ -39,8 +39,11 @@ export const ToastContainer: React.FC = () => {
      stays uncovered. */
   return (
     <div
+      data-testid="toast-container"
       className={cn(
-        'pointer-events-none fixed z-50 flex w-[calc(100vw-16px)] max-w-sm flex-col gap-1',
+        // Above every dialog and popover: a notice raised from inside one sat
+        // under its scrim, dimmed to nothing.
+        'pointer-events-none fixed z-[110] flex w-[calc(100vw-16px)] max-w-sm flex-col gap-1',
         isMobileShell ? 'bottom-28 right-2' : 'right-2 top-16',
       )}
       aria-live="polite"

@@ -1,11 +1,12 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSettings, useToasts } from '@/context/TerminalContext';
 import type { AgentProfileId } from '@/features/agents/agentKeymaps';
 import { getDefaultSettings } from './storage';
 import { AgentKeymapsTab } from './AgentKeymapsTab';
 import { GeneralTab } from './GeneralTab';
 import { DANGER_GHOST } from './styles';
+import { useArmedAction } from './useArmedAction';
 import { VirtualKeysTab } from './VirtualKeysTab';
 import { Button, Modal, Tabs } from '@/shared/ui';
 
@@ -45,20 +46,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsAgentProfile, setSettingsAgentProfile] = useState<AgentProfileId | null>(null);
   /* Reset has no undo and clears custom keys with everything else, so the
-     button asks to be pressed a second time before it does anything. */
-  const [resetArmed, setResetArmed] = useState(false);
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-    },
-    [],
-  );
+     button asks to be pressed a second time before it does anything. Only this
+     instance's settings: the language is every instance's, so resetting one
+     leaves it alone. */
+  const reset = useArmedAction(() => {
+    const defaults = getDefaultSettings();
+    updateSettings({
+      fontSize: defaults.fontSize,
+      fontSizeFollowsHost: defaults.fontSizeFollowsHost,
+      fontFamily: defaults.fontFamily,
+      toolbarVisible: defaults.toolbarVisible,
+      vibrateOnKeyPress: defaults.vibrateOnKeyPress,
+      touchKeyboardTrigger: defaults.touchKeyboardTrigger,
+      predictiveEcho: defaults.predictiveEcho,
+      agentAlertBadge: defaults.agentAlertBadge,
+      agentAlertSound: defaults.agentAlertSound,
+      agentAlertVibrate: defaults.agentAlertVibrate,
+      agentAlertNotify: defaults.agentAlertNotify,
+      virtualKeys: defaults.virtualKeys,
+      agentKeymaps: defaults.agentKeymaps,
+    });
+    addToast('info', t('settings.resetDefaultsToast'));
+  });
+  const disarmReset = reset.disarm;
 
   useEffect(() => {
-    if (!isOpen) setResetArmed(false);
-  }, [isOpen]);
+    if (!isOpen) disarmReset();
+  }, [isOpen, disarmReset]);
 
   useEffect(() => {
     if (!isOpen || !initialTab) return;
@@ -67,34 +81,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
-
-  // Only this instance's settings: the language is every instance's, so
-  // resetting one leaves it alone.
-  const handleResetDefaults = () => {
-    if (!resetArmed) {
-      setResetArmed(true);
-      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = setTimeout(() => setResetArmed(false), 4_000);
-      return;
-    }
-    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-    setResetArmed(false);
-    const defaults = getDefaultSettings();
-    updateSettings({
-      fontSize: defaults.fontSize,
-      fontSizeFollowsHost: defaults.fontSizeFollowsHost,
-      fontFamily: defaults.fontFamily,
-      toolbarVisible: defaults.toolbarVisible,
-      vibrateOnKeyPress: defaults.vibrateOnKeyPress,
-      predictiveEcho: defaults.predictiveEcho,
-      agentAlertBadge: defaults.agentAlertBadge,
-      agentAlertSound: defaults.agentAlertSound,
-      agentAlertVibrate: defaults.agentAlertVibrate,
-      agentAlertNotify: defaults.agentAlertNotify,
-      virtualKeys: defaults.virtualKeys,
-    });
-    addToast('info', t('settings.resetDefaultsToast'));
-  };
 
   return (
     <Modal
@@ -116,11 +102,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
            on the title bar is the way out, as on every other dialog. */
         <Button
           variant="ghost"
-          onClick={handleResetDefaults}
+          onClick={reset.press}
           className={DANGER_GHOST}
           data-testid="settings-reset-defaults"
         >
-          {resetArmed ? t('settings.resetDefaultsConfirm') : t('settings.resetDefaults')}
+          {reset.armed ? t('settings.resetDefaultsConfirm') : t('settings.resetDefaults')}
         </Button>
       }
     >

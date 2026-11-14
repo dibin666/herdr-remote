@@ -315,4 +315,18 @@ describe('Visual-only font zoom vs PTY geometry isolation & Context Menu', () =>
     expect(preventDefaultSpy).toHaveBeenCalled();
     expect(stopPropagationSpy).toHaveBeenCalled();
   });
+
+  it('leaves the browser menu on a field the user types into', async () => {
+    // No token: the first-run screen and its pairing-code field.
+    render(<App />);
+    const field = await screen.findByLabelText(/6-character Pairing Code/i);
+
+    const evt = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    act(() => {
+      field.dispatchEvent(evt);
+    });
+
+    // Right click → Paste is how a mouse gets a token into this field.
+    expect(evt.defaultPrevented).toBe(false);
+  });
 });

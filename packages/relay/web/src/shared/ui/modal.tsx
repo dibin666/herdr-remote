@@ -1,17 +1,16 @@
 import type React from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { attachWebUIShortcuts } from '@/shared/keys/dialogEscape';
 import { cn } from '@/shared/lib/cn';
 import { Button, type KeyHint, KeyHints } from './buttons';
 
 /* ------------------------------------------------------------------- modal */
 
-/**
- * A modal drawn as a panel floating over a dimmed terminal.
- *
- * The title sits in the top rule with `[esc]` closing it from the right end,
- * which is where a TUI puts the way out.
- */
-export const Modal: React.FC<{
+/** The dialogs on screen, outermost first. Escape belongs to the last one. */
+const openModals: object[] = [];
+
+interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
@@ -29,8 +28,18 @@ export const Modal: React.FC<{
   fixedHeight?: boolean;
   className?: string;
   children: React.ReactNode;
-}> = ({
-  isOpen,
+}
+
+/**
+ * A modal drawn as a panel floating over a dimmed terminal.
+ *
+ * The title sits in the top rule with `[esc]` closing it from the right end,
+ * which is where a TUI puts the way out.
+ */
+export const Modal: React.FC<ModalProps> = (props) =>
+  props.isOpen ? <ModalFrame {...props} /> : null;
+
+const ModalFrame: React.FC<ModalProps> = ({
   onClose,
   title,
   subtitle,
@@ -42,10 +51,47 @@ export const Modal: React.FC<{
   className,
   children,
 }) => {
-  if (!isOpen) return null;
-
   const width = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-xl';
-  const titleId = `tui-modal-${title.replace(/\s+/g, '-').toLowerCase()}`;
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Every dialog answers the `esc` its title bar shows, and only the one on
+  // top: a picker opened from Settings closes alone, not Settings with it.
+  useEffect(() => {
+    const entry = {};
+    openModals.push(entry);
+    const detach = attachWebUIShortcuts(
+      {
+        onCloseModals: () => {
+          if (openModals[openModals.length - 1] === entry) onCloseRef.current();
+        },
+      },
+      { isModalOpen: true },
+    );
+    return () => {
+      detach();
+      openModals.splice(openModals.indexOf(entry), 1);
+    };
+  }, []);
+
+  // Read while rendering: by the time an effect runs, a field with autoFocus
+  // inside the dialog has already taken focus from what was behind it.
+  const [openedFrom] = useState(() =>
+    typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
+  // Left on the terminal, focus kept sending every key typed "into" the dialog
+  // to the workstation, and kept a phone's keyboard up over half of it.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+    return () => {
+      if (openedFrom?.isConnected) openedFrom.focus({ preventScroll: true });
+    };
+  }, [openedFrom]);
 
   // Only the body scrolls. The frame is clipped and the panel is capped to the
   // frame's padded box, so no wheel can carry the whole dialog off the top of
@@ -65,8 +111,10 @@ export const Modal: React.FC<{
       }}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className={cn(
-          'relative flex max-h-full w-full flex-col border border-tui-border bg-tui-base',
+          'relative flex max-h-full w-full flex-col border border-tui-border bg-tui-base focus:outline-none',
           width,
           fixedHeight && 'h-[46rem]',
           className,

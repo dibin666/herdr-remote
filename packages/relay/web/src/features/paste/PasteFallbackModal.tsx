@@ -111,13 +111,22 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
+  // The dialog stays mounted between uses, so what was typed is cleared on the
+  // way out: opened again it showed the last paste — a password, as likely as
+  // not — one tap from being sent a second time.
+  const close = () => {
+    setTextValue('');
+    setImageState(null);
+    onClose();
+  };
+
   const handleSend = () => {
     if (imageState) {
       onSendImage?.(imageState);
-      onClose();
+      close();
     } else if (textValue.trim()) {
       onSend(textValue);
-      onClose();
+      close();
     }
   };
 
@@ -126,13 +135,13 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={close}
       title={t('clipboard.pasteTitle')}
       closeLabel={t('clipboard.cancel')}
       size="sm"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={close}>
             {t('clipboard.cancel')}
           </Button>
           <Button variant="primary" onClick={handleSend} disabled={!hasContent || isCompressing}>
@@ -141,13 +150,10 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
         </div>
       }
     >
-      <div className="flex flex-col gap-3 p-3 font-mono select-text">
+      <div className="flex select-text flex-col gap-3">
         {/* Text Section */}
         <div className="flex flex-col gap-1.5">
-          <label
-            htmlFor="paste-fallback-input"
-            className="text-tui-sm text-tui-muted font-sans font-medium"
-          >
+          <label htmlFor="paste-fallback-input" className="text-tui-sm text-tui-muted">
             {t('clipboard.pasteHint')}
           </label>
           <textarea
@@ -162,7 +168,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
             onChange={handleTextChange}
             onPaste={handlePaste}
             disabled={Boolean(imageState) || isCompressing}
-            className="tui-input min-h-[90px] w-full resize-none p-2 text-tui font-mono rounded border border-tui-border bg-tui-bg focus:outline-none focus:ring-1 focus:ring-tui-accent disabled:opacity-50"
+            className="tui-input min-h-[90px] w-full resize-none p-2 text-tui disabled:opacity-50"
           />
         </div>
 
@@ -173,8 +179,8 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-tui-border" />
               </div>
-              <div className="relative flex justify-center text-tui-xs uppercase">
-                <span className="bg-tui-bg px-2 text-tui-muted font-sans">
+              <div className="relative flex justify-center text-tui-sm uppercase">
+                <span className="bg-tui-base px-2 text-tui-muted">
                   {t('clipboard.imageSectionTitle')}
                 </span>
               </div>
@@ -201,7 +207,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
               />
 
               {imageState ? (
-                <div className="flex flex-col items-center gap-2 p-3 border border-tui-border bg-tui-bg rounded">
+                <div className="flex flex-col items-center gap-2 p-3 border border-tui-border bg-tui-mantle rounded">
                   {/* Thumbnail preview MUST use data: URL to satisfy CSP (img-src 'self' data:) */}
                   <img
                     src={imageState.dataUrl}
@@ -209,7 +215,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
                     data-testid="pasted-image-preview"
                     className="max-h-40 max-w-full object-contain rounded border border-tui-border"
                   />
-                  <div className="flex items-center justify-between w-full text-tui-xs text-tui-muted pt-1">
+                  <div className="flex items-center justify-between w-full text-tui-sm text-tui-muted pt-1">
                     <span>
                       {t('clipboard.imageCompressedSize', {
                         size: formatByteSize(imageState.byteLength),
@@ -248,7 +254,7 @@ export const PasteFallbackModal: React.FC<PasteFallbackModalProps> = ({
               )}
 
               {isCompressing && (
-                <div className="flex items-center gap-2 text-tui-xs text-tui-muted animate-pulse">
+                <div className="flex items-center gap-2 text-tui-sm text-tui-muted animate-pulse">
                   <span>{t('clipboard.imageCompressing')}</span>
                 </div>
               )}

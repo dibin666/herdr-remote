@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useConnection, useSettings } from '@/context/TerminalContext';
+import { useConnection, useSettings, useToasts } from '@/context/TerminalContext';
 import { playAlertChime, unlockAlertChime } from '@/features/agents/alertChime';
 import { cn } from '@/shared/lib/cn';
 import { clampFontSize } from '@/features/terminal/terminalLayout';
@@ -31,6 +31,7 @@ export const GeneralTab: React.FC<{ onOpenAdmin?: () => void }> = ({ onOpenAdmin
     terminalFontSize,
   } = useSettings();
   const { connectionState } = useConnection();
+  const { addToast } = useToasts();
 
   /** A legacy/custom stack keeps its own option so the select never lies. */
   const activeFontPreset = FONT_PRESETS.find((preset) => preset.id === settings.fontFamily);
@@ -334,9 +335,13 @@ export const GeneralTab: React.FC<{ onOpenAdmin?: () => void }> = ({ onOpenAdmin
                 checked={settings.agentAlertNotify}
                 onChange={(checked) => {
                   if (checked && Notification.permission !== 'granted') {
-                    void Notification.requestPermission().then((permission) =>
-                      updateSettings({ agentAlertNotify: permission === 'granted' }),
-                    );
+                    void Notification.requestPermission().then((permission) => {
+                      updateSettings({ agentAlertNotify: permission === 'granted' });
+                      // A browser already told "no" does not ask again: the
+                      // switch fell back to off with nothing said about why.
+                      if (permission !== 'granted')
+                        addToast('warning', t('settings.agentAlertNotifyDenied'));
+                    });
                     return;
                   }
                   updateSettings({ agentAlertNotify: checked });

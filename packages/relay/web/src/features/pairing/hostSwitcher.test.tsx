@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { HostSwitcher } from './HostSwitcher';
 import { TerminalProvider } from '@/context/TerminalContext';
-import { saveSettings } from '@/features/settings/storage';
+import { loadSettings, saveSettings } from '@/features/settings/storage';
 import { createConnectionProfile } from './connectionProfiles';
 
 function profile(id: string, name: string, hostId: string) {
@@ -90,5 +90,59 @@ describe('HostSwitcher', () => {
     expect(screen.queryByText(first.token)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add Herdr instance' }));
     expect(add).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes on Escape, but Escape in the rename field only leaves the rename', () => {
+    const first = profile('profile-a', 'Office', 'host-a');
+    saveSettings({
+      profiles: [first],
+      activeProfileId: first.id,
+      wsUrl: first.wsUrl,
+      token: first.token,
+    });
+    render(
+      <TerminalProvider>
+        <HostSwitcher onAddProfile={() => {}} />
+      </TerminalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch Herdr instance' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename instance' }));
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Rename instance' }), { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Rename instance' })).toBeNull();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('forgets a removal that was only asked for once when the menu closes', () => {
+    const first = profile('profile-a', 'Office', 'host-a');
+    saveSettings({
+      profiles: [first],
+      activeProfileId: first.id,
+      wsUrl: first.wsUrl,
+      token: first.token,
+    });
+    render(
+      <TerminalProvider>
+        <HostSwitcher onAddProfile={() => {}} />
+      </TerminalProvider>,
+    );
+
+    const switcher = screen.getByRole('button', { name: 'Switch Herdr instance' });
+    fireEvent.click(switcher);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename instance' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove locally' }));
+    // Armed: one more press would delete the pairing.
+    expect(screen.queryByRole('button', { name: 'Remove locally' })).toBeNull();
+
+    fireEvent.click(switcher);
+    fireEvent.click(switcher);
+    // Reopened, the menu is back to its list — nothing armed behind it.
+    expect(screen.queryByRole('textbox', { name: 'Rename instance' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename instance' }));
+    expect(screen.getByRole('button', { name: 'Remove locally' })).toBeInTheDocument();
+    expect(loadSettings().profiles).toHaveLength(1);
   });
 });

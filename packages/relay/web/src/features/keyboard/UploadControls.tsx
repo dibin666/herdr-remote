@@ -14,9 +14,12 @@ const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/*';
 export function UploadFileInputs({
   fileInputRef,
   anyFileInputRef,
+  onPicked,
 }: {
   fileInputRef: RefObject<HTMLInputElement | null>;
   anyFileInputRef: RefObject<HTMLInputElement | null>;
+  /** Files were chosen and their upload has started; a cancelled picker does not call it. */
+  onPicked?: () => void;
 }) {
   const { uploadImages, uploadFiles } = useUpload();
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,12 +27,14 @@ export function UploadFileInputs({
     e.target.value = '';
     if (files.length === 0) return;
     void uploadImages(files);
+    onPicked?.();
   };
   const handleAnyFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     if (files.length === 0) return;
     void uploadFiles(files);
+    onPicked?.();
   };
   return (
     <>

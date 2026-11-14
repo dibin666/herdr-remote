@@ -272,7 +272,12 @@ describe('Header commands', () => {
   const renderSheet = () =>
     render(
       <TerminalProvider>
-        <MobileControlSheet onClose={() => {}} onOpenSettings={() => {}} />
+        <MobileControlSheet
+          onClose={() => {}}
+          onOpenSettings={() => {}}
+          onOpenPaste={() => {}}
+          onOpenFiles={() => {}}
+        />
       </TerminalProvider>,
     );
 

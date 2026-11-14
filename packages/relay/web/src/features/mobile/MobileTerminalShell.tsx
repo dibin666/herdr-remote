@@ -1,6 +1,8 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSettings } from '@/context/TerminalContext';
+import { useSettings, useTerminalIO } from '@/context/TerminalContext';
+import { FileListModal } from '@/features/files/FileListModal';
+import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
 import { MobileControlSheet } from './MobileControlSheet';
 import { MobileStatusBar } from './MobileStatusBar';
 import { useSheetDragClose } from './sheetDrag';
@@ -20,7 +22,13 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
   onAddProfile = () => {},
 }) => {
   const { t } = useSettings();
+  const { sendKey } = useTerminalIO();
   const [isOpen, setIsOpen] = useState(false);
+  /* The dialogs the sheet's quick actions open. They are kept here, not in the
+     sheet, so the sheet can get out of the way when one opens: left up, it
+     covered the terminal the paste had just gone into. */
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
 
   const close = useCallback(() => setIsOpen(false), []);
 
@@ -100,6 +108,14 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
                 close();
                 onOpenSettings();
               }}
+              onOpenPaste={() => {
+                close();
+                setPasteOpen(true);
+              }}
+              onOpenFiles={() => {
+                close();
+                setFilesOpen(true);
+              }}
             />
           </div>
         </>
@@ -109,6 +125,13 @@ export const MobileTerminalShell: React.FC<MobileTerminalShellProps> = ({
         onOpenMenu={() => setIsOpen(true)}
         menuOpen={isOpen}
       />
+      <PasteFallbackModal
+        isOpen={pasteOpen}
+        allowImage={false}
+        onClose={() => setPasteOpen(false)}
+        onSend={(text) => sendKey(text)}
+      />
+      <FileListModal isOpen={filesOpen} onClose={() => setFilesOpen(false)} />
     </>
   );
 };

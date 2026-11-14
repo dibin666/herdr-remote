@@ -169,7 +169,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fetchStatus, onBackToTerminal, tabKey]);
 
-  const version = relayInfo?.version || data?.version || '0.1.0';
+  const version = relayInfo?.version || data?.version;
 
   const toolbarStart =
     showBack && onBackToTerminal ? (
@@ -191,8 +191,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const toolbarAside = (
     <>
       <span className="hidden items-center gap-1.5 whitespace-nowrap text-tui-sm sm:flex">
-        <span className="text-tui-faint">v{version}</span>
-        <Sep />
+        {/* Nothing rather than a made-up number while the relay has not said. */}
+        {version ? (
+          <>
+            <span className="text-tui-faint">v{version}</span>
+            <Sep />
+          </>
+        ) : null}
         <span className={isRemoteRelay ? 'text-tui-alt' : 'text-tui-ok'}>
           {isRemoteRelay ? t('admin.modeRemote') : t('admin.localWorkstationBadge')}
         </span>
