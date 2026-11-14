@@ -125,7 +125,9 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     });
     fireEvent.click(virtualKeysTab);
 
-    expect(screen.getByText(/Custom Key Toolbar|自定义虚拟按键/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Custom Key Toolbar|自定义虚拟按键/i }),
+    ).toBeInTheDocument();
 
     // Toggle ESC key checkbox
     const escCheckbox = document.querySelector('#toggle-esc');
@@ -182,7 +184,8 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
   });
 
   it('resets virtual keys to default layout', async () => {
-    saveSettings({ virtualKeys: [] });
+    // A layout of the user's own: the default one with Esc taken off.
+    saveSettings({ virtualKeys: getDefaultVirtualKeys().filter((k) => k.id !== 'esc') });
 
     render(
       <TerminalProvider>
@@ -195,8 +198,10 @@ describe('Virtual Keyboard Customization (Requirement 5)', () => {
     });
     fireEvent.click(virtualKeysTab);
 
-    const resetBtn = screen.getByRole('button', { name: /^Reset to Default$|恢复默认布局/i });
-    fireEvent.click(resetBtn);
+    // No undo, so the first press only asks.
+    fireEvent.click(screen.getByRole('button', { name: /^Reset to Default$|恢复默认布局/i }));
+    expect(loadSettings().virtualKeys.some((k) => k.id === 'esc')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /Press again to confirm|再次点击确认/i }));
 
     const settings = loadSettings();
     expect(settings.virtualKeys.length).toBe(getDefaultVirtualKeys().length);

@@ -72,4 +72,15 @@ describe('AddHostModal', () => {
     expect(loadSettings().profiles).toHaveLength(1);
     expect(screen.getByText('Enter a pairing code or device token.')).toBeInTheDocument();
   });
+
+  it('draws that warning above the dialog, not under its scrim', () => {
+    renderWithOwnHost();
+    fireEvent.click(screen.getByRole('button', { name: 'Pair & Connect' }));
+
+    const layer = (element: HTMLElement) =>
+      Number(/(?:^|\s)z-\[?(\d+)\]?/.exec(element.className)?.[1] ?? 0);
+    expect(layer(screen.getByTestId('toast-container'))).toBeGreaterThan(
+      layer(screen.getByRole('dialog')),
+    );
+  });
 });

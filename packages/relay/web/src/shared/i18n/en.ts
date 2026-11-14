@@ -202,10 +202,13 @@ export const en = {
     agentAlertSoundDesc: 'In the background; works after your next tap',
     agentAlertNotify: 'System notification',
     agentAlertNotifyDesc: 'In the background (HTTPS only)',
+    agentAlertNotifyDenied:
+      'This browser blocks notifications from this site. Allow them in its site settings, then switch this on again.',
     languageLabel: 'Language',
     languageHint: 'Shared by every instance',
     resetDefaults: 'Reset to Defaults',
     resetDefaultsConfirm: 'Press again to reset everything',
+    confirmAgain: 'Press again to confirm',
     resetDefaultsToast: 'Settings reset to defaults',
     fontSizeFollowHost: 'Same size as the workstation terminal ({size}px)',
     fontSizeFollowHostUnknown: 'Same size as the workstation terminal (not reported)',
@@ -246,7 +249,7 @@ export const en = {
     pinnedProfile: 'Pinned · {profile}',
     barGroup: 'Key bar',
     barHint:
-      'Tap to choose which {profile} shortcuts appear on the key bar ({count} shown); base keys are on the Virtual Keys tab.',
+      'Tap to choose which {profile} shortcuts appear on the key bar ({count} shown); base keys are under “Custom Key Toolbar” below.',
     restoreBar: 'Restore default keys',
     customizeBar: 'Choose which shortcuts the key bar shows',
     customizeBarShort: 'Custom',

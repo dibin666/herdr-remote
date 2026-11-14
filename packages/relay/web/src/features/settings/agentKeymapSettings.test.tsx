@@ -187,9 +187,12 @@ describe('Agent keymap settings', () => {
     expect(await screen.findAllByText('Run tests')).toHaveLength(2);
     expect(screen.getByTestId('agent-bar-choices')).toHaveTextContent('Alt+⏎Run tests');
     expect(screen.getAllByText('Alt+⏎').length).toBeGreaterThanOrEqual(2);
+    // It would take the custom key with it, so the first press only asks.
     fireEvent.click(
       screen.getByRole('button', { name: /Restore this agent defaults|恢复此智能体默认设置/i }),
     );
+    expect(loadSettings().agentKeymaps.claude).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: /Press again to confirm|再次点击确认/i }));
     await waitFor(() => expect(loadSettings().agentKeymaps.claude).toBeUndefined());
   });
 

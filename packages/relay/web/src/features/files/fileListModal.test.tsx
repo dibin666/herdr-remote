@@ -293,6 +293,89 @@ describe('file list dialog', () => {
     expect(screen.getByRole('menuitem', { name: 'Properties' })).toBeInTheDocument();
   });
 
+  it('keeps the listing up when a rename fails, with the reason above it', async () => {
+    const { getCtx, ws } = setupSession();
+    openDialog(getCtx, ws);
+    await screen.findByText('a-one.txt');
+
+    fireEvent.contextMenu(screen.getByText('a-one.txt'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    fireEvent.change(await screen.findByTestId('files-rename-input'), {
+      target: { value: 'b-two.txt' },
+    });
+    fireEvent.click(screen.getByTestId('files-rename-submit'));
+    const rename = sentMessages(ws, 'fs_rename_request').at(-1);
+    act(() => {
+      emitAdapterEvent(getCtx(), 'error', {
+        code: 'fs_exists',
+        message: 'exists',
+        requestId: rename.requestId,
+      });
+    });
+
+    expect(await screen.findByTestId('files-action-error')).toHaveTextContent(
+      'A file with that name already exists.',
+    );
+    // Still where it was: no error page, no trip back to the terminal's directory.
+    expect(screen.queryByTestId('files-error')).toBeNull();
+    expect(screen.getByText('a-one.txt')).toBeInTheDocument();
+    expect(screen.getByText('/home/user/project')).toBeInTheDocument();
+  });
+
+  it('stays on the listing it came from when a directory cannot be opened', async () => {
+    const { getCtx, ws } = setupSession();
+    openDialog(getCtx, ws);
+    await screen.findByText('docs/');
+
+    fireEvent.doubleClick(screen.getByText('docs/'));
+    const into = sentMessages(ws, 'fs_list_request').at(-1);
+    act(() => {
+      emitAdapterEvent(getCtx(), 'error', {
+        code: 'fs_list_failed',
+        message: 'permission denied',
+        requestId: into.requestId,
+      });
+    });
+
+    expect(await screen.findByTestId('files-action-error')).toBeInTheDocument();
+    expect(screen.getByText('docs/')).toBeInTheDocument();
+    expect(screen.getByText('/home/user/project')).toBeInTheDocument();
+  });
+
+  it('does not enter a directory when the finger lifts from a long press on it', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(pointer: coarse)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    const { getCtx, ws } = setupSession();
+    openDialog(getCtx, ws);
+    const row = (await screen.findByText('docs/')).closest('tr') as HTMLElement;
+    const listed = sentMessages(ws, 'fs_list_request').length;
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.touchStart(row, { touches: [{ clientX: 40, clientY: 80 }] });
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      // iOS ends a long press with a click on whatever was under the finger.
+      fireEvent.touchEnd(row);
+      fireEvent.click(row);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(sentMessages(ws, 'fs_list_request')).toHaveLength(listed);
+  });
+
   it('shows the host error when the listing fails', async () => {
     const { getCtx, ws } = setupSession();
     fireEvent.click(screen.getByTestId('file-list-btn'));

@@ -39,7 +39,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onPairedSuccess 
   const submitPair = (codeOverride?: string) => {
     const code = (codeOverride ?? pairCodeInput).trim().toUpperCase();
     if (!code && !token.trim()) {
-      addToast('warning', t('toasts.connectionError'));
+      addToast('warning', t('pairing.credentialsRequired'));
       return;
     }
 

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useConnection, useSettings } from '@/context/TerminalContext';
 import { formatComboCaption, KeyComboError, parseKeyCombo } from '@/shared/keys/keyCombo';
 import {
@@ -26,6 +26,7 @@ import {
 } from '@/shared/ui';
 import { AGENT_ROW_GRID, COMPACT, COMPACT_FIELD, CONTROL_FIELD, DANGER_GHOST } from './styles';
 import { KeyComboPicker } from './KeyComboPicker';
+import { useArmedAction } from './useArmedAction';
 
 type ComboPickerTarget =
   | { kind: 'custom'; value: string }
@@ -101,11 +102,16 @@ export const AgentKeymapsTab: React.FC<{
 
   const restoreBarVisibility = () => saveAgentKeymaps(clearBarVisibility(profileOverrides));
 
-  const restoreAgentProfile = () => {
+  // Takes the rebound shortcuts and every custom one with it, so it is
+  // pressed twice — and never carried over to another agent's list.
+  const restoreProfile = useArmedAction(() => {
     const next = { ...settings.agentKeymaps };
     delete next[keymapProfile];
     updateSettings({ agentKeymaps: next });
-  };
+  });
+  const disarmRestore = restoreProfile.disarm;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the agent shown is what an armed press was aimed at
+  useEffect(() => disarmRestore(), [keymapProfile, disarmRestore]);
 
   const addCustomAgentAction = () => {
     const label = customLabel.trim();
@@ -167,10 +173,10 @@ export const AgentKeymapsTab: React.FC<{
         aside={
           <Button
             variant="ghost"
-            onClick={restoreAgentProfile}
+            onClick={restoreProfile.press}
             className={cn(DANGER_GHOST, COMPACT)}
           >
-            {t('agentKeymaps.restoreProfile')}
+            {restoreProfile.armed ? t('settings.confirmAgain') : t('agentKeymaps.restoreProfile')}
           </Button>
         }
       >

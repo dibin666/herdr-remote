@@ -10,6 +10,7 @@ import {
 } from '@/features/keyboard/virtualKeys';
 import { Button, GLYPH, IconButton, KeyCap, SettingSection, Toggle } from '@/shared/ui';
 import { COMPACT, CONTROL_FIELD, DANGER_GHOST, toggleWords } from './styles';
+import { useArmedAction } from './useArmedAction';
 
 /** Which keys the touch toolbar shows, in which order. */
 export const VirtualKeysTab: React.FC = () => {
@@ -63,22 +64,19 @@ export const VirtualKeysTab: React.FC = () => {
     updateSettings({ virtualKeys: updated });
   };
 
-  const handleResetVirtualKeys = () => {
+  // A layout built key by key is gone in one press, so it takes two.
+  const resetLayout = useArmedAction(() => {
     updateSettings({ virtualKeys: getDefaultVirtualKeys() });
     addToast('info', t('toasts.keyLayoutReset'));
-  };
+  });
 
   return (
     <div className="space-y-3">
       <SettingSection
         title={t('virtualKeyboard.customizeTitle')}
         aside={
-          <Button
-            variant="ghost"
-            onClick={handleResetVirtualKeys}
-            className={cn(DANGER_GHOST, COMPACT)}
-          >
-            {t('virtualKeyboard.resetLayout')}
+          <Button variant="ghost" onClick={resetLayout.press} className={cn(DANGER_GHOST, COMPACT)}>
+            {resetLayout.armed ? t('settings.confirmAgain') : t('virtualKeyboard.resetLayout')}
           </Button>
         }
       >

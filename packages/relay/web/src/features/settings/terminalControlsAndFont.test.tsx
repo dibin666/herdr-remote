@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { ToastContainer } from '@/app/ToastContainer';
 import { TerminalProvider, useTerminal } from '@/context/TerminalContext';
 import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { SettingsModal } from './SettingsModal';
@@ -267,6 +268,44 @@ describe('Role Control, Takeover, and Terminal Typography', () => {
     expect(loadSettings().predictiveEcho).toBe('always');
     fireEvent.click(screen.getByRole('button', { name: /reset everything/i }));
     expect(loadSettings().predictiveEcho).toBe('auto');
+  });
+
+  it('resets everything the dialog can change, as its second press promises', () => {
+    saveSettings({
+      touchKeyboardTrigger: 'button',
+      agentKeymaps: { claude: { actions: { interrupt: { keys: 'ctrl+x' } } } },
+    });
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} />
+      </TerminalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Reset to Defaults/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reset everything/i }));
+
+    expect(loadSettings().touchKeyboardTrigger).toBe('tap');
+    expect(loadSettings().agentKeymaps).toEqual({});
+  });
+
+  it('says why system notifications stayed off when the browser refuses them', async () => {
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('Notification', {
+      permission: 'denied',
+      requestPermission: () => Promise.resolve('denied'),
+    });
+    render(
+      <TerminalProvider>
+        <SettingsModal isOpen={true} onClose={() => {}} />
+        <ToastContainer />
+      </TerminalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'System notification' }));
+
+    expect(await screen.findByText(/blocks notifications from this site/i)).toBeInTheDocument();
+    expect(loadSettings().agentAlertNotify).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('never cuts a choice short: a cell is at least as wide as its words', () => {

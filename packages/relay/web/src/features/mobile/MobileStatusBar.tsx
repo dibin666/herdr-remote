@@ -1,6 +1,8 @@
 import type React from 'react';
 import { useSettings, useConnection } from '@/context/TerminalContext';
+import { describeConnection } from '@/connection/connectionStatus';
 import { cn } from '@/shared/lib/cn';
+import { TONE } from '@/shared/ui';
 import { AgentInbox } from '@/features/agents/AgentInbox';
 import { HostSwitcher } from '@/features/pairing/HostSwitcher';
 import { UpdateChip } from '@/features/status/UpdateNotice';
@@ -23,12 +25,16 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({
   menuOpen,
 }) => {
   const { t } = useSettings();
-  const { rttMs, isController } = useConnection();
+  const { rttMs, isController, connectionState, connect } = useConnection();
+  const connected = connectionState === 'connected';
+  const status = describeConnection(connectionState, t);
 
   return (
     <footer
       data-testid="mobile-status-bar"
-      role="status"
+      // A toolbar, not a live region: it holds buttons, and as `status` every
+      // latency tick was read out over whatever the terminal was saying.
+      role="toolbar"
       aria-label={t('mobile.statusBarAria')}
       className="absolute inset-x-0 bottom-0 z-40 flex h-11 shrink-0 items-center gap-2 border-t border-tui-border bg-tui-mantle px-1 text-tui-sm"
     >
@@ -44,20 +50,43 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({
       */}
       <AgentInbox compact />
       <UpdateChip compact />
-      {!isController && (
+      {/* A role only means something while there is a session to hold it in;
+          with none, every window is a "viewer" and the word would be a lie. */}
+      {connected && !isController && (
         <span className="shrink-0 px-1 font-bold uppercase text-tui-warn">
           {t('common.viewer')}
         </span>
       )}
-      <span
-        className="flex shrink-0 items-center gap-1 px-1 text-tui-muted"
-        title={t('header.latencyTitle')}
-      >
-        <span className="text-tui-faint">RTT</span>
-        <span className={cn(rttMs === null ? 'text-tui-faint' : 'text-tui-text')}>
-          {rttMs === null ? '—' : `${rttMs}ms`}
+      {connected ? (
+        <span
+          className="flex shrink-0 items-center gap-1 px-1 text-tui-muted"
+          title={t('header.latencyTitle')}
+        >
+          <span className="text-tui-faint">RTT</span>
+          <span className={cn(rttMs === null ? 'text-tui-faint' : 'text-tui-text')}>
+            {rttMs === null ? '—' : `${rttMs}ms`}
+          </span>
         </span>
-      </span>
+      ) : (
+        /* The phone has no banner row, so a dropped session is said here, in
+           words, with the way back under the same thumb — not left to the
+           colour of a dot beside a latency that will never arrive. */
+        <button
+          type="button"
+          data-testid="mobile-connection-state"
+          onClick={() => connect()}
+          disabled={!status.actionLabel}
+          title={status.actionLabel}
+          aria-label={status.actionLabel ? `${status.label} — ${status.actionLabel}` : status.label}
+          className={cn(
+            'tui-focusable flex h-9 shrink-0 select-none items-center gap-1 px-1 font-bold uppercase',
+            TONE[status.level].text,
+          )}
+        >
+          <span>{status.label}</span>
+          {status.actionLabel ? <span aria-hidden="true">↻</span> : null}
+        </button>
+      )}
       <button
         type="button"
         data-testid="mobile-chrome-trigger"

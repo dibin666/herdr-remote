@@ -3,8 +3,6 @@ import { useRef, useState } from 'react';
 import { useSettings, useConnection, useToasts, useTerminalIO } from '@/context/TerminalContext';
 import { ControlModeSwitch } from '@/features/status/ControlModeSwitch';
 import { describeConnection } from '@/connection/connectionStatus';
-import { FileListModal } from '@/features/files/FileListModal';
-import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
 import { UploadFileInputs } from '@/features/keyboard/UploadControls';
 import { cn } from '@/shared/lib/cn';
 import { translate } from '@/shared/i18n';
@@ -14,6 +12,9 @@ import { useCopyFeedback } from '@/context/useCopyFeedback';
 export interface MobileControlSheetProps {
   onClose: () => void;
   onOpenSettings: () => void;
+  /** Open the paste box / the file list. Both outlive the sheet, so the shell owns them. */
+  onOpenPaste: () => void;
+  onOpenFiles: () => void;
 }
 
 /**
@@ -36,19 +37,19 @@ const quickCellClass =
 export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
   onClose,
   onOpenSettings,
+  onOpenPaste,
+  onOpenFiles,
 }) => {
   const { settings, updateSettings, language, setLanguage, t } = useSettings();
   const { connectionState, stateDetail, rttMs, hostId, assignedClientId, isController, connect } =
     useConnection();
-  const { sendKey, warnViewerMode } = useTerminalIO();
+  const { warnViewerMode } = useTerminalIO();
   const { addToast } = useToasts();
 
   const { copied, copy } = useCopyFeedback();
   const copiedClientId = copied !== null;
   const status = describeConnection(connectionState, t);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [filesOpen, setFilesOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const anyFileInputRef = useRef<HTMLInputElement | null>(null);
   const displayedClientId = assignedClientId || settings.clientId;
@@ -74,36 +75,25 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
     ref.current?.click();
   };
 
-  const detailRow = (label: string, value: string, copyable = false) => (
-    <button
-      key={label}
-      type="button"
-      onClick={copyable ? copyClientId : undefined}
-      className={cn(
-        'flex w-full items-baseline gap-2 text-left text-tui-sm',
-        copyable && 'tui-focusable',
-      )}
-      title={copyable ? t('header.copyClientIdTitle') : undefined}
-      tabIndex={copyable ? 0 : -1}
-    >
+  const detailRowClass = 'flex w-full items-baseline gap-2 text-left text-tui-sm';
+  const detailWords = (label: string, value: string) => (
+    <>
       <span className="shrink-0 text-tui-faint" style={{ width: '9ch' }}>
         {label}
       </span>
       <span className="min-w-0 flex-1 truncate text-tui-muted">{value}</span>
-      {copyable ? (
-        <span
-          aria-hidden="true"
-          className={cn('shrink-0', copiedClientId ? 'text-tui-ok' : 'text-tui-faint')}
-        >
-          {copiedClientId ? GLYPH.check : '⧉'}
-        </span>
-      ) : null}
-    </button>
+    </>
   );
 
   return (
     <div className="flex flex-col gap-3 px-3 pb-2 pt-1">
-      <UploadFileInputs fileInputRef={fileInputRef} anyFileInputRef={anyFileInputRef} />
+      {/* The sheet steps aside once a file is chosen, so the upload's progress
+          and the terminal it lands in are what is on screen. */}
+      <UploadFileInputs
+        fileInputRef={fileInputRef}
+        anyFileInputRef={anyFileInputRef}
+        onPicked={onClose}
+      />
       <div className="flex items-center justify-between gap-2 border-b border-tui-border pb-1.5">
         <h2 className="text-tui font-bold uppercase text-tui-accent">
           {t('mobile.sessionControls')}
@@ -139,7 +129,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         <button
           type="button"
           className={quickCellClass}
-          onClick={() => (isController ? setPasteOpen(true) : warnViewerMode())}
+          onClick={() => (isController ? onOpenPaste() : warnViewerMode())}
         >
           {t('clipboard.paste')}
         </button>
@@ -162,7 +152,7 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           <button
             type="button"
             className="tui-focusable ml-auto flex h-11 items-center px-2 text-tui text-tui-muted hover:text-tui-accent"
-            onClick={() => (isController ? setFilesOpen(true) : warnViewerMode())}
+            onClick={() => (isController ? onOpenFiles() : warnViewerMode())}
           >
             {t('virtualKeyboard.fileList')} ›
           </button>
@@ -221,8 +211,24 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
         </button>
         {detailsOpen && (
           <div className="space-y-1 border-l border-tui-border-dim pb-1 pl-2">
-            {hostId ? detailRow(t('common.host'), hostId) : null}
-            {detailRow(t('header.clientIdLabel').replace(/:$/, ''), displayedClientId, true)}
+            {/* Only the row that copies is a button; the host is just text. */}
+            {hostId ? (
+              <div className={detailRowClass}>{detailWords(t('common.host'), hostId)}</div>
+            ) : null}
+            <button
+              type="button"
+              onClick={copyClientId}
+              className={cn(detailRowClass, 'tui-focusable')}
+              title={t('header.copyClientIdTitle')}
+            >
+              {detailWords(t('header.clientIdLabel').replace(/:$/, ''), displayedClientId)}
+              <span
+                aria-hidden="true"
+                className={cn('shrink-0', copiedClientId ? 'text-tui-ok' : 'text-tui-faint')}
+              >
+                {copiedClientId ? GLYPH.check : '⧉'}
+              </span>
+            </button>
           </div>
         )}
 
@@ -238,14 +244,6 @@ export const MobileControlSheet: React.FC<MobileControlSheetProps> = ({
           </span>
         </button>
       </Panel>
-
-      <PasteFallbackModal
-        isOpen={pasteOpen}
-        allowImage={false}
-        onClose={() => setPasteOpen(false)}
-        onSend={(text) => sendKey(text)}
-      />
-      <FileListModal isOpen={filesOpen} onClose={() => setFilesOpen(false)} />
     </div>
   );
 };

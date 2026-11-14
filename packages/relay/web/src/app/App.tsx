@@ -7,6 +7,7 @@ import { TerminalView } from '@/features/terminal/TerminalView';
 import { OnboardingView } from '@/features/pairing/OnboardingView';
 import { KeyToolbar } from '@/features/keyboard/KeyToolbar';
 import { nativeCopyField } from '@/features/terminal/nativeCopy';
+import { isEventFromFormInput } from '@/shared/keys/dialogEscape';
 import { AddHostModal } from '@/features/pairing/AddHostModal';
 import { SettingsModal, type SettingsTab } from '@/features/settings/SettingsModal';
 import { loadSettings } from '@/features/settings/storage';
@@ -18,7 +19,6 @@ import { HerdrStartPrompt } from '@/features/status/HerdrStartPrompt';
 import { HostFontPrompt } from '@/features/hostFont/HostFontPrompt';
 import { observeViewportMetrics } from './viewportMetrics';
 import { useMobileShell } from '@/features/mobile/mobileShell';
-import { attachWebUIShortcuts } from './shortcuts';
 import { applyDocumentTheme } from '@/features/terminal/theme';
 
 function AppContent() {
@@ -57,22 +57,6 @@ function AppContent() {
   useEffect(() => {
     applyDocumentTheme();
   }, []);
-
-  // Modal Escape key listener (scoped to open modals/sheets, strictly never intercepts Ctrl/Alt/Meta)
-  useEffect(() => {
-    const isAnyModalOpen = isAddHostOpen || isSettingsOpen;
-    if (!isAnyModalOpen) return;
-
-    return attachWebUIShortcuts(
-      {
-        onCloseModals: () => {
-          setIsAddHostOpen(false);
-          setIsSettingsOpen(false);
-        },
-      },
-      { isModalOpen: isAnyModalOpen },
-    );
-  }, [isAddHostOpen, isSettingsOpen]);
 
   // Detect URL path or hash (/admin or #admin) and query parameters on mount
   useEffect(() => {
@@ -200,7 +184,10 @@ function AppContent() {
       }
       className="flex h-full w-full select-none flex-col overflow-hidden bg-tui-crust font-mono text-tui text-tui-text"
       onContextMenu={(e) => {
-        if (nativeCopyField(e.target)) return;
+        // A field someone types into keeps the browser's menu — it is how a
+        // mouse pastes a token and how a long press pastes on a phone. Dialogs
+        // are portalled out of this element but still bubble through it.
+        if (nativeCopyField(e.target) || isEventFromFormInput(e.nativeEvent)) return;
         e.preventDefault();
         e.stopPropagation();
       }}

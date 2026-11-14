@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useState } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { PasteFallbackModal } from '@/features/paste/PasteFallbackModal';
@@ -33,6 +34,31 @@ describe('PasteFallbackModal', () => {
     fireEvent.click(send);
     expect(onSend).toHaveBeenCalledWith('pasted terminal command');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('opens empty again after sending, instead of offering the last paste twice', () => {
+    const Harness = () => {
+      const [open, setOpen] = useState(true);
+      return (
+        <TerminalProvider>
+          <button type="button" onClick={() => setOpen(true)}>
+            reopen
+          </button>
+          <PasteFallbackModal isOpen={open} onClose={() => setOpen(false)} onSend={vi.fn()} />
+        </TerminalProvider>
+      );
+    };
+    render(<Harness />);
+
+    fireEvent.change(screen.getByPlaceholderText('长按此处粘贴，然后按发送'), {
+      target: { value: 'hunter2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    expect(screen.queryByPlaceholderText('长按此处粘贴，然后按发送')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'reopen' }));
+    expect(screen.getByPlaceholderText('长按此处粘贴，然后按发送')).toHaveValue('');
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled();
   });
 
   it('does not render while closed', () => {

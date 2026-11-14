@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isEventFromTerminal, isEventFromFormInput, attachWebUIShortcuts } from './shortcuts';
+import { isEventFromTerminal, isEventFromFormInput, attachWebUIShortcuts } from './dialogEscape';
 
 describe('WebUI Shortcuts Non-Conflict Isolation & Safety', () => {
   beforeEach(() => {
@@ -166,6 +166,26 @@ describe('WebUI Shortcuts Non-Conflict Isolation & Safety', () => {
     // Escape inside terminal passes to PTY without closing modals or preventing default
     expect(actions.onCloseModals).not.toHaveBeenCalled();
     expect(preventDefaultSpy).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('leaves the Escape that cancels an IME composition to the input method', () => {
+    const actions = { onCloseModals: vi.fn() };
+    const cleanup = attachWebUIShortcuts(actions, { isModalOpen: true });
+
+    const field = document.createElement('textarea');
+    document.body.appendChild(field);
+    const composing = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+    });
+    field.dispatchEvent(composing);
+
+    expect(actions.onCloseModals).not.toHaveBeenCalled();
+    expect(composing.defaultPrevented).toBe(false);
 
     cleanup();
   });

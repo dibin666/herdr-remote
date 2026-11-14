@@ -80,6 +80,10 @@ export function attachWebUIShortcuts(
       return;
     }
 
+    // An Escape that cancels an IME composition is the input method's, not
+    // the dialog's: closing on it threw away the text being composed.
+    if (e.isComposing) return;
+
     // If an open modal/sheet exists and Escape was pressed outside the terminal, close it
     if (e.key === 'Escape' && (options.isModalOpen || options.isSheetOpen)) {
       if (!isEventFromTerminal(e)) {

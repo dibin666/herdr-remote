@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { ToastContainer } from '@/app/ToastContainer';
 import { TerminalProvider } from '@/context/TerminalContext';
 import { OnboardingView } from './OnboardingView';
 import { SettingsModal } from '@/features/settings/SettingsModal';
@@ -52,6 +53,19 @@ describe('Onboarding UX and Herdr Dark Theme System', () => {
     // Verifies pairing code input and connect CTA
     expect(screen.getByLabelText(/6-character Pairing Code/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Connect & Pair/i })).toBeInTheDocument();
+  });
+
+  it('asks for a code when submitted empty, rather than reporting a connection error', () => {
+    render(
+      <TerminalProvider>
+        <OnboardingView />
+        <ToastContainer />
+      </TerminalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Connect & Pair/i }));
+    expect(screen.getByText('Enter a pairing code or device token.')).toBeInTheDocument();
+    expect(screen.queryByText('Connection error')).toBeNull();
   });
 
   it('copies pairing command to clipboard with visual feedback', async () => {

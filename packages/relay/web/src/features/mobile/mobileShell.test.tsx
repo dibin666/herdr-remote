@@ -219,6 +219,16 @@ describe('Phone shell shows the agent terminal and nothing else', () => {
     expect(statusBar).toContainElement(
       screen.getByRole('button', { name: 'Switch Herdr instance' }),
     );
+    // Still connecting: the bar says so in words, and claims neither a role
+    // nor a latency for a session that is not up yet.
+    expect(within(statusBar).getByTestId('mobile-connection-state')).toHaveTextContent(
+      'Connecting',
+    );
+    expect(statusBar).not.toHaveTextContent('RTT');
+    expect(statusBar).not.toHaveTextContent(/viewer/i);
+
+    openSession('controller');
+    expect(within(statusBar).queryByTestId('mobile-connection-state')).toBeNull();
     expect(statusBar).toHaveTextContent('RTT');
     expect(statusBar).toHaveTextContent('—');
 
@@ -434,6 +444,39 @@ describe('Phone control sheet', () => {
 
     const sheet = await openSheet();
     expect(within(sheet).getByText(/3 windows/i)).toBeInTheDocument();
+  });
+
+  it('steps aside for the paste box, so the terminal is what is left when it closes', async () => {
+    await renderPhoneApp();
+    openSession('controller');
+    const sheet = await openSheet();
+
+    await act(async () => {
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Paste' }));
+    });
+
+    expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
+    const box = screen.getByTestId('paste-fallback-input');
+    fireEvent.change(box, { target: { value: 'ls' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(screen.queryByTestId('paste-fallback-input')).toBeNull();
+    expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
+  });
+
+  it('closes once a file has been chosen to upload', async () => {
+    await renderPhoneApp();
+    openSession('controller');
+    const sheet = await openSheet();
+
+    const input = within(sheet).getByTestId('key-toolbar-any-file-input');
+    await act(async () => {
+      fireEvent.change(input, {
+        target: { files: [new File(['hello'], 'notes.txt', { type: 'text/plain' })] },
+      });
+    });
+
+    expect(screen.queryByTestId('mobile-control-sheet')).toBeNull();
   });
 
   it('closes when the terminal area is tapped, handing input back to the terminal', async () => {

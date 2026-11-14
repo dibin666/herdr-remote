@@ -196,10 +196,13 @@ export const zh: TranslationSchema = {
     agentAlertSoundDesc: '页面在后台时播放，下次点击后生效',
     agentAlertNotify: '系统通知',
     agentAlertNotifyDesc: '页面在后台时通知（仅 HTTPS）',
+    agentAlertNotifyDenied:
+      '浏览器已禁止此网站发送通知。请在浏览器的网站设置中允许后，再打开此开关。',
     languageLabel: '显示语言',
     languageHint: '所有实例共用',
     resetDefaults: '恢复默认设置',
     resetDefaultsConfirm: '再次点击确认全部恢复',
+    confirmAgain: '再次点击确认',
     resetDefaultsToast: '设置已恢复默认',
     fontSizeFollowHost: '与宿主机终端同字号（{size}px）',
     fontSizeFollowHostUnknown: '与宿主机终端同字号（宿主机未报告）',
@@ -240,7 +243,7 @@ export const zh: TranslationSchema = {
     pinnedProfile: '固定 · {profile}',
     barGroup: '按键栏显示',
     barHint:
-      '点选要在按键栏显示的 {profile} 快捷键（已显示 {count} 个）；ESC、方向键在「虚拟按键」页。',
+      '点选要在按键栏显示的 {profile} 快捷键（已显示 {count} 个）；ESC、方向键在下方的「自定义虚拟按键」里。',
     restoreBar: '恢复默认显示',
     customizeBar: '自定义按键栏显示哪些快捷键',
     customizeBarShort: '自定义',
